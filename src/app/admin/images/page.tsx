@@ -96,11 +96,9 @@ export default function ImagesPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {/* Image 1 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Hero Banner"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Hero Banner</p>
@@ -114,11 +112,9 @@ export default function ImagesPage() {
 
                 {/* Image 2 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Business Meeting"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Business Meeting</p>
@@ -132,11 +128,9 @@ export default function ImagesPage() {
 
                 {/* Image 3 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1551434678-e076c223a692?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Team Collaboration"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Team Collaboration</p>
@@ -150,11 +144,9 @@ export default function ImagesPage() {
 
                 {/* Image 4 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Modern Office"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Modern Office</p>
@@ -168,11 +160,9 @@ export default function ImagesPage() {
 
                 {/* Image 5 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1515378791036-0648a814c963?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Creative Workspace"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Creative Workspace</p>
@@ -186,11 +176,9 @@ export default function ImagesPage() {
 
                 {/* Image 6 */}
                 <div className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                  <img
-                    src="https://images.unsplash.com/photo-1486312338219-ce68e2c6b7bb?w=300&h=300&fit=crop&crop=entropy&auto=format"
-                    alt="Technology"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="text-white text-center text-sm">
                       <p className="font-medium">Technology</p>
@@ -209,12 +197,8 @@ export default function ImagesPage() {
               {/* Image 1 */}
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=100&h=100&fit=crop&crop=entropy&auto=format"
-                      alt="Hero Banner"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h4 className="font-medium">Hero Banner</h4>
@@ -230,12 +214,8 @@ export default function ImagesPage() {
               {/* Image 2 */}
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=100&h=100&fit=crop&crop=entropy&auto=format"
-                      alt="Business Meeting"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h4 className="font-medium">Business Meeting</h4>
@@ -251,12 +231,8 @@ export default function ImagesPage() {
               {/* Image 3 */}
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src="https://images.unsplash.com/photo-1551434678-e076c223a692?w=100&h=100&fit=crop&crop=entropy&auto=format"
-                      alt="Team Collaboration"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h4 className="font-medium">Team Collaboration</h4>
@@ -272,19 +248,15 @@ export default function ImagesPage() {
               {/* Image 4 */}
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=100&h=100&fit=crop&crop=entropy&auto=format"
-                      alt="Modern Office"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h4 className="font-medium">Modern Office</h4>
                     <p className="text-sm text-muted-foreground">modern-office.jpg • 2.7 MB</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Used in 2 sites</span>
                   <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Used</span>
                 </div>
@@ -293,12 +265,8 @@ export default function ImagesPage() {
               {/* Image 5 */}
               <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src="https://images.unsplash.com/photo-1486312338219-ce68e2c6b7bb?w=100&h=100&fit=crop&crop=entropy&auto=format"
-                      alt="Technology"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div>
                     <h4 className="font-medium">Technology</h4>
