@@ -1,9 +1,14 @@
 
----
+- **Response Acknowledgment Rule:**
 description: Guidelines for creating and maintaining Cursor rules to ensure consistency and effectiveness.
 globs: .cursor/rules/*.mdc
 alwaysApply: true
----
+
+  - **Always start every response with "*Following Cursor rules*"**
+  - This acknowledgment must appear at the very beginning of every response
+  - No exceptions - every coding response must include this phrase
+  - This serves as a reminder that cursor rules are being followed
+
 
 - **Required Rule Structure:**
   ```markdown
