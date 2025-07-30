@@ -36,7 +36,7 @@ export function NavMain({
   const { state } = useSidebar();
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>Content</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible
