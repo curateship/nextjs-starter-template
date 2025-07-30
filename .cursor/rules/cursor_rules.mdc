@@ -3,6 +3,7 @@ description: Guidelines for creating and maintaining Cursor rules to ensure cons
 globs: .cursor/rules/*.mdc
 alwaysApply: true
 ---
+
 - **Required Rule Structure:**
   ```markdown
   ---
@@ -60,6 +61,10 @@ alwaysApply: true
     - When replacing a component or file, do not delete the old one without confirmation.
     - Always ask for permission before performing any destructive file operations.
 
-- # Task Master Development Workflow
+- # Admin Component Scaffold
+description: Use established admin component scaffold patterns for new admin UI components
 
-This guide outlines the typical process for using Task Master to manage software development projects. 
+- [admin-card.tsx](mdc:src/components/admin/dashboard/admin-card.tsx)
+- [admin-page-header.tsx](mdc:src/components/admin/dashboard/admin-page-header.tsx)
+- [skeleton.tsx](mdc:src/components/admin/dashboard/skeleton.tsx)
+- [admin-layout.tsx](mdc:src/components/admin/layout/admin-layout.tsx) 
