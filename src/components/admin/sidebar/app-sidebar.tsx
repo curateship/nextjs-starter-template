@@ -4,6 +4,8 @@ import * as React from "react"
 import {
   Package,
   FileText,
+  Globe,
+  Users,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/sidebar/nav-main"
@@ -65,7 +67,18 @@ const data = {
       ],
     },
   ],
-  projects: [],
+  projects: [
+    {
+      name: "Multi-sites",
+      url: "/admin/sites",
+      icon: Globe,
+    },
+    {
+      name: "Users",
+      url: "/admin/users",
+      icon: Users,
+    },
+  ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
