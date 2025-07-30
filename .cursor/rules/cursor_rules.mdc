@@ -1,8 +1,3 @@
----
-description: Guidelines for creating and maintaining Cursor rules to ensure consistency and effectiveness.
-globs: .cursor/rules/*.mdc
-alwaysApply: true
----
 
 - **Required Rule Structure:**
   ```markdown
@@ -67,4 +62,11 @@ description: Use established admin component scaffold patterns for new admin UI 
 - [admin-card.tsx](mdc:src/components/admin/dashboard/admin-card.tsx)
 - [admin-page-header.tsx](mdc:src/components/admin/dashboard/admin-page-header.tsx)
 - [skeleton.tsx](mdc:src/components/admin/dashboard/skeleton.tsx)
-- [admin-layout.tsx](mdc:src/components/admin/layout/admin-layout.tsx) 
+- [admin-layout.tsx](mdc:src/components/admin/layout/admin-layout.tsx)
+
+- # Content Type Block Pattern
+description: Use content type block patterns for admin content management components
+
+- **Structure:** `src/components/admin/content-type/{content-type}/BasicBlock.tsx`
+- **Pattern:** Controlled components with onChange handlers
+- **Example:** [BasicBlock.tsx](mdc:src/components/admin/content-type/products/BasicBlock.tsx) 
