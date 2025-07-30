@@ -16,6 +16,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/admin/sidebar/sidebar"
 
 export function NavMain({
@@ -32,6 +33,7 @@ export function NavMain({
     }[]
   }[]
 }) {
+  const { state } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
@@ -50,11 +52,13 @@ export function NavMain({
                     <span>{item.title}</span>
                   </a>
                 </SidebarMenuButton>
-                <CollapsibleTrigger asChild>
-                  <button className="p-2 hover:bg-muted rounded-md">
-                    <ChevronRight className="w-4 h-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  </button>
-                </CollapsibleTrigger>
+                {state === "expanded" && (
+                  <CollapsibleTrigger asChild>
+                    <button className="p-2 hover:bg-muted rounded-md">
+                      <ChevronRight className="w-4 h-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </button>
+                  </CollapsibleTrigger>
+                )}
               </div>
               <CollapsibleContent>
                 <SidebarMenuSub>
