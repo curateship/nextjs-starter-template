@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   Package,
+  FileText,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/sidebar/nav-main"
@@ -45,6 +46,21 @@ const data = {
         {
           title: "Categories",
           url: "/admin/products/categories",
+        },
+      ],
+    },
+    {
+      title: "Posts",
+      url: "/admin/posts",
+      icon: FileText,
+      items: [
+        {
+          title: "All Posts",
+          url: "/admin/posts",
+        },
+        {
+          title: "Categories",
+          url: "/admin/posts/categories",
         },
       ],
     },
