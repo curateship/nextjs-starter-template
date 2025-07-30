@@ -1,0 +1,108 @@
+# Admin Component Import Standardization
+
+## **Centralized Admin Component Management**
+
+All admin-specific components must be imported and re-exported through `src/components/admin/layout/admin-layout.tsx` to maintain consistency and reduce import complexity.
+
+### **✅ DO: Import from admin-layout.tsx**
+
+```typescript
+// ✅ CORRECT: Import admin components from admin-layout
+import { AdminLayout, AdminPageHeader, AdminCard, BasicBlock } from "@/components/admin/layout/admin-layout"
+```
+
+### **❌ DON'T: Import admin components individually**
+
+```typescript
+// ❌ INCORRECT: Importing admin components individually
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
+import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+```
+
+## **Implementation Requirements**
+
+### **1. Admin Layout File Structure**
+- **Location**: `src/components/admin/layout/admin-layout.tsx`
+- **Purpose**: Central import/export hub for all admin components
+- **Pattern**: Import all admin components and re-export them
+
+```typescript
+// src/components/admin/layout/admin-layout.tsx
+import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
+import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+
+// ... AdminLayout component ...
+
+// Re-export admin components
+export { AdminPageHeader, AdminCard, BasicBlock }
+```
+
+### **2. Admin Page Import Pattern**
+- **Single Import**: All admin components from one source
+- **Clean Dependencies**: No direct imports from admin subdirectories
+- **Consistent Pattern**: All admin pages follow the same import structure
+
+```typescript
+// ✅ Standard admin page import pattern
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+```
+
+### **3. Component Organization**
+- **Generic Components**: Keep in `src/components/ui/` (no admin dependencies)
+- **Admin Components**: Import through `admin-layout.tsx` only
+- **Page Components**: Import admin components from centralized location
+
+## **Benefits**
+
+- **Centralized Management**: All admin components managed in one place
+- **Cleaner Imports**: Admin pages only need one import statement
+- **Easier Maintenance**: Adding new admin components only requires updating admin-layout.tsx
+- **Better Organization**: Clear separation between admin-specific and generic components
+- **Consistency**: All admin pages follow the same import pattern
+
+## **When Adding New Admin Components**
+
+1. **Create the component** in appropriate admin subdirectory
+2. **Import it** in `admin-layout.tsx`
+3. **Re-export it** from `admin-layout.tsx`
+4. **Use it** in admin pages by importing from `admin-layout.tsx`
+
+## **Examples from Codebase**
+
+### **✅ Products Listing Page**
+```typescript
+// src/app/admin/products/page.tsx
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+```
+
+### **✅ Create Product Page**
+```typescript
+// src/app/admin/products/new/page.tsx
+import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/layout/admin-layout"
+```
+
+### **✅ Admin Layout File**
+```typescript
+// src/components/admin/layout/admin-layout.tsx
+import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
+import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+
+// ... AdminLayout component ...
+
+export { AdminPageHeader, AdminCard, BasicBlock }
+```
+
+## **Maintenance**
+
+- **Adding Components**: Import and re-export in `admin-layout.tsx`
+- **Removing Components**: Remove from both import and re-export in `admin-layout.tsx`
+- **Updating Components**: No changes needed to admin pages, only to the component itself
+- **New Admin Pages**: Always import admin components from `admin-layout.tsx`
+description:
+globs:
+alwaysApply: false
+---

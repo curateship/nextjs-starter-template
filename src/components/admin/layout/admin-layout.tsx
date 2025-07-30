@@ -2,11 +2,11 @@
 
 import { AppSidebar } from "@/components/admin/sidebar/app-sidebar"
 import { StickyHeader } from "@/components/admin/dashboard/sticky-header"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/admin/sidebar/sidebar"
+import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
+import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/sidebar/sidebar"
+
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -28,10 +28,13 @@ export function AdminLayout({
         
 
         
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-6 items-center justify-center">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-6">
           {children}
         </div>
       </SidebarInset>
     </SidebarProvider>
   )
 }
+
+// Re-export admin components
+export { AdminPageHeader, BasicBlock, AdminCard }

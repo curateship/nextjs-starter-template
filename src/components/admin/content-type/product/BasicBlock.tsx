@@ -57,7 +57,7 @@ export function BasicBlock({
   }
 
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Product Information</CardTitle>
       </CardHeader>
