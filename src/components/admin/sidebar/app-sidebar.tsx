@@ -6,6 +6,7 @@ import {
   FileText,
   Globe,
   Users,
+  Mail,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/sidebar/nav-main"
@@ -63,6 +64,21 @@ const data = {
         {
           title: "Categories",
           url: "/admin/posts/categories",
+        },
+      ],
+    },
+    {
+      title: "Newsletters",
+      url: "/admin/newsletters",
+      icon: Mail,
+      items: [
+        {
+          title: "All Newsletters",
+          url: "/admin/newsletters",
+        },
+        {
+          title: "AI Generation",
+          url: "/admin/newsletters/generate",
         },
       ],
     },
