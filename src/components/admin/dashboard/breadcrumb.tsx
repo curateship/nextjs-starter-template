@@ -98,6 +98,41 @@ function BreadcrumbEllipsis({
   )
 }
 
+// Higher-level breadcrumb component
+interface BreadcrumbNavigationProps {
+  items: Array<{
+    href?: string
+    label: string
+    isPage?: boolean
+  }>
+  className?: string
+}
+
+function BreadcrumbNavigation({ items, className }: BreadcrumbNavigationProps) {
+  return (
+    <Breadcrumb className={className}>
+      <BreadcrumbList>
+        {items.map((item, index) => (
+          <div key={index} className="flex items-center">
+            <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
+              {item.isPage ? (
+                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+              ) : (
+                <BreadcrumbLink href={item.href || "#"}>
+                  {item.label}
+                </BreadcrumbLink>
+              )}
+            </BreadcrumbItem>
+            {index < items.length - 1 && (
+              <BreadcrumbSeparator className="hidden md:block" />
+            )}
+          </div>
+        ))}
+      </BreadcrumbList>
+    </Breadcrumb>
+  )
+}
+
 export {
   Breadcrumb,
   BreadcrumbList,
@@ -106,4 +141,5 @@ export {
   BreadcrumbPage,
   BreadcrumbSeparator,
   BreadcrumbEllipsis,
+  BreadcrumbNavigation,
 }

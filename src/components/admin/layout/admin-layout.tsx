@@ -2,15 +2,7 @@
 
 import { AppSidebar } from "@/components/admin/sidebar/app-sidebar"
 import { StickyHeader } from "@/components/admin/dashboard/sticky-header"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/admin/dashboard/breadcrumb"
-import { Separator } from "@/components/ui/separator"
+import { BreadcrumbNavigation } from "@/components/admin/dashboard/breadcrumb"
 import {
   SidebarInset,
   SidebarProvider,
@@ -19,8 +11,6 @@ import {
 
 interface AdminLayoutProps {
   children: React.ReactNode
-  headerTitle?: string
-  headerSubtitle?: string
   headerActions?: React.ReactNode
   breadcrumbItems?: Array<{
     href?: string
@@ -31,8 +21,6 @@ interface AdminLayoutProps {
 
 export function AdminLayout({
   children,
-  headerTitle = "Admin Dashboard",
-  headerSubtitle = "Manage your application",
   headerActions,
   breadcrumbItems = [
     { href: "#", label: "Building Your Application" },
@@ -43,44 +31,18 @@ export function AdminLayout({
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <StickyHeader 
-          title={headerTitle} 
-          subtitle={headerSubtitle}
-        >
+        <StickyHeader>
+          <SidebarTrigger className="-ml-1" />
           {headerActions}
         </StickyHeader>
         
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+        <header className="flex h-16 shrink-0 items-center justify-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            <Breadcrumb>
-              <BreadcrumbList>
-                {breadcrumbItems.map((item, index) => (
-                  <div key={index} className="flex items-center">
-                    <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
-                      {item.isPage ? (
-                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink href={item.href || "#"}>
-                          {item.label}
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                    {index < breadcrumbItems.length - 1 && (
-                      <BreadcrumbSeparator className="hidden md:block" />
-                    )}
-                  </div>
-                ))}
-              </BreadcrumbList>
-            </Breadcrumb>
+            <BreadcrumbNavigation items={breadcrumbItems} />
           </div>
         </header>
         
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 items-center justify-center">
           {children}
         </div>
       </SidebarInset>
