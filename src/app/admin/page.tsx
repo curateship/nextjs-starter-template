@@ -2,18 +2,15 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 
 export default function Page() {
   return (
-    <AdminLayout 
-      breadcrumbItems={[
-        { href: "#", label: "Building Your Application" },
-        { label: "Data Fetching", isPage: true }
-      ]}
-    >
-      <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-        <div className="bg-muted/50 aspect-video rounded-xl" />
-        <div className="bg-muted/50 aspect-video rounded-xl" />
-        <div className="bg-muted/50 aspect-video rounded-xl" />
+    <AdminLayout>
+      <div className="w-full max-w-4xl mx-auto">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">Products Management</h1>
+          <p className="text-muted-foreground mb-8">
+            Manage your product catalog, inventory, and categories
+          </p>
+        </div>
       </div>
-      <div className="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
     </AdminLayout>
   )
 }
