@@ -1,5 +1,5 @@
 import { Navbar } from "@/components/navigation/navbar";
-import { Blog7 } from "@/components/content-type/blog/blog7";
+import { Blog7 } from "@/components/content-type/posts/blog7";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 

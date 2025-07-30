@@ -18,7 +18,7 @@ import { AdminLayout, AdminPageHeader, AdminCard, BasicBlock } from "@/component
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
 import { AdminCard } from "@/components/admin/dashboard/admin-card"
-import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+import { BasicBlock } from "@/components/admin/content-type/products/BasicBlock"
 ```
 
 ## **Implementation Requirements**
@@ -32,7 +32,7 @@ import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
 // src/components/admin/layout/admin-layout.tsx
 import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
 import { AdminCard } from "@/components/admin/dashboard/admin-card"
-import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+import { BasicBlock } from "@/components/admin/content-type/products/BasicBlock"
 
 // ... AdminLayout component ...
 
@@ -89,7 +89,7 @@ import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/lay
 // src/components/admin/layout/admin-layout.tsx
 import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
 import { AdminCard } from "@/components/admin/dashboard/admin-card"
-import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
+import { BasicBlock } from "@/components/admin/content-type/products/BasicBlock"
 
 // ... AdminLayout component ...
 

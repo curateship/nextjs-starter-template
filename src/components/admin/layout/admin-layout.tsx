@@ -3,8 +3,8 @@
 import { AppSidebar } from "@/components/admin/sidebar/app-sidebar"
 import { StickyHeader } from "@/components/admin/dashboard/sticky-header"
 import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
-import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
 import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { BasicBlock } from "@/components/admin/content-type/products/BasicBlock"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/sidebar/sidebar"
 
 
@@ -37,4 +37,4 @@ export function AdminLayout({
 }
 
 // Re-export admin components
-export { AdminPageHeader, BasicBlock, AdminCard }
+export { AdminPageHeader, AdminCard, BasicBlock }
