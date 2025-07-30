@@ -15,9 +15,9 @@ export default function ProductsPage() {
               Manage your product catalog
             </p>
           </div>
-          <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">
+          <a href="/admin/products/new" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 inline-block">
             Add Product
-          </button>
+          </a>
         </div>
         
         <div className="bg-card border rounded-lg">
