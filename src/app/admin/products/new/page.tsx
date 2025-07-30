@@ -1,10 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { BasicBlock } from "@/components/admin/content-type/product/BasicBlock"
-import { ArrowLeft } from "lucide-react"
 
 export default function NewProductPage() {
   const [title, setTitle] = useState("")
@@ -14,35 +12,32 @@ export default function NewProductPage() {
   const [image, setImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
     console.log({ title, description, status, featured, image })
   }
 
+  const handleSaveClick = () => {
+    // Handle save button click
+    console.log({ title, description, status, featured, image })
+  }
+
   return (
     <AdminLayout>
-      <div className="w-full max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="p-2">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Create Product</h1>
-              <p className="text-muted-foreground mt-1">
-                Add a new product to your catalog
-              </p>
-            </div>
-          </div>
-          <div className="flex space-x-2">
-            <Button variant="outline">Cancel</Button>
-            <Button onClick={handleSubmit}>Save Product</Button>
-          </div>
-        </div>
+      <div className="w-full max-w-6xl mx-auto">
+        <AdminPageHeader
+          title="Create Product"
+          subtitle="Add a new product to your catalog"
+          primaryAction={{
+            label: "Save Product",
+            onClick: handleSaveClick
+          }}
+          secondaryAction={{
+            label: "Cancel",
+            href: "/admin/products"
+          }}
+        />
 
         <form onSubmit={handleSubmit}>
           <BasicBlock
