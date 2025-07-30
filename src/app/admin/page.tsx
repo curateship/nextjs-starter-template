@@ -3,8 +3,6 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 export default function Page() {
   return (
     <AdminLayout 
-      headerTitle="Admin Dashboard" 
-      headerSubtitle="Manage your application settings and data"
       breadcrumbItems={[
         { href: "#", label: "Building Your Application" },
         { label: "Data Fetching", isPage: true }
