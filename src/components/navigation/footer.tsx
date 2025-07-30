@@ -1,4 +1,4 @@
-import { Logo } from '@/components/logo'
+import { Logo } from '@/components/navigation/logo'
 import Link from 'next/link'
 
 const links = [
