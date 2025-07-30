@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Bell, Search, Settings } from "lucide-react"
+import Link from "next/link"
 
 interface StickyHeaderProps {
   className?: string
@@ -32,6 +33,11 @@ export function StickyHeader({
         </div>
         
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="h-8 px-3">
+            <Link href="/" target="_blank" rel="noopener noreferrer">
+              View site
+            </Link>
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Bell className="h-4 w-4" />
             <span className="sr-only">Notifications</span>
