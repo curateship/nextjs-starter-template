@@ -8,6 +8,7 @@ import {
   Users,
   Mail,
   Palette,
+  Image,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/sidebar/nav-main"
@@ -99,6 +100,11 @@ const data = {
       name: "Themes",
       url: "/admin/themes",
       icon: Palette,
+    },
+    {
+      name: "Image Library",
+      url: "/admin/images",
+      icon: Image,
     },
   ],
 }
