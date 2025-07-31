@@ -78,6 +78,27 @@ export default function ThemesPage() {
           </div>
           
           <div className="divide-y">
+            {/* Default Theme */}
+            <div className="p-6 flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">🎯</span>
+                </div>
+                <div>
+                  <h4 className="font-medium">Default Theme</h4>
+                  <p className="text-sm text-muted-foreground">Standard theme with hero sections, products, and blog</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <Button asChild variant="outline" size="sm">
+                  <a href="/themes/default" target="_blank" rel="noopener noreferrer">
+                    View Site
+                  </a>
+                </Button>
+                <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
+              </div>
+            </div>
+
             {/* Theme 1 */}
             <div className="p-6 flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -90,7 +111,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 12 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
               </div>
             </div>
@@ -107,7 +132,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 8 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
               </div>
             </div>
@@ -124,7 +153,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 5 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Beta</span>
               </div>
             </div>
@@ -141,7 +174,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 15 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
               </div>
             </div>
@@ -158,7 +195,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 3 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Inactive</span>
               </div>
             </div>
@@ -175,7 +216,11 @@ export default function ThemesPage() {
                 </div>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Used by 0 sites</span>
+                <Button asChild variant="outline" size="sm">
+                  <a href="#" className="text-muted-foreground cursor-not-allowed">
+                    View Site
+                  </a>
+                </Button>
                 <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Deprecated</span>
               </div>
             </div>
