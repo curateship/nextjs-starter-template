@@ -10,10 +10,14 @@ import { Upload, X } from "lucide-react"
 interface SiteBlockProps {
   siteName: string
   status: string
+  userId: string
+  themeId: string
   logo: File | null
   logoPreview: string | null
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
+  onUserIdChange: (value: string) => void
+  onThemeIdChange: (value: string) => void
   onLogoChange: (file: File | null) => void
   onLogoPreviewChange: (preview: string | null) => void
 }
@@ -21,10 +25,14 @@ interface SiteBlockProps {
 export function SiteBlock({
   siteName,
   status,
+  userId,
+  themeId,
   logo,
   logoPreview,
   onSiteNameChange,
   onStatusChange,
+  onUserIdChange,
+  onThemeIdChange,
   onLogoChange,
   onLogoPreviewChange,
 }: SiteBlockProps) {
@@ -45,6 +53,23 @@ export function SiteBlock({
     onLogoPreviewChange(null)
   }
 
+  // Mock data for users and themes - in a real app, this would come from props or API
+  const users = [
+    { id: "1", name: "John Doe", email: "john@example.com" },
+    { id: "2", name: "Alice Smith", email: "alice@example.com" },
+    { id: "3", name: "Robert Johnson", email: "robert@example.com" },
+    { id: "4", name: "Maria Wilson", email: "maria@example.com" },
+    { id: "5", name: "David Brown", email: "david@example.com" },
+  ]
+
+  const themes = [
+    { id: "1", name: "Modern Store", description: "E-commerce focused theme" },
+    { id: "2", name: "Minimal Blog", description: "Clean blog theme" },
+    { id: "3", name: "Creative Portfolio", description: "Portfolio showcase theme" },
+    { id: "4", name: "Default Theme", description: "Basic starter theme" },
+    { id: "5", name: "App Template", description: "Web application theme" },
+  ]
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -64,6 +89,62 @@ export function SiteBlock({
           <p className="text-xs text-muted-foreground">
             This will be used to create your subdomain: {siteName || 'mysite'}.domain.com
           </p>
+        </div>
+
+        {/* User and Theme Selection - One Row, Two Columns */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="userId">User *</Label>
+            <Select value={userId} onValueChange={onUserIdChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a user">
+                  {userId && users.find(user => user.id === userId) && (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 text-xs font-medium">
+                          {users.find(user => user.id === userId)?.name.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <div className="font-medium">{users.find(user => user.id === userId)?.name}</div>
+                    </div>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 text-xs font-medium">
+                          {user.name.split(' ').map(n => n[0]).join('')}
+                        </span>
+                      </div>
+                      <div className="font-medium">{user.name}</div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="themeId">Theme *</Label>
+            <Select value={themeId} onValueChange={onThemeIdChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a theme" />
+              </SelectTrigger>
+              <SelectContent>
+                {themes.map((theme) => (
+                  <SelectItem key={theme.id} value={theme.id}>
+                    <div className="flex flex-col">
+                      <div className="font-medium">{theme.name}</div>
+                      <div className="text-xs text-muted-foreground">{theme.description}</div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Status */}

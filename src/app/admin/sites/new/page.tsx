@@ -7,18 +7,20 @@ import { SiteBlock } from "@/components/admin/content-type/sites/SiteBlock"
 export default function NewSitePage() {
   const [siteName, setSiteName] = useState("")
   const [status, setStatus] = useState("draft")
+  const [userId, setUserId] = useState("")
+  const [themeId, setThemeId] = useState("")
   const [logo, setLogo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ siteName, status, logo })
+    console.log({ siteName, status, userId, themeId, logo })
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ siteName, status, logo })
+    console.log({ siteName, status, userId, themeId, logo })
   }
 
   return (
@@ -28,7 +30,7 @@ export default function NewSitePage() {
           title="Create Site"
           subtitle="Add a new site to your multi-site collection"
           primaryAction={{
-            label: "Create Site",
+            label: "Save Site",
             onClick: handleSaveClick
           }}
           secondaryAction={{
@@ -41,10 +43,14 @@ export default function NewSitePage() {
           <SiteBlock
             siteName={siteName}
             status={status}
+            userId={userId}
+            themeId={themeId}
             logo={logo}
             logoPreview={logoPreview}
             onSiteNameChange={setSiteName}
             onStatusChange={setStatus}
+            onUserIdChange={setUserId}
+            onThemeIdChange={setThemeId}
             onLogoChange={setLogo}
             onLogoPreviewChange={setLogoPreview}
           />
