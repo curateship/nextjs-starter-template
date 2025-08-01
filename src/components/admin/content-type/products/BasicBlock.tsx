@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -64,7 +63,6 @@ export function BasicBlock({
       <CardContent className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Product Title *</Label>
           <Input
             id="title"
             value={title}
@@ -76,7 +74,6 @@ export function BasicBlock({
 
         {/* Description */}
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
           <div className="border rounded-md">
             <div className="p-3 border-b bg-muted/50">
               <div className="flex space-x-2">
@@ -113,7 +110,6 @@ export function BasicBlock({
 
         {/* Status */}
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
           <Select value={status} onValueChange={onStatusChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -132,16 +128,15 @@ export function BasicBlock({
             checked={featured}
             onCheckedChange={(checked) => onFeaturedChange(checked as boolean)}
           />
-          <Label htmlFor="featured">Featured Product</Label>
+          <span className="text-sm">Featured Product</span>
         </div>
 
         {/* Product Image */}
         <div className="space-y-2">
-          <Label>Product Image</Label>
           {!imagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="image-upload" className="cursor-pointer">
+              <label htmlFor="image-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -149,7 +144,7 @@ export function BasicBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, GIF up to 10MB
                 </span>
-              </Label>
+              </label>
               <Input
                 id="image-upload"
                 type="file"

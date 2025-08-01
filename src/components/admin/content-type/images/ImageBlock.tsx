@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 
@@ -48,7 +47,6 @@ export function ImageBlock({
       <CardContent className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Image Title *</Label>
           <Input
             id="title"
             value={title}
@@ -63,11 +61,10 @@ export function ImageBlock({
 
         {/* Image Upload */}
         <div className="space-y-2">
-          <Label>Image File *</Label>
           {!imagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
               <Upload className="w-8 h-8 mx-auto mb-4 text-muted-foreground" />
-              <Label htmlFor="image-upload" className="cursor-pointer">
+              <label htmlFor="image-upload" className="cursor-pointer">
                 <span className="text-lg text-muted-foreground font-medium">
                   Click to upload or drag and drop
                 </span>
@@ -78,7 +75,7 @@ export function ImageBlock({
                 <span className="text-xs text-muted-foreground mt-1 block">
                   High-quality images recommended for best results
                 </span>
-              </Label>
+              </label>
               <Input
                 id="image-upload"
                 type="file"

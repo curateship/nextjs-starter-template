@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -78,7 +77,6 @@ export function PostBlock({
       <CardContent className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Post Title *</Label>
           <Input
             id="title"
             value={title}
@@ -91,7 +89,6 @@ export function PostBlock({
 
         {/* Summary */}
         <div className="space-y-2">
-          <Label htmlFor="summary">Summary</Label>
           <textarea
             id="summary"
             value={summary}
@@ -103,7 +100,6 @@ export function PostBlock({
 
         {/* Content */}
         <div className="space-y-2">
-          <Label htmlFor="content">Content</Label>
           <div className="border rounded-md">
             <div className="p-3 border-b bg-muted/50">
               <div className="flex space-x-2">
@@ -147,11 +143,10 @@ export function PostBlock({
 
         {/* Featured Image */}
         <div className="space-y-2">
-          <Label>Featured Image</Label>
           {!featuredImagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="featured-image-upload" className="cursor-pointer">
+              <label htmlFor="featured-image-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -159,7 +154,7 @@ export function PostBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, GIF up to 10MB (recommended: 1200x630px)
                 </span>
-              </Label>
+              </label>
               <Input
                 id="featured-image-upload"
                 type="file"
@@ -193,7 +188,6 @@ export function PostBlock({
           <h3 className="text-lg font-semibold">SEO & Meta</h3>
           
           <div className="space-y-2">
-            <Label htmlFor="slug">URL Slug</Label>
             <Input
               id="slug"
               value={slug}
@@ -203,7 +197,6 @@ export function PostBlock({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="meta-description">Meta Description</Label>
             <textarea
               id="meta-description"
               value={metaDescription}
@@ -214,7 +207,6 @@ export function PostBlock({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
             <Input
               id="tags"
               value={tags}
@@ -230,7 +222,6 @@ export function PostBlock({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="publish-date">Publish Date</Label>
               <Input
                 id="publish-date"
                 type="datetime-local"
@@ -239,7 +230,6 @@ export function PostBlock({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
               <Select value={status} onValueChange={onStatusChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
