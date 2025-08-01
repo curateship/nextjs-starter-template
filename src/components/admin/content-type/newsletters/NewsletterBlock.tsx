@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -58,7 +57,6 @@ export function NewsletterBlock({
       <CardContent className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Newsletter Title *</Label>
           <Input
             id="title"
             value={title}
@@ -70,7 +68,6 @@ export function NewsletterBlock({
 
         {/* Body with Rich Editor */}
         <div className="space-y-2">
-          <Label htmlFor="body">Newsletter Body</Label>
           <div className="border rounded-md">
             <div className="p-3 border-b bg-muted/50">
               <div className="flex space-x-2">
@@ -117,7 +114,6 @@ export function NewsletterBlock({
 
         {/* Status */}
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
           <Select value={status} onValueChange={onStatusChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -133,11 +129,10 @@ export function NewsletterBlock({
 
         {/* Newsletter Image */}
         <div className="space-y-2">
-          <Label>Newsletter Image</Label>
           {!imagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="image-upload" className="cursor-pointer">
+              <label htmlFor="image-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -145,7 +140,7 @@ export function NewsletterBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, GIF up to 10MB (recommended for newsletter header)
                 </span>
-              </Label>
+              </label>
               <Input
                 id="image-upload"
                 type="file"

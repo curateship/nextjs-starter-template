@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
@@ -57,7 +56,6 @@ export function ThemeBlock({
       <CardContent className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <Label htmlFor="title">Theme Name *</Label>
           <Input
             id="title"
             value={title}
@@ -69,7 +67,6 @@ export function ThemeBlock({
 
         {/* Description */}
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
           <Input
             id="description"
             value={description}
@@ -80,7 +77,6 @@ export function ThemeBlock({
 
         {/* Status */}
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
           <Select value={status} onValueChange={onStatusChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -96,11 +92,10 @@ export function ThemeBlock({
 
         {/* Theme Logo/Preview */}
         <div className="space-y-2">
-          <Label>Theme Logo/Preview</Label>
           {!logoPreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="logo-upload" className="cursor-pointer">
+              <label htmlFor="logo-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -108,7 +103,7 @@ export function ThemeBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG up to 5MB (recommended: 400x300px theme preview)
                 </span>
-              </Label>
+              </label>
               <Input
                 id="logo-upload"
                 type="file"

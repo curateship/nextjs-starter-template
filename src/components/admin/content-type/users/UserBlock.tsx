@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
@@ -57,7 +56,6 @@ export function UserBlock({
       <CardContent className="space-y-6">
         {/* Name */}
         <div className="space-y-2">
-          <Label htmlFor="name">Full Name *</Label>
           <Input
             id="name"
             value={name}
@@ -69,7 +67,6 @@ export function UserBlock({
 
         {/* Email */}
         <div className="space-y-2">
-          <Label htmlFor="email">Email Address *</Label>
           <Input
             id="email"
             type="email"
@@ -82,7 +79,6 @@ export function UserBlock({
 
         {/* Role */}
         <div className="space-y-2">
-          <Label htmlFor="role">Role</Label>
           <Select value={role} onValueChange={onRoleChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select user role" />
@@ -98,11 +94,10 @@ export function UserBlock({
 
         {/* Avatar */}
         <div className="space-y-2">
-          <Label>Profile Avatar</Label>
           {!avatarPreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="avatar-upload" className="cursor-pointer">
+              <label htmlFor="avatar-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -110,7 +105,7 @@ export function UserBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG up to 2MB (recommended: 200x200px)
                 </span>
-              </Label>
+              </label>
               <Input
                 id="avatar-upload"
                 type="file"

@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 
@@ -52,7 +51,6 @@ export function HeroBlock({
       <CardContent className="space-y-6">
         {/* Heading */}
         <div className="space-y-2">
-          <Label htmlFor="heading">Heading *</Label>
           <Input
             id="heading"
             value={heading}
@@ -64,7 +62,6 @@ export function HeroBlock({
 
         {/* Sub-heading */}
         <div className="space-y-2">
-          <Label htmlFor="subHeading">Sub-heading</Label>
           <Input
             id="subHeading"
             value={subHeading}
@@ -75,11 +72,10 @@ export function HeroBlock({
 
         {/* Hero Image */}
         <div className="space-y-2">
-          <Label>Hero Image</Label>
           {!imagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="hero-image-upload" className="cursor-pointer">
+              <label htmlFor="hero-image-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -87,7 +83,7 @@ export function HeroBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, GIF up to 10MB
                 </span>
-              </Label>
+              </label>
               <Input
                 id="hero-image-upload"
                 type="file"
