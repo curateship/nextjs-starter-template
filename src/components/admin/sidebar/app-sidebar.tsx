@@ -87,7 +87,7 @@ const data = {
   ],
   projects: [
     {
-      name: "Multi-sites",
+      name: "Sites",
       url: "/admin/sites",
       icon: Globe,
     },
