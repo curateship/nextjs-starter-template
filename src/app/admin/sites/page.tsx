@@ -12,7 +12,7 @@ export default function SitesPage() {
     <AdminLayout>
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
-          title="Multi-Sites"
+          title="Sites"
           subtitle="Manage your site collection"
           primaryAction={{
             label: "Create Site",
