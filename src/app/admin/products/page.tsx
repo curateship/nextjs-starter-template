@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Settings, Plus } from "lucide-react"
 
 export default function ProductsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -14,7 +15,7 @@ export default function ProductsPage() {
           subtitle="Manage your product catalog"
           primaryAction={{
             label: "Add Product",
-            href: "/admin/products/new"
+            href: "/admin/products/builder"
           }}
         />
         
@@ -104,6 +105,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$1,299</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/laptop-pro">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -121,6 +132,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$299</span>
                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Low Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/headphones-pro">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -138,6 +159,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$199</span>
                 <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Out of Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/solid-state-drive">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -155,6 +186,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$89</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/wireless-keyboard">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -172,6 +213,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$129</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/gaming-mouse">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -189,6 +240,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$159</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/bluetooth-speaker">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -206,6 +267,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$89</span>
                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Low Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/external-hard-drive">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -223,6 +294,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$79</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/webcam-hd">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -240,6 +321,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$199</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/microphone-pro">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -257,6 +348,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$29</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/usb-thumb-drive">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -274,6 +375,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$599</span>
                 <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">In Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/monitor-4k">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -291,6 +402,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$19</span>
                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Low Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/audio-cable">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -308,6 +429,16 @@ export default function ProductsPage() {
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">$49</span>
                 <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Out of Stock</span>
+                <div className="flex items-center space-x-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href="/admin/products/builder/cd-drive">
+                      <Settings className="w-4 h-4" />
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

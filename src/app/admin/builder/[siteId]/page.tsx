@@ -150,16 +150,20 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     blocks: blocks[selectedPage] || []
   }
   
-  // Available block types
-  const availableBlocks = [
+  // Site-specific block types
+  const siteBlocks = [
     { type: "navigation", name: "Navigation Header", icon: "🧭" },
     { type: "hero", name: "Hero", icon: "🏛️" },
     { type: "features", name: "Features", icon: "⭐" },
     { type: "testimonials", name: "Testimonials", icon: "💬" },
     { type: "cta", name: "CTA", icon: "📞" },
+    { type: "footer", name: "Footer", icon: "⬇️" },
+  ]
+
+  // Shared blocks (can be used across different content types)
+  const sharedBlocks = [
     { type: "about", name: "About", icon: "ℹ️" },
     { type: "contact", name: "Contact", icon: "📧" },
-    { type: "footer", name: "Footer", icon: "⬇️" },
   ]
 
   // Function to get default content for a block type
@@ -296,99 +300,8 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
 
         {/* Main Content - 3 Column Layout */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Sidebar - Block Library */}
-          <div className="w-64 border-r bg-muted/30 p-4 overflow-y-auto">
-            <h3 className="font-semibold mb-4">Available Blocks</h3>
-            <div className="space-y-2">
-              {availableBlocks.map((block) => (
-                <div
-                  key={block.type}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{block.icon}</span>
-                    <span className="text-sm font-medium">{block.name}</span>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant="ghost"
-                    onClick={() => addBlock(block.type)}
-                    className="h-8 w-8 p-0 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Middle Section - Block List */}
-          <div className="flex-1 p-6 overflow-y-auto">
-            <div className="max-w-3xl mx-auto">
-              <h2 className="text-xl font-semibold mb-6">
-                {currentPage.name} Page Blocks
-              </h2>
-              
-              <div className="space-y-4">
-                {currentPage.blocks.map((block) => (
-                  <div
-                    key={block.id}
-                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                      selectedBlock?.id === block.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-muted-foreground'
-                    }`}
-                    onClick={() => setSelectedBlock(block)}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-medium">{block.title}</h3>
-                      <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">↑</Button>
-                        <Button variant="ghost" size="sm">↓</Button>
-                        <Button variant="ghost" size="sm">✏️</Button>
-                        <Button variant="ghost" size="sm">🗑️</Button>
-                      </div>
-                    </div>
-                    
-                    {/* Block Content Preview */}
-                    <div className="text-sm text-muted-foreground space-y-1">
-                      {block.type === 'navigation' && (
-                        <>
-                          <div>Logo: {block.content.showLogo ? "✓" : "✗"}</div>
-                          <div>Menu Items: {block.content.menuItems?.length || 0} items</div>
-                          <div>CTA: {block.content.showCta ? block.content.ctaButton?.label : "✗"}</div>
-                          <div>Alignment: {block.content.alignment}</div>
-                        </>
-                      )}
-                      {block.type === 'hero' && (
-                        <>
-                          <div>Title: {block.content.title}</div>
-                          <div>Subtitle: {block.content.subtitle}</div>
-                          <div>Button: {block.content.buttonText} → {block.content.buttonLink}</div>
-                        </>
-                      )}
-                      {block.type === 'features' && (
-                        <>
-                          {block.content.features?.map((feature: any, index: number) => (
-                            <div key={index}>Feature {index + 1}: {feature.title}</div>
-                          ))}
-                        </>
-                      )}
-                      {block.type === 'cta' && (
-                        <>
-                          <div>Title: {block.content.title}</div>
-                          <div>Button: {block.content.buttonText} → {block.content.buttonLink}</div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Sidebar - Properties Panel */}
-          <div className="w-80 border-l bg-muted/30 p-4 overflow-y-auto">
+          {/* Left Sidebar - Properties Panel */}
+          <div className="w-[650px] border-r bg-muted/30 p-4 overflow-y-auto">
             {selectedBlock ? (
               <div>
                 <h3 className="font-semibold mb-4">Block Properties</h3>
@@ -856,6 +769,126 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                 <p>Select a block to edit its properties</p>
               </div>
             )}
+          </div>
+
+          {/* Middle Section - Block List */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-xl font-semibold mb-6">
+                {currentPage.name} Page Blocks
+              </h2>
+              
+              <div className="space-y-4">
+                {currentPage.blocks.map((block) => (
+                  <div
+                    key={block.id}
+                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                      selectedBlock?.id === block.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground'
+                    }`}
+                    onClick={() => setSelectedBlock(block)}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-medium">{block.title}</h3>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm">↑</Button>
+                        <Button variant="ghost" size="sm">↓</Button>
+                        <Button variant="ghost" size="sm">✏️</Button>
+                        <Button variant="ghost" size="sm">🗑️</Button>
+                      </div>
+                    </div>
+                    
+                    {/* Block Content Preview */}
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      {block.type === 'navigation' && (
+                        <>
+                          <div>Logo: {block.content.showLogo ? "✓" : "✗"}</div>
+                          <div>Menu Items: {block.content.menuItems?.length || 0} items</div>
+                          <div>CTA: {block.content.showCta ? block.content.ctaButton?.label : "✗"}</div>
+                          <div>Alignment: {block.content.alignment}</div>
+                        </>
+                      )}
+                      {block.type === 'hero' && (
+                        <>
+                          <div>Title: {block.content.title}</div>
+                          <div>Subtitle: {block.content.subtitle}</div>
+                          <div>Button: {block.content.buttonText} → {block.content.buttonLink}</div>
+                        </>
+                      )}
+                      {block.type === 'features' && (
+                        <>
+                          {block.content.features?.map((feature: any, index: number) => (
+                            <div key={index}>Feature {index + 1}: {feature.title}</div>
+                          ))}
+                        </>
+                      )}
+                      {block.type === 'cta' && (
+                        <>
+                          <div>Title: {block.content.title}</div>
+                          <div>Button: {block.content.buttonText} → {block.content.buttonLink}</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar - Site Blocks & Shared Blocks (Sticky) */}
+          <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto sticky top-0">
+            {/* Site Blocks Section */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-4">Site Blocks</h3>
+              <div className="space-y-2">
+                {siteBlocks.map((block) => (
+                  <div
+                    key={block.type}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{block.icon}</span>
+                      <span className="text-sm font-medium">{block.name}</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => addBlock(block.type)}
+                      className="h-8 w-8 p-0 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shared Blocks Section */}
+            <div>
+              <h3 className="font-semibold mb-4">Shared Blocks</h3>
+              <div className="space-y-2">
+                {sharedBlocks.map((block) => (
+                  <div
+                    key={block.type}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">{block.icon}</span>
+                      <span className="text-sm font-medium">{block.name}</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => addBlock(block.type)}
+                      className="h-8 w-8 p-0 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
