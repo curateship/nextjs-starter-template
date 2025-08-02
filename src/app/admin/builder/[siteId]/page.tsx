@@ -5,7 +5,7 @@ import { use } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Eye, Save, Upload, Plus } from "lucide-react"
+import { ArrowLeft, Eye, Save, Upload, Plus, ChevronUp, ChevronDown, Trash2, Plus as PlusIcon } from "lucide-react"
 import Link from "next/link"
 
 interface Block {
@@ -152,18 +152,33 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   
   // Available block types
   const availableBlocks = [
-    { type: "hero", name: "Hero Block", icon: "🏛️" },
-    { type: "features", name: "Features Block", icon: "⭐" },
-    { type: "testimonials", name: "Testimonials Block", icon: "💬" },
-    { type: "cta", name: "CTA Block", icon: "📞" },
-    { type: "about", name: "About Block", icon: "ℹ️" },
-    { type: "contact", name: "Contact Block", icon: "📧" },
-    { type: "footer", name: "Footer Block", icon: "⬇️" },
+    { type: "navigation", name: "Navigation Header", icon: "🧭" },
+    { type: "hero", name: "Hero", icon: "🏛️" },
+    { type: "features", name: "Features", icon: "⭐" },
+    { type: "testimonials", name: "Testimonials", icon: "💬" },
+    { type: "cta", name: "CTA", icon: "📞" },
+    { type: "about", name: "About", icon: "ℹ️" },
+    { type: "contact", name: "Contact", icon: "📧" },
+    { type: "footer", name: "Footer", icon: "⬇️" },
   ]
 
   // Function to get default content for a block type
   const getDefaultContent = (blockType: string) => {
     switch (blockType) {
+      case 'navigation':
+        return {
+          logo: { url: "/logo.png", alt: "Site Logo" },
+          menuItems: [
+            { id: "1", label: "Home", url: "/", order: 1 },
+            { id: "2", label: "About", url: "/about", order: 2 },
+            { id: "3", label: "Services", url: "/services", order: 3 },
+            { id: "4", label: "Contact", url: "/contact", order: 4 }
+          ],
+          ctaButton: { label: "Get Started", url: "/signup" },
+          showLogo: true,
+          showCta: true,
+          alignment: "center"
+        }
       case 'hero':
         return {
           title: "Welcome to Our Site",
@@ -337,6 +352,14 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                     
                     {/* Block Content Preview */}
                     <div className="text-sm text-muted-foreground space-y-1">
+                      {block.type === 'navigation' && (
+                        <>
+                          <div>Logo: {block.content.showLogo ? "✓" : "✗"}</div>
+                          <div>Menu Items: {block.content.menuItems?.length || 0} items</div>
+                          <div>CTA: {block.content.showCta ? block.content.ctaButton?.label : "✗"}</div>
+                          <div>Alignment: {block.content.alignment}</div>
+                        </>
+                      )}
                       {block.type === 'hero' && (
                         <>
                           <div>Title: {block.content.title}</div>
@@ -473,6 +496,347 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                         <Button variant="outline" className="w-full mt-1">
                           Choose Image
                         </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {selectedBlock.type === 'navigation' && (
+                    <div className="space-y-4">
+                      {/* Logo Settings */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">Show Logo</label>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedBlock.content.showLogo}
+                            onChange={(e) => {
+                              const updatedBlocks = { ...blocks }
+                              const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                              if (blockIndex !== -1) {
+                                updatedBlocks[selectedPage][blockIndex] = {
+                                  ...updatedBlocks[selectedPage][blockIndex],
+                                  content: {
+                                    ...updatedBlocks[selectedPage][blockIndex].content,
+                                    showLogo: e.target.checked
+                                  }
+                                }
+                                setBlocks(updatedBlocks)
+                                setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                              }
+                            }}
+                            className="w-4 h-4"
+                          />
+                        </div>
+                        {selectedBlock.content.showLogo && (
+                          <div>
+                            <label className="text-sm font-medium">Logo URL</label>
+                            <input 
+                              type="text" 
+                              value={selectedBlock.content.logo?.url || ""}
+                              className="w-full mt-1 px-3 py-2 border rounded-md"
+                              onChange={(e) => {
+                                const updatedBlocks = { ...blocks }
+                                const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                if (blockIndex !== -1) {
+                                  updatedBlocks[selectedPage][blockIndex] = {
+                                    ...updatedBlocks[selectedPage][blockIndex],
+                                    content: {
+                                      ...updatedBlocks[selectedPage][blockIndex].content,
+                                      logo: {
+                                        ...updatedBlocks[selectedPage][blockIndex].content.logo,
+                                        url: e.target.value
+                                      }
+                                    }
+                                  }
+                                  setBlocks(updatedBlocks)
+                                  setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Menu Items */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">Menu Items</label>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              const newItem = {
+                                id: Date.now().toString(),
+                                label: "New Item",
+                                url: "/new-item",
+                                order: (selectedBlock.content.menuItems?.length || 0) + 1
+                              }
+                              const updatedBlocks = { ...blocks }
+                              const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                              if (blockIndex !== -1) {
+                                updatedBlocks[selectedPage][blockIndex] = {
+                                  ...updatedBlocks[selectedPage][blockIndex],
+                                  content: {
+                                    ...updatedBlocks[selectedPage][blockIndex].content,
+                                    menuItems: [...(selectedBlock.content.menuItems || []), newItem]
+                                  }
+                                }
+                                setBlocks(updatedBlocks)
+                                setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                              }
+                            }}
+                          >
+                            <PlusIcon className="w-4 h-4 mr-1" />
+                            Add Item
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {selectedBlock.content.menuItems?.map((item: any, index: number) => (
+                            <div key={item.id} className="border rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Item {index + 1}</span>
+                                <div className="flex items-center space-x-1">
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    disabled={index === 0}
+                                    onClick={() => {
+                                      const updatedBlocks = { ...blocks }
+                                      const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                      if (blockIndex !== -1) {
+                                        const newMenuItems = [...selectedBlock.content.menuItems]
+                                        const temp = newMenuItems[index]
+                                        newMenuItems[index] = newMenuItems[index - 1]
+                                        newMenuItems[index - 1] = temp
+                                        updatedBlocks[selectedPage][blockIndex] = {
+                                          ...updatedBlocks[selectedPage][blockIndex],
+                                          content: {
+                                            ...updatedBlocks[selectedPage][blockIndex].content,
+                                            menuItems: newMenuItems
+                                          }
+                                        }
+                                        setBlocks(updatedBlocks)
+                                        setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                      }
+                                    }}
+                                  >
+                                    <ChevronUp className="w-3 h-3" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    disabled={index === selectedBlock.content.menuItems.length - 1}
+                                    onClick={() => {
+                                      const updatedBlocks = { ...blocks }
+                                      const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                      if (blockIndex !== -1) {
+                                        const newMenuItems = [...selectedBlock.content.menuItems]
+                                        const temp = newMenuItems[index]
+                                        newMenuItems[index] = newMenuItems[index + 1]
+                                        newMenuItems[index + 1] = temp
+                                        updatedBlocks[selectedPage][blockIndex] = {
+                                          ...updatedBlocks[selectedPage][blockIndex],
+                                          content: {
+                                            ...updatedBlocks[selectedPage][blockIndex].content,
+                                            menuItems: newMenuItems
+                                          }
+                                        }
+                                        setBlocks(updatedBlocks)
+                                        setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                      }
+                                    }}
+                                  >
+                                    <ChevronDown className="w-3 h-3" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => {
+                                      const updatedBlocks = { ...blocks }
+                                      const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                      if (blockIndex !== -1) {
+                                        const newMenuItems = selectedBlock.content.menuItems.filter((_: any, i: number) => i !== index)
+                                        updatedBlocks[selectedPage][blockIndex] = {
+                                          ...updatedBlocks[selectedPage][blockIndex],
+                                          content: {
+                                            ...updatedBlocks[selectedPage][blockIndex].content,
+                                            menuItems: newMenuItems
+                                          }
+                                        }
+                                        setBlocks(updatedBlocks)
+                                        setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <input 
+                                type="text" 
+                                value={item.label}
+                                placeholder="Menu Label"
+                                className="w-full px-2 py-1 text-sm border rounded"
+                                onChange={(e) => {
+                                  const updatedBlocks = { ...blocks }
+                                  const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                  if (blockIndex !== -1) {
+                                    const newMenuItems = [...selectedBlock.content.menuItems]
+                                    newMenuItems[index] = { ...newMenuItems[index], label: e.target.value }
+                                    updatedBlocks[selectedPage][blockIndex] = {
+                                      ...updatedBlocks[selectedPage][blockIndex],
+                                      content: {
+                                        ...updatedBlocks[selectedPage][blockIndex].content,
+                                        menuItems: newMenuItems
+                                      }
+                                    }
+                                    setBlocks(updatedBlocks)
+                                    setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                  }
+                                }}
+                              />
+                              <input 
+                                type="text" 
+                                value={item.url}
+                                placeholder="URL (e.g., /about)"
+                                className="w-full px-2 py-1 text-sm border rounded"
+                                onChange={(e) => {
+                                  const updatedBlocks = { ...blocks }
+                                  const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                  if (blockIndex !== -1) {
+                                    const newMenuItems = [...selectedBlock.content.menuItems]
+                                    newMenuItems[index] = { ...newMenuItems[index], url: e.target.value }
+                                    updatedBlocks[selectedPage][blockIndex] = {
+                                      ...updatedBlocks[selectedPage][blockIndex],
+                                      content: {
+                                        ...updatedBlocks[selectedPage][blockIndex].content,
+                                        menuItems: newMenuItems
+                                      }
+                                    }
+                                    setBlocks(updatedBlocks)
+                                    setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                  }
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* CTA Button */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">Show CTA Button</label>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedBlock.content.showCta}
+                            onChange={(e) => {
+                              const updatedBlocks = { ...blocks }
+                              const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                              if (blockIndex !== -1) {
+                                updatedBlocks[selectedPage][blockIndex] = {
+                                  ...updatedBlocks[selectedPage][blockIndex],
+                                  content: {
+                                    ...updatedBlocks[selectedPage][blockIndex].content,
+                                    showCta: e.target.checked
+                                  }
+                                }
+                                setBlocks(updatedBlocks)
+                                setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                              }
+                            }}
+                            className="w-4 h-4"
+                          />
+                        </div>
+                        {selectedBlock.content.showCta && (
+                          <>
+                            <div>
+                              <label className="text-sm font-medium">Button Text</label>
+                              <input 
+                                type="text" 
+                                value={selectedBlock.content.ctaButton?.label || ""}
+                                className="w-full mt-1 px-3 py-2 border rounded-md"
+                                onChange={(e) => {
+                                  const updatedBlocks = { ...blocks }
+                                  const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                  if (blockIndex !== -1) {
+                                    updatedBlocks[selectedPage][blockIndex] = {
+                                      ...updatedBlocks[selectedPage][blockIndex],
+                                      content: {
+                                        ...updatedBlocks[selectedPage][blockIndex].content,
+                                        ctaButton: {
+                                          ...updatedBlocks[selectedPage][blockIndex].content.ctaButton,
+                                          label: e.target.value
+                                        }
+                                      }
+                                    }
+                                    setBlocks(updatedBlocks)
+                                    setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                  }
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Button URL</label>
+                              <input 
+                                type="text" 
+                                value={selectedBlock.content.ctaButton?.url || ""}
+                                className="w-full mt-1 px-3 py-2 border rounded-md"
+                                onChange={(e) => {
+                                  const updatedBlocks = { ...blocks }
+                                  const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                                  if (blockIndex !== -1) {
+                                    updatedBlocks[selectedPage][blockIndex] = {
+                                      ...updatedBlocks[selectedPage][blockIndex],
+                                      content: {
+                                        ...updatedBlocks[selectedPage][blockIndex].content,
+                                        ctaButton: {
+                                          ...updatedBlocks[selectedPage][blockIndex].content.ctaButton,
+                                          url: e.target.value
+                                        }
+                                      }
+                                    }
+                                    setBlocks(updatedBlocks)
+                                    setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                                  }
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Alignment */}
+                      <div>
+                        <label className="text-sm font-medium">Alignment</label>
+                        <Select 
+                          value={selectedBlock.content.alignment || "center"}
+                          onValueChange={(value) => {
+                            const updatedBlocks = { ...blocks }
+                            const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+                            if (blockIndex !== -1) {
+                              updatedBlocks[selectedPage][blockIndex] = {
+                                ...updatedBlocks[selectedPage][blockIndex],
+                                content: {
+                                  ...updatedBlocks[selectedPage][blockIndex].content,
+                                  alignment: value
+                                }
+                              }
+                              setBlocks(updatedBlocks)
+                              setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-full mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="left">Left</SelectItem>
+                            <SelectItem value="center">Center</SelectItem>
+                            <SelectItem value="right">Right</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   )}
