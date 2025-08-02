@@ -1,0 +1,171 @@
+# System Everything - Multi-Tenant Multi-Site Platform
+
+## **🏗️ Core Architecture**
+
+**System Everything** is a **multi-tenant, multi-site management platform** built on Next.js that enables organizations to create, manage, and customize unlimited websites through a unified admin interface. The platform's foundation is a **block-based architecture** that provides modular, reusable content components across all sites and tenants.
+
+### **Multi-Tenant Foundation**
+- **Tenant Isolation**: Complete separation of data, users, and sites per organization
+- **Scalable Architecture**: Single codebase serves unlimited tenants and sites
+- **Centralized Management**: Unified admin interface for all tenant operations
+- **Resource Sharing**: Efficient resource utilization across tenants
+
+### **Multi-Site Capabilities**
+- **Unlimited Sites**: Each tenant can create and manage multiple websites
+- **Independent Configuration**: Each site has its own domain, theme, and settings
+- **Cross-Site Management**: Manage all sites from a single dashboard
+- **User Assignment**: Flexible site ownership and access control
+
+### **Block-Based Architecture**
+- **Universal Blocks**: Modular content components usable across all sites
+- **Composable Design**: Build pages by combining and configuring blocks
+- **Type-Safe Blocks**: TypeScript interfaces ensure consistency and reliability
+- **Extensible System**: Easy addition of new block types and functionality
+
+## **🧩 Block System**
+
+### **Available Block Types**
+- **Hero Block**: Landing page headers with CTA
+- **Features Block**: Product/service feature showcases
+- **Testimonials Block**: Customer testimonials and reviews
+- **CTA Block**: Call-to-action sections
+- **About Block**: Company/organization information
+- **Contact Block**: Contact information and forms
+- **Footer Block**: Site navigation and links
+
+### **Block Architecture Benefits**
+- **Consistency**: Uniform design patterns across all sites
+- **Reusability**: Write once, use everywhere approach
+- **Maintainability**: Centralized updates propagate to all instances
+- **Flexibility**: Mix and match blocks to create unique page layouts
+- **Performance**: Optimized components with built-in best practices
+
+## **🏛️ Tech Stack**
+
+- **Next.js 15.3.4** with App Router and React Server Components
+- **React 19.1.1** for modern UI development
+- **TypeScript 5** for type safety across the entire platform
+- **Tailwind CSS 4** for utility-first styling
+- **Radix UI** for accessible, composable UI primitives
+- **Framer Motion** for smooth animations and interactions
+
+## **📁 Platform Structure**
+
+### **Multi-Site Route Architecture**
+```
+src/app/
+├── (main)/                 # Public-facing tenant sites
+├── admin/                  # Multi-tenant admin interface
+│   ├── builder/           # Visual site builder
+│   ├── sites/             # Multi-site management
+│   ├── products/          # Product management
+│   ├── posts/             # Content management
+│   ├── newsletters/       # Email marketing
+│   ├── users/             # User management
+│   ├── themes/            # Theme library
+│   └── images/            # Asset management
+└── themes/                # Multi-site theme system
+```
+
+### **Block-Based Components**
+```
+src/components/
+├── admin/
+│   ├── content-type/      # Block management interfaces
+│   ├── dashboard/         # Multi-site dashboards
+│   └── layout/            # Admin layout system
+├── ui/                    # Reusable block components
+├── hero/                  # Hero block variations
+├── feature/               # Feature block types
+└── posts/                 # Content block components
+```
+
+## **🎯 Core Features**
+
+### **1. Multi-Site Management**
+- **Site Creation**: Rapidly deploy new sites with block-based templates
+- **Site Configuration**: Domain mapping, theme assignment, user access
+- **Bulk Operations**: Manage multiple sites simultaneously
+- **Site Analytics**: Performance tracking across all sites
+
+### **2. Visual Site Builder**
+- **Block Library**: Drag-free block selection and placement
+- **3-Column Interface**: Block Library | Page Content | Properties Panel
+- **Real-Time Editing**: Immediate preview of block modifications
+- **Page Management**: Create and manage multiple pages per site
+- **Template System**: Pre-configured block arrangements
+
+### **3. Content Management**
+- **Block-Based Content**: All content created using composable blocks
+- **Multi-Site Publishing**: Publish content across multiple sites
+- **Version Control**: Track changes to blocks and pages
+- **Workflow Management**: Draft, review, and publish states
+
+### **4. Theme System**
+- **Multi-Site Themes**: Apply consistent themes across tenant sites
+- **Block-Aware Themes**: Themes designed to work with block architecture
+- **Theme Inheritance**: Centralized theme updates across all sites
+- **Custom Branding**: Tenant-specific customization options
+
+## **🔧 Admin Interface**
+
+### **Multi-Tenant Dashboard**
+- **Tenant Overview**: Complete view of all sites and resources
+- **User Management**: Role-based access across multiple sites
+- **Resource Allocation**: Monitor usage and performance
+- **Centralized Configuration**: Global settings and preferences
+
+### **Site Builder Interface**
+- **Block Library**: Visual selection of available blocks
+- **Page Builder**: Compose pages using block combinations
+- **Property Editor**: Configure block-specific settings
+- **Preview System**: Real-time page preview without live canvas complexity
+
+### **Content Type Management**
+- **Unified Interface**: Consistent patterns across all content types
+- **Block-Based Forms**: Content creation using block principles
+- **Asset Management**: Centralized file and image handling
+- **Cross-Site Content**: Share content across multiple sites
+
+## **🎨 Design System**
+
+### **Block-Aware Components**
+- Built using shadcn/ui patterns with Radix UI primitives
+- **Composable Design**: Components designed for block architecture
+- **Consistent Styling**: Unified design language across all blocks
+- **Responsive Design**: Mobile-first approach for all block types
+- **Accessibility**: ARIA-compliant components throughout
+
+### **Multi-Site Styling**
+- **Theme Variables**: CSS custom properties for multi-site theming
+- **Component Variants**: Multiple styling options per block type
+- **Brand Consistency**: Maintain brand identity across site networks
+- **Performance Optimization**: Efficient CSS delivery for multiple sites
+
+## **🚀 Key Innovations**
+
+### **Multi-Tenant Block Architecture**
+- **Shared Block Library**: Common blocks available to all tenants
+- **Tenant-Specific Blocks**: Custom blocks per organization
+- **Cross-Tenant Learning**: Insights from block usage patterns
+- **Scalable Performance**: Optimized for high-volume multi-site deployment
+
+### **Unified Site Management**
+- **Single Admin Interface**: Manage unlimited sites from one dashboard
+- **Bulk Operations**: Apply changes across multiple sites simultaneously
+- **Resource Optimization**: Efficient resource sharing across site networks
+- **Performance Monitoring**: Site performance tracking and optimization
+
+### **Block-Based Development**
+- **Component Reusability**: Maximum code reuse across platform
+- **Type-Safe Architecture**: TypeScript ensures block consistency
+- **Extensible Platform**: Easy addition of new block types and features
+- **Developer Experience**: Streamlined development workflow for block creation
+
+---
+
+**System Everything** represents the next generation of multi-site management platforms, combining the scalability of multi-tenant architecture with the flexibility of block-based content creation. This approach enables organizations to manage extensive site networks while maintaining consistency, performance, and ease of use.
+description:
+globs:
+alwaysApply: false
+---
