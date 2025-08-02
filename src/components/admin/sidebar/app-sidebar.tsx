@@ -9,6 +9,7 @@ import {
   Mail,
   Palette,
   Image,
+  Wrench,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/sidebar/nav-main"
@@ -85,6 +86,13 @@ const data = {
       ],
     },
   ],
+  builder: [
+    {
+      name: "Site Builder",
+      url: "/admin/builder",
+      icon: Wrench,
+    },
+  ],
   projects: [
     {
       name: "Sites",
@@ -117,6 +125,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
+        <NavProjects title="Builder" projects={data.builder} />
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
