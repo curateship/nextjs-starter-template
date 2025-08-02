@@ -258,9 +258,9 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
 
   return (
     <AdminLayout>
-      <div className="h-screen flex flex-col">
+      <div className="flex flex-col -m-4 -mt-6 min-h-screen">
         {/* Header */}
-        <div className="border-b bg-background p-4">
+        <div className="border-b bg-background p-4 sticky top-15 z-40">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/admin/builder">
@@ -299,9 +299,9 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
         </div>
 
         {/* Main Content - 3 Column Layout */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex">
           {/* Left Sidebar - Properties Panel */}
-          <div className="w-[650px] border-r bg-muted/30 p-4 overflow-y-auto">
+          <div className="w-[845px] border-r bg-muted/30 p-4 overflow-y-auto">
             {selectedBlock ? (
               <div>
                 <h3 className="font-semibold mb-4">Block Properties</h3>
@@ -772,7 +772,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
           </div>
 
           {/* Middle Section - Block List */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-6">
             <div className="max-w-3xl mx-auto">
               <h2 className="text-xl font-semibold mb-6">
                 {currentPage.name} Page Blocks
@@ -836,8 +836,8 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
             </div>
           </div>
 
-          {/* Right Sidebar - Site Blocks & Shared Blocks (Sticky) */}
-          <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto sticky top-0">
+          {/* Right Sidebar - Site Blocks & Shared Blocks */}
+          <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
             {/* Site Blocks Section */}
             <div className="mb-6">
               <h3 className="font-semibold mb-4">Site Blocks</h3>
