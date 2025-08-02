@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
@@ -78,7 +77,6 @@ export function SiteBlock({
       <CardContent className="space-y-6">
         {/* Site Name */}
         <div className="space-y-2">
-          <Label htmlFor="siteName">Site Name *</Label>
           <Input
             id="siteName"
             value={siteName}
@@ -94,7 +92,6 @@ export function SiteBlock({
         {/* User and Theme Selection - One Row, Two Columns */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="userId">User *</Label>
             <Select value={userId} onValueChange={onUserIdChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a user">
@@ -128,7 +125,6 @@ export function SiteBlock({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="themeId">Theme *</Label>
             <Select value={themeId} onValueChange={onThemeIdChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a theme" />
@@ -149,7 +145,6 @@ export function SiteBlock({
 
         {/* Status */}
         <div className="space-y-2">
-          <Label htmlFor="status">Status</Label>
           <Select value={status} onValueChange={onStatusChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -164,11 +159,10 @@ export function SiteBlock({
 
         {/* Site Logo */}
         <div className="space-y-2">
-          <Label>Site Logo</Label>
           {!logoPreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <Label htmlFor="logo-upload" className="cursor-pointer">
+              <label htmlFor="logo-upload" className="cursor-pointer">
                 <span className="text-sm text-muted-foreground">
                   Click to upload or drag and drop
                 </span>
@@ -176,7 +170,7 @@ export function SiteBlock({
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, SVG up to 2MB (recommended: 200x200px)
                 </span>
-              </Label>
+              </label>
               <Input
                 id="logo-upload"
                 type="file"
