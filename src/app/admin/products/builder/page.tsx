@@ -176,7 +176,7 @@ export default function ProductBuilderPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 min-h-screen">
+              <div className="flex flex-col -m-4 -mt-6 h-full">
         {/* Header */}
         <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-15 z-40">
           <div className="flex h-16 items-center px-6">
