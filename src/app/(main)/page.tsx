@@ -1,8 +1,8 @@
 import FeaturesSix from "@/components/frontend/features/features-6";
-import { HeroRuixenBlock } from "@/components/frontend/hero/HeroRuixenBlock";
-import { PostGridBlock } from "@/components/frontend/posts/PostGridBlock";
+import { HeroRuixenBlock } from "@/components/ui/hero/HeroRuixenBlock";
+import { PostGridBlock } from "@/components/frontend/modules/posts/PostGridBlock";
 import FAQs from "@/components/ui/faqs-section-one";
-import { ProductGridBlock } from "@/components/frontend/products/ProductGridBlock";
+import { ProductGridBlock } from "@/components/frontend/modules/products/ProductGridBlock";
 import { Separator } from "@/components/ui/separator";
 
 export default function Home() {
