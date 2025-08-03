@@ -1,5 +1,5 @@
-import { Navbar } from "@/components/navigation/navbar";
-import { Blogpost1 } from "@/components/posts/blogpost1";
+import { Navbar } from "@/components/frontend/navigation/navbar";
+import { Blogpost1 } from "@/components/frontend/posts/blogpost1";
 
 export default function DefaultThemeBlogDemoPage() {
   return (
