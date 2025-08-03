@@ -40,6 +40,42 @@
 - **Flexibility**: Mix and match blocks to create unique page layouts
 - **Performance**: Optimized components with built-in best practices
 
+### **🔒 CRITICAL: Block Isolation Protocol**
+
+**⚠️ AGENT RULE: When working on any block component, you MUST follow this protocol:**
+
+1. **BLOCK-ONLY CHANGES**: Only modify the specific block component you're working on
+2. **NO EXTERNAL CHANGES**: Do NOT modify any files outside the block component
+3. **USER CONFIRMATION REQUIRED**: If external changes are necessary, you MUST:
+   - Explain exactly what external changes are needed and why
+   - Get explicit user confirmation before making any changes
+   - List all files that would be affected
+4. **ISOLATION FIRST**: Always attempt to solve problems within the block first
+5. **CLEAR COMMUNICATION**: If you need to suggest external changes, clearly state:
+   - What files would be modified
+   - Why the changes are necessary
+   - What the impact would be
+   - Wait for user approval before proceeding
+
+**Examples of Block-Only Changes:**
+✅ Modifying `HeroBlock.tsx` internal logic
+✅ Updating block props and interfaces
+✅ Changing block UI components
+✅ Adding block-specific functionality
+
+**Examples Requiring User Confirmation:**
+❌ Modifying parent components that use the block
+❌ Changing shared UI components used by multiple blocks
+❌ Updating routing or page structure
+❌ Modifying global state management
+❌ Changing import paths across multiple files
+
+**This protocol ensures:**
+- Block components remain truly modular and self-contained
+- Changes don't accidentally affect other parts of the system
+- Users maintain control over system-wide modifications
+- Block architecture integrity is preserved
+
 ## **🏛️ Tech Stack**
 
 - **Next.js 15.3.4** with App Router and React Server Components
