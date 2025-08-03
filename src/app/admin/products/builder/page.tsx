@@ -143,10 +143,10 @@ export default function ProductBuilderPage() {
 
   // Function to add a new block
   const addBlock = (blockType: string) => {
-    const newBlock = {
+    const newBlock: ProductBlock = {
       id: `${blockType}-${Date.now()}`,
       type: blockType,
-      title: `${blockType.charAt(0).toUpperCase() + blockType.slice(1).replace('-', ' ')}`,
+      title: getDefaultContent(blockType).title || `${blockType} Block`,
       content: getDefaultContent(blockType)
     }
     
@@ -154,6 +154,18 @@ export default function ProductBuilderPage() {
       ...prev,
       [selectedProduct]: [...(prev[selectedProduct] || []), newBlock]
     }))
+  }
+
+  const deleteBlock = (blockId: string) => {
+    setBlocks(prev => ({
+      ...prev,
+      [selectedProduct]: prev[selectedProduct].filter(block => block.id !== blockId)
+    }))
+    
+    // Clear selected block if it was the one being deleted
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(null)
+    }
   }
 
   const currentProduct = {
@@ -329,7 +341,10 @@ export default function ProductBuilderPage() {
                   )}
                   
                   <div className="pt-4 border-t space-y-2">
-                    <Button variant="destructive" className="w-full">
+                    <Button variant="destructive" className="w-full" onClick={(e) => {
+                      e.stopPropagation();
+                      deleteBlock(selectedBlock.id);
+                    }}>
                       Delete Block
                     </Button>
                     <Button variant="outline" className="w-full">
@@ -377,7 +392,10 @@ export default function ProductBuilderPage() {
                           <Button variant="ghost" size="sm">↑</Button>
                           <Button variant="ghost" size="sm">↓</Button>
                           <Button variant="ghost" size="sm">✏️</Button>
-                          <Button variant="ghost" size="sm">🗑️</Button>
+                          <Button variant="ghost" size="sm" onClick={(e) => {
+                            e.stopPropagation();
+                            deleteBlock(block.id);
+                          }}>🗑️</Button>
                         </div>
                       </div>
                       

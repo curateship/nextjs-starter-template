@@ -10,11 +10,15 @@ interface ThemeBlockProps {
   title: string
   description: string
   status: string
+  primaryFont: string
+  secondaryFont: string
   logo: File | null
   logoPreview: string | null
   onTitleChange: (value: string) => void
   onDescriptionChange: (value: string) => void
   onStatusChange: (value: string) => void
+  onPrimaryFontChange: (value: string) => void
+  onSecondaryFontChange: (value: string) => void
   onLogoChange: (file: File | null) => void
   onLogoPreviewChange: (preview: string | null) => void
 }
@@ -23,11 +27,15 @@ export function ThemeBlock({
   title,
   description,
   status,
+  primaryFont,
+  secondaryFont,
   logo,
   logoPreview,
   onTitleChange,
   onDescriptionChange,
   onStatusChange,
+  onPrimaryFontChange,
+  onSecondaryFontChange,
   onLogoChange,
   onLogoPreviewChange,
 }: ThemeBlockProps) {
@@ -88,6 +96,46 @@ export function ThemeBlock({
               <SelectItem value="deprecated">Deprecated</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Font Selection */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Primary Font</label>
+            <Select value={primaryFont} onValueChange={onPrimaryFontChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select primary font" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inter">Inter</SelectItem>
+                <SelectItem value="roboto">Roboto</SelectItem>
+                <SelectItem value="open-sans">Open Sans</SelectItem>
+                <SelectItem value="poppins">Poppins</SelectItem>
+                <SelectItem value="montserrat">Montserrat</SelectItem>
+                <SelectItem value="lato">Lato</SelectItem>
+                <SelectItem value="nunito">Nunito</SelectItem>
+                <SelectItem value="source-sans-pro">Source Sans Pro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Secondary Font</label>
+            <Select value={secondaryFont} onValueChange={onSecondaryFontChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select secondary font" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inter">Inter</SelectItem>
+                <SelectItem value="roboto">Roboto</SelectItem>
+                <SelectItem value="open-sans">Open Sans</SelectItem>
+                <SelectItem value="poppins">Poppins</SelectItem>
+                <SelectItem value="montserrat">Montserrat</SelectItem>
+                <SelectItem value="lato">Lato</SelectItem>
+                <SelectItem value="nunito">Nunito</SelectItem>
+                <SelectItem value="source-sans-pro">Source Sans Pro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Theme Logo/Preview */}
