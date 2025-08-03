@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { ImageBlock } from "@/components/admin/content-type/images/ImageBlock"
+import { ImageBlock } from "@/components/admin/modules/images/ImageBlock"
 
 export default function NewImagePage() {
   const [title, setTitle] = useState("")

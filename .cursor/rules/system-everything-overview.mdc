@@ -71,7 +71,7 @@ src/app/
 ```
 src/components/
 ├── admin/
-│   ├── content-type/      # Block management interfaces
+│   ├── modules/           # Block management interfaces
 │   ├── dashboard/         # Multi-site dashboards
 │   └── layout/            # Admin layout system
 ├── ui/                    # Reusable block components

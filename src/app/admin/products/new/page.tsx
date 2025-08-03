@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/layout/admin-layout"
-import { HeroBlock } from "@/components/admin/content-type/products/HeroBlock"
+import { HeroBlock } from "@/components/admin/modules/products/HeroBlock"
 import { Button } from "@/components/ui/button"
 
 export default function NewProductPage() {

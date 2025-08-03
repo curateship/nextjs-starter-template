@@ -78,6 +78,6 @@ description: Use established admin component scaffold patterns for new admin UI 
 - # Content Type Block Pattern
 description: Use content type block patterns for admin content management components
 
-- **Structure:** `src/components/admin/content-type/{content-type}/BasicBlock.tsx`
+- **Structure:** `src/components/admin/modules/{module-type}/BasicBlock.tsx`
 - **Pattern:** Controlled components with onChange handlers
-- **Example:** [BasicBlock.tsx](mdc:src/components/admin/content-type/products/BasicBlock.tsx) 
+- **Example:** [BasicBlock.tsx](mdc:src/components/admin/modules/products/BasicBlock.tsx) 

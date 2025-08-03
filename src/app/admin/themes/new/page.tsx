@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { ThemeBlock } from "@/components/admin/content-type/themes/ThemeBlock"
+import { ThemeBlock } from "@/components/admin/modules/themes/ThemeBlock"
 
 export default function NewThemePage() {
   const [title, setTitle] = useState("")

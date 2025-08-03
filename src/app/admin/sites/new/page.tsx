@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { SiteBlock } from "@/components/admin/content-type/sites/SiteBlock"
+import { SiteBlock } from "@/components/admin/modules/sites/SiteBlock"
 
 export default function NewSitePage() {
   const [siteName, setSiteName] = useState("")
