@@ -270,7 +270,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
 
   return (
     <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 min-h-screen">
+      <div className="flex flex-col -m-4 -mt-6 h-full">
         {/* Header */}
         <div className="border-b bg-background p-4 sticky top-15 z-40">
           <div className="flex items-center justify-between">

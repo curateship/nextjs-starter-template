@@ -18,7 +18,7 @@ export function AdminLayout({
   headerActions,
 }: AdminLayoutProps) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-screen">
       <AppSidebar />
       <SidebarInset>
         <StickyHeader>
@@ -28,7 +28,7 @@ export function AdminLayout({
         
 
         
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-6">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-6 h-full">
           {children}
         </div>
       </SidebarInset>
