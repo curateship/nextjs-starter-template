@@ -1,6 +1,7 @@
 import { ProductHeroBlock } from "@/components/frontend/modules/products/ProductHeroBlock";
 import ProductFeatureGridBlock from "@/components/frontend/modules/products/ProductFeatureGridBlock";
 import { ProductBonusBlock } from "@/components/frontend/modules/products/ProductBonusBlock";
+import { ProductHotspotBlock } from "@/components/frontend/modules/products/ProductHotspotBlock";
 import FAQs from "@/components/ui/faqs";
 
 export default function DefaultThemeProductDemoPage() {
@@ -8,6 +9,7 @@ export default function DefaultThemeProductDemoPage() {
     <>
       <ProductHeroBlock />
       <ProductFeatureGridBlock />
+      <ProductHotspotBlock />
       <ProductBonusBlock />
       <FAQs />
     </>

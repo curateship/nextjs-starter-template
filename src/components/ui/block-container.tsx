@@ -24,7 +24,9 @@ export function BlockContainer({
               <h2 className="text-3xl font-bold md:text-5xl">{header.title}</h2>
             )}
             {header.subtitle && (
-              <p className="mt-4 text-lg text-muted-foreground">{header.subtitle}</p>
+              <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+                {header.subtitle}
+              </p>
             )}
           </div>
         )}
