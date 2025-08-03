@@ -43,7 +43,11 @@ const particlePositions = [
   { top: 92, left: 68, duration: 6.4, delay: 2.4 },
 ];
 
-export default function HeroSection02() {
+interface HeroRuixenBlockProps {
+  className?: string;
+}
+
+const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -150,4 +154,6 @@ export default function HeroSection02() {
       </div>
     </section>
   );
-} 
+};
+
+export { HeroRuixenBlock }; 

@@ -23,7 +23,7 @@ export function FrontendBlockContainer({
   viewAllButton
 }: FrontendBlockContainerProps) {
   return (
-    <section className={`py-16 md:py-24 ${className}`}>
+    <section className={`py-16 md:py-18 ${className}`}>
       <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
         {(header || viewAllButton) && (
           <div className="mb-12">
