@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card'
 
-export default function Features() {
+export default function ProductFeatureGridBlock() {
     return (
         <section>
             <div className="bg-muted/50 py-24">
