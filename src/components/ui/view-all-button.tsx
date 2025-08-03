@@ -12,13 +12,23 @@ export function ViewAllButton({
   href = "#",
   className = ""
 }: ViewAllButtonProps) {
+  const buttonElement = (
+    <Button className={`gap-4 ${className}`} asChild>
+      <a href={href}>
+        {text} <MoveRight className="w-4 h-4" />
+      </a>
+    </Button>
+  );
+
+  // If className is provided, return just the button (for inline use)
+  // Otherwise, wrap in positioning div (for standalone use)
+  if (className && className !== "") {
+    return buttonElement;
+  }
+
   return (
-    <div className="flex justify-center mt-18">
-      <Button className={`gap-4 ${className}`} asChild>
-        <a href={href}>
-          {text} <MoveRight className="w-4 h-4" />
-        </a>
-      </Button>
+    <div className="flex justify-center mt-8">
+      {buttonElement}
     </div>
   );
 } 

@@ -1,13 +1,16 @@
-import { BlockContainer } from "@/components/ui/block-container";
-import { ViewAllButton } from "@/components/ui/view-all-button";
+import { FrontendBlockContainer } from "@/components/ui/frontend-block-container";
 
 const Products2 = () => (
-  <BlockContainer 
+  <FrontendBlockContainer 
     className="white"
     header={{
       title: "Latest Templates",
       subtitle: "Discover our latest product templates. Discover our latest product templates",
-      align: 'center'
+      align: 'left'
+    }}
+    viewAllButton={{
+      text: "View all articles",
+      href: "/products"
     }}
   >
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -33,8 +36,7 @@ const Products2 = () => (
         </p>
       </div>
     </div>
-    <ViewAllButton text="View all articles" href="/products" />
-  </BlockContainer>
+  </FrontendBlockContainer>
 );
 
 export { Products2 };
