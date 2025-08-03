@@ -1,11 +1,11 @@
 "use client"
 
-import { AppSidebar } from "@/components/admin/sidebar/app-sidebar"
-import { StickyHeader } from "@/components/admin/dashboard/sticky-header"
-import { AdminPageHeader } from "@/components/admin/dashboard/admin-page-header"
-import { AdminCard } from "@/components/admin/dashboard/admin-card"
+import { AppSidebar } from "@/components/admin/layout/sidebar/app-sidebar"
+import { StickyHeader } from "@/components/admin/layout/dashboard/sticky-header"
+import { AdminPageHeader } from "@/components/admin/layout/dashboard/admin-page-header"
+import { AdminCard } from "@/components/admin/layout/dashboard/admin-card"
 import { BasicBlock } from "@/components/admin/modules/products/BasicBlock"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/sidebar/sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/layout/sidebar/sidebar"
 
 
 interface AdminLayoutProps {
