@@ -1,4 +1,3 @@
-import { Hero } from "@/components/ui/hero/animated-hero";
 import ProductFeatureGridBlock from "@/components/frontend/modules/products/ProductFeatureGridBlock";
 
 import FAQs from "@/components/ui/faqs-section-one";
@@ -6,8 +5,6 @@ import FAQs from "@/components/ui/faqs-section-one";
 export default function ProductDemoPage() {
   return (
     <>
-      <Hero />
-      
       <ProductFeatureGridBlock />
       <FAQs />
     </>
