@@ -4,7 +4,7 @@ import { BlockContainer } from '@/components/ui/block-container'
 export default function ProductFeatureGridBlock() {
     return (
         <BlockContainer 
-            className="bg-muted/50"
+            className="white"
             header={{
                 title: "Effortless Task Management",
                 subtitle: "Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more. AI-powered scheduling helps you stay on track and adapt to changing priorities.",
