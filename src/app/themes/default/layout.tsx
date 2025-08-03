@@ -1,5 +1,5 @@
-import { Navbar } from "@/components/frontend/navigation/navbar";
-import Footer from "@/components/frontend/navigation/footer";
+import { Navbar } from "@/components/ui/navigation/navbar";
+import Footer from "@/components/ui/navigation/footer";
 import { type ReactNode } from "react";
 
 export default function DefaultThemeLayout({ children }: { children: ReactNode }) {
