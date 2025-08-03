@@ -214,10 +214,9 @@ export default function ProductBuilderPage() {
           <div className="w-[650px] border-r bg-muted/30 p-4 overflow-y-auto">
             {selectedBlock ? (
               <div>
-                <h3 className="font-semibold mb-4">Block Properties</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Block: {selectedBlock.title}</label>
+                    <label className="text-sm font-medium">Edit {selectedBlock.title}</label>
                   </div>
                   
                   {selectedBlock.type === 'product-hero' && (
