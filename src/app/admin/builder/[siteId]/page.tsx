@@ -243,10 +243,10 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
 
   // Function to add a new block
   const addBlock = (blockType: string) => {
-    const newBlock = {
+    const newBlock: Block = {
       id: `${blockType}-${Date.now()}`,
       type: blockType,
-      title: `${blockType.charAt(0).toUpperCase() + blockType.slice(1)} Block`,
+      title: getDefaultContent(blockType).title || `${blockType} Block`,
       content: getDefaultContent(blockType)
     }
     
@@ -254,6 +254,18 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
       ...prev,
       [selectedPage]: [...(prev[selectedPage] || []), newBlock]
     }))
+  }
+
+  const deleteBlock = (blockId: string) => {
+    setBlocks(prev => ({
+      ...prev,
+      [selectedPage]: prev[selectedPage].filter(block => block.id !== blockId)
+    }))
+    
+    // Clear selected block if it was the one being deleted
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(null)
+    }
   }
 
   return (
@@ -755,7 +767,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                   )}
                   
                   <div className="pt-4 border-t space-y-2">
-                    <Button variant="destructive" className="w-full">
+                    <Button variant="destructive" className="w-full" onClick={() => deleteBlock(selectedBlock.id)}>
                       Delete Block
                     </Button>
                     <Button variant="outline" className="w-full">
@@ -795,7 +807,10 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                         <Button variant="ghost" size="sm">↑</Button>
                         <Button variant="ghost" size="sm">↓</Button>
                         <Button variant="ghost" size="sm">✏️</Button>
-                        <Button variant="ghost" size="sm">🗑️</Button>
+                        <Button variant="ghost" size="sm" onClick={(e) => {
+                          e.stopPropagation();
+                          deleteBlock(block.id);
+                        }}>🗑️</Button>
                       </div>
                     </div>
                     

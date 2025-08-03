@@ -106,6 +106,7 @@ src/components/
 - **Block-Aware Themes**: Themes designed to work with block architecture
 - **Theme Inheritance**: Centralized theme updates across all sites
 - **Custom Branding**: Tenant-specific customization options
+- **Theme Creation**: JSON-based theme management at `/admin/themes/new` (no database required)
 
 ## **🔧 Admin Interface**
 
