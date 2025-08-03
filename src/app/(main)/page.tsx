@@ -1,4 +1,4 @@
-import FeaturesSix from "@/components/frontend/features/features-6";
+
 import { HeroRuixenBlock } from "@/components/ui/hero/HeroRuixenBlock";
 import { PostGridBlock } from "@/components/frontend/modules/posts/PostGridBlock";
 import FAQs from "@/components/ui/faqs-section-one";
