@@ -1,0 +1,313 @@
+# Modules Architecture Documentation
+
+This document outlines the architecture, dependencies, and organization of all modules in the codebase.
+
+## 📁 Module Structure Overview
+
+### Frontend Modules (`src/components/frontend/modules/`)
+
+#### **Posts Module** (`/posts/`)
+**Purpose:** Content management for blog posts and articles
+**Components:**
+- `PostGridBlock.tsx` - Grid layout for displaying multiple posts
+- `PostBasicBlock.tsx` - Basic post display component
+- `PostHeroBlock.tsx` - Hero section for posts (planned)
+
+**Dependencies:**
+- `@/components/ui/card` - For post cards
+- `@/components/ui/frontend-block-container` - For consistent layout
+- `@/components/ui/view-all-button` - For call-to-action buttons
+
+**Usage:**
+- Main posts listing pages
+- Blog/article sections
+- Content showcase blocks
+
+---
+
+#### **Products Module** (`/products/`)
+**Purpose:** Product catalog and feature management
+**Components:**
+- `ProductGridBlock.tsx` - Grid layout for displaying products
+- `ProductFeatureGridBlock.tsx` - Feature showcase with grid layout
+- `ProductHeroBlock.tsx` - Hero section for products
+
+**Dependencies:**
+- `@/components/ui/card` - For product cards
+- `@/components/ui/block-container` - For consistent layout
+- `@/components/ui/accordion` - For feature details
+
+**Usage:**
+- Product listing pages
+- Feature showcase sections
+- Product hero sections
+
+---
+
+### Admin Modules (`src/components/admin/modules/`)
+
+#### **Posts Admin** (`/posts/`)
+**Purpose:** Admin interface for post management
+**Components:**
+- `PostBlock.tsx` - Post editing interface
+- `BasicBlock.tsx` - Basic post content editor
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Admin post creation/editing
+- Content management interface
+
+---
+
+#### **Products Admin** (`/products/`)
+**Purpose:** Admin interface for product management
+**Components:**
+- `BasicBlock.tsx` - Basic product information editor
+- `HeroBlock.tsx` - Product hero section editor
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Admin product creation/editing
+- Product feature management
+
+---
+
+#### **Sites Admin** (`/sites/`)
+**Purpose:** Site configuration and management
+**Components:**
+- `SiteBlock.tsx` - Site settings editor
+- `TrackingBlock.tsx` - Analytics tracking configuration
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Site configuration
+- Analytics setup
+
+---
+
+#### **Users Admin** (`/users/`)
+**Purpose:** User management interface
+**Components:**
+- `UserBlock.tsx` - User profile editor
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- User profile management
+- Admin user interface
+
+---
+
+#### **Themes Admin** (`/themes/`)
+**Purpose:** Theme customization interface
+**Components:**
+- `ThemeBlock.tsx` - Theme settings editor
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Theme customization
+- Design system management
+
+---
+
+#### **Newsletters Admin** (`/newsletters/`)
+**Purpose:** Newsletter management interface
+**Components:**
+- `NewsletterBlock.tsx` - Newsletter editor
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Newsletter creation/editing
+- Email campaign management
+
+---
+
+#### **Images Admin** (`/images/`)
+**Purpose:** Image management interface
+**Components:**
+- `ImageBlock.tsx` - Image upload/management
+
+**Dependencies:**
+- `@/components/admin/dashboard/admin-card` - For admin cards
+- `@/components/admin/dashboard/admin-page-header` - For page headers
+
+**Usage:**
+- Image upload/management
+- Media library interface
+
+---
+
+## 🏗️ Architecture Patterns
+
+### **Block Container Pattern**
+**Purpose:** Consistent layout and header management
+**Components:**
+- `BlockContainer` - General-purpose container with header support
+- `FrontendBlockContainer` - Specialized for frontend blocks with "View All" buttons
+
+**Usage:**
+- All frontend modules use these containers for consistent spacing
+- Centralized header styling and alignment
+- Reusable layout patterns
+
+### **Admin Card Pattern**
+**Purpose:** Consistent admin interface components
+**Components:**
+- `admin-card.tsx` - Standard admin card layout
+- `admin-page-header.tsx` - Page header with breadcrumbs
+- `skeleton.tsx` - Loading states
+
+**Usage:**
+- All admin modules use these for consistent UI
+- Standardized admin interface patterns
+
+### **Navigation Pattern**
+**Purpose:** Consistent navigation across the application
+**Components:**
+- `navbar.tsx` - Main navigation with glass effect
+- `footer.tsx` - Site footer
+- `logo.tsx` - Brand logo component
+
+**Usage:**
+- All pages use consistent navigation
+- Responsive design with mobile considerations
+
+---
+
+## 🔗 Dependencies Map
+
+### **UI Components** (`src/components/ui/`)
+**Shared across all modules:**
+- `card.tsx` - Used by posts and products
+- `button.tsx` - Universal button component
+- `accordion.tsx` - Used by FAQs and admin forms
+- `avatar.tsx` - User avatars and profile images
+- `badge.tsx` - Status indicators and labels
+
+### **Layout Components** (`src/components/ui/`)
+**Foundation components:**
+- `block-container.tsx` - Frontend block layout
+- `frontend-block-container.tsx` - Frontend with "View All" buttons
+- `view-all-button.tsx` - Call-to-action buttons
+
+### **Admin Components** (`src/components/admin/layout/`)
+**Admin interface foundation:**
+- `admin-layout.tsx` - Main admin layout
+- `sidebar/` - Navigation sidebar
+- `dashboard/` - Admin dashboard components
+
+---
+
+## 📋 Module Guidelines
+
+### **Naming Conventions**
+- **Components:** PascalCase (e.g., `ProductGridBlock.tsx`)
+- **Folders:** Plural for resources (`posts`, `products`), singular for types (`hero`)
+- **Files:** Descriptive names that indicate purpose
+
+### **File Organization**
+- **Frontend modules:** `src/components/frontend/modules/{module-type}/`
+- **Admin modules:** `src/components/admin/modules/{module-type}/`
+- **UI components:** `src/components/ui/`
+- **Layout components:** `src/components/admin/layout/`
+
+### **Component Structure**
+1. **Interface definition** (if needed)
+2. **Component function**
+3. **Export statement**
+4. **Helper components** (if any)
+
+### **Dependency Management**
+- **Keep dependencies minimal** - only import what's needed
+- **Use relative imports** for closely related components
+- **Use absolute imports** for shared UI components
+- **Document complex dependencies** in component comments
+
+---
+
+## 🚀 Module Development Workflow
+
+### **Creating New Modules**
+1. **Identify module type** (frontend vs admin)
+2. **Create folder structure** in appropriate location
+3. **Follow naming conventions** for components
+4. **Use established patterns** (BlockContainer, admin cards)
+5. **Document dependencies** and usage
+
+### **Adding Components to Modules**
+1. **Determine if it's a block** (uses BlockContainer)
+2. **Choose appropriate container** (BlockContainer vs FrontendBlockContainer)
+3. **Follow established patterns** for that module type
+4. **Update this documentation** with new component
+
+### **Refactoring Guidelines**
+- **Maintain module boundaries** - don't cross-pollinate between modules
+- **Use shared UI components** for consistency
+- **Follow established patterns** within each module
+- **Update documentation** when making architectural changes
+
+---
+
+## 📊 Module Status
+
+### **Frontend Modules**
+- ✅ **Posts** - Complete with grid and basic blocks
+- ✅ **Products** - Complete with grid, features, and hero blocks
+- 🔄 **Hero** - In progress (moved to UI components)
+
+### **Admin Modules**
+- ✅ **Posts** - Complete with basic editing
+- ✅ **Products** - Complete with basic and hero editing
+- ✅ **Sites** - Complete with site and tracking blocks
+- ✅ **Users** - Complete with user management
+- ✅ **Themes** - Complete with theme customization
+- ✅ **Newsletters** - Complete with newsletter editing
+- ✅ **Images** - Complete with image management
+
+### **UI Components**
+- ✅ **Navigation** - Complete with responsive design
+- ✅ **Forms** - Complete with login form
+- ✅ **Layout** - Complete with block containers
+- ✅ **Hero** - Complete with various hero components
+- ✅ **FAQs** - Complete with accordion implementation
+
+---
+
+## 🔧 Maintenance Notes
+
+### **Regular Tasks**
+- **Update this documentation** when adding new modules
+- **Review dependencies** quarterly for optimization
+- **Check naming consistency** across all modules
+- **Validate patterns** are being followed correctly
+
+### **Architecture Decisions**
+- **Block Container Pattern:** Chosen for consistent frontend layouts
+- **Admin Card Pattern:** Chosen for consistent admin interfaces
+- **Module Separation:** Frontend and admin modules are separate for clear boundaries
+- **UI Component Centralization:** Shared components in `src/components/ui/`
+
+---
+
+*This documentation should be updated whenever new modules are added or existing modules are significantly refactored.*
+description:
+globs:
+alwaysApply: false
+---
