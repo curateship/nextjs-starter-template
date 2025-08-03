@@ -1,8 +1,12 @@
 import { FrontendBlockContainer } from "@/components/ui/frontend-block-container";
 
-const Products2 = () => (
+interface ProductGridBlockProps {
+  className?: string;
+}
+
+const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
   <FrontendBlockContainer 
-    className="white"
+    className={className}
     header={{
       title: "Latest Templates",
       subtitle: "Discover our latest product templates. Discover our latest product templates",
@@ -39,4 +43,4 @@ const Products2 = () => (
   </FrontendBlockContainer>
 );
 
-export { Products2 };
+export { ProductGridBlock };

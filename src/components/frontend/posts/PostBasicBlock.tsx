@@ -14,7 +14,7 @@ const defaultPost = {
   authorImage: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/avatar-2.webp",
 };
 
-interface BasicBlockData {
+interface PostBasicBlockData {
   title: string;
   authorName: string;
   image: string;
@@ -23,7 +23,7 @@ interface BasicBlockData {
   authorImage: string;
 }
 
-const BasicBlock = ({ post = defaultPost }: { post?: BasicBlockData }) => {
+const PostBasicBlock = ({ post = defaultPost }: { post?: PostBasicBlockData }) => {
   const { title, authorName, image, pubDate, description, authorImage } = post;
   return (
     <section className="py-32">
@@ -150,4 +150,4 @@ const BasicBlock = ({ post = defaultPost }: { post?: BasicBlockData }) => {
   );
 };
 
-export { BasicBlock };
+export { PostBasicBlock };

@@ -1,11 +1,11 @@
 import { Navbar } from "@/components/frontend/navigation/navbar";
-import { BasicBlock } from "@/components/frontend/posts/BasicBlock";
+import { PostBasicBlock } from "@/components/frontend/posts/PostBasicBlock";
 
 export default function DefaultThemePostsPage() {
   return (
     <>
       <Navbar />
-      <BasicBlock />
+      <PostBasicBlock />
     </>
   );
 } 
