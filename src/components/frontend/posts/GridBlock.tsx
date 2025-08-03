@@ -20,7 +20,7 @@ interface Post {
   image: string;
 }
 
-interface Blog7Props {
+interface GridBlockProps {
   tagline?: string;
   heading?: string;
   description?: string;
@@ -29,12 +29,12 @@ interface Blog7Props {
   posts?: Post[];
 }
 
-const Blog7 = ({
+const GridBlock = ({
   tagline = "Latest Updates",
   heading = "Blog Posts",
   description = "Discover the latest trends, tips, and best practices in modern web development. From UI components to design systems, stay updated with our expert insights.",
   buttonText = "View all articles",
-  buttonUrl = "/blog",
+  buttonUrl = "/posts",
   posts = [
     {
       id: "post-1",
@@ -44,7 +44,7 @@ const Blog7 = ({
       label: "Tutorial",
       author: "Sarah Chen",
       published: "1 Jan 2024",
-      url: "/blog/demo",
+      url: "/posts",
       image: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&h=600&fit=crop&crop=entropy&auto=format",
     },
     {
@@ -55,7 +55,7 @@ const Blog7 = ({
       label: "Accessibility",
       author: "Marcus Rodriguez",
       published: "1 Jan 2024",
-      url: "/blog/demo",
+      url: "/posts",
       image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop&crop=entropy&auto=format",
     },
     {
@@ -66,11 +66,11 @@ const Blog7 = ({
       label: "Design Systems",
       author: "Emma Thompson",
       published: "1 Jan 2024",
-      url: "/blog/demo",
+      url: "/posts",
       image: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=800&h=600&fit=crop&crop=entropy&auto=format",
     },
   ],
-}: Blog7Props) => {
+}: GridBlockProps) => {
   return (
     <section className="py-15">
       <div className="flex flex-col items-center gap-6 mx-auto max-w-6xl px-6">
@@ -138,4 +138,4 @@ const Blog7 = ({
   );
 };
 
-export { Blog7 };
+export { GridBlock };
