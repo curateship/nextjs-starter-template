@@ -34,16 +34,6 @@ const premiumFeatures = [
   "Reports",
 ];
 
-const entrepriseFeatures = [
-  "10+ Team Members",
-  "100+ GB Storage",
-  "100+ Projects",
-  "Dedicated Account Manager",
-  "Custom Features",
-  "Custom Support",
-  "Custom Integration",
-];
-
 // Pricing tier type definition
 type PricingTier = {
   name: string;
@@ -102,19 +92,6 @@ const pricingTiers: PricingTier[] = [
     features: premiumFeatures,
     comparison: "Everything in Pro, and:",
     hasPurchaseOption: true,
-  },
-  {
-    name: "Entreprise",
-    description:
-      "For large companies with custom features and support and a dedicated account manager",
-    price: "",
-    bgClass: "bg-card",
-    interval: "",
-    buttonText: "Contact sales",
-    buttonVariant: "outline",
-    features: entrepriseFeatures,
-    comparison: "Everything in Premium, and:",
-    hasPurchaseOption: false,
   },
 ];
 
@@ -183,6 +160,7 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 const ProductPricingBlock = () => {
   return (
     <BlockContainer
+      id="pricing"
       className="white"
       header={{
         title: "Pricing",
@@ -191,7 +169,7 @@ const ProductPricingBlock = () => {
       }}
     >
       {/* Grid layout for pricing tiers */}
-      <div className="mx-auto grid max-w-xl gap-6 rounded-md lg:max-w-none lg:grid-cols-4">
+      <div className="mx-auto grid max-w-xl gap-6 rounded-md lg:max-w-none lg:grid-cols-3">
         {pricingTiers.map((tier) => (
           <div key={tier.name} className="h-full">
             <PricingCard tier={tier} />
