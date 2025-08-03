@@ -19,7 +19,7 @@ const integrations = [
 const ProductBonusBlock = () => {
   return (
     <BlockContainer
-      className="bg-muted/50"
+      className="white"
       header={{
         title: "Transforming Finance for Everyone",
         subtitle: "Discover how our solutions empower individuals and businesses to manage their finances effectively.",

@@ -35,7 +35,7 @@ export default function FAQs() {
 
     return (
         <BlockContainer
-            className="bg-muted/50"
+            className="white"
             header={{
                 title: "Frequently Asked Questions",
                 subtitle: "Discover quick and comprehensive answers to common questions about our platform, services, and features.",
