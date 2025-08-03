@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Github, Settings2, Sparkles, Zap } from "lucide-react";
+import { Key, Settings2, Sparkles, Zap } from "lucide-react";
 import DotPattern from "@/components/ui/dot-pattern";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -106,10 +106,10 @@ const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
             href="https://github.com/ruixenui/ruixen-free-components"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-normal"
+            className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
           >
-            <Github className="w-4 h-4 mr-2" />
-            Ruixen UI
+            <Key className="w-4 h-4 mr-2" />
+            Get Access to Everything
           </Link>
         </button>
 
@@ -117,7 +117,7 @@ const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight"
+          className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
         >
           Build Exceptional Interfaces with Ease
         </motion.h1>
