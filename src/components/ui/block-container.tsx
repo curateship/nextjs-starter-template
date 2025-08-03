@@ -2,6 +2,7 @@ interface BlockContainerProps {
   children: React.ReactNode
   className?: string
   container?: boolean
+  id?: string
   header?: {
     title?: string
     subtitle?: string
@@ -13,10 +14,11 @@ export function BlockContainer({
   children, 
   className = "",
   container = true,
+  id,
   header
 }: BlockContainerProps) {
   return (
-    <section className={`py-16 md:py-23 ${className}`}>
+    <section id={id} className={`py-16 md:py-23 ${className}`}>
       <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
         {header && (
           <div className={`mb-12 ${header.align === 'left' ? 'text-left' : header.align === 'right' ? 'text-right' : 'text-center'}`}>

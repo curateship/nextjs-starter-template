@@ -3,6 +3,7 @@ import { BlockContainer } from "@/components/ui/block-container";
 const ProductHotspotBlock = () => {
   return (
     <BlockContainer
+      id="product-hotspot"
       className="white"
       header={{
         title: "Coaching OS Dashboard",
