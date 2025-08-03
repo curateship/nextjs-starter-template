@@ -12,17 +12,17 @@ import {
   Wrench,
 } from "lucide-react"
 
-import { NavMain } from "@/components/admin/sidebar/nav-main"
-import { NavProjects } from "@/components/admin/sidebar/nav-projects"
-import { NavUser } from "@/components/admin/sidebar/nav-user"
-import { TeamSwitcher } from "@/components/admin/sidebar/team-switcher"
+import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
+import { NavProjects } from "@/components/admin/layout/sidebar/nav-projects"
+import { NavUser } from "@/components/admin/layout/sidebar/nav-user"
+import { TeamSwitcher } from "@/components/admin/layout/sidebar/team-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/admin/sidebar/sidebar"
+} from "@/components/admin/layout/sidebar/sidebar"
 
 // This is sample data.
 const data = {
