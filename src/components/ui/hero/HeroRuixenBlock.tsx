@@ -55,7 +55,7 @@ const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
   }, []);
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-40 overflow-hidden">
+    <section className="relative w-full flex flex-col items-center justify-center px-6 py-30 overflow-hidden">
       <DotPattern className={cn(
         "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]",
       )} />

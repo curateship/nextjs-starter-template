@@ -31,7 +31,7 @@ export const Navbar = () => {
         <header>
             <nav
                 data-state={menuState && 'active'}
-                className={cn('fixed z-20 w-full border-b transition-colors duration-150', scrolled && 'bg-background/50 backdrop-blur-3xl')}>
+                className={cn('fixed z-20 w-full border-b bg-background transition-colors duration-150', scrolled && 'lg:bg-background/50 lg:backdrop-blur-3xl')}>
                 <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
                     <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
                         <div className="flex w-full items-center justify-between gap-26 lg:w-auto">

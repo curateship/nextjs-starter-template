@@ -6,7 +6,7 @@ interface ProductGridBlockProps {
 
 const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
   <FrontendBlockContainer 
-    className={className}
+    className="bg-muted/50"
     header={{
       title: "Latest Templates",
       subtitle: "Discover our latest product templates. Discover our latest product templates",
