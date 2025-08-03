@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
-const Hero206 = () => {
+const ProductHeroBlock = () => {
   return (
     <section className="bg-background">
-      <div className="container relative py-32">
+      <div className="mx-auto max-w-6xl px-6 relative py-32">
         <header className="mx-auto max-w-3xl text-center">
           <h1 className="font-anton text-foreground text-5xl font-semibold tracking-tight md:text-7xl">
             Shadcn Blocks <br /> Just Copy/Paste.
@@ -68,7 +68,7 @@ const Hero206 = () => {
   );
 };
 
-export { Hero206 };
+export { ProductHeroBlock };
 
 const BrowserMockup = ({
   className = "",
