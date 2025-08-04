@@ -4,43 +4,72 @@ This document outlines the architecture, dependencies, and organization of all m
 
 ## 📁 Module Structure Overview
 
+### Frontend Layout Components (`src/components/frontend/layout/`)
+
+#### **Layout Blocks** (`/layout/`)
+**Purpose:** User-editable blocks with business logic that can be configured across themes
+**Components:**
+- `NavBlock.tsx` - Navigation component with business logic (used in default theme)
+- `FooterBlock.tsx` - Footer component with configurable links and social media
+- `ProductGridBlock.tsx` - Editable grid for displaying products/templates on home pages
+- `PostGridBlock.tsx` - Editable grid for displaying blog posts/articles on home pages
+
+**Key Characteristics:**
+- **User-editable:** These blocks contain business logic that users can configure
+- **Cross-cutting:** Used across different pages and themes
+- **Reusable:** Not tied to specific content types or individual pages
+- **Business logic:** Contains configurable data, not just presentation
+
+**Dependencies:**
+- `@/components/ui/frontend-block-container` - For consistent layout
+- `@/components/ui/card` - For post/product cards
+- `@/components/ui/button` - For call-to-action buttons
+- `@/components/ui/navigation/*` - For navigation elements
+
+**Usage:**
+- Home pages (main and themed)
+- Cross-theme navigation and footers
+- Configurable content grids
+
+---
+
 ### Frontend Modules (`src/components/frontend/modules/`)
 
-#### **Posts Module** (`/posts/`)
-**Purpose:** Content management for blog posts and articles
+#### **Products Module** (`/products/`)
+**Purpose:** Product-specific components for product pages and features
 **Components:**
-- `PostGridBlock.tsx` - Grid layout for displaying multiple posts
+- `ProductHeroBlock.tsx` - Hero section for product pages
+- `ProductFeatureGridBlock.tsx` - Feature showcase with grid layout
+- `ProductBonusBlock.tsx` - Bonus/additional features section
+- `ProductHotspotBlock.tsx` - Product demonstration/hotspot section
+- `ProductFeatureCarousel.tsx` - Carousel for product features
+- `ProductPricingBlock.tsx` - Pricing tiers and plans
+
+**Dependencies:**
+- `@/components/ui/block-container` - For consistent layout
+- `@/components/ui/card` - For feature cards
+- `@/components/ui/button` - For CTAs
+- Various UI components for specific functionality
+
+**Usage:**
+- Product-specific pages (`/themes/default/products/`)
+- Product feature showcases
+- Pricing and feature comparisons
+
+---
+
+#### **Posts Module** (`/posts/`)
+**Purpose:** Post-specific components for individual post pages
+**Components:**
 - `PostBasicBlock.tsx` - Basic post display component
-- `PostHeroBlock.tsx` - Hero section for posts (planned)
 
 **Dependencies:**
 - `@/components/ui/card` - For post cards
 - `@/components/ui/frontend-block-container` - For consistent layout
-- `@/components/ui/view-all-button` - For call-to-action buttons
 
 **Usage:**
-- Main posts listing pages
-- Blog/article sections
-- Content showcase blocks
-
----
-
-#### **Products Module** (`/products/`)
-**Purpose:** Product catalog and feature management
-**Components:**
-- `ProductGridBlock.tsx` - Grid layout for displaying products
-- `ProductFeatureGridBlock.tsx` - Feature showcase with grid layout
-- `ProductHeroBlock.tsx` - Hero section for products
-
-**Dependencies:**
-- `@/components/ui/card` - For product cards
-- `@/components/ui/block-container` - For consistent layout
-- `@/components/ui/accordion` - For feature details
-
-**Usage:**
-- Product listing pages
-- Feature showcase sections
-- Product hero sections
+- Individual post pages
+- Blog/article detail views
 
 ---
 
@@ -50,7 +79,6 @@ This document outlines the architecture, dependencies, and organization of all m
 **Purpose:** Admin interface for post management
 **Components:**
 - `PostBlock.tsx` - Post editing interface
-- `BasicBlock.tsx` - Basic post content editor
 
 **Dependencies:**
 - `@/components/admin/dashboard/admin-card` - For admin cards
@@ -156,6 +184,19 @@ This document outlines the architecture, dependencies, and organization of all m
 
 ## 🏗️ Architecture Patterns
 
+### **Layout Block Pattern** (NEW)
+**Purpose:** User-editable blocks with business logic
+**Location:** `src/components/frontend/layout/`
+**Components:**
+- Components that contain business logic users can configure
+- Cross-cutting components used across themes and pages
+- Reusable blocks not tied to specific content types
+
+**Key Distinction:**
+- **Layout blocks:** User-editable with business logic
+- **UI components:** Pure presentation components
+- **Module components:** Content-type specific components
+
 ### **Block Container Pattern**
 **Purpose:** Consistent layout and header management
 **Components:**
@@ -178,16 +219,18 @@ This document outlines the architecture, dependencies, and organization of all m
 - All admin modules use these for consistent UI
 - Standardized admin interface patterns
 
-### **Navigation Pattern**
-**Purpose:** Consistent navigation across the application
+### **Navigation Pattern** (UPDATED)
+**Purpose:** Theme-specific navigation with business logic
 **Components:**
-- `navbar.tsx` - Main navigation with glass effect
-- `footer.tsx` - Site footer
+- `navbar.tsx` - Root-level navigation with glass effect
+- `NavBlock.tsx` - Theme-specific navigation (in layout folder)
+- `FooterBlock.tsx` - Theme-specific footer (in layout folder)
 - `logo.tsx` - Brand logo component
 
 **Usage:**
-- All pages use consistent navigation
-- Responsive design with mobile considerations
+- Root navigation for main application
+- Theme-specific navigation for different user experiences
+- Configurable navigation elements
 
 ---
 
@@ -217,16 +260,37 @@ This document outlines the architecture, dependencies, and organization of all m
 
 ## 📋 Module Guidelines
 
+### **Folder Structure Decision Tree**
+
+**Where should my component go?**
+
+1. **Is it user-editable with business logic?**
+   - YES → `src/components/frontend/layout/`
+   - Examples: Navigation, Footer, Grid blocks for home pages
+
+2. **Is it specific to a content type (products, posts, etc.)?**
+   - YES → `src/components/frontend/modules/{content-type}/`
+   - Examples: ProductHeroBlock, PostBasicBlock
+
+3. **Is it an admin interface component?**
+   - YES → `src/components/admin/modules/{content-type}/`
+   - Examples: ProductBasicBlock (admin), PostBlock (admin)
+
+4. **Is it a pure UI component with no business logic?**
+   - YES → `src/components/ui/`
+   - Examples: Button, Card, Modal
+
 ### **Naming Conventions**
 - **Components:** PascalCase (e.g., `ProductGridBlock.tsx`)
-- **Folders:** Plural for resources (`posts`, `products`), singular for types (`hero`)
+- **Folders:** Plural for resources (`posts`, `products`), singular for types (`layout`)
 - **Files:** Descriptive names that indicate purpose
 
 ### **File Organization**
+- **Layout blocks:** `src/components/frontend/layout/`
 - **Frontend modules:** `src/components/frontend/modules/{module-type}/`
 - **Admin modules:** `src/components/admin/modules/{module-type}/`
 - **UI components:** `src/components/ui/`
-- **Layout components:** `src/components/admin/layout/`
+- **Admin layout:** `src/components/admin/layout/`
 
 ### **Component Structure**
 1. **Interface definition** (if needed)
@@ -244,33 +308,50 @@ This document outlines the architecture, dependencies, and organization of all m
 
 ## 🚀 Module Development Workflow
 
-### **Creating New Modules**
-1. **Identify module type** (frontend vs admin)
-2. **Create folder structure** in appropriate location
+### **Creating New Components**
+1. **Determine component type** using the decision tree above
+2. **Create in appropriate folder** based on type
 3. **Follow naming conventions** for components
-4. **Use established patterns** (BlockContainer, admin cards)
+4. **Use established patterns** (BlockContainer, admin cards, etc.)
 5. **Document dependencies** and usage
 
-### **Adding Components to Modules**
-1. **Determine if it's a block** (uses BlockContainer)
-2. **Choose appropriate container** (BlockContainer vs FrontendBlockContainer)
-3. **Follow established patterns** for that module type
-4. **Update this documentation** with new component
+### **Layout Block Guidelines**
+**When to create a layout block:**
+- Component contains business logic users should configure
+- Component is used across multiple pages/themes
+- Component is not tied to specific content types
+- Component represents a page section users can customize
+
+**Examples:**
+- Navigation menus
+- Footer content
+- Home page content grids
+- Configurable hero sections
+
+### **Module Component Guidelines**
+**When to create a module component:**
+- Component is specific to a content type (products, posts, etc.)
+- Component is used on specific content pages
+- Component has specialized functionality for that content type
 
 ### **Refactoring Guidelines**
-- **Maintain module boundaries** - don't cross-pollinate between modules
+- **Maintain folder boundaries** - layout vs modules vs UI
 - **Use shared UI components** for consistency
-- **Follow established patterns** within each module
-- **Update documentation** when making architectural changes
+- **Follow established patterns** within each component type
+- **Update this documentation** when making architectural changes
 
 ---
 
 ## 📊 Module Status
 
+### **Frontend Layout Blocks** (NEW)
+- ✅ **Navigation** - Complete with NavBlock for themes
+- ✅ **Footer** - Complete with FooterBlock for themes
+- ✅ **Content Grids** - Complete with Product/PostGridBlock for home pages
+
 ### **Frontend Modules**
-- ✅ **Posts** - Complete with grid and basic blocks
-- ✅ **Products** - Complete with grid, features, and hero blocks
-- 🔄 **Hero** - In progress (moved to UI components)
+- 🔄 **Posts** - Basic components (PostGridBlock moved to layout)
+- ✅ **Products** - Complete with hero, features, pricing, bonus, hotspot, carousel blocks
 
 ### **Admin Modules**
 - ✅ **Posts** - Complete with basic editing
@@ -292,13 +373,20 @@ This document outlines the architecture, dependencies, and organization of all m
 
 ## 🔧 Maintenance Notes
 
+### **Recent Changes**
+- **Layout folder introduced** for user-editable blocks with business logic
+- **ProductGridBlock and PostGridBlock moved** from modules to layout
+- **Navigation reorganized** with theme-specific NavBlock
+- **Footer reorganized** with theme-specific FooterBlock
+
 ### **Regular Tasks**
-- **Update this documentation** when adding new modules
-- **Review dependencies** quarterly for optimization
+- **Update this documentation** when adding new components
+- **Review component placement** using the decision tree
 - **Check naming consistency** across all modules
 - **Validate patterns** are being followed correctly
 
 ### **Architecture Decisions**
+- **Layout Block Pattern:** Chosen for user-editable components with business logic
 - **Block Container Pattern:** Chosen for consistent frontend layouts
 - **Admin Card Pattern:** Chosen for consistent admin interfaces
 - **Module Separation:** Frontend and admin modules are separate for clear boundaries
@@ -307,7 +395,3 @@ This document outlines the architecture, dependencies, and organization of all m
 ---
 
 *This documentation should be updated whenever new modules are added or existing modules are significantly refactored.*
-description:
-globs:
-alwaysApply: false
----
