@@ -38,74 +38,71 @@ const PostGridBlock = ({
       }}
     >
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
-        <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
-          <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
-          <CardHeader>
-            <h3 className="text-lg font-semibold hover:underline md:text-xl">
-              Getting Started with shadcn/ui
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Learn how to quickly integrate and customize shadcn/ui components in your Next.js projects.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <a
-              href="#"
-              className="flex items-center text-foreground hover:underline"
-            >
-              Read more
-              <ArrowRight className="ml-2 size-4" />
-            </a>
-          </CardFooter>
-        </Card>
+        <a href="http://localhost:3000/themes/default/posts" className="block">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+            <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
+            <CardHeader>
+              <h3 className="text-lg font-semibold hover:underline md:text-xl">
+                Getting Started with shadcn/ui
+              </h3>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Learn how to quickly integrate and customize shadcn/ui components in your Next.js projects.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <div className="flex items-center text-foreground">
+                Read more
+                <ArrowRight className="ml-2 size-4" />
+              </div>
+            </CardFooter>
+          </Card>
+        </a>
         
-        <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
-          <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
-          <CardHeader>
-            <h3 className="text-lg font-semibold hover:underline md:text-xl">
-              Building Accessible Web Applications
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Explore how to create inclusive web experiences using accessible components.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <a
-              href="#"
-              className="flex items-center text-foreground hover:underline"
-            >
-              Read more
-              <ArrowRight className="ml-2 size-4" />
-            </a>
-          </CardFooter>
-        </Card>
+        <a href="http://localhost:3000/themes/default/posts" className="block">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+            <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
+            <CardHeader>
+              <h3 className="text-lg font-semibold hover:underline md:text-xl">
+                Building Accessible Web Applications
+              </h3>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Explore how to create inclusive web experiences using accessible components.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <div className="flex items-center text-foreground">
+                Read more
+                <ArrowRight className="ml-2 size-4" />
+              </div>
+            </CardFooter>
+          </Card>
+        </a>
         
-        <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
-          <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
-          <CardHeader>
-            <h3 className="text-lg font-semibold hover:underline md:text-xl">
-              Modern Design Systems with Tailwind CSS
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              Dive into creating scalable design systems using Tailwind CSS and shadcn/ui.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <a
-              href="#"
-              className="flex items-center text-foreground hover:underline"
-            >
-              Read more
-              <ArrowRight className="ml-2 size-4" />
-            </a>
-          </CardFooter>
-        </Card>
+        <a href="http://localhost:3000/themes/default/posts" className="block">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+            <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
+            <CardHeader>
+              <h3 className="text-lg font-semibold hover:underline md:text-xl">
+                Modern Design Systems with Tailwind CSS
+              </h3>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Dive into creating scalable design systems using Tailwind CSS and shadcn/ui.
+              </p>
+            </CardContent>
+            <CardFooter>
+              <div className="flex items-center text-foreground">
+                Read more
+                <ArrowRight className="ml-2 size-4" />
+              </div>
+            </CardFooter>
+          </Card>
+        </a>
       </div>
     </FrontendBlockContainer>
   );
