@@ -17,6 +17,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
     { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
     { name: 'Products', href: '/themes/default/products/archive', hasDropdown: false, dropdownItems: [] },
+    { name: 'Posts', href: '/themes/default/posts/archive', hasDropdown: false, dropdownItems: [] },
 ]
 
 export const NavBlock = () => {
@@ -56,7 +57,7 @@ export const NavBlock = () => {
                     <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
                         <div className="flex w-full items-center justify-between gap-26 lg:w-auto">
                             <Link
-                                href="/"
+                                href="http://localhost:3000/themes/default"
                                 aria-label="home"
                                 className="flex items-center space-x-2">
                                 <Logo />

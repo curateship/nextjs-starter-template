@@ -78,34 +78,36 @@ export const ProductArchiveBlock = () => {
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {DUMMY_PRODUCTS.map((product) => (
-          <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-            <div className="aspect-square overflow-hidden">
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                  {product.category}
-                </span>
-                <span className="text-lg font-semibold text-foreground">
-                  {product.price}
-                </span>
+          <a key={product.id} href="http://localhost:3000/themes/default/products" className="block">
+            <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+              <div className="aspect-square overflow-hidden">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                />
               </div>
-              <CardTitle className="text-lg">{product.name}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                {product.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button className="w-full" size="sm">
-                View Details
-              </Button>
-            </CardContent>
-          </Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    {product.category}
+                  </span>
+                  <span className="text-lg font-semibold text-foreground">
+                    {product.price}
+                  </span>
+                </div>
+                <CardTitle className="text-lg">{product.name}</CardTitle>
+                <CardDescription className="text-sm text-muted-foreground">
+                  {product.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Button className="w-full" size="sm">
+                  View Details
+                </Button>
+              </CardContent>
+            </Card>
+          </a>
         ))}
       </div>
 
