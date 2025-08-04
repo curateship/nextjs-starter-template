@@ -12,7 +12,7 @@ const ProductHotspotBlock = () => {
       }}
     >
       <div className="flex flex-col items-center">
-        <div className="mt-8 max-w-4xl">
+        <div className="mt-8 w-full">
           <img
             src="https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg"
             alt="Coaching OS Dashboard Interface"
