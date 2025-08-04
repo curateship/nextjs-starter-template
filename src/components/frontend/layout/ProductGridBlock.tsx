@@ -43,4 +43,4 @@ const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
   </FrontendBlockContainer>
 );
 
-export { ProductGridBlock };
+export { ProductGridBlock }; 
