@@ -16,6 +16,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
     { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
+    { name: 'Products', href: '/themes/default/products/archive', hasDropdown: false, dropdownItems: [] },
 ]
 
 export const NavBlock = () => {

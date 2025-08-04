@@ -6,14 +6,14 @@ interface ProductGridBlockProps {
 
 const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
   <FrontendBlockContainer 
-    className="bg-muted/40"
+    className="white"
     header={{
-      title: "Latest Templates",
-      subtitle: "Discover our latest product templates. Discover our latest product templates",
+      title: "Latest Products",
+      subtitle: "Discover our latest products",
       align: 'left'
     }}
     viewAllButton={{
-      text: "View all articles",
+      text: "View all products",
       href: "/products"
     }}
   >

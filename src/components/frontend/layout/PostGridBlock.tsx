@@ -20,7 +20,7 @@ interface PostGridBlockProps {
 
 const PostGridBlock = ({
   tagline = "Latest Updates",
-  heading = "Blog Posts",
+  heading = "Article Posts",
   description = "Discover the latest trends, tips, and best practices in modern web development.",
   buttonText = "View all posts",
   buttonUrl = "/posts",
