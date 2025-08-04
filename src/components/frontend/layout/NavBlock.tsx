@@ -11,9 +11,10 @@ const menuItems = [
     { name: 'Themes', href: '#', hasDropdown: true, dropdownItems: [
         { name: 'Default Theme', href: 'http://localhost:3000/themes/default/' }
     ]},
+    { name: 'Tutorials', href: '#', hasDropdown: false },
 ]
 
-export const Navbar = () => {
+export const NavBlock = () => {
     const [menuState, setMenuState] = React.useState(false)
     const [scrolled, setScrolled] = React.useState(false)
     const [dropdownOpen, setDropdownOpen] = React.useState(false)
