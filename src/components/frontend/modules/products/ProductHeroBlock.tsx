@@ -11,12 +11,14 @@ import {
   MoveUpRight,
 } from "lucide-react";
 import React from "react";
+import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AnimatedGroup } from "@/components/ui/animated-group";
 
 const ProductHeroBlock = () => {
   return (
@@ -25,7 +27,7 @@ const ProductHeroBlock = () => {
         <header className="mx-auto max-w-3xl text-center">
           <Badge
             variant="outline"
-            className="mx-auto mb-6 flex w-fit cursor-pointer items-center justify-center rounded-full border py-1 pl-2 pr-3 font-normal transition-all ease-in-out hover:gap-3"
+            className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-3 font-normal transition-all ease-in-out hover:gap-3"
           >
             <Avatar className="relative -mr-5 overflow-hidden rounded-full border md:size-10">
               <AvatarImage src="https://deifkwefumgah.cloudfront.net/shadcnblocks/block/avatar-2.webp" alt="" />
@@ -82,13 +84,60 @@ const ProductHeroBlock = () => {
           </div>
         </header>
 
-        <div className="relative mt-12 flex h-full w-full flex-col items-center justify-center">
-          <BrowserMockup
-            className="w-full"
-            url="https://shadcnblocks.com/block/hero206"
-            DahboardUrlDesktop="https://deifkwefumgah.cloudfront.net/shadcnblocks/block/dashboard/dashboard-1.png"
-            DahboardUrlMobile="https://deifkwefumgah.cloudfront.net/shadcnblocks/block/dashboard/dashboard-mobile-1.png"
-          />
+        <div className="relative mt-5 flex h-full w-full flex-col items-center justify-center">
+          <AnimatedGroup
+            variants={{
+              container: {
+                visible: {
+                  transition: {
+                    staggerChildren: 0.05,
+                  },
+                },
+              },
+              item: {
+                hidden: {
+                  opacity: 0,
+                  filter: 'blur(12px)',
+                  y: 12,
+                },
+                visible: {
+                  opacity: 1,
+                  filter: 'blur(0px)',
+                  y: 0,
+                  transition: {
+                    type: 'spring',
+                    bounce: 0.3,
+                    duration: 1.5,
+                  },
+                },
+              },
+            }}
+          >
+            <div className="relative -mr-56 mt-8 overflow-hidden px-2 sm:mr-0 sm:mt-12">
+              <div
+                aria-hidden
+                className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
+              />
+              <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative mx-auto max-w-6xl overflow-hidden rounded-2xl border p-4 shadow-lg shadow-zinc-950/15 ring-1">
+                <Image
+                  className="bg-background relative hidden h-auto w-full rounded-2xl object-cover dark:block"
+                  src="/hero-header.png"
+                  alt="app screen"
+                  width={1200}
+                  height={675}
+                  style={{ width: '100%', height: 'auto' }}
+                />
+                <Image
+                  className="z-2 border-border/25 relative h-auto w-full rounded-2xl border object-cover dark:hidden"
+                  src="/hero-header.png"
+                  alt="app screen"
+                  width={1200}
+                  height={675}
+                  style={{ width: '100%', height: 'auto' }}
+                />
+              </div>
+            </div>
+          </AnimatedGroup>
           <div className="bg-linear-to-t absolute bottom-0 h-2/3 w-full from-white to-transparent" />
         </div>
       </div>
@@ -97,59 +146,3 @@ const ProductHeroBlock = () => {
 };
 
 export { ProductHeroBlock };
-
-const BrowserMockup = ({
-  className = "",
-  url = "https://shadcnblocks.com/block/hero206",
-  DahboardUrlDesktop = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/dashboard/dashboard-1.png",
-  DahboardUrlMobile = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/dashboard/dashboard-mobile-1.png",
-}) => (
-  <div
-    className={cn(
-      "rounded-4xl relative w-full overflow-hidden border",
-      className,
-    )}
-  >
-    <div className="bg-muted lg:gap-25 flex items-center justify-between gap-10 px-8 py-4">
-      <div className="flex items-center gap-2">
-        <div className="size-3 rounded-full bg-red-500" />
-        <div className="size-3 rounded-full bg-yellow-500" />
-        <div className="size-3 rounded-full bg-green-500" />
-        <div className="ml-6 hidden items-center gap-2 opacity-40 lg:flex">
-          <ChevronLeft className="size-5" />
-          <ChevronRight className="size-5" />
-        </div>
-      </div>
-      <div className="flex w-full items-center justify-center">
-        <p className="bg-background relative hidden w-full rounded-full px-4 py-1 text-center text-sm tracking-tight md:block">
-          {url}
-          <RotateCw className="absolute right-3 top-2 size-3.5" />
-        </p>
-      </div>
-
-      <div className="flex items-center gap-4 opacity-40">
-        <Share className="size-4" />
-        <Plus className="size-4" />
-        <Copy className="size-4" />
-      </div>
-    </div>
-
-    <div className="relative w-full">
-      <img
-        src={DahboardUrlDesktop}
-        alt=""
-        className="object-cove hidden aspect-video h-full w-full object-top md:block"
-      />
-      <img
-        src={DahboardUrlMobile}
-        alt=""
-        className="block h-full w-full object-cover md:hidden"
-      />
-    </div>
-    <div className="bg-muted absolute bottom-0 z-10 flex w-full items-center justify-center py-3 md:hidden">
-      <p className="relative flex items-center gap-2 rounded-full px-8 py-1 text-center text-sm tracking-tight">
-        {url}
-      </p>
-    </div>
-  </div>
-);
