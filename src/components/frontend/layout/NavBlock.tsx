@@ -7,11 +7,15 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 import { useScroll } from 'motion/react'
 
-const menuItems = [
-    { name: 'Themes', href: '#', hasDropdown: true, dropdownItems: [
-        { name: 'Default Theme', href: 'http://localhost:3000/themes/default/' }
-    ]},
-    { name: 'Tutorials', href: '#', hasDropdown: false },
+interface MenuItem {
+    name: string;
+    href: string;
+    hasDropdown: boolean;
+    dropdownItems?: Array<{ name: string; href: string }>;
+}
+
+const menuItems: MenuItem[] = [
+    { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
 ]
 
 export const NavBlock = () => {
@@ -146,17 +150,9 @@ export const NavBlock = () => {
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                                 <Button
                                     asChild
-                                    variant="outline"
                                     size="sm">
-                                    <Link href="/login">
-                                        <span>Login</span>
-                                    </Link>
-                                </Button>
-                                <Button
-                                    asChild
-                                    size="sm">
-                                    <Link href="/login">
-                                        <span>Sign Up</span>
+                                    <Link href="#">
+                                        <span>All Access</span>
                                     </Link>
                                 </Button>
                             </div>
