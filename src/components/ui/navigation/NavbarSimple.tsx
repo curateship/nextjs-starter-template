@@ -115,7 +115,7 @@ const NavbarSimple = () => {
   );
 };
 
-export default NavbarSimple;
+export { NavbarSimple };
 
 const AnimatedHamburger = ({ isOpen }: { isOpen: boolean }) => {
   return (
