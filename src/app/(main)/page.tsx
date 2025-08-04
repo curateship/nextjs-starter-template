@@ -1,7 +1,7 @@
 
 import { HeroRuixenBlock } from "@/components/ui/hero/HeroRuixenBlock";
 import { PostGridBlock } from "@/components/frontend/layout/PostGridBlock";
-import FAQs from "@/components/ui/faqs";
+import { FaqBlock } from "@/components/frontend/layout/FaqBlock";
 import { ProductGridBlock } from "@/components/frontend/layout/ProductGridBlock";
 import { Separator } from "@/components/ui/separator";
 

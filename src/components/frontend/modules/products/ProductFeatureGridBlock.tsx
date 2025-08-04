@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { BlockContainer } from '@/components/ui/block-container'
 
-export default function ProductFeatureGridBlock() {
+const ProductFeatureGridBlock = () => {
     return (
         <BlockContainer 
             className="white"
@@ -49,3 +49,5 @@ export default function ProductFeatureGridBlock() {
         </BlockContainer>
     )
 }
+
+export { ProductFeatureGridBlock };

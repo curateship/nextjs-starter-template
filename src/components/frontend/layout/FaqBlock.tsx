@@ -4,7 +4,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { BlockContainer } from '@/components/ui/block-container'
 import Link from 'next/link'
 
-export default function FAQs() {
+const FaqBlock = () => {
     const faqItems = [
         {
             id: 'item-1',
@@ -72,3 +72,5 @@ export default function FAQs() {
         </BlockContainer>
     )
 }
+
+export { FaqBlock };

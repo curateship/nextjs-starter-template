@@ -51,4 +51,4 @@ export default function DotPattern({
       <rect width="100%" height="100%" strokeWidth={0} fill={`url(#${id})`} />
     </svg>
   );
-} 
+}
