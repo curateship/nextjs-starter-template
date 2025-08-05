@@ -9,7 +9,7 @@ This document outlines the architecture, dependencies, and organization of all m
 #### **Layout Blocks** (`/layout/`)
 **Purpose:** User-editable blocks with business logic that can be configured across themes
 **Components:**
-- `NavBlock.tsx` - Navigation component with business logic (used in default theme)
+- `NavBlock.tsx` - Navigation component with business logic (used in marketplace theme)
 - `FooterBlock.tsx` - Footer component with configurable links and social media
 - `ProductGridBlock.tsx` - Editable grid for displaying products/templates on home pages
 - `PostGridBlock.tsx` - Editable grid for displaying blog posts/articles on home pages
@@ -52,7 +52,7 @@ This document outlines the architecture, dependencies, and organization of all m
 - Various UI components for specific functionality
 
 **Usage:**
-- Product-specific pages (`/themes/default/products/`)
+- Product-specific pages (`/themes/marketplace/products/`)
 - Product feature showcases
 - Pricing and feature comparisons
 

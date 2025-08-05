@@ -218,7 +218,7 @@ export default function SitesPage() {
                   <span className="text-sm">Maria Wilson</span>
                 </div>
                 <div>
-                  <span className="text-sm">Default Theme</span>
+                  <span className="text-sm">Marketplace Theme</span>
                 </div>
                 <div>
                   <span className="text-sm text-muted-foreground">1 month ago</span>

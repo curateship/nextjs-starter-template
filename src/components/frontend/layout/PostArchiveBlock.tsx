@@ -87,7 +87,7 @@ export const PostArchiveBlock = () => {
         {/* Posts Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
           {DUMMY_POSTS.map((post) => (
-            <a key={post.id} href="http://localhost:3000/themes/default/posts" className="block">
+            <a key={post.id} href="http://localhost:3000/themes/marketplace/posts" className="block">
               <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0 hover:shadow-lg transition-shadow">
                 <div className="aspect-video overflow-hidden rounded-t-lg">
                   <img

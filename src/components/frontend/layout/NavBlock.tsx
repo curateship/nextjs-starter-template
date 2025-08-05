@@ -19,8 +19,8 @@ interface MenuItem {
 // Navigation menu configuration
 const menuItems: MenuItem[] = [
   { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
-  { name: 'Products', href: '/themes/default/products/archive', hasDropdown: false, dropdownItems: [] },
-  { name: 'Posts', href: '/themes/default/posts/archive', hasDropdown: false, dropdownItems: [] },
+  { name: 'Products', href: '/themes/marketplace/products/archive', hasDropdown: false, dropdownItems: [] },
+  { name: 'Posts', href: '/themes/marketplace/posts/archive', hasDropdown: false, dropdownItems: [] },
 ]
 
 // Desktop dropdown menu item component
@@ -243,7 +243,7 @@ export const NavBlock = () => {
             {/* Logo and navigation */}
             <div className="flex w-full items-center justify-between gap-26 lg:w-auto">
               <Link
-                href="http://localhost:3000/themes/default"
+                href="http://localhost:3000/themes/marketplace"
                 aria-label="home"
                 className="flex items-center space-x-2"
               >

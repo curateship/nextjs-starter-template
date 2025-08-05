@@ -9,7 +9,7 @@ import { useScroll } from 'motion/react'
 
 const menuItems = [
     { name: 'Themes', href: '#', hasDropdown: true, dropdownItems: [
-        { name: 'Default Theme', href: 'http://localhost:3000/themes/default/' }
+        { name: 'Marketplace Theme', href: 'http://localhost:3000/themes/marketplace/' }
     ]},
 ]
 
