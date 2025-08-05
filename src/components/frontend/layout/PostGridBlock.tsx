@@ -38,7 +38,7 @@ const PostGridBlock = ({
       }}
     >
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
-        <a href="http://localhost:3000/themes/default/posts" className="block">
+        <a href="http://localhost:3000/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
@@ -60,7 +60,7 @@ const PostGridBlock = ({
           </Card>
         </a>
         
-        <a href="http://localhost:3000/themes/default/posts" className="block">
+        <a href="http://localhost:3000/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
@@ -82,7 +82,7 @@ const PostGridBlock = ({
           </Card>
         </a>
         
-        <a href="http://localhost:3000/themes/default/posts" className="block">
+        <a href="http://localhost:3000/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>

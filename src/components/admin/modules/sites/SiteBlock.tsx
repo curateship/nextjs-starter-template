@@ -65,7 +65,7 @@ export function SiteBlock({
     { id: "1", name: "Modern Store", description: "E-commerce focused theme" },
     { id: "2", name: "Minimal Blog", description: "Clean blog theme" },
     { id: "3", name: "Creative Portfolio", description: "Portfolio showcase theme" },
-    { id: "4", name: "Default Theme", description: "Basic starter theme" },
+    { id: "4", name: "Marketplace Theme", description: "Digital product marketplace theme" },
     { id: "5", name: "App Template", description: "Web application theme" },
   ]
 

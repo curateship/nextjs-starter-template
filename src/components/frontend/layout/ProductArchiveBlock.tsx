@@ -78,7 +78,7 @@ export const ProductArchiveBlock = () => {
       {/* Products Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {DUMMY_PRODUCTS.map((product) => (
-          <a key={product.id} href="http://localhost:3000/themes/default/products" className="block">
+          <a key={product.id} href="http://localhost:3000/themes/marketplace/products" className="block">
             <Card className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-square overflow-hidden">
                 <img

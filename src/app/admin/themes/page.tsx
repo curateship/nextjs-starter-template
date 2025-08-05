@@ -78,20 +78,20 @@ export default function ThemesPage() {
           </div>
           
           <div className="divide-y">
-            {/* Default Theme */}
+            {/* Marketplace Theme */}
             <div className="p-6 flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-medium">🎯</span>
                 </div>
                 <div>
-                  <h4 className="font-medium">Default Theme</h4>
+                  <h4 className="font-medium">Marketplace Theme</h4>
                   <p className="text-sm text-muted-foreground">Standard theme with hero sections, products, and blog</p>
                 </div>
               </div>
               <div className="flex items-center space-x-4">
                 <Button asChild variant="outline" size="sm">
-                  <a href="/themes/default" target="_blank" rel="noopener noreferrer">
+                  <a href="/themes/marketplace" target="_blank" rel="noopener noreferrer">
                     View Site
                   </a>
                 </Button>
