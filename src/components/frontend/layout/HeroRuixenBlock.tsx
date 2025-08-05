@@ -48,6 +48,39 @@ interface HeroRuixenBlockProps {
   className?: string;
 }
 
+// Main hero content component
+const HeroContent = () => (
+  <div className="relative z-10 text-center max-w-2xl space-y-6">
+    <RainbowButton />
+    <HeroTitle />
+    <HeroSubtitle />
+    <CTAButtons />
+    <SocialProof />
+  </div>
+)
+
+const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
+  // Track client-side mounting to avoid hydration issues with animations
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  return (
+    <section className="relative w-full flex flex-col items-center justify-center px-6 py-30 overflow-hidden">
+      {/* Background dot pattern with radial mask for visual depth */}
+      <DotPattern className={cn(
+        "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]",
+      )} />
+      
+      <GradientOverlays />
+      <FloatingParticles isMounted={isMounted} />
+      <HeroContent />
+    </section>
+  );
+};
+
 // Animated floating particles component
 const FloatingParticles = ({ isMounted }: { isMounted: boolean }) => (
   isMounted && (
@@ -162,38 +195,5 @@ const SocialProof = () => (
     <TrustedByAvatars />
   </motion.div>
 )
-
-// Main hero content component
-const HeroContent = () => (
-  <div className="relative z-10 text-center max-w-2xl space-y-6">
-    <RainbowButton />
-    <HeroTitle />
-    <HeroSubtitle />
-    <CTAButtons />
-    <SocialProof />
-  </div>
-)
-
-const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
-  // Track client-side mounting to avoid hydration issues with animations
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 py-30 overflow-hidden">
-      {/* Background dot pattern with radial mask for visual depth */}
-      <DotPattern className={cn(
-        "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]",
-      )} />
-      
-      <GradientOverlays />
-      <FloatingParticles isMounted={isMounted} />
-      <HeroContent />
-    </section>
-  );
-};
 
 export { HeroRuixenBlock };
