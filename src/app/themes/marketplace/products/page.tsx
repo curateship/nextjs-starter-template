@@ -4,7 +4,7 @@ import { ProductBonusBlock } from "@/components/frontend/modules/products/Produc
 import { ProductHotspotBlock } from "@/components/frontend/modules/products/ProductHotspotBlock";
 import { ProductFeatureCarousel } from "@/components/frontend/modules/products/ProductFeatureCarousel";
 import { ProductPricingBlock } from "@/components/frontend/modules/products/ProductPricingBlock";
-import { FaqBlock } from "@/components/frontend/layout/FaqBlock";
+import { FaqBlock } from "@/components/frontend/layout/directory/FaqBlock";
 
 export default function DefaultThemeProductDemoPage() {
   return (
