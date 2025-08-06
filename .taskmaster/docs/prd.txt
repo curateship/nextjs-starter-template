@@ -1,0 +1,272 @@
+<context>
+# Overview  
+System Everything Phase 1 - Multi-Site & Theme Architecture Platform
+
+A Next.js-based multi-tenant platform that enables super admins to manage site owners and their websites through a unified admin interface. The platform focuses on providing a scalable foundation for multi-site management with flexible theming capabilities and modular block-based content creation.
+
+This phase establishes the core multi-tenant architecture, authentication systems, and foundational site building capabilities while maintaining simplicity and avoiding over-engineering.
+
+# Core Features  
+## 1. Dual Authentication System
+- **Super Admin/Admin Management**: Single table with role-based permissions (super_admin | admin) for platform-level operations
+- **Site Owner Management**: Separate table for site owners with site-scoped operations to avoid complexity
+- **Clean Separation**: No hierarchical user systems - simple CRUD operations for each user type
+- **Future-Ready**: Architecture supports adding site users later without refactoring
+
+## 2. File-Based Theme System with Database Customization
+- **Hardcoded Themes**: Developer-controlled themes stored in `/app/themes/` for consistency and performance
+- **Database Settings**: Site-specific customizations (colors, fonts, logos) stored in database for flexibility
+- **Super Admin Controls**: Can edit any site's theme settings for support and compliance
+- **Site Owner Customization**: Can customize their own site's appearance within defined parameters
+
+## 3. Simple User Management (CRUD)
+- **Super Admin Functions**: Create, read, update, delete site owner accounts
+- **Site Owner Functions**: Manage their own sites and edit personal profile details
+- **No Complex Hierarchies**: Focused on essential functionality for MVP validation
+
+## 4. Multi-Site Management
+- **Super Admin Oversight**: Full CRUD access to all sites across all site owners
+- **Site Owner Control**: CRUD access limited to their own sites
+- **Clean Data Separation**: Each site maintains independent configuration and content
+
+## 5. Block-Based Site Builder (Layout Blocks)
+- **Block Renderer Pattern**: Centralized rendering system using existing BlockRenderer.tsx architecture
+- **Page-Specific Block Libraries**: Super admin controls which blocks are available for each page type (home, product, cart, etc.)
+- **Home Page Focus**: Initial implementation starts with home page customization
+- **Admin UI Pattern**: Uses existing card-based admin components (SiteBlock.tsx, BasicBlock.tsx patterns)
+
+# User Experience  
+## Super Admin Persona
+- **Role**: Platform administrator managing the entire multi-tenant system
+- **Goals**: Oversee site owners, manage themes, ensure platform consistency
+- **Key Flows**: 
+  - Create and manage site owner accounts
+  - Configure available themes and block libraries
+  - Monitor and support site owners
+  - Manage platform-wide settings
+
+## Site Owner Persona  
+- **Role**: Business owner or manager creating and customizing their website
+- **Goals**: Build and maintain their site with professional appearance
+- **Key Flows**:
+  - Create and configure their sites
+  - Customize theme settings (colors, fonts, logos)
+  - Build pages using available blocks
+  - Manage their own profile and settings
+
+## Site Builder User Flow
+1. **Select Page** → Choose page to customize (starting with home page)
+2. **Choose Blocks** → Select from page-appropriate block library
+3. **Configure Blocks** → Use settings panels to customize content and appearance
+4. **Preview Changes** → Live preview using BlockRenderer system
+5. **Save and Publish** → Apply changes to live site
+</context>
+
+<PRD>
+# Technical Architecture  
+## System Components
+- **Next.js 15.3.4** with App Router for modern React patterns
+- **TypeScript 5** for type safety and developer experience
+- **Tailwind CSS 4** for consistent styling
+- **Existing Block System**: Leverages current BlockRenderer.tsx architecture
+
+## Database Schema
+### Authentication Tables
+```sql
+users_super_admins (table)
+├── id, email, password_hash, role (super_admin | admin), created_at
+
+users_tenant_roles (table)
+├── id, email, password_hash, status, created_at
+
+users_site_level (table) - future site users
+├── id, email, password_hash, site_id, status, created_at
+
+users_details (table)
+├── user_id, user_type (admin_user | site_owner | user), 
+    name, phone, avatar, bio, preferences
+
+sites (table)
+├── id, owner_id, name, domain, theme_id, status, created_at
+
+site_settings (table)
+├── site_id, theme_id, logo_url, primary_color, secondary_color, 
+    font_family, font_size, background_color, header_text, footer_text
+```
+
+### Block System Tables
+```sql
+site_pages (table)
+├── id, site_id, page_type (home, about, product, etc.), name, status
+
+page_blocks (table)
+├── id, page_id, block_type, position, config (JSON), active
+
+page_block_libraries (table)
+├── page_type, allowed_block_types (JSON)
+
+layout_blocks (table)
+├── id, name, type (layout_block_hero, layout_block_contact, layout_block_footer, etc.), 
+    config_schema (JSON), active
+
+module_blocks (table)
+├── id, name, type (products_block_grid, posts_block_list, newsletters_block_signup, etc.), 
+    config_schema (JSON), active
+```
+
+## Theme Architecture
+- **File Structure**: `/app/themes/{theme-name}/` containing layout components and styles
+- **Theme Integration**: BlockRenderer dynamically loads theme-specific components
+- **Customization Layer**: Database settings override default theme values
+- **Component Pattern**: Uses existing frontend/layout/ component architecture
+
+## Block System Integration
+- **Existing BlockRenderer**: `<BlockRenderer type="HeroBlock" config={{...}} />`
+- **Page-Specific Blocks**: Block library restrictions prevent inappropriate block usage
+- **Admin UI**: Leverages existing admin/modules/ component patterns
+- **Block Categories & Locations**:
+  - **Layout blocks**: `src/components/frontend/layout/` (user-editable with business logic)
+  - **Content-specific blocks**: `src/components/frontend/modules/` (products, posts, newsletters, etc.)
+  - **Admin blocks**: `src/components/admin/modules/` (management interfaces)
+  - **UI components**: `src/components/ui/` (pure presentation components)
+
+## 🔒 CRITICAL: Block Isolation Protocol
+**⚠️ MANDATORY DEVELOPMENT RULE: When working on block components:**
+
+1. **BLOCK-ONLY CHANGES**: Only modify the specific block component being worked on
+2. **NO EXTERNAL CHANGES**: Do NOT modify files outside the block without explicit approval
+3. **USER CONFIRMATION**: Get explicit approval before any changes outside the block scope
+4. **ISOLATION FIRST**: Solve all problems within the block whenever possible
+5. **COMPONENT EXTRACTION**: Break complex blocks into focused, single-purpose components within the block folder
+
+**This isolation ensures:**
+- Prevents cascading changes across the platform
+- Maintains multi-tenant stability
+- Enables safe parallel development
+- Preserves existing functionality
+
+## 🧩 Component Architecture Standards
+
+### **Organization Principles**
+- **Component Extraction**: Break large components into focused, single-purpose parts
+- **Hierarchy**: Main component → direct dependencies → supporting components  
+- **Clean Code**: Eliminate deep nesting and "ugly closing brackets"
+- **Strategic Commenting**: Explain "why" not "what", avoid over-commenting
+
+### **Code Structure Example**
+```typescript
+// Main component (clean, focused)
+const SiteBuilderBlock = () => (
+  <div className="site-builder">
+    <BlockLibrary />
+    <BlockConfigPanel />
+    <PreviewArea />
+  </div>
+)
+
+// Supporting components (extracted for clarity)
+const BlockLibrary = ({ availableBlocks, onBlockSelect }) => (...)
+const BlockConfigPanel = ({ selectedBlock, onConfigChange }) => (...)
+const PreviewArea = ({ blocks, config }) => (...)
+```
+
+### **Formatting & Commenting Standards**
+- **TypeScript Interfaces**: Define clear prop types for all components
+- **Meaningful Names**: Use descriptive component and variable names
+- **Single Responsibility**: Each component should have one clear purpose
+- **Comment Intent**: Explain business logic and architectural decisions, not obvious code
+- **Consistent Patterns**: Follow established patterns from existing codebase
+
+# Development Roadmap  
+## Phase 1: Foundation & Core Features
+### Authentication & User Management
+- Implement dual authentication system (admin_users + site_owners tables)
+- Create super admin CRUD for site owner management
+- Build site owner self-management interface
+- Establish role-based permissions and middleware
+
+### Theme System Foundation  
+- Create basic theme structure in `/app/themes/`
+- Implement database settings system for customization
+- Build theme selection and customization UI
+- Integrate with existing component architecture
+
+### Multi-Site Management
+- Implement site CRUD operations for both user types
+- Create site dashboard and management interfaces
+- Establish site-owner relationships and permissions
+- Build site status and configuration management
+
+### Block-Based Site Builder
+- Extend existing BlockRenderer for dynamic page building
+- Implement page-specific block library system
+- Create block configuration UI using admin component patterns
+- Build home page customization as initial implementation
+- Integrate with theme system for consistent styling
+
+## Future Enhancements (Post-Phase 1)
+- Site user management system (separate domain)
+- Advanced block types and page templates
+- Theme marketplace functionality
+- Bulk operations and advanced admin features
+- Analytics and reporting systems
+- API integrations and webhooks
+
+# Logical Dependency Chain
+## Foundation First
+1. **Authentication System** → Establishes user management foundation
+2. **Database Schema** → Creates data structure for all operations
+3. **Basic Admin Interface** → Provides management capabilities
+
+## Multi-Tenant Core
+4. **Site Management** → Enables multi-site functionality
+5. **Theme System** → Provides customization foundation
+6. **Site-Owner Relationships** → Establishes proper data isolation
+
+## Site Building Capabilities  
+7. **Block System Extension** → Leverages existing architecture
+8. **Page Management** → Creates editable page structure
+9. **Block Configuration UI** → Enables site customization
+10. **Theme Integration** → Connects all systems together
+
+## User Experience Polish
+11. **Preview System** → Live preview of changes
+12. **User Dashboards** → Intuitive management interfaces
+13. **Validation & Error Handling** → Robust user experience
+
+# Risks and Mitigations  
+## Technical Challenges
+- **Block System Complexity**: Mitigate by leveraging existing BlockRenderer architecture and starting with simple block types
+- **Multi-Tenant Data Isolation**: Use clear database design with proper foreign keys and middleware validation
+- **Theme Customization Conflicts**: Implement validation and preview systems to prevent breaking changes
+
+## MVP Scope Management
+- **Feature Creep Prevention**: Strict adherence to Phase 1 scope - defer advanced features to future phases
+- **User Experience Balance**: Focus on core workflows rather than advanced customization options
+- **Performance Considerations**: Use file-based themes and efficient database queries to maintain speed
+
+## Development Approach
+- **Incremental Implementation**: Build each component independently and integrate progressively
+- **Existing Pattern Leverage**: Use established admin UI patterns and component architecture
+- **User Feedback Integration**: Start with single page type (home) and expand based on usage patterns
+
+# Appendix  
+## Existing Architecture Integration
+- **Component Patterns**: Uses established admin/modules/ UI patterns from SiteBlock.tsx, BasicBlock.tsx
+- **Block System**: Extends existing BlockRenderer.tsx for centralized rendering
+- **Database Design**: Follows current schema patterns while adding multi-tenant capabilities
+- **Theme System**: Integrates with existing frontend/layout/ component architecture
+
+## Technical Specifications
+- **Authentication**: JWT-based with role validation middleware
+- **File Uploads**: Image handling for logos and theme assets
+- **Real-time Preview**: Live updates using BlockRenderer system
+- **Data Validation**: TypeScript interfaces and database constraints
+- **Performance**: Optimized queries and component lazy loading
+
+## Reference Implementation
+- **Admin UI Components**: `src/components/admin/modules/sites/SiteBlock.tsx`
+- **Block Architecture**: `src/components/frontend/layout/` and BlockRenderer pattern
+- **Database Patterns**: Existing schema structure and relationship patterns
+- **Component Organization**: Following modules.mdc architecture guidelines
+</PRD>
