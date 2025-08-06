@@ -48,9 +48,33 @@ The platform uses a modular block system for content management:
 - Admin modules in `admin/modules/` for management interfaces
 - Each block type has theme-specific variants
 
+### Organization Principles
+
+**Component Extraction Standards:**
+- **Component Extraction**: Break large components into focused, single-purpose parts
+- **Hierarchy**: Main component → direct dependencies → supporting components  
+- **Clean Code**: Eliminate deep nesting and "ugly closing brackets"
+- **Strategic Commenting**: Explain "why" not "what", avoid over-commenting
+
+**Example Structure:**
+```typescript
+// Main component (clean, focused)
+const NavBlock = () => (
+  <nav>
+    <MobileMenuButton />
+    <DesktopNav />
+    <MobileMenuPanel />
+  </nav>
+)
+
+// Supporting components (extracted for clarity)
+const DesktopNav = ({ menuItems, ...props }) => (...)
+const MobileNav = ({ menuItems }) => (...)
+```
+
 ### Critical Development Rules
 
-**🔒 Block Isolation Protocol** (from PRD):
+**🔒 Block Isolation Protocol:**
 1. **BLOCK-ONLY CHANGES** - Only modify the specific block being worked on
 2. **NO EXTERNAL CHANGES** - Don't modify files outside block scope without approval
 3. **USER CONFIRMATION** - Get approval for any changes outside block scope  

@@ -178,77 +178,141 @@ const PreviewArea = ({ blocks, config }) => (...)
 - **Consistent Patterns**: Follow established patterns from existing codebase
 
 # Development Roadmap  
+## Phase 0: Critical Infrastructure (PREREQUISITE)
+⚠️ **MUST COMPLETE BEFORE ANY FEATURE DEVELOPMENT**
+
+### Database Infrastructure
+- **Set up Supabase PostgreSQL** database with connection configuration
+- **Configure Prisma ORM** with Supabase connection string
+- **Create migration system** for schema versioning
+- **Implement database seed scripts** for development
+- **Set up Row Level Security (RLS)** for multi-tenant data isolation
+
+### Authentication Foundation (Phase-Based Approach)
+**Phase 0-1A: Supabase Auth (MVP)**
+- **Install Supabase client** (@supabase/supabase-js)
+- **Implement Supabase Auth** for email/password authentication
+- **Create authentication middleware** using Supabase session
+- **Add role-based access control** with Supabase user metadata
+- **Build login/logout flows** with Supabase Auth UI
+- **Configure RLS policies** for automatic tenant scoping
+
+**Phase 1B+: NextAuth Integration (Enterprise Scale)**
+- **Add NextAuth.js** with Supabase adapter (optional upgrade)
+- **Enable OAuth providers** (Google, GitHub, SSO)
+- **Maintain backward compatibility** with existing Supabase auth
+
+### Core Block System
+- **Create BlockRenderer infrastructure** (currently missing)
+- **Define block type system** and configuration schema
+- **Implement dynamic block loading** mechanism
+- **Add block validation** and error boundaries
+- **Create base block components** for extension
+
 ## Phase 1: Foundation & Core Features
-### Authentication & User Management
-- Implement dual authentication system (admin_users + site_owners tables)
+### User Management System
+- Implement dual authentication tables (admin_users + site_owners)
 - Create super admin CRUD for site owner management
 - Build site owner self-management interface
-- Establish role-based permissions and middleware
+- Add comprehensive form validation (React Hook Form + Zod)
+- Implement user profile management and avatar uploads
 
-### Theme System Foundation  
-- Create basic theme structure in `/app/themes/`
-- Implement database settings system for customization
-- Build theme selection and customization UI
-- Integrate with existing component architecture
-
-### Multi-Site Management
+### Basic Multi-Site Management
 - Implement site CRUD operations for both user types
 - Create site dashboard and management interfaces
-- Establish site-owner relationships and permissions
+- Establish site-owner relationships with proper data isolation
 - Build site status and configuration management
+- Add tenant-scoped data access patterns
 
-### Block-Based Site Builder
-- Extend existing BlockRenderer for dynamic page building
+### Theme System Foundation  
+- Create theme structure in `/app/themes/` with proper TypeScript support
+- Implement database settings system for customization
+- Build theme selection and customization UI
+- Add theme validation and conflict prevention
+- Integrate with existing component architecture
+
+### Block-Based Site Builder (MVP)
+- Build BlockRenderer system for dynamic page building
 - Implement page-specific block library system
 - Create block configuration UI using admin component patterns
 - Build home page customization as initial implementation
-- Integrate with theme system for consistent styling
+- Add block preview and validation systems
 
-## Future Enhancements (Post-Phase 1)
-- Site user management system (separate domain)
+## Phase 2: Advanced Features (Post-MVP)
+- Site user management system (third user type)
 - Advanced block types and page templates
 - Theme marketplace functionality
 - Bulk operations and advanced admin features
 - Analytics and reporting systems
 - API integrations and webhooks
+- Advanced customization options
+- Multi-language support
+- Advanced caching strategies
+- Real-time collaboration features
 
 # Logical Dependency Chain
-## Foundation First
-1. **Authentication System** → Establishes user management foundation
-2. **Database Schema** → Creates data structure for all operations
-3. **Basic Admin Interface** → Provides management capabilities
+## Phase 0: Critical Infrastructure (MANDATORY FIRST)
+1. **Supabase Setup** → PostgreSQL database + Auth + Storage
+2. **Prisma Configuration** → Type-safe database operations
+3. **Supabase Auth Integration** → Email/password authentication
+4. **RLS Security Policies** → Multi-tenant data isolation
+5. **BlockRenderer Core** → Dynamic content system foundation
+6. **Admin Route Protection** → Supabase auth middleware
+7. **Error Handling Framework** → Robust error boundaries
 
-## Multi-Tenant Core
-4. **Site Management** → Enables multi-site functionality
-5. **Theme System** → Provides customization foundation
-6. **Site-Owner Relationships** → Establishes proper data isolation
+## Phase 1A: Single-Tenant MVP
+6. **User Management (Single Tenant)** → Admin and site owner CRUD
+7. **Basic Site Management** → Single tenant site operations
+8. **Simple Block System** → Static blocks with basic configuration
+9. **Theme Selection** → Basic theme switching
+10. **Admin Dashboard** → Management interface
 
-## Site Building Capabilities  
-7. **Block System Extension** → Leverages existing architecture
-8. **Page Management** → Creates editable page structure
-9. **Block Configuration UI** → Enables site customization
-10. **Theme Integration** → Connects all systems together
+## Phase 1B: Multi-Tenant Foundation
+11. **Tenant Isolation Middleware** → Data scoping and security
+12. **Multi-Site Management** → Cross-tenant site operations
+13. **Advanced Block System** → Dynamic block configuration
+14. **Theme Customization** → Database-driven theme settings
+15. **Site Builder UI** → Visual page building interface
 
-## User Experience Polish
-11. **Preview System** → Live preview of changes
-12. **User Dashboards** → Intuitive management interfaces
-13. **Validation & Error Handling** → Robust user experience
+## Phase 1C: User Experience Polish
+16. **Preview System** → Live preview of changes
+17. **Form Validation** → Comprehensive user input validation
+18. **Error Boundaries** → Graceful error handling
+19. **Performance Optimization** → Caching and query optimization
+20. **Security Hardening** → Rate limiting, input sanitization
 
 # Risks and Mitigations  
+## Critical Infrastructure Risks
+- **No Authentication System**: **HIGH RISK** - Admin routes completely unprotected
+  - *Mitigation*: Implement Supabase Auth as Phase 0 requirement
+- **Missing Database Layer**: **HIGH RISK** - No data persistence capability
+  - *Mitigation*: Set up Supabase + Prisma before feature development
+- **BlockRenderer Not Implemented**: **MEDIUM RISK** - Core block system is theoretical
+  - *Mitigation*: Build working BlockRenderer before expanding block types
+- **No Multi-Tenant Isolation**: **HIGH RISK** - Data leakage between tenants
+  - *Mitigation*: Implement Supabase RLS policies for automatic data scoping
+- **File Storage Security**: **MEDIUM RISK** - Uncontrolled file uploads
+  - *Mitigation*: Use Supabase Storage with proper access policies
+
 ## Technical Challenges
-- **Block System Complexity**: Mitigate by leveraging existing BlockRenderer architecture and starting with simple block types
-- **Multi-Tenant Data Isolation**: Use clear database design with proper foreign keys and middleware validation
-- **Theme Customization Conflicts**: Implement validation and preview systems to prevent breaking changes
+- **Block System Complexity**: Start with simple static blocks before dynamic configuration
+- **Multi-Tenant Data Isolation**: Use database-level constraints and middleware validation
+- **Theme Customization Conflicts**: Implement validation and preview systems
+- **State Management Complexity**: Consider Zustand or Redux Toolkit for admin UI state
 
 ## MVP Scope Management
-- **Feature Creep Prevention**: Strict adherence to Phase 1 scope - defer advanced features to future phases
-- **User Experience Balance**: Focus on core workflows rather than advanced customization options
-- **Performance Considerations**: Use file-based themes and efficient database queries to maintain speed
+- **Infrastructure First**: Complete Phase 0 before any feature development
+- **Single Tenant MVP**: Build for one tenant first, then add multi-tenancy
+- **Feature Creep Prevention**: Strict Phase 1 scope - defer advanced features
+- **User Experience Balance**: Focus on core workflows over customization
+- **Performance Considerations**: Implement proper caching and database indexing
 
 ## Development Approach
-- **Incremental Implementation**: Build each component independently and integrate progressively
-- **Existing Pattern Leverage**: Use established admin UI patterns and component architecture
-- **User Feedback Integration**: Start with single page type (home) and expand based on usage patterns
+- **Security First**: Authentication and authorization before features
+- **Incremental Implementation**: Build vertically (complete user flows) not horizontally
+- **Error Handling**: Comprehensive error boundaries and user feedback
+- **Testing Strategy**: Unit tests for utilities, integration tests for auth flows
+- **Monitoring**: Add logging and error tracking from day one
 
 # Appendix  
 ## Existing Architecture Integration
@@ -258,11 +322,32 @@ const PreviewArea = ({ blocks, config }) => (...)
 - **Theme System**: Integrates with existing frontend/layout/ component architecture
 
 ## Technical Specifications
-- **Authentication**: JWT-based with role validation middleware
-- **File Uploads**: Image handling for logos and theme assets
-- **Real-time Preview**: Live updates using BlockRenderer system
-- **Data Validation**: TypeScript interfaces and database constraints
-- **Performance**: Optimized queries and component lazy loading
+### Required Technology Stack Additions
+**Core Infrastructure:**
+- **Database**: Supabase PostgreSQL with Prisma ORM for type-safe operations
+- **Authentication**: Supabase Auth (Phase 0-1A) → NextAuth.js (Phase 1B+)
+- **File Storage**: Supabase Storage for images and theme assets
+- **Real-time**: Supabase subscriptions for live updates
+
+**Development Tools:**
+- **Form Handling**: React Hook Form + Zod for validation
+- **State Management**: Zustand for admin UI state management
+- **Error Handling**: React Error Boundaries + Supabase error reporting
+- **Multi-tenant Security**: Supabase Row Level Security (RLS) policies
+
+### Implementation Requirements
+**Phase 0-1A Implementation:**
+- **Authentication**: Supabase Auth with role-based user metadata
+- **Data Security**: RLS policies for automatic tenant isolation
+- **Data Validation**: Zod schemas + TypeScript interfaces + PostgreSQL constraints
+- **File Storage**: Supabase Storage with secure upload policies
+- **Real-time Features**: Supabase subscriptions for live admin updates
+
+**Performance & Security:**
+- **Database**: Prisma with connection pooling via Supabase
+- **Security**: RLS policies, input sanitization, Supabase Auth security
+- **Monitoring**: Supabase Dashboard + custom error tracking
+- **Real-time Preview**: Live BlockRenderer updates via Supabase subscriptions
 
 ## Reference Implementation
 - **Admin UI Components**: `src/components/admin/modules/sites/SiteBlock.tsx`
