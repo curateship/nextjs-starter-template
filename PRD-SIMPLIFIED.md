@@ -25,10 +25,10 @@ We need a **working foundation** for a multi-tenant platform. The previous attem
 - **Protected routes that actually work**
 
 ### **Phase 2: Basic CRUD (2-3 days)**  
-- **User can create a "project"** (simple name + description)
-- **User can list their projects**
-- **User can edit/delete projects**
-- **Admin can see all projects**
+- **User can create a "site"** (simple name + description)
+- **User can list their sites**
+- **User can edit/delete sites**
+- **Admin can see all sites**
 
 ### **Phase 3: Simple Multi-tenancy (2-3 days)**
 - **Users are isolated** (can only see their own data)
@@ -48,8 +48,8 @@ CREATE TABLE profiles (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Simple projects table  
-CREATE TABLE projects (
+-- Simple sites table  
+CREATE TABLE sites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id UUID REFERENCES profiles(id),
   name TEXT NOT NULL,
@@ -76,13 +76,13 @@ CREATE TABLE projects (
 ### **As a User:**
 - I can sign up with email/password
 - I can log in and see my dashboard
-- I can create/edit/delete my projects
+- I can create/edit/delete my sites
 - I can log out
 
 ### **As an Admin:**
 - I can do everything a user can do
 - I can see a list of all users
-- I can see all projects across all users
+- I can see all sites across all users
 - I have an "Admin" badge/indicator
 
 ## 🎯 **Success Criteria**
@@ -97,16 +97,16 @@ CREATE TABLE projects (
 - [ ] **No authentication bugs**
 
 ### **Phase 2 Complete When:**
-- [ ] User can create a project
-- [ ] User can see list of their projects
-- [ ] User can edit project name/description
-- [ ] User can delete projects
-- [ ] Admin can see all projects
+- [ ] User can create a site
+- [ ] User can see list of their sites
+- [ ] User can edit site name/description
+- [ ] User can delete sites
+- [ ] Admin can see all sites
 - [ ] **Data isolation works** (users see only their data)
 
 ### **Phase 3 Complete When:**
 - [ ] Multiple users can exist independently
-- [ ] Admin can view any user's projects
+- [ ] Admin can view any user's sites
 - [ ] No data leaks between users
 - [ ] Basic permissions are enforced
 - [ ] **System is stable and bug-free**
@@ -121,14 +121,14 @@ CREATE TABLE projects (
 5. Test thoroughly
 
 ### **Day 3-4: Basic CRUD**
-1. Create `projects` table
-2. Build project list page
+1. Create `sites` table
+2. Build site list page
 3. Add create/edit/delete forms
 4. Test data isolation
 
 ### **Day 5-6: Admin Features**
 1. Add admin indicators
-2. Build admin project list (all users)
+2. Build admin site list (all users)
 3. Add basic admin dashboard
 4. Test permissions
 
@@ -168,7 +168,7 @@ CREATE TABLE projects (
 
 Only after this foundation is **rock solid and bug-free:**
 
-1. **Add more project fields** (categories, status, etc.)
+1. **Add more site fields** (categories, status, etc.)
 2. **Improve admin features** (user management)
 3. **Add basic theming** (color picker)
 4. **Consider multi-site features** (one site per user)
@@ -178,4 +178,4 @@ Only after this foundation is **rock solid and bug-free:**
 
 **We're building a FOUNDATION, not a feature-complete product.** Every line of code must contribute to having a stable, working authentication and CRUD system that we can build upon.
 
-**Success = Users can sign up, log in, create projects, and admins can see everything. No bugs. No complexity.**
+**Success = Users can sign up, log in, create sites, and admins can see everything. No bugs. No complexity.**
