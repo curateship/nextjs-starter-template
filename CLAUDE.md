@@ -81,6 +81,30 @@ const MobileNav = ({ menuItems }) => (...)
 4. **ISOLATION FIRST** - Solve problems within the block whenever possible
 5. **COMPONENT EXTRACTION** - Break complex blocks into focused components
 
+### Critical Development Rules
+
+**🚨 SECURITY RULES (NEVER VIOLATE):**
+1. **NEVER hardcode credentials** in client-side code - EVER
+2. **NEVER implement client-side only authentication** - always use server-side validation
+3. **NEVER store sensitive data** in localStorage without encryption
+4. **ALWAYS validate authentication** on the server side
+5. **ALWAYS use secure session management** (httpOnly cookies, JWTs with proper expiration)
+
+**⚡ CODING STANDARDS (MANDATORY):**
+1. **NEVER take shortcuts** that compromise security, maintainability, or code quality
+2. **ALWAYS follow best practices** - proper error handling, validation, and secure coding patterns
+3. **NEVER sacrifice security for speed** - security vulnerabilities are NEVER acceptable trade-offs
+4. **ALWAYS implement server-side validation** before client-side convenience features
+5. **NEVER use temporary "quick fixes"** that expose security risks - fix the root problem properly
+6. **ALWAYS ask for guidance** when stuck instead of implementing dangerous workarounds
+7. **NEVER commit code** that you wouldn't be comfortable running in production
+8. **ALWAYS consider the security implications** of every code change before implementation
+9. **MANDATORY DISCLOSURE**: If Claude cannot find a solution that follows these coding standards, it MUST explicitly state that it might need to break coding standards and that it cannot and will not proceed until it has approval to explore alternative paths
+
+**📋 CODE GENERATION PROTOCOL:**
+- **MANDATORY**: Every time code is generated or modified, Claude must state "claude.md followed" to confirm these rules have been read and followed
+- This serves as a checkpoint to ensure security and coding standards are never overlooked
+
 ### Database Schema (Planned)
 
 **Authentication System:**
