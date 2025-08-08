@@ -276,13 +276,38 @@ export async function updateSiteAction(
 
 export async function deleteSiteAction(siteId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Deleting site
+    // Validate site ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(siteId)) {
+      return { success: false, error: 'Invalid site ID format' }
+    }
+
+    // Get authenticated user
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     
-    // Delete site (this will cascade delete customizations due to foreign key constraints)
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns the site before deleting
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or you do not have permission to delete it' }
+    }
+    
+    // Delete site (this will cascade delete site_blocks due to foreign key constraints)
     const { error } = await supabaseAdmin
       .from('sites')
       .delete()
       .eq('id', siteId)
+      .eq('user_id', user.id) // Extra safety check
 
     if (error) {
       // Database error deleting site
