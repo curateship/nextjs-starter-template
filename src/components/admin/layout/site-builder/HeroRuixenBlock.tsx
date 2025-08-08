@@ -166,5 +166,3 @@ export function HeroRuixenBlock({
     </Card>
   )
 }
-
-// claude.md followed
