@@ -76,8 +76,24 @@ const MobileNav = ({ menuItems }) => (...)
 9. **MANDATORY DISCLOSURE**: If Claude cannot find a solution that follows these coding standards, it MUST explicitly state that it might need to break coding standards and that it cannot and will not proceed until it has approval to explore alternative paths
 
 **📋 CODE GENERATION PROTOCOL:**
-- **MANDATORY**: Every time code is generated or modified, Claude must state "claude.md followed" to confirm these rules have been read and followed
-- This serves as a checkpoint to ensure security and coding standards are never overlooked
+- **NEVER add "claude.md followed"** - this is no longer required and should be removed from all files
+- Follow all security and coding standards without adding this comment
+
+**📊 DATABASE SCHEMA PRESENTATION RULE:**
+- **ALWAYS present database schemas visually** as formatted tables, not SQL code
+- When planning or executing database changes, show tables like this:
+  - Table name as header
+  - Columns shown with example data
+  - Relationships indicated clearly
+  - Use clean, readable formatting
+- Example format:
+  ```
+  | id | name | status | created_at |
+  |----|------|--------|------------|
+  | 123 | Example | active | 2024-01-20 |
+  ```
+- This makes database structure accessible to non-technical users
+- SQL code can be shown separately ONLY if explicitly requested for implementation
 
 **🛑 CRITICAL GIT COMMIT RULE (NEVER VIOLATE):**
 - **NEVER make additional code changes when asked to commit**
