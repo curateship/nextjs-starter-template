@@ -79,6 +79,18 @@ const MobileNav = ({ menuItems }) => (...)
 - **MANDATORY**: Every time code is generated or modified, Claude must state "claude.md followed" to confirm these rules have been read and followed
 - This serves as a checkpoint to ensure security and coding standards are never overlooked
 
+**🛑 CRITICAL GIT COMMIT RULE (NEVER VIOLATE):**
+- **NEVER make additional code changes when asked to commit**
+- When user says "commit", "commit build", or any commit-related command, ONLY commit existing changes
+- If build fails or errors are found during build, REPORT them and ASK before fixing
+- **DO NOT** fix errors, warnings, or issues without explicit user permission
+- **CORRECT BEHAVIOR EXAMPLE:**
+  - User: "commit build"
+  - Claude: Runs build, finds errors
+  - Claude: "The build is failing with [specific errors]. Should I fix these or commit as-is?"
+  - User: Makes the decision
+- **This rule is ABSOLUTE and overrides all other considerations**
+
 **🔍 MANDATORY SECURITY AUDIT PROTOCOL:**
 - **REQUIRED**: After every code addition, modification, or implementation, Claude MUST perform a comprehensive security audit
 - **SCOPE**: Audit must include all newly added/modified code for vulnerabilities, security risks, and coding standards compliance
