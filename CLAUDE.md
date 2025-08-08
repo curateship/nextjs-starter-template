@@ -78,3 +78,12 @@ const MobileNav = ({ menuItems }) => (...)
 **📋 CODE GENERATION PROTOCOL:**
 - **MANDATORY**: Every time code is generated or modified, Claude must state "claude.md followed" to confirm these rules have been read and followed
 - This serves as a checkpoint to ensure security and coding standards are never overlooked
+
+**🔍 MANDATORY SECURITY AUDIT PROTOCOL:**
+- **REQUIRED**: After every code addition, modification, or implementation, Claude MUST perform a comprehensive security audit
+- **SCOPE**: Audit must include all newly added/modified code for vulnerabilities, security risks, and coding standards compliance
+- **STANDARDS**: Must check for XSS, CSRF, SQL injection, input validation, authentication bypass, information disclosure, and all OWASP Top 10 vulnerabilities
+- **BEST PRACTICES**: Verify adherence to secure coding practices, proper error handling, input sanitization, and defense-in-depth principles  
+- **ACTION REQUIRED**: If vulnerabilities are found, they must be immediately fixed before proceeding
+- **DOCUMENTATION**: Security audit results must be documented and any fixes applied must be explained
+- **NO EXCEPTIONS**: This audit is mandatory for every code change, regardless of size or perceived risk level
