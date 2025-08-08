@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Eye, Settings, Trash2 } from "lucide-react"
@@ -231,18 +232,23 @@ export default function SitesPage() {
                 return (
                   <div key={site.id} className="p-6">
                     <div className="grid grid-cols-7 gap-4 items-center">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                          <span className="text-muted-foreground text-sm font-medium">
-                            {initials}
-                          </span>
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{site.subdomain}.domain.com</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {site.description || site.name}
-                          </p>
-                        </div>
+                      <div className="col-span-2">
+                        <Link 
+                          href={`/admin/sites/${site.id}/settings`}
+                          className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                        >
+                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                            <span className="text-muted-foreground text-sm font-medium">
+                              {initials}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {site.description || site.name}
+                            </p>
+                          </div>
+                        </Link>
                       </div>
                       <div className="flex items-center space-x-2">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
