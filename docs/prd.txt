@@ -1,0 +1,84 @@
+Multi-Tenant Theme System — Implementation Plan
+
+------------------------------------------------------------
+Phase 1: Database Schema & Theme Management
+------------------------------------------------------------
+
+1.1 Database Setup
+    - Create "themes" table with metadata (name, description, status, template_path)
+    - Create "sites" table linking sites to themes and users
+    - Create "site_customizations" table for block-level customizations
+    - Set up proper relationships and constraints
+
+1.2 Theme Management Interface
+    - Enhance /admin/themes page with real theme data
+    - Add theme preview functionality
+    - Implement theme installation/activation system
+
+------------------------------------------------------------
+Phase 2: Block Renderer System
+------------------------------------------------------------
+
+2.1 Block Registry
+    - Create centralized block registry system
+    - Define block schema with editable properties
+    - Implement block validation and security controls
+
+2.2 Dynamic Block Renderer
+    - Build renderer to load blocks from database configurations
+    - Add conditional rendering based on user permissions
+    - Implement fallback handling for missing blocks
+
+2.3 Editable Block System
+    - Add "edit mode" for authorized users
+    - Create inline editing interface for block properties
+    - Implement save and preview functionality
+
+------------------------------------------------------------
+Phase 3: Theme Selection & Assignment
+------------------------------------------------------------
+
+3.1 Site Creation Flow
+    - Update site creation to include theme selection
+    - Add theme preview to site creation wizard
+    - Implement theme-site association logic
+
+3.2 Theme Switching
+    - Build theme switching functionality for existing sites
+    - Handle data migration between different theme structures
+    - Preserve customizations where possible
+
+------------------------------------------------------------
+Phase 4: Home Page Block Customization
+------------------------------------------------------------
+
+4.1 Marketplace Theme Analysis
+    Current blocks: HeroRuixenBlock, ProductGridBlock, PostGridBlock, FaqBlock
+
+4.2 Block Editor Interface
+    - Create visual editor for each block type
+    - Add property panels for text, images, colors, layouts
+    - Implement real-time preview functionality
+
+4.3 Customization Storage
+    - Store block-level customizations in database
+    - Add version control for customizations
+    - Implement rollback functionality
+
+------------------------------------------------------------
+Security & Performance Considerations
+------------------------------------------------------------
+    - Server-side rendering for public sites
+    - Proper access controls for editing functionality
+    - Input sanitization for all customizable content
+    - Rate limiting for API endpoints
+    - Caching strategy for theme rendering
+
+------------------------------------------------------------
+Implementation Priority
+------------------------------------------------------------
+    1. Database schema & basic theme management
+    2. Block renderer foundation
+    3. Site-theme association
+    4. Home page block editor (start with HeroRuixenBlock)
+    5. Expand to other blocks progressively
