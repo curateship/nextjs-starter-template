@@ -19,7 +19,7 @@ export default function NewPostPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ 
+    
       title, 
       summary, 
       content, 
@@ -34,7 +34,7 @@ export default function NewPostPage() {
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ 
+    
       title, 
       summary, 
       content, 

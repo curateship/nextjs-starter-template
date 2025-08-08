@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase"
 import {
   Package,
   FileText,
@@ -118,6 +120,55 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = useState<{
+    name: string
+    email: string
+    avatar: string
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    let mounted = true
+    const supabase = createClient()
+    
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
+      
+      if (session?.user?.email) {
+        const userData = {
+          name: session.user.email.split('@')[0] || 'User',
+          email: session.user.email,
+          avatar: ''
+        }
+        setUser(userData)
+      } else {
+        setUser(null)
+      }
+      setLoading(false)
+    })
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
+      
+      if (session?.user?.email) {
+        const userData = {
+          name: session.user.email.split('@')[0] || 'User',
+          email: session.user.email,
+          avatar: ''
+        }
+        setUser(userData)
+      } else {
+        setUser(null)
+      }
+      setLoading(false)
+    })
+    
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+  
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -129,7 +180,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavProjects projects={data.projects} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        {!loading && user && <NavUser user={user} />}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

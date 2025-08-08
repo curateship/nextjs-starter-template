@@ -16,12 +16,12 @@ export default function NewThemePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ title, description, status, primaryFont, secondaryFont, logo })
+    
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ title, description, status, primaryFont, secondaryFont, logo })
+    
   }
 
   return (
