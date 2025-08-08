@@ -22,7 +22,7 @@ export default function NewProductPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ 
+    
       title, 
       description, 
       status, 
@@ -36,7 +36,7 @@ export default function NewProductPage() {
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ 
+    
       title, 
       description, 
       status, 

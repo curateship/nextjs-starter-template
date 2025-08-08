@@ -14,12 +14,12 @@ export default function NewUserPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ name, email, role, avatar })
+    
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ name, email, role, avatar })
+    
   }
 
   return (

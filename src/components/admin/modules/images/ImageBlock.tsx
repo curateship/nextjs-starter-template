@@ -106,9 +106,9 @@ export function ImageBlock({
               {image && (
                 <div className="mt-3 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
                   <div className="grid grid-cols-2 gap-2">
-                    <span><strong>File:</strong> {image.name}</span>
+                    <span><strong>File:</strong> {image.name.replace(/[<>"'&]/g, '')}</span>
                     <span><strong>Size:</strong> {(image.size / (1024 * 1024)).toFixed(2)} MB</span>
-                    <span><strong>Type:</strong> {image.type}</span>
+                    <span><strong>Type:</strong> {image.type.replace(/[<>"'&]/g, '')}</span>
                   </div>
                 </div>
               )}

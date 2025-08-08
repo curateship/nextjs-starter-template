@@ -12,12 +12,12 @@ export default function NewImagePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ title, image })
+    
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ title, image })
+    
   }
 
   return (

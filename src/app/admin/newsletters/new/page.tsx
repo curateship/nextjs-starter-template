@@ -14,12 +14,12 @@ export default function NewNewsletterPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ title, body, status, image })
+    
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ title, body, status, image })
+    
   }
 
   return (

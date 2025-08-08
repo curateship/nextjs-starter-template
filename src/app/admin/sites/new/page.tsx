@@ -15,12 +15,12 @@ export default function NewSitePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    console.log({ siteName, status, userId, themeId, logo })
+    
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    console.log({ siteName, status, userId, themeId, logo })
+    
   }
 
   return (
