@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings, Wrench } from "lucide-react"
+import { Eye, Settings, Wrench, ExternalLink } from "lucide-react"
 import { getAllSitesAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
@@ -108,7 +109,7 @@ export default function SiteBuilderPage() {
         />
         
         <AdminCard>
-          <div className="p-6">
+          <div className="p-6 border-b">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold">Sites Available for Building</h3>
@@ -172,22 +173,33 @@ export default function SiteBuilderPage() {
             </div>
           </div>
           
-          {/* Site Builder Cards Grid */}
-          <div className="p-6">
+          {/* Table Header */}
+          <div className="px-6 py-4 border-b bg-muted/30">
+            <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="col-span-2">Site</div>
+              <div>Theme</div>
+              <div>Status</div>
+              <div>Last Updated</div>
+              <div>Created</div>
+              <div>Actions</div>
+            </div>
+          </div>
+          
+          <div className="divide-y">
             {loading ? (
-              <div className="text-center py-12">
+              <div className="p-8 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading sites...</p>
               </div>
             ) : error ? (
-              <div className="text-center py-12">
+              <div className="p-8 text-center">
                 <p className="text-red-600 mb-4">{error}</p>
                 <Button onClick={loadSites} variant="outline" size="sm">
                   Try Again
                 </Button>
               </div>
             ) : filteredSites.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="p-8 text-center">
                 <p className="text-muted-foreground mb-4">
                   {filter === 'all' ? 'No sites available for building' : `No ${filter} sites found`}
                 </p>
@@ -196,93 +208,91 @@ export default function SiteBuilderPage() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredSites.map((site) => {
-                  const builderStatus = getBuilderStatus(site.status)
-                  
-                  return (
-                    <div key={site.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-                      {/* Site Thumbnail */}
-                      <div className="aspect-video bg-muted flex items-center justify-center relative">
-                        {site.preview_image ? (
-                          <img 
-                            src={site.preview_image} 
-                            alt={`${site.name} preview`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="text-center">
-                            <div className="text-muted-foreground text-sm mb-2">Site Preview</div>
-                            <div className="text-xs text-muted-foreground">{site.theme_name}</div>
+              filteredSites.map((site) => {
+                const builderStatus = getBuilderStatus(site.status)
+                const initials = site.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
+                
+                return (
+                  <div key={site.id} className="p-6">
+                    <div className="grid grid-cols-7 gap-4 items-center">
+                      <div className="col-span-2">
+                        <Link 
+                          href={`/admin/builder/${site.id}`}
+                          className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                        >
+                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                            <span className="text-muted-foreground text-sm font-medium">
+                              {initials}
+                            </span>
                           </div>
-                        )}
-                        {builderStatus === 'published' && (
-                          <div className="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full"></div>
-                        )}
-                      </div>
-                      
-                      {/* Site Info */}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between mb-2">
                           <div>
-                            <h4 className="font-medium">{site.subdomain}.domain.com</h4>
+                            <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>
                             <p className="text-sm text-muted-foreground">
                               {site.description || site.name}
                             </p>
                           </div>
-                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(site.status)}`}>
-                            {builderStatus === 'in-progress' ? 'In Progress' : builderStatus}
-                          </span>
-                        </div>
-                        
-                        <div className="text-xs text-muted-foreground mb-3">
-                          <div>Theme: {site.theme_name}</div>
-                          <div>Owner: You</div>
-                          <div>Created: {formatDate(site.created_at)}</div>
-                          <div>Last updated: {formatDate(site.updated_at)}</div>
-                        </div>
-                        
-                        {/* Action Buttons */}
-                        <div className="flex items-center space-x-2">
-                          <Button 
-                            size="sm" 
-                            className="flex-1"
-                            asChild
+                        </Link>
+                      </div>
+                      <div>
+                        <span className="text-sm">{site.theme_name}</span>
+                      </div>
+                      <div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(site.status)}`}>
+                          {builderStatus === 'in-progress' ? 'In Progress' : 
+                           builderStatus.charAt(0).toUpperCase() + builderStatus.slice(1)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(site.updated_at)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(site.created_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          asChild
+                        >
+                          <a href={`/admin/builder/${site.id}`} title="Edit in builder">
+                            <Wrench className="h-4 w-4 mr-1" />
+                            Build
+                          </a>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a 
+                            href={`https://${site.subdomain}.domain.com`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            title="Preview site"
                           >
-                            <a href={`/admin/builder/${site.id}`}>
-                              <Wrench className="w-4 h-4 mr-1" />
-                              Edit Site
-                            </a>
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            asChild
-                          >
-                            <a 
-                              href={`https://${site.subdomain}.domain.com`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              title="Preview site"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </a>
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            asChild
-                          >
-                            <a href={`/admin/sites/${site.id}/settings`} title="Site settings">
-                              <Settings className="w-4 h-4" />
-                            </a>
-                          </Button>
-                        </div>
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a href={`/admin/sites/${site.id}/settings`} title="Site settings">
+                            <Settings className="h-4 w-4" />
+                          </a>
+                        </Button>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                )
+              })
             )}
           </div>
         </AdminCard>
