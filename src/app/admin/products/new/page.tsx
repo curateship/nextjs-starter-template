@@ -22,30 +22,10 @@ export default function NewProductPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    
-      title, 
-      description, 
-      status, 
-      featured, 
-      image,
-      heroHeading,
-      heroSubHeading,
-      heroImage
-    })
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    
-      title, 
-      description, 
-      status, 
-      featured, 
-      image,
-      heroHeading,
-      heroSubHeading,
-      heroImage
-    })
   }
 
   return (

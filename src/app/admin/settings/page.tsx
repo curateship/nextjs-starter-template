@@ -163,12 +163,12 @@ export default function SettingsPage() {
           primaryAction={{
             label: saving ? 'Saving...' : 'Save Profile',
             onClick: () => {
-              // Secure form reference using React ref instead of DOM query
-              const form = document.getElementById('profile-form') as HTMLFormElement;
-              if (form) form.requestSubmit();
-            },
-            disabled: saving,
-            icon: Save
+              if (!saving) {
+                // Secure form reference using React ref instead of DOM query
+                const form = document.getElementById('profile-form') as HTMLFormElement;
+                if (form) form.requestSubmit();
+              }
+            }
           }}
         />
 
@@ -218,7 +218,7 @@ export default function SettingsPage() {
                       disabled={saving}
                     />
                     <p className="text-sm text-muted-foreground">
-                      You'll receive a confirmation email for email changes
+                      You&apos;ll receive a confirmation email for email changes
                     </p>
                   </div>
                 </div>

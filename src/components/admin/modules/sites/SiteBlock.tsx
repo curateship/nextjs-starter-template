@@ -1,40 +1,112 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, X } from "lucide-react"
+import { Upload, X, AlertCircle, CheckCircle2 } from "lucide-react"
+import { getActiveThemesAction } from "@/lib/actions/theme-actions"
+import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
+import type { Theme } from "@/lib/supabase/themes"
 
 interface SiteBlockProps {
   siteName: string
   status: string
-  userId: string
   themeId: string
   logo: File | null
   logoPreview: string | null
+  description?: string
+  isEditMode?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
-  onUserIdChange: (value: string) => void
   onThemeIdChange: (value: string) => void
   onLogoChange: (file: File | null) => void
   onLogoPreviewChange: (preview: string | null) => void
+  onDescriptionChange?: (value: string) => void
 }
 
 export function SiteBlock({
   siteName,
   status,
-  userId,
   themeId,
   logo,
   logoPreview,
+  description = "",
+  isEditMode = false,
   onSiteNameChange,
   onStatusChange,
-  onUserIdChange,
   onThemeIdChange,
   onLogoChange,
   onLogoPreviewChange,
+  onDescriptionChange,
 }: SiteBlockProps) {
+  const [themes, setThemes] = useState<Theme[]>([])
+  const [themesLoading, setThemesLoading] = useState(true)
+  const [subdomainStatus, setSubdomainStatus] = useState<{
+    checking: boolean
+    available: boolean | null
+    suggestion?: string
+  }>({ checking: false, available: null })
+
+  // Load themes on component mount
+  useEffect(() => {
+    loadThemes()
+  }, [])
+
+  // Check subdomain availability when site name changes (only in create mode)
+  useEffect(() => {
+    if (!isEditMode && siteName.trim()) {
+      checkSubdomainAvailability(siteName)
+    } else {
+      setSubdomainStatus({ checking: false, available: null })
+    }
+  }, [siteName, isEditMode])
+
+  const loadThemes = async () => {
+    try {
+      setThemesLoading(true)
+      const { data, error } = await getActiveThemesAction()
+      
+      if (error) {
+        console.error('Error loading themes:', error)
+        return
+      }
+      
+      if (data) {
+        setThemes(data)
+      }
+    } catch (err) {
+      console.error('Error loading themes:', err)
+    } finally {
+      setThemesLoading(false)
+    }
+  }
+
+  const checkSubdomainAvailability = async (name: string) => {
+    const subdomain = name.toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+    
+    if (!subdomain) {
+      setSubdomainStatus({ checking: false, available: null })
+      return
+    }
+
+    try {
+      setSubdomainStatus({ checking: true, available: null })
+      const { available, suggestion } = await checkSubdomainAvailabilityAction(subdomain)
+      setSubdomainStatus({ 
+        checking: false, 
+        available, 
+        suggestion: available ? undefined : suggestion 
+      })
+    } catch (err) {
+      console.error('Error checking subdomain:', err)
+      setSubdomainStatus({ checking: false, available: null })
+    }
+  }
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -52,22 +124,13 @@ export function SiteBlock({
     onLogoPreviewChange(null)
   }
 
-  // Mock data for users and themes - in a real app, this would come from props or API
-  const users = [
-    { id: "1", name: "John Doe", email: "john@example.com" },
-    { id: "2", name: "Alice Smith", email: "alice@example.com" },
-    { id: "3", name: "Robert Johnson", email: "robert@example.com" },
-    { id: "4", name: "Maria Wilson", email: "maria@example.com" },
-    { id: "5", name: "David Brown", email: "david@example.com" },
-  ]
 
-  const themes = [
-    { id: "1", name: "Modern Store", description: "E-commerce focused theme" },
-    { id: "2", name: "Minimal Blog", description: "Clean blog theme" },
-    { id: "3", name: "Creative Portfolio", description: "Portfolio showcase theme" },
-    { id: "4", name: "Marketplace Theme", description: "Digital product marketplace theme" },
-    { id: "5", name: "App Template", description: "Web application theme" },
-  ]
+  const getSubdomainFromName = (name: string) => {
+    return name.toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+  }
 
   return (
     <Card className="shadow-sm">
@@ -77,70 +140,117 @@ export function SiteBlock({
       <CardContent className="space-y-6">
         {/* Site Name */}
         <div className="space-y-2">
-          <Input
-            id="siteName"
-            value={siteName}
-            onChange={(e) => onSiteNameChange(e.target.value)}
-            placeholder="Enter site name (e.g., mysite)"
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            This will be used to create your subdomain: {siteName || 'mysite'}.domain.com
-          </p>
+          <div className="relative">
+            <Input
+              id="siteName"
+              value={siteName}
+              onChange={(e) => onSiteNameChange(e.target.value)}
+              placeholder="Enter site name (e.g., mysite)"
+              required
+              className={
+                subdomainStatus.available === false 
+                  ? "pr-10 border-red-300 focus:border-red-500" 
+                  : subdomainStatus.available === true 
+                  ? "pr-10 border-green-300 focus:border-green-500"
+                  : ""
+              }
+            />
+            {subdomainStatus.checking && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+              </div>
+            )}
+            {!subdomainStatus.checking && subdomainStatus.available === true && (
+              <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+            )}
+            {!subdomainStatus.checking && subdomainStatus.available === false && (
+              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>
+              Subdomain: {getSubdomainFromName(siteName) || 'mysite'}.domain.com
+            </p>
+            {subdomainStatus.available === false && subdomainStatus.suggestion && (
+              <p className="text-amber-600">
+                Subdomain not available. Suggested: {subdomainStatus.suggestion}.domain.com
+              </p>
+            )}
+            {subdomainStatus.available === true && (
+              <p className="text-green-600">
+                Subdomain is available!
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* User and Theme Selection - One Row, Two Columns */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Site Description */}
+        {onDescriptionChange && (
           <div className="space-y-2">
-            <Select value={userId} onValueChange={onUserIdChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a user">
-                  {userId && users.find(user => user.id === userId) && (
-                    <div className="flex items-center space-x-1">
-                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 text-xs font-medium">
-                          {users.find(user => user.id === userId)?.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div className="font-medium">{users.find(user => user.id === userId)?.name}</div>
-                    </div>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    <div className="flex items-center space-x-1">
-                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 text-xs font-medium">
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div className="font-medium">{user.name}</div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="siteDescription"
+              value={description}
+              onChange={(e) => onDescriptionChange(e.target.value)}
+              placeholder="Brief description of your site"
+            />
           </div>
+        )}
 
-          <div className="space-y-2">
+        {/* Theme Selection */}
+        <div className="space-y-2">
             <Select value={themeId} onValueChange={onThemeIdChange}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a theme" />
+                <SelectValue placeholder={themesLoading ? "Loading themes..." : "Select a theme"} />
               </SelectTrigger>
               <SelectContent>
-                {themes.map((theme) => (
-                  <SelectItem key={theme.id} value={theme.id}>
-                    <div className="flex flex-col">
-                      <div className="font-medium">{theme.name}</div>
-                      <div className="text-xs text-muted-foreground">{theme.description}</div>
+                {themesLoading ? (
+                  <SelectItem value="loading" disabled>
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                      <span>Loading themes...</span>
                     </div>
                   </SelectItem>
-                ))}
+                ) : themes.length === 0 ? (
+                  <SelectItem value="no-themes" disabled>
+                    No active themes available
+                  </SelectItem>
+                ) : (
+                  themes.map((theme) => (
+                    <SelectItem key={theme.id} value={theme.id}>
+                      {theme.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
-          </div>
+            {themeId && themes.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {(() => {
+                  const selectedTheme = themes.find(t => t.id === themeId)
+                  return selectedTheme ? (
+                    <div className="flex items-center justify-between">
+                      <span>Selected: {selectedTheme.name}</span>
+                      {selectedTheme.template_path && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          asChild
+                        >
+                          <a 
+                            href={selectedTheme.template_path} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                          >
+                            Preview
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  ) : null
+                })()}
+              </div>
+            )}
         </div>
 
         {/* Status */}
@@ -202,3 +312,5 @@ export function SiteBlock({
     </Card>
   )
 }
+
+// claude.md followed
