@@ -136,7 +136,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       
       if (session?.user?.email) {
         const userData = {
-          name: session.user.email.split('@')[0] || 'User',
+          name: session.user.user_metadata?.display_name || session.user.email.split('@')[0] || 'User',
           email: session.user.email,
           avatar: ''
         }
@@ -152,7 +152,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       
       if (session?.user?.email) {
         const userData = {
-          name: session.user.email.split('@')[0] || 'User',
+          name: session.user.user_metadata?.display_name || session.user.email.split('@')[0] || 'User',
           email: session.user.email,
           avatar: ''
         }
