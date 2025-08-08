@@ -8,15 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Eye, Save, Upload, Plus } from "lucide-react"
 import Link from "next/link"
 import { HeroRuixenBlock } from "@/components/admin/layout/site-builder/HeroRuixenBlock"
-import { saveBlockCustomizationAction } from "@/lib/actions/site-customization-actions"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
-
-interface Block {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+import { getSiteBlocksAction, saveSiteBlockAction, type Block } from "@/lib/actions/site-blocks-actions"
 
 export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -28,44 +21,40 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   const [siteLoading, setSiteLoading] = useState(true)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, Block[]>>({
-    home: [
-      {
-        id: "hero-ruixen-1",
-        type: "hero-ruixen",
-        title: "Hero Section",
-        content: {
-          title: "Build Exceptional Interfaces with Ease",
-          subtitle: "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.",
-          primaryButton: "Get Started",
-          secondaryButton: "Browse Components",
-          showRainbowButton: true,
-          githubLink: "https://github.com/ruixenui/ruixen-free-components",
-          showParticles: true
-        }
-      }
-    ],
+    home: [],
     about: [],
     contact: []
   })
+  const [blocksLoading, setBlocksLoading] = useState(false)
 
-  // Load site data
+  // Load site data and blocks
   useEffect(() => {
-    const loadSite = async () => {
+    const loadSiteAndBlocks = async () => {
       setSiteLoading(true)
+      setBlocksLoading(true)
       setSiteError("")
       
-      const result = await getSiteByIdAction(siteId)
-      
-      if (result.data) {
-        setSite(result.data)
+      // Load site info
+      const siteResult = await getSiteByIdAction(siteId)
+      if (siteResult.data) {
+        setSite(siteResult.data)
+        
+        // Load site blocks
+        const blocksResult = await getSiteBlocksAction(siteId)
+        if (blocksResult.success && blocksResult.blocks) {
+          setBlocks(blocksResult.blocks)
+        } else {
+          console.error('Failed to load blocks:', blocksResult.error)
+        }
       } else {
-        setSiteError(result.error || 'Failed to load site')
+        setSiteError(siteResult.error || 'Failed to load site')
       }
       
       setSiteLoading(false)
+      setBlocksLoading(false)
     }
     
-    loadSite()
+    loadSiteAndBlocks()
   }, [siteId])
   
   // Current page data
@@ -75,55 +64,6 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     blocks: blocks[selectedPage] || []
   }
 
-  // Available block types  
-  const siteBlocks = [
-    { type: "hero-ruixen", name: "Hero Section", icon: "🎯" }
-  ]
-
-  // Function to get default content for a block type
-  const getDefaultContent = (blockType: string) => {
-    switch (blockType) {
-      case 'hero-ruixen':
-        return {
-          title: "Build Exceptional Interfaces with Ease",
-          subtitle: "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.",
-          primaryButton: "Get Started",
-          secondaryButton: "Browse Components",
-          showRainbowButton: true,
-          githubLink: "https://github.com/ruixenui/ruixen-free-components",
-          showParticles: true
-        }
-      default:
-        return {}
-    }
-  }
-
-  // Function to add a new block
-  const addBlock = (blockType: string) => {
-    const newBlock: Block = {
-      id: `${blockType}-${Date.now()}`,
-      type: blockType,
-      title: blockType === 'hero-ruixen' ? 'Hero Section' : `${blockType} Block`,
-      content: getDefaultContent(blockType)
-    }
-    
-    setBlocks(prev => ({
-      ...prev,
-      [selectedPage]: [...(prev[selectedPage] || []), newBlock]
-    }))
-  }
-
-  const deleteBlock = (blockId: string) => {
-    setBlocks(prev => ({
-      ...prev,
-      [selectedPage]: prev[selectedPage].filter(block => block.id !== blockId)
-    }))
-    
-    // Clear selected block if it was the one being deleted
-    if (selectedBlock?.id === blockId) {
-      setSelectedBlock(null)
-    }
-  }
 
   // Helper function to update block content
   const updateBlockContent = (field: string, value: any) => {
@@ -161,12 +101,9 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
 
     try {
       const savePromises = blocks[selectedPage].map(async (block) => {
-        return saveBlockCustomizationAction({
-          site_id: siteId,
-          page_path: selectedPage === 'home' ? '/' : `/${selectedPage}`,
-          block_type: block.type,
-          block_identifier: block.id,
-          customizations: block.content
+        return saveSiteBlockAction({
+          block_id: block.id,
+          content: block.content
         })
       })
 
@@ -189,7 +126,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   }
 
   // Show loading state
-  if (siteLoading) {
+  if (siteLoading || blocksLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -282,7 +219,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
             {selectedBlock ? (
               <div>
                 <div className="space-y-4">
-                  {selectedBlock.type === 'hero-ruixen' && (
+                  {selectedBlock.type === 'hero' && (
                     <HeroRuixenBlock
                       title={selectedBlock.content.title || ''}
                       subtitle={selectedBlock.content.subtitle || ''}
@@ -299,6 +236,18 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                       onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
                       onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
                     />
+                  )}
+                  {selectedBlock.type === 'navigation' && (
+                    <div className="p-4 border rounded">
+                      <p>Navigation Block Editor</p>
+                      <p className="text-sm text-muted-foreground">Coming soon...</p>
+                    </div>
+                  )}
+                  {selectedBlock.type === 'footer' && (
+                    <div className="p-4 border rounded">
+                      <p>Footer Block Editor</p>
+                      <p className="text-sm text-muted-foreground">Coming soon...</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -337,25 +286,29 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                     >
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium">{block.title}</h3>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">↑</Button>
-                          <Button variant="ghost" size="sm">↓</Button>
-                          <Button variant="ghost" size="sm">✏️</Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => {
-                            e.stopPropagation();
-                            deleteBlock(block.id);
-                          }}>🗑️</Button>
+                        <div className="text-xs text-muted-foreground">
+                          {block.type}
                         </div>
                       </div>
                       
                       {/* Block Content Preview */}
                       <div className="text-sm text-muted-foreground space-y-1">
-                        {block.type === 'hero-ruixen' && (
+                        {block.type === 'hero' && (
                           <>
                             <div>Title: {block.content.title}</div>
-                            <div>Buttons: {block.content.primaryButton}, {block.content.secondaryButton}</div>
-                            <div>Rainbow Button: {block.content.showRainbowButton ? "✓" : "✗"}</div>
-                            <div>Particles: {block.content.showParticles ? "✓" : "✗"}</div>
+                            <div>Subtitle: {block.content.subtitle}</div>
+                          </>
+                        )}
+                        {block.type === 'navigation' && (
+                          <>
+                            <div>Logo: {block.content.logo}</div>
+                            <div>Links: {block.content.links?.length || 0} items</div>
+                          </>
+                        )}
+                        {block.type === 'footer' && (
+                          <>
+                            <div>Copyright: {block.content.copyright}</div>
+                            <div>Links: {block.content.links?.length || 0} items</div>
                           </>
                         )}
                       </div>
@@ -366,30 +319,23 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
             </div>
           </div>
 
-          {/* Right Sidebar - Site Blocks */}
+          {/* Right Sidebar - Block Info */}
           <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
             <div>
-              <h3 className="font-semibold mb-4">Site Blocks</h3>
-              <div className="space-y-2">
-                {siteBlocks.map((block) => (
-                  <div
-                    key={block.type}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">{block.icon}</span>
-                      <span className="text-sm font-medium">{block.name}</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => addBlock(block.type)}
-                      className="h-8 w-8 p-0 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
+              <h3 className="font-semibold mb-4">Block Types</h3>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="p-3 rounded-lg border bg-background">
+                  <div className="font-medium">🧭 Navigation</div>
+                  <div className="text-xs">Site header with logo and menu</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-background">
+                  <div className="font-medium">🎯 Hero</div>
+                  <div className="text-xs">Main banner with title and buttons</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-background">
+                  <div className="font-medium">🦶 Footer</div>
+                  <div className="text-xs">Site footer with links</div>
+                </div>
               </div>
             </div>
           </div>

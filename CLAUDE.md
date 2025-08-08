@@ -95,6 +95,17 @@ const MobileNav = ({ menuItems }) => (...)
 - This makes database structure accessible to non-technical users
 - SQL code can be shown separately ONLY if explicitly requested for implementation
 
+**🚫 DEBUGGING AND PROBLEM SOLVING RULES (MANDATORY):**
+- **NEVER ask the user to test, debug, or validate solutions for you** - this is YOUR job
+- **ALWAYS work out solutions internally** through code analysis, logic tracing, and systematic problem solving
+- **ONLY ask for simple testing as LAST RESORT** when all internal analysis is exhausted
+- **NEVER create unnecessary debugging tools, test pages, or diagnostic code** unless explicitly requested
+- **ONLY add code that directly solves the stated problem** - no scaffolding, workarounds, or tangential features
+- **ALWAYS analyze available data first** (error messages, logs, existing code) before asking for more information
+- **NEVER waste user time with convoluted testing processes** - solve problems through proper engineering
+- When debugging: trace code flow → identify root cause → implement direct fix
+- **This rule overrides any tendency to create "helpful" debugging utilities**
+
 **🛑 CRITICAL GIT COMMIT RULE (NEVER VIOLATE):**
 - **NEVER make additional code changes when asked to commit**
 - When user says "commit", "commit build", or any commit-related command, ONLY commit existing changes
