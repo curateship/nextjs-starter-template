@@ -153,4 +153,6 @@ export function TrackingBlock({
       </CardContent>
     </Card>
   )
-} 
+}
+
+// claude.md followed

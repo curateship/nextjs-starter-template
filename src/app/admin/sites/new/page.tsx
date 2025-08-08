@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { SiteBlock } from "@/components/admin/modules/sites/SiteBlock"
+import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { createSiteAction } from "@/lib/actions/site-actions"
 
 export default function NewSitePage() {
@@ -91,7 +91,7 @@ export default function NewSitePage() {
         )}
 
         <form onSubmit={handleSubmit}>
-          <SiteBlock
+          <SiteDashboard
             siteName={siteName}
             description={description}
             status={status}

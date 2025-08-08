@@ -26,23 +26,13 @@ export default function ProductBuilderPage() {
     "new-product": []
   })
 
-  // Product-specific block types
+  // Product-specific blocks - keeping it simple for now
   const productBlocks = [
     { type: "product-hero", name: "Product Hero", icon: "🏷️" },
-    { type: "product-gallery", name: "Product Gallery", icon: "🖼️" },
     { type: "product-details", name: "Product Details", icon: "📋" },
-    { type: "pricing-options", name: "Pricing Options", icon: "💰" },
-    { type: "customer-reviews", name: "Customer Reviews", icon: "⭐" },
-    { type: "related-products", name: "Related Products", icon: "🔄" },
-    { type: "product-faq", name: "Product FAQ", icon: "❓" },
-    { type: "contact-sales", name: "Contact Sales", icon: "📞" }
+    { type: "product-gallery", name: "Product Gallery", icon: "🖼️" }
   ]
 
-  // Shared blocks (can be used across different content types)
-  const sharedBlocks = [
-    { type: "about", name: "About", icon: "ℹ️" },
-    { type: "contact", name: "Contact", icon: "📧" },
-  ]
 
   // Function to get default content for a block type
   const getDefaultContent = (blockType: string) => {
@@ -52,17 +42,7 @@ export default function ProductBuilderPage() {
           title: "New Product",
           subtitle: "Product description",
           price: "$99",
-          originalPrice: "$129",
-          discount: "23% off",
-          images: [],
-          ctaText: "Add to Cart",
-          ctaLink: "/cart"
-        }
-      case 'product-gallery':
-        return {
-          images: [],
-          showThumbnails: true,
-          showZoom: true
+          ctaText: "Add to Cart"
         }
       case 'product-details':
         return {
@@ -70,71 +50,12 @@ export default function ProductBuilderPage() {
           specifications: [
             { label: "Feature 1", value: "Value 1" },
             { label: "Feature 2", value: "Value 2" }
-          ],
-          features: ["Feature 1", "Feature 2", "Feature 3"]
-        }
-      case 'pricing-options':
-        return {
-          options: [
-            { name: "Basic", price: "$99", features: ["Feature 1", "Feature 2"] },
-            { name: "Pro", price: "$199", features: ["Feature 1", "Feature 2", "Feature 3"] }
-          ],
-          showComparison: true
-        }
-      case 'customer-reviews':
-        return {
-          title: "Customer Reviews",
-          reviews: [
-            { name: "John D.", rating: 5, text: "Great product!", date: "2024-01-15" },
-            { name: "Sarah M.", rating: 4, text: "Very satisfied!", date: "2024-01-10" }
           ]
         }
-      case 'related-products':
+      case 'product-gallery':
         return {
-          title: "Related Products",
-          products: [
-            { name: "Related Product 1", price: "$89", image: "/product-1.jpg" },
-            { name: "Related Product 2", price: "$129", image: "/product-2.jpg" }
-          ]
-        }
-      case 'product-faq':
-        return {
-          title: "Frequently Asked Questions",
-          questions: [
-            { question: "What's the warranty?", answer: "1 year standard warranty" },
-            { question: "Is shipping free?", answer: "Free shipping on orders over $50" }
-          ]
-        }
-      case 'contact-sales':
-        return {
-          title: "Contact Sales",
-          description: "Need help? Contact our sales team",
-          email: "sales@example.com",
-          phone: "+1 (555) 123-4567",
-          showForm: true
-        }
-      // Shared blocks (can be used across different content types)
-      case 'about':
-        return {
-          title: "About Our Product",
-          subtitle: "The story behind our success",
-          description: "Learn about our mission, values, and the team behind this amazing product.",
-          image: "/about-image.jpg",
-          stats: [
-            { number: "10K+", label: "Happy Customers" },
-            { number: "50+", label: "Countries" },
-            { number: "99%", label: "Satisfaction Rate" }
-          ]
-        }
-      case 'contact':
-        return {
-          title: "Get in Touch",
-          subtitle: "We'd love to hear from you",
-          description: "Have questions? Need support? Reach out to our team.",
-          email: "contact@example.com",
-          phone: "+1 (555) 123-4567",
-          address: "123 Main St, City, State 12345",
-          showForm: true
+          images: [],
+          showThumbnails: true
         }
       default:
         return {}
@@ -182,13 +103,13 @@ export default function ProductBuilderPage() {
           <div className="flex h-16 items-center px-6">
             <div className="flex items-center space-x-4">
               <Button variant="ghost" size="sm" asChild>
-                <a href="/admin/products">
+                <a href="/admin/sites">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Products
+                  Back to Sites
                 </a>
               </Button>
               <div className="h-4 w-px bg-border"></div>
-              <h1 className="text-lg font-semibold">Product Builder</h1>
+              <h1 className="text-lg font-semibold">Site Builder</h1>
             </div>
             
             <div className="ml-auto flex items-center space-x-4">
@@ -198,7 +119,7 @@ export default function ProductBuilderPage() {
               </Button>
               <Button>
                 <Save className="w-4 h-4 mr-2" />
-                Save Product
+                Save Site
               </Button>
               <Button>
                 <Upload className="w-4 h-4 mr-2" />
@@ -291,29 +212,6 @@ export default function ProductBuilderPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Original Price</label>
-                        <input 
-                          type="text" 
-                          value={selectedBlock.content.originalPrice}
-                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                          onChange={(e) => {
-                            const updatedBlocks = { ...blocks }
-                            const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
-                            if (blockIndex !== -1) {
-                              updatedBlocks[selectedProduct][blockIndex] = {
-                                ...updatedBlocks[selectedProduct][blockIndex],
-                                content: {
-                                  ...updatedBlocks[selectedProduct][blockIndex].content,
-                                  originalPrice: e.target.value
-                                }
-                              }
-                              setBlocks(updatedBlocks)
-                              setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
                         <label className="text-sm font-medium">CTA Button Text</label>
                         <input 
                           type="text" 
@@ -363,7 +261,7 @@ export default function ProductBuilderPage() {
           <div className="flex-1 p-6">
             <div className="max-w-3xl mx-auto">
               <h2 className="text-xl font-semibold mb-6">
-                {currentProduct.name} Product Blocks
+                {currentProduct.name} Site Blocks
               </h2>
               
               {currentProduct.blocks.length === 0 ? (
@@ -407,36 +305,15 @@ export default function ProductBuilderPage() {
                             <div>CTA: {block.content.ctaText}</div>
                           </>
                         )}
+                        {block.type === 'product-details' && (
+                          <>
+                            <div>Specifications: {block.content.specifications?.length || 0} items</div>
+                          </>
+                        )}
                         {block.type === 'product-gallery' && (
                           <>
                             <div>Images: {block.content.images?.length || 0} images</div>
                             <div>Thumbnails: {block.content.showThumbnails ? "✓" : "✗"}</div>
-                            <div>Zoom: {block.content.showZoom ? "✓" : "✗"}</div>
-                          </>
-                        )}
-                        {block.type === 'product-details' && (
-                          <>
-                            <div>Specifications: {block.content.specifications?.length || 0} items</div>
-                            <div>Features: {block.content.features?.length || 0} features</div>
-                          </>
-                        )}
-                        {block.type === 'pricing-options' && (
-                          <>
-                            <div>Options: {block.content.options?.length || 0} pricing tiers</div>
-                            <div>Comparison: {block.content.showComparison ? "✓" : "✗"}</div>
-                          </>
-                        )}
-                        {/* Shared blocks preview */}
-                        {block.type === 'about' && (
-                          <>
-                            <div>Title: {block.content.title}</div>
-                            <div>Stats: {block.content.stats?.length || 0} items</div>
-                          </>
-                        )}
-                        {block.type === 'contact' && (
-                          <>
-                            <div>Title: {block.content.title}</div>
-                            <div>Form: {block.content.showForm ? "✓" : "✗"}</div>
                           </>
                         )}
                       </div>
@@ -447,39 +324,12 @@ export default function ProductBuilderPage() {
             </div>
           </div>
 
-          {/* Right Sidebar - Product Blocks & Shared Blocks */}
+          {/* Right Sidebar - Product Blocks */}
           <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
-            {/* Product Blocks Section */}
-            <div className="mb-6">
+            <div>
               <h3 className="font-semibold mb-4">Product Blocks</h3>
               <div className="space-y-2">
                 {productBlocks.map((block) => (
-                  <div
-                    key={block.type}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">{block.icon}</span>
-                      <span className="text-sm font-medium">{block.name}</span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => addBlock(block.type)}
-                      className="h-8 w-8 p-0 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Shared Blocks Section */}
-            <div>
-              <h3 className="font-semibold mb-4">Shared Blocks</h3>
-              <div className="space-y-2">
-                {sharedBlocks.map((block) => (
                   <div
                     key={block.type}
                     className="flex items-center justify-between p-3 rounded-lg border bg-background hover:bg-muted transition-colors"

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { SiteBlock } from "@/components/admin/modules/sites/SiteBlock"
+import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
@@ -163,7 +163,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         )}
 
         <form onSubmit={handleSubmit}>
-          <SiteBlock
+          <SiteDashboard
             siteName={siteName}
             description={description}
             status={status}

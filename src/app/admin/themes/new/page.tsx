@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { ThemeBlock } from "@/components/admin/modules/themes/ThemeBlock"
+import { ThemeDashboard } from "@/components/admin/layout/dashboard/ThemeDashboard"
 
 export default function NewThemePage() {
   const [title, setTitle] = useState("")
@@ -41,7 +41,7 @@ export default function NewThemePage() {
         />
 
         <form onSubmit={handleSubmit}>
-          <ThemeBlock
+          <ThemeDashboard
             title={title}
             description={description}
             status={status}

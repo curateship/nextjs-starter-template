@@ -10,7 +10,7 @@ import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
 
-interface SiteBlockProps {
+interface SiteDashboardProps {
   siteName: string
   status: string
   themeId: string
@@ -26,7 +26,7 @@ interface SiteBlockProps {
   onDescriptionChange?: (value: string) => void
 }
 
-export function SiteBlock({
+export function SiteDashboard({
   siteName,
   status,
   themeId,
@@ -40,7 +40,7 @@ export function SiteBlock({
   onLogoChange,
   onLogoPreviewChange,
   onDescriptionChange,
-}: SiteBlockProps) {
+}: SiteDashboardProps) {
   const [themes, setThemes] = useState<Theme[]>([])
   const [themesLoading, setThemesLoading] = useState(true)
   const [subdomainStatus, setSubdomainStatus] = useState<{
