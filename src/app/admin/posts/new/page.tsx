@@ -19,32 +19,10 @@ export default function NewPostPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Handle form submission
-    
-      title, 
-      summary, 
-      content, 
-      slug, 
-      metaDescription, 
-      tags, 
-      publishDate, 
-      status, 
-      featuredImage 
-    })
   }
 
   const handleSaveClick = () => {
     // Handle save button click
-    
-      title, 
-      summary, 
-      content, 
-      slug, 
-      metaDescription, 
-      tags, 
-      publishDate, 
-      status, 
-      featuredImage 
-    })
   }
 
   return (

@@ -17,7 +17,7 @@ const supabaseAdmin = createClient(
 
 export async function getAllThemesAction(): Promise<{ data: Theme[] | null; error: string | null }> {
   try {
-    console.log('Server action: Fetching all themes with admin privileges')
+    // Fetching all themes with admin privileges
     
     const { data, error } = await supabaseAdmin
       .from('themes')
@@ -25,14 +25,14 @@ export async function getAllThemesAction(): Promise<{ data: Theme[] | null; erro
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Database error in server action:', error)
+      // Database error in server action
       return { data: null, error: `Database error: ${error.message}` }
     }
 
-    console.log('Server action: Successfully fetched themes:', data?.length || 0)
+    // Successfully fetched themes
     return { data: data as Theme[], error: null }
   } catch (error) {
-    console.error('Unexpected error in server action:', error)
+    // Unexpected error in server action
     return { 
       data: null, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
@@ -45,7 +45,7 @@ export async function updateThemeStatusAction(
   status: 'active' | 'inactive' | 'development'
 ): Promise<{ data: Theme | null; error: string | null }> {
   try {
-    console.log('Server action: Updating theme status', { themeId, status })
+    // Updating theme status
     
     const { data, error } = await supabaseAdmin
       .from('themes')
@@ -55,14 +55,14 @@ export async function updateThemeStatusAction(
       .single()
 
     if (error) {
-      console.error('Database error updating theme:', error)
+      // Database error updating theme
       return { data: null, error: `Database error: ${error.message}` }
     }
 
-    console.log('Server action: Successfully updated theme status')
+    // Successfully updated theme status
     return { data: data as Theme, error: null }
   } catch (error) {
-    console.error('Unexpected error updating theme:', error)
+    // Unexpected error updating theme
     return { 
       data: null, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
@@ -79,13 +79,13 @@ export async function getActiveThemesAction(): Promise<{ data: Theme[] | null; e
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('Database error fetching active themes:', error)
+      // Database error fetching active themes
       return { data: null, error: `Database error: ${error.message}` }
     }
 
     return { data: data as Theme[], error: null }
   } catch (error) {
-    console.error('Unexpected error fetching active themes:', error)
+    // Unexpected error fetching active themes
     return { 
       data: null, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 

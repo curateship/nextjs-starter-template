@@ -1,12 +1,109 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings } from "lucide-react"
+import { Eye, Settings, Trash2 } from "lucide-react"
+import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/site-actions"
+
+type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 
 export default function SitesPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [sites, setSites] = useState<SiteWithTheme[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<FilterStatus>('all')
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadSites()
+  }, [])
+
+  const loadSites = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const { data, error } = await getAllSitesAction()
+      
+      if (error) {
+        console.error('Error loading sites:', error)
+        setError(error)
+        return
+      }
+      
+      if (data) {
+        setSites(data)
+        console.log('Loaded sites:', data)
+      }
+    } catch (err) {
+      console.error('Error loading sites:', err)
+      setError('Failed to load sites')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (siteId: string) => {
+    if (!confirm('Are you sure you want to delete this site? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setDeleting(siteId)
+      const { success, error } = await deleteSiteAction(siteId)
+      
+      if (error) {
+        console.error('Error deleting site:', error)
+        alert(`Failed to delete site: ${error}`)
+        return
+      }
+      
+      if (success) {
+        // Remove from local state
+        setSites(prev => prev.filter(site => site.id !== siteId))
+      }
+    } catch (err) {
+      console.error('Error deleting site:', err)
+      alert('Failed to delete site')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const handleFilterChange = (newFilter: FilterStatus) => {
+    setFilter(newFilter)
+    setIsFilterOpen(false)
+  }
+
+  const filteredSites = sites.filter(site => {
+    if (filter === 'all') return true
+    return site.status === filter
+  })
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800'
+      case 'inactive': return 'bg-red-100 text-red-800'
+      case 'draft': return 'bg-yellow-100 text-yellow-800'
+      case 'suspended': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+    return `${Math.ceil(diffDays / 30)} months ago`
+  }
   
   return (
     <AdminLayout>
@@ -23,7 +120,12 @@ export default function SitesPage() {
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Sites List</h3>
+              <div>
+                <h3 className="text-lg font-semibold">Sites List</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {loading ? 'Loading...' : `${filteredSites.length} site${filteredSites.length !== 1 ? 's' : ''} found`}
+                </p>
+              </div>
               <div className="relative">
                 <Button 
                   variant="outline"
@@ -42,28 +144,44 @@ export default function SitesPage() {
                   <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
                     <div className="py-1">
                       <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                        onClick={() => handleFilterChange('all')}
+                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                          filter === 'all' ? 'bg-muted font-medium' : ''
+                        }`}
                       >
                         All Sites
                       </button>
                       <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                        onClick={() => handleFilterChange('active')}
+                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                          filter === 'active' ? 'bg-muted font-medium' : ''
+                        }`}
                       >
                         Active
                       </button>
                       <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                        onClick={() => handleFilterChange('inactive')}
+                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                          filter === 'inactive' ? 'bg-muted font-medium' : ''
+                        }`}
                       >
                         Inactive
                       </button>
                       <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                        onClick={() => handleFilterChange('draft')}
+                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                          filter === 'draft' ? 'bg-muted font-medium' : ''
+                        }`}
                       >
                         Draft
+                      </button>
+                      <button 
+                        onClick={() => handleFilterChange('suspended')}
+                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                          filter === 'suspended' ? 'bg-muted font-medium' : ''
+                        }`}
+                      >
+                        Suspended
                       </button>
                     </div>
                   </div>
@@ -85,198 +203,117 @@ export default function SitesPage() {
           </div>
           
           <div className="divide-y">
-            {/* Site 1 */}
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-4 items-center">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                    <span className="text-muted-foreground text-sm font-medium">MS</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">mystore.domain.com</h4>
-                    <p className="text-sm text-muted-foreground">E-commerce Site</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 text-xs font-medium">JD</span>
-                  </div>
-                  <span className="text-sm">John Doe</span>
-                </div>
-                <div>
-                  <span className="text-sm">Modern Store</span>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">2 days ago</span>
-                </div>
-                <div>
-                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
+            {loading ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading sites...</p>
               </div>
-            </div>
-
-            {/* Site 2 */}
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-4 items-center">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                    <span className="text-muted-foreground text-sm font-medium">BL</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">blog.domain.com</h4>
-                    <p className="text-sm text-muted-foreground">Personal Blog</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-600 text-xs font-medium">AS</span>
-                  </div>
-                  <span className="text-sm">Alice Smith</span>
-                </div>
-                <div>
-                  <span className="text-sm">Minimal Blog</span>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">1 week ago</span>
-                </div>
-                <div>
-                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <p className="text-red-600 mb-4">{error}</p>
+                <Button onClick={loadSites} variant="outline" size="sm">
+                  Try Again
+                </Button>
               </div>
-            </div>
-
-            {/* Site 3 */}
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-4 items-center">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                    <span className="text-muted-foreground text-sm font-medium">PF</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">portfolio.domain.com</h4>
-                    <p className="text-sm text-muted-foreground">Portfolio Site</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-purple-600 text-xs font-medium">RJ</span>
-                  </div>
-                  <span className="text-sm">Robert Johnson</span>
-                </div>
-                <div>
-                  <span className="text-sm">Creative Portfolio</span>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">3 weeks ago</span>
-                </div>
-                <div>
-                  <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Draft</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
+            ) : filteredSites.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-muted-foreground mb-4">
+                  {filter === 'all' ? 'No sites found' : `No ${filter} sites found`}
+                </p>
+                <Button asChild variant="outline">
+                  <a href="/admin/sites/new">Create Your First Site</a>
+                </Button>
               </div>
-            </div>
-
-            {/* Site 4 */}
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-4 items-center">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                    <span className="text-muted-foreground text-sm font-medium">DM</span>
+            ) : (
+              filteredSites.map((site) => {
+                const initials = site.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
+                
+                return (
+                  <div key={site.id} className="p-6">
+                    <div className="grid grid-cols-7 gap-4 items-center">
+                      <div className="col-span-2 flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                          <span className="text-muted-foreground text-sm font-medium">
+                            {initials}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{site.subdomain}.domain.com</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {site.description || site.name}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 text-xs font-medium">Y</span>
+                        </div>
+                        <span className="text-sm">You</span>
+                      </div>
+                      <div>
+                        <span className="text-sm">{site.theme_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(site.created_at)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(site.status)}`}>
+                          {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a 
+                            href={`https://${site.subdomain}.domain.com`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            title="Preview site"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a href={`/admin/sites/${site.id}/settings`} title="Site settings">
+                            <Settings className="h-4 w-4" />
+                          </a>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          onClick={() => handleDelete(site.id)}
+                          disabled={deleting === site.id}
+                          title="Delete site"
+                        >
+                          {deleting === site.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-medium">demo.domain.com</h4>
-                    <p className="text-sm text-muted-foreground">Demo Site</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                    <span className="text-orange-600 text-xs font-medium">MW</span>
-                  </div>
-                  <span className="text-sm">Maria Wilson</span>
-                </div>
-                <div>
-                  <span className="text-sm">Marketplace Theme</span>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">1 month ago</span>
-                </div>
-                <div>
-                  <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Inactive</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Site 5 */}
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-4 items-center">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                    <span className="text-muted-foreground text-sm font-medium">AP</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">app.domain.com</h4>
-                    <p className="text-sm text-muted-foreground">Web Application</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-indigo-600 text-xs font-medium">DB</span>
-                  </div>
-                  <span className="text-sm">David Brown</span>
-                </div>
-                <div>
-                  <span className="text-sm">App Template</span>
-                </div>
-                <div>
-                  <span className="text-sm text-muted-foreground">2 months ago</span>
-                </div>
-                <div>
-                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+                )
+              })
+            )}
           </div>
         </AdminCard>
       </div>
     </AdminLayout>
   )
 }
+
+// claude.md followed

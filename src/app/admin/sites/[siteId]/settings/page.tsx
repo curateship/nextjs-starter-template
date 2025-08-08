@@ -1,13 +1,22 @@
-"use client"
+'use client'
 
-import { useState } from "react"
+import { useState, useEffect, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteBlock } from "@/components/admin/modules/sites/SiteBlock"
-import { createSiteAction } from "@/lib/actions/site-actions"
+import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
-export default function NewSitePage() {
+interface SiteEditPageProps {
+  params: Promise<{
+    siteId: string
+  }>
+}
+
+export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
+  const { siteId } = use(params)
+  const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteName, setSiteName] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("draft")
@@ -15,7 +24,40 @@ export default function NewSitePage() {
   const [logo, setLogo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const loadSite = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const { data, error } = await getSiteByIdAction(siteId)
+      
+      if (error) {
+        setError(error)
+        return
+      }
+
+      if (data) {
+        setSite(data)
+        setSiteName(data.name)
+        setDescription(data.description || "")
+        setStatus(data.status)
+        setThemeId(data.theme_id)
+        console.log('Loaded site for editing:', data)
+      }
+    } catch (err) {
+      console.error('Error loading site:', err)
+      setError('Failed to load site')
+    } finally {
+      setLoading(false)
+    }
+  }, [siteId])
+
+  useEffect(() => {
+    loadSite()
+  }, [loadSite])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +79,7 @@ export default function NewSitePage() {
       setIsSubmitting(true)
       setError(null)
 
-      const { data, error } = await createSiteAction({
+      const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
         description: description.trim() || undefined,
         theme_id: themeId,
@@ -56,26 +98,56 @@ export default function NewSitePage() {
       }
 
       if (data) {
-        console.log('Site created successfully:', data)
-        // Redirect to sites list or site builder
+        console.log('Site updated successfully:', data)
         router.push('/admin/sites')
       }
     } catch (err) {
-      console.error('Error creating site:', err)
-      setError('Failed to create site. Please try again.')
+      console.error('Error updating site:', err)
+      setError('Failed to update site. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading site...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    )
+  }
+
+  if (error && !site) {
+    return (
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <div className="p-8 text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button 
+              onClick={() => router.push('/admin/sites')}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Back to Sites
+            </button>
+          </div>
+        </div>
+      </AdminLayout>
+    )
   }
 
   return (
     <AdminLayout>
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
-          title="Create Site"
-          subtitle="Add a new site to your multi-site collection"
+          title="Edit Site"
+          subtitle={`Edit settings for ${site?.subdomain}.domain.com`}
           primaryAction={{
-            label: isSubmitting ? "Creating Site..." : "Save Site",
+            label: isSubmitting ? "Saving Changes..." : "Save Changes",
             onClick: isSubmitting ? undefined : handleSaveClick
           }}
           secondaryAction={{
@@ -98,6 +170,7 @@ export default function NewSitePage() {
             themeId={themeId}
             logo={logo}
             logoPreview={logoPreview}
+            isEditMode={true}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
