@@ -678,3 +678,122 @@ export async function deleteResourceAction(id: string) {
 - **Security**: Enterprise-grade protection against common attack vectors
 
 **Total Development Achievement**: Transformed basic admin interface into polished, production-ready management system with complete CRUD operations, enhanced security, and optimized user experience.
+
+---
+
+### Phase 12: Site Builder Block Management Enhancement
+
+**User Request**: Fix delete functionality and add block restoration capabilities
+
+**Issues Identified**:
+- Block deletion was immediate instead of staged until save
+- No way to restore deleted blocks
+- Need + icon beside hero blocks for easy addition
+
+**Implementation Steps**:
+
+1. **Staged Deletion System**
+   - Modified delete behavior to stage blocks locally instead of immediate database deletion
+   - Added `deletedBlockIds` state to track staged deletions
+   - Updated save logic to process both content updates and staged deletions
+   - Changed confirmation message to indicate staging: "It will be removed when you save"
+
+2. **Block Addition/Restoration**
+   - Created `addSiteBlockAction` server action with proper validation and authentication
+   - Implemented smart block ordering: Navigation (1) → Hero (2-99) → Footer (100+)
+   - Added + icon beside hero block in right sidebar with larger clickable area
+   - Enhanced button with hand cursor (`cursor-pointer`) and increased size (8x8)
+
+3. **UI/UX Improvements**
+   - Made + button more accessible with larger click target
+   - Added proper visual feedback for staged operations
+   - Ensured hero blocks insert between navigation and footer blocks
+   - Improved user workflow with clear save-based commit model
+
+**Security Enhancements Applied**:
+- ✅ UUID validation for all block operations
+- ✅ Server-side authentication verification 
+- ✅ User ownership validation for site access
+- ✅ Input sanitization and validation
+- ✅ Proper error handling without information disclosure
+
+**Technical Architecture**:
+- Smart block ordering algorithm in `addSiteBlockAction`
+- Staged deletion pattern with Set-based tracking
+- Heuristic block positioning for optimal user experience
+- Server action integration with comprehensive validation
+
+### Phase 13: Site Builder Component Architecture Refactoring
+
+**User Request**: Address component size and organization issues - 503-line monolithic component
+
+**Problems Identified**:
+- Single component handling multiple concerns (data, state, UI)
+- Deep nesting and "ugly closing brackets" violating CLAUDE.md principles
+- 12+ state variables in single component
+- Large handler functions (65+ lines each)
+- Mixed responsibilities from data fetching to UI rendering
+
+**Implementation Steps**:
+
+1. **Custom Hooks Creation**
+   - **`useSiteData.ts`**: Site and blocks loading with error handling
+   - **`useSiteBuilder.ts`**: State management and business logic handlers
+   - Separated data concerns from UI rendering logic
+   - Centralized state management with proper error boundaries
+
+2. **Component Extraction** (following CLAUDE.md component extraction standards):
+   - **`SiteBuilderHeader.tsx`**: Header with navigation, page selector, and save actions
+   - **`BlockPropertiesPanel.tsx`**: Left sidebar with block editing forms  
+   - **`BlockListPanel.tsx`**: Middle section with block list and previews
+   - **`BlockTypesPanel.tsx`**: Right sidebar with add block buttons
+
+3. **Main Component Refactoring**:
+   - Reduced from **503 lines to 113 lines** (78% reduction!)
+   - Clean orchestrator pattern using hooks and extracted components
+   - Eliminated deep nesting and complex JSX structures
+   - Single-purpose, focused architecture
+
+**Architecture Benefits**:
+- ✅ **Maintainable**: Each component can be developed/tested independently
+- ✅ **Reusable**: Components available for other builders
+- ✅ **Readable**: Clear separation of data, state, and UI logic
+- ✅ **Testable**: Isolated components and custom hooks
+- ✅ **Scalable**: Easy to add new block types and features
+
+**Development Infrastructure Improvements**:
+- Added server restart instructions to CLAUDE.md for hot reload issues
+- Documented port 3000 enforcement with automatic process killing
+- Enhanced development workflow with proper cache clearing commands
+
+**Files Created/Modified in Phase 12-13**:
+- `/src/hooks/useSiteData.ts` (created - data loading logic)
+- `/src/hooks/useSiteBuilder.ts` (created - state management)
+- `/src/components/admin/layout/site-builder/SiteBuilderHeader.tsx` (created)
+- `/src/components/admin/layout/site-builder/BlockPropertiesPanel.tsx` (created)
+- `/src/components/admin/layout/site-builder/BlockListPanel.tsx` (created) 
+- `/src/components/admin/layout/site-builder/BlockTypesPanel.tsx` (created)
+- `/src/lib/actions/site-blocks-actions.ts` (enhanced - addSiteBlockAction)
+- `/src/lib/blocks/block-utils.ts` (created - helper utilities)
+- `/src/app/admin/builder/[siteId]/page.tsx` (major refactoring)
+- `/CLAUDE.md` (updated - development server notes)
+
+### Current System Status: ✅ ENTERPRISE-READY ARCHITECTURE
+
+**Site Builder Features**:
+- ✅ Staged deletion system with save-based commits
+- ✅ Smart block ordering (Navigation → Hero → Footer)
+- ✅ Block restoration/addition with proper positioning
+- ✅ Clean component architecture following CLAUDE.md principles
+- ✅ Comprehensive security validation and error handling
+- ✅ Maintainable, testable, and scalable codebase
+- ✅ Enhanced development workflow with proper tooling
+
+**Technical Excellence Achieved**:
+- **Component Extraction**: 78% code reduction through focused architecture
+- **Security First**: Enterprise-grade validation and authentication
+- **Developer Experience**: Clear separation of concerns and reusable patterns
+- **Performance**: Optimized state management and efficient re-renders
+- **Maintainability**: Self-documenting code with proper abstractions
+
+**Total Development Achievement**: Evolved from monolithic authentication system to sophisticated, enterprise-grade multi-tenant platform with clean architecture, comprehensive security, and professional site builder functionality. The system now exemplifies modern React development best practices with proper separation of concerns, reusable components, and maintainable codebase structure.
