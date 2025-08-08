@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Eye, Save, Upload, Plus, ChevronUp, ChevronDown, Trash2, Plus as PlusIcon } from "lucide-react"
 import Link from "next/link"
+import { HeroRuixenBlock } from "@/components/admin/layout/site-builder/HeroRuixenBlock"
 
 interface Block {
   id: string
@@ -29,14 +30,16 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     home: [
       {
         id: "hero-1",
-        type: "hero",
-        title: "Hero Block",
+        type: "hero-ruixen",
+        title: "Hero Section",
         content: {
-          title: "Welcome to Our Store",
-          subtitle: "Discover amazing products at great prices",
-          buttonText: "Shop Now",
-          buttonLink: "/shop",
-          backgroundImage: null
+          title: "Build Exceptional Interfaces with Ease",
+          subtitle: "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.",
+          primaryButton: "Get Started",
+          secondaryButton: "Browse Components",
+          showRainbowButton: true,
+          githubLink: "https://github.com/ruixenui/ruixen-free-components",
+          showParticles: true
         }
       },
       {
@@ -66,13 +69,16 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     about: [
       {
         id: "hero-2",
-        type: "hero",
-        title: "Hero Block",
+        type: "hero-ruixen", 
+        title: "Hero Section",
         content: {
           title: "About Our Company",
           subtitle: "Learn more about our story and values",
-          buttonText: "Learn More",
-          buttonLink: "#story"
+          primaryButton: "Learn More",
+          secondaryButton: "Our Story",
+          showRainbowButton: false,
+          githubLink: "",
+          showParticles: true
         }
       }
     ]
@@ -89,14 +95,16 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
         blocks: [
           {
             id: "hero-1",
-            type: "hero",
-            title: "Hero Block",
+            type: "hero-ruixen",
+            title: "Hero Section",
             content: {
-              title: "Welcome to Our Store",
-              subtitle: "Discover amazing products at great prices",
-              buttonText: "Shop Now",
-              buttonLink: "/shop",
-              backgroundImage: null
+              title: "Build Exceptional Interfaces with Ease",
+              subtitle: "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.",
+              primaryButton: "Get Started",
+              secondaryButton: "Browse Components",
+              showRainbowButton: true,
+              githubLink: "https://github.com/ruixenui/ruixen-free-components",
+              showParticles: true
             }
           },
           {
@@ -130,13 +138,16 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
         blocks: [
           {
             id: "hero-2",
-            type: "hero",
-            title: "Hero Block",
+            type: "hero-ruixen",
+            title: "Hero Section", 
             content: {
               title: "About Our Company",
               subtitle: "Learn more about our story and values",
-              buttonText: "Learn More",
-              buttonLink: "#story"
+              primaryButton: "Learn More",
+              secondaryButton: "Our Story",
+              showRainbowButton: false,
+              githubLink: "",
+              showParticles: true
             }
           }
         ]
@@ -150,10 +161,10 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     blocks: blocks[selectedPage] || []
   }
   
-  // Site-specific block types
+  // Site-specific block types  
   const siteBlocks = [
     { type: "navigation", name: "Navigation Header", icon: "🧭" },
-    { type: "hero", name: "Hero", icon: "🏛️" },
+    { type: "hero-ruixen", name: "Hero Section", icon: "🎯" },
     { type: "features", name: "Features", icon: "⭐" },
     { type: "testimonials", name: "Testimonials", icon: "💬" },
     { type: "cta", name: "CTA", icon: "📞" },
@@ -183,13 +194,15 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
           showCta: true,
           alignment: "center"
         }
-      case 'hero':
+      case 'hero-ruixen':
         return {
-          title: "Welcome to Our Site",
-          subtitle: "Your business solution",
-          buttonText: "Learn More",
-          buttonLink: "/about",
-          backgroundImage: null
+          title: "Build Exceptional Interfaces with Ease",
+          subtitle: "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.",
+          primaryButton: "Get Started",
+          secondaryButton: "Browse Components",
+          showRainbowButton: true,
+          githubLink: "https://github.com/ruixenui/ruixen-free-components",
+          showParticles: true
         }
       case 'features':
         return {
@@ -268,6 +281,25 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
+  // Helper function to update block content
+  const updateBlockContent = (field: string, value: any) => {
+    if (!selectedBlock) return
+    
+    const updatedBlocks = { ...blocks }
+    const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
+    if (blockIndex !== -1) {
+      updatedBlocks[selectedPage][blockIndex] = {
+        ...updatedBlocks[selectedPage][blockIndex],
+        content: {
+          ...updatedBlocks[selectedPage][blockIndex].content,
+          [field]: value
+        }
+      }
+      setBlocks(updatedBlocks)
+      setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+    }
+  }
+
   return (
     <AdminLayout>
       <div className="flex flex-col -m-4 -mt-6 h-full">
@@ -321,107 +353,23 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                     <label className="text-sm font-medium">Edit {selectedBlock.title}</label>
                   </div>
                   
-                  {selectedBlock.type === 'hero' && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium">Title</label>
-                        <input 
-                          type="text" 
-                          value={selectedBlock.content.title}
-                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                          onChange={(e) => {
-                            const updatedBlocks = { ...blocks }
-                            const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
-                            if (blockIndex !== -1) {
-                              updatedBlocks[selectedPage][blockIndex] = {
-                                ...updatedBlocks[selectedPage][blockIndex],
-                                content: {
-                                  ...updatedBlocks[selectedPage][blockIndex].content,
-                                  title: e.target.value
-                                }
-                              }
-                              setBlocks(updatedBlocks)
-                              setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Subtitle</label>
-                        <input 
-                          type="text" 
-                          value={selectedBlock.content.subtitle}
-                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                          onChange={(e) => {
-                            const updatedBlocks = { ...blocks }
-                            const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
-                            if (blockIndex !== -1) {
-                              updatedBlocks[selectedPage][blockIndex] = {
-                                ...updatedBlocks[selectedPage][blockIndex],
-                                content: {
-                                  ...updatedBlocks[selectedPage][blockIndex].content,
-                                  subtitle: e.target.value
-                                }
-                              }
-                              setBlocks(updatedBlocks)
-                              setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Button Text</label>
-                        <input 
-                          type="text" 
-                          value={selectedBlock.content.buttonText}
-                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                          onChange={(e) => {
-                            const updatedBlocks = { ...blocks }
-                            const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
-                            if (blockIndex !== -1) {
-                              updatedBlocks[selectedPage][blockIndex] = {
-                                ...updatedBlocks[selectedPage][blockIndex],
-                                content: {
-                                  ...updatedBlocks[selectedPage][blockIndex].content,
-                                  buttonText: e.target.value
-                                }
-                              }
-                              setBlocks(updatedBlocks)
-                              setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Button Link</label>
-                        <input 
-                          type="text" 
-                          value={selectedBlock.content.buttonLink}
-                          className="w-full mt-1 px-3 py-2 border rounded-md"
-                          onChange={(e) => {
-                            const updatedBlocks = { ...blocks }
-                            const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
-                            if (blockIndex !== -1) {
-                              updatedBlocks[selectedPage][blockIndex] = {
-                                ...updatedBlocks[selectedPage][blockIndex],
-                                content: {
-                                  ...updatedBlocks[selectedPage][blockIndex].content,
-                                  buttonLink: e.target.value
-                                }
-                              }
-                              setBlocks(updatedBlocks)
-                              setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Background Image</label>
-                        <Button variant="outline" className="w-full mt-1">
-                          Choose Image
-                        </Button>
-                      </div>
-                    </div>
+                  {selectedBlock.type === 'hero-ruixen' && (
+                    <HeroRuixenBlock
+                      title={selectedBlock.content.title || ''}
+                      subtitle={selectedBlock.content.subtitle || ''}
+                      primaryButton={selectedBlock.content.primaryButton || ''}
+                      secondaryButton={selectedBlock.content.secondaryButton || ''}
+                      showRainbowButton={selectedBlock.content.showRainbowButton || false}
+                      githubLink={selectedBlock.content.githubLink || ''}
+                      showParticles={selectedBlock.content.showParticles || false}
+                      onTitleChange={(value) => updateBlockContent('title', value)}
+                      onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                      onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
+                      onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
+                      onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
+                      onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
+                      onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
+                    />
                   )}
                   
                   {selectedBlock.type === 'navigation' && (
@@ -823,11 +771,12 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
                           <div>Alignment: {block.content.alignment}</div>
                         </>
                       )}
-                      {block.type === 'hero' && (
+                      {block.type === 'hero-ruixen' && (
                         <>
                           <div>Title: {block.content.title}</div>
-                          <div>Subtitle: {block.content.subtitle}</div>
-                          <div>Button: {block.content.buttonText} → {block.content.buttonLink}</div>
+                          <div>Buttons: {block.content.primaryButton}, {block.content.secondaryButton}</div>
+                          <div>Rainbow Button: {block.content.showRainbowButton ? "✓" : "✗"}</div>
+                          <div>Particles: {block.content.showParticles ? "✓" : "✗"}</div>
                         </>
                       )}
                       {block.type === 'features' && (

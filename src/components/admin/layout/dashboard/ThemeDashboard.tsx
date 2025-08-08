@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 
-interface ThemeBlockProps {
+interface ThemeDashboardProps {
   title: string
   description: string
   status: string
@@ -23,7 +23,7 @@ interface ThemeBlockProps {
   onLogoPreviewChange: (preview: string | null) => void
 }
 
-export function ThemeBlock({
+export function ThemeDashboard({
   title,
   description,
   status,
@@ -38,7 +38,7 @@ export function ThemeBlock({
   onSecondaryFontChange,
   onLogoChange,
   onLogoPreviewChange,
-}: ThemeBlockProps) {
+}: ThemeDashboardProps) {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -186,3 +186,5 @@ export function ThemeBlock({
     </Card>
   )
 }
+
+// claude.md followed
