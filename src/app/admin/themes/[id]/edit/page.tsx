@@ -76,10 +76,10 @@ export default function EditThemePage() {
 
       const { data, error } = await updateThemeAction(themeId, {
         name: title,
-        description: description || null,
+        description: description || undefined,
         status: status as 'active' | 'inactive' | 'development',
         template_path: templatePath,
-        preview_image: previewImage || null
+        preview_image: previewImage || undefined
       })
       
       if (error) {
@@ -166,7 +166,7 @@ export default function EditThemePage() {
             onPrimaryFontChange={() => {}}
             onSecondaryFontChange={() => {}}
             onLogoChange={() => {}}
-            onLogoPreviewChange={setPreviewImage}
+            onLogoPreviewChange={(preview) => setPreviewImage(preview || '')}
             templatePath={templatePath}
             onTemplatePathChange={setTemplatePath}
           />

@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { getBlockTitle } from '@/lib/blocks/block-utils'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -206,17 +207,205 @@ export async function saveSiteBlockAction(params: {
 }
 
 /**
- * Helper function to get display title for block type
+ * Delete a site block with smart protection for essential blocks
  */
-function getBlockTitle(blockType: string): string {
-  switch (blockType) {
-    case 'navigation':
-      return 'Navigation'
-    case 'hero':
-      return 'Hero Section'
-    case 'footer':
-      return 'Footer'
-    default:
-      return 'Block'
+export async function deleteSiteBlockAction(blockId: string): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    // Validate input
+    if (!blockId) {
+      return { success: false, error: 'Block ID is required' }
+    }
+
+    // Validate block_id is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(blockId)) {
+      return { success: false, error: 'Invalid block ID format' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the block to verify ownership and check type
+    const { data: block, error: blockError } = await supabaseAdmin
+      .from('site_blocks')
+      .select('id, site_id, block_type')
+      .eq('id', blockId)
+      .single()
+
+    if (blockError || !block) {
+      return { success: false, error: 'Block not found' }
+    }
+
+    // Smart protection: prevent deleting essential blocks
+    if (block.block_type === 'navigation' || block.block_type === 'footer') {
+      return { 
+        success: false, 
+        error: `${block.block_type === 'navigation' ? 'Navigation' : 'Footer'} blocks cannot be deleted as they are essential for site structure` 
+      }
+    }
+
+    // Verify user owns the site this block belongs to
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', block.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Delete the block
+    const { error } = await supabaseAdmin
+      .from('site_blocks')
+      .delete()
+      .eq('id', blockId)
+
+    if (error) {
+      return { success: false, error: `Failed to delete block: ${error.message}` }
+    }
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error deleting site block:', error)
+    return { success: false, error: 'Failed to delete block' }
+  }
+}
+
+/**
+ * Add a new hero block to a site
+ */
+export async function addSiteBlockAction(params: {
+  site_id: string
+  page_slug: 'home' | 'about' | 'contact'
+  block_type: 'hero'
+}): Promise<{
+  success: boolean
+  block?: Block
+  error?: string
+}> {
+  try {
+    // Validate input
+    if (!params.site_id || !params.page_slug || !params.block_type) {
+      return { success: false, error: 'Missing required parameters' }
+    }
+
+    // Validate site_id is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.site_id)) {
+      return { success: false, error: 'Invalid site ID format' }
+    }
+
+    // Only allow hero blocks for now
+    if (params.block_type !== 'hero') {
+      return { success: false, error: 'Only hero blocks can be added' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns the site
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', params.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Get existing blocks to determine proper insertion order
+    const { data: existingBlocks, error: orderError } = await supabaseAdmin
+      .from('site_blocks')
+      .select('block_type, display_order')
+      .eq('site_id', params.site_id)
+      .eq('page_slug', params.page_slug)
+      .order('display_order', { ascending: true })
+
+    if (orderError) {
+      return { success: false, error: `Failed to check block order: ${orderError.message}` }
+    }
+
+    // Calculate proper order: navigation (1), hero blocks (2-99), footer (100)
+    let insertOrder = 2 // Default hero position after navigation
+
+    if (existingBlocks.length > 0) {
+      // Find the last hero block or navigation block
+      const lastHeroOrNavIndex = existingBlocks.findLastIndex(block => 
+        block.block_type === 'hero' || block.block_type === 'navigation'
+      )
+      
+      if (lastHeroOrNavIndex >= 0) {
+        // Insert after the last hero or navigation block
+        insertOrder = existingBlocks[lastHeroOrNavIndex].display_order + 1
+      }
+      
+      // Ensure we don't conflict with footer (should be at 100+)
+      const footerBlock = existingBlocks.find(block => block.block_type === 'footer')
+      if (footerBlock && insertOrder >= footerBlock.display_order) {
+        // Insert just before footer
+        insertOrder = footerBlock.display_order - 1
+      }
+    }
+
+    // Default content for hero block
+    const defaultContent = {
+      title: 'New Hero Section',
+      subtitle: 'Add your subtitle here',
+      primaryButton: 'Get Started',
+      secondaryButton: 'Learn More',
+      showRainbowButton: false,
+      githubLink: '',
+      showParticles: true
+    }
+
+    // Create the new block
+    const { data: newBlock, error } = await supabaseAdmin
+      .from('site_blocks')
+      .insert({
+        site_id: params.site_id,
+        block_type: params.block_type,
+        page_slug: params.page_slug,
+        content: defaultContent,
+        display_order: insertOrder,
+        is_active: true
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      return { success: false, error: `Failed to create block: ${error.message}` }
+    }
+
+    // Transform to Block format
+    const block: Block = {
+      id: newBlock.id,
+      type: newBlock.block_type,
+      title: getBlockTitle(newBlock.block_type),
+      content: newBlock.content
+    }
+
+    return { success: true, block }
+
+  } catch (error) {
+    console.error('Error adding site block:', error)
+    return { success: false, error: 'Failed to add block' }
   }
 }

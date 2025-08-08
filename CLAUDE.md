@@ -20,6 +20,25 @@ npm run lint     # Run ESLint
 **Testing:**
 No specific test commands configured. Check for testing setup before running tests.
 
+**Development Server Notes:**
+```bash
+# ALWAYS use port 3000 - shut down any existing server first:
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+npm run dev
+
+# If hot reload isn't working after builds/changes, clear cache and restart:
+rm -rf .next && lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
+
+# Server restart is required after:
+# - Server action changes (adding/modifying functions in lib/actions/)
+# - Middleware.ts modifications  
+# - Database schema changes
+# - Environment variable updates
+
+# Quick restart command (use this after server action changes):
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
+```
+
 ## Architecture Overview
 
 This is a **multi-tenant platform** for managing multiple sites with theme-based customization, built on Next.js 15.3.4 with App Router.
@@ -76,8 +95,7 @@ const MobileNav = ({ menuItems }) => (...)
 9. **MANDATORY DISCLOSURE**: If Claude cannot find a solution that follows these coding standards, it MUST explicitly state that it might need to break coding standards and that it cannot and will not proceed until it has approval to explore alternative paths
 
 **📋 CODE GENERATION PROTOCOL:**
-- **NEVER add "claude.md followed"** - this is no longer required and should be removed from all files
-- Follow all security and coding standards without adding this comment
+- **ALWAYS confirm reading CLAUDE.md** by saying "Claude.md Read" at the end of responses (not in code files)
 
 **📊 DATABASE SCHEMA PRESENTATION RULE:**
 - **ALWAYS present database schemas visually** as formatted tables, not SQL code
