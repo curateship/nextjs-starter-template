@@ -130,11 +130,31 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       subdomainSuffix = `-${attempts}`
     }
     
+    // Get theme ID - use provided theme or default to active Marketplace theme
+    let themeId = siteData.theme_id
+    
+    if (!themeId) {
+      const { data: defaultTheme } = await supabaseAdmin
+        .from('themes')
+        .select('id')
+        .eq('status', 'active')
+        .eq('name', 'Marketplace')
+        .single()
+      
+      if (defaultTheme) {
+        themeId = defaultTheme.id
+      }
+    }
+    
+    if (!themeId) {
+      return { data: null, error: 'No theme selected and no default theme available' }
+    }
+    
     // Validate theme exists and is active
     const { data: theme, error: themeError } = await supabaseAdmin
       .from('themes')
       .select('id, status')
-      .eq('id', siteData.theme_id)
+      .eq('id', themeId)
       .single()
 
     if (themeError || !theme) {
@@ -162,7 +182,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       .insert([{
         name: siteData.name,
         description: siteData.description || null,
-        theme_id: siteData.theme_id,
+        theme_id: themeId,
         user_id: actualUserId,
         subdomain,
         status: siteData.status || 'draft',
@@ -179,6 +199,18 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     if (error) {
       // Database error creating site
       return { data: null, error: `Failed to create site: ${error.message}` }
+    }
+
+    // Copy theme blocks to site blocks for the new site
+    const { error: copyError } = await supabaseAdmin
+      .rpc('copy_theme_blocks_to_site', {
+        p_site_id: data.id,
+        p_theme_id: themeId
+      })
+
+    if (copyError) {
+      // Log error but don't fail site creation
+      console.error('Failed to copy theme blocks:', copyError.message)
     }
 
     // Successfully created site
