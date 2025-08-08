@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { Logo } from '@/components/ui/navigation/logo'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useScroll } from 'motion/react'
+import { createClient } from '@/lib/supabase'
 
 const menuItems = [
     { name: 'Themes', href: '#', hasDropdown: true, dropdownItems: [
@@ -17,6 +18,8 @@ export const Navbar = () => {
     const [menuState, setMenuState] = React.useState(false)
     const [scrolled, setScrolled] = React.useState(false)
     const [dropdownOpen, setDropdownOpen] = React.useState(false)
+    const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [loading, setLoading] = useState(true)
     const dropdownTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const { scrollYProgress } = useScroll()
@@ -27,6 +30,28 @@ export const Navbar = () => {
         })
         return () => unsubscribe()
     }, [scrollYProgress])
+
+    useEffect(() => {
+        let mounted = true
+        const supabase = createClient()
+        
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!mounted) return
+            setIsAuthenticated(!!session?.user)
+            setLoading(false)
+        })
+        
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!mounted) return
+            setIsAuthenticated(!!session?.user)
+            setLoading(false)
+        })
+        
+        return () => {
+            mounted = false
+            subscription.unsubscribe()
+        }
+    }, [])
 
     const handleDropdownMouseEnter = () => {
         if (dropdownTimeoutRef.current) {
@@ -143,21 +168,35 @@ export const Navbar = () => {
                                 </ul>
                             </div>
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    size="sm">
-                                    <Link href="/login">
-                                        <span>Login</span>
-                                    </Link>
-                                </Button>
-                                <Button
-                                    asChild
-                                    size="sm">
-                                    <Link href="/login">
-                                        <span>Sign Up</span>
-                                    </Link>
-                                </Button>
+                                {!loading && (
+                                    isAuthenticated ? (
+                                        <Button
+                                            asChild
+                                            size="sm">
+                                            <Link href="/admin">
+                                                <span>Admin</span>
+                                            </Link>
+                                        </Button>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                asChild
+                                                variant="outline"
+                                                size="sm">
+                                                <Link href="/login">
+                                                    <span>Login</span>
+                                                </Link>
+                                            </Button>
+                                            <Button
+                                                asChild
+                                                size="sm">
+                                                <Link href="/signup">
+                                                    <span>Sign Up</span>
+                                                </Link>
+                                            </Button>
+                                        </>
+                                    )
+                                )}
                             </div>
                         </div>
                     </div>
