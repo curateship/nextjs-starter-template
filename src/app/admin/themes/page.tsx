@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Trash2, MoreHorizontal, ExternalLink, Power, PowerOff } from "lucide-react"
 import type { Theme } from "@/lib/supabase/themes"
-import { getAllThemesAction, updateThemeStatusAction } from "@/lib/actions/theme-actions"
+import { getAllThemesAction, updateThemeStatusAction, deleteThemeAction } from "@/lib/actions/theme-actions"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'development'
 
@@ -42,6 +44,8 @@ export default function ThemesPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
   const loadThemes = async () => {
     try {
@@ -90,6 +94,33 @@ export default function ThemesPage() {
     }
   }
 
+  const handleDelete = async (themeId: string) => {
+    if (!confirm('Are you sure you want to delete this theme? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setDeleting(themeId)
+      const { success, error } = await deleteThemeAction(themeId)
+      
+      if (error) {
+        console.error('Error deleting theme:', error)
+        alert(`Failed to delete theme: ${error}`)
+        return
+      }
+      
+      if (success) {
+        // Remove from local state
+        setThemes(prev => prev.filter(theme => theme.id !== themeId))
+      }
+    } catch (err) {
+      console.error('Error deleting theme:', err)
+      alert('Failed to delete theme')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   const handleFilterChange = (newFilter: FilterStatus) => {
     setFilter(newFilter)
     setIsFilterOpen(false)
@@ -103,6 +134,24 @@ export default function ThemesPage() {
   useEffect(() => {
     loadThemes()
   }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      const dropdownContainer = target.closest('.dropdown-container')
+      
+      if (openDropdown && !dropdownContainer) {
+        setOpenDropdown(null)
+      }
+    }
+
+    if (openDropdown) {
+      document.addEventListener('click', handleClickOutside)
+    }
+    
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [openDropdown])
   
   return (
     <AdminLayout>
@@ -204,68 +253,109 @@ export default function ThemesPage() {
               filteredThemes.map((theme) => (
                 <div key={theme.id} className="p-6 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center overflow-hidden">
-                      {theme.preview_image ? (
-                        <img 
-                          src={theme.preview_image} 
-                          alt={`${theme.name} preview`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-white text-lg">
-                          {getStatusIcon(theme.status)}
-                        </span>
-                      )}
-                    </div>
+                    <Link 
+                      href={`/admin/themes/${theme.id}/edit`}
+                      className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center hover:opacity-80 transition-opacity"
+                    >
+                      <span className="text-white text-sm font-medium">
+                        {theme.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)}
+                      </span>
+                    </Link>
                     <div>
-                      <h4 className="font-medium">{theme.name}</h4>
+                      <Link 
+                        href={`/admin/themes/${theme.id}/edit`}
+                        className="hover:underline"
+                      >
+                        <h4 className="font-medium">{theme.name}</h4>
+                      </Link>
                       <p className="text-sm text-muted-foreground">
                         {theme.description || 'No description available'}
                       </p>
-                      {theme.metadata?.features && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {theme.metadata.features.slice(0, 3).map((feature: string, index: number) => (
-                            <span key={index} className="text-xs px-2 py-1 bg-muted rounded">
-                              {feature}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <div className="flex gap-2">
-                      {theme.status !== 'active' && (
-                        <Button 
-                          onClick={() => handleStatusChange(theme.id, 'active')}
-                          disabled={updating === theme.id}
-                          variant="outline" 
-                          size="sm"
-                        >
-                          {updating === theme.id ? 'Activating...' : 'Activate'}
-                        </Button>
-                      )}
-                      {theme.status !== 'inactive' && (
-                        <Button 
-                          onClick={() => handleStatusChange(theme.id, 'inactive')}
-                          disabled={updating === theme.id}
-                          variant="outline" 
-                          size="sm"
-                        >
-                          {updating === theme.id ? 'Deactivating...' : 'Deactivate'}
-                        </Button>
-                      )}
-                      <Button asChild variant="outline" size="sm">
-                        <a href={theme.template_path} target="_blank" rel="noopener noreferrer">
-                          Preview
-                        </a>
+                    {theme.status !== 'active' && (
+                      <Button 
+                        onClick={() => handleStatusChange(theme.id, 'active')}
+                        disabled={updating === theme.id}
+                        variant="outline" 
+                        size="sm"
+                      >
+                        {updating === theme.id ? 'Activating...' : 'Activate'}
                       </Button>
-                    </div>
+                    )}
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       getStatusColor(theme.status)
                     }`}>
                       {theme.status.charAt(0).toUpperCase() + theme.status.slice(1)}
                     </span>
+                    <div className="relative dropdown-container">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => setOpenDropdown(openDropdown === theme.id ? null : theme.id)}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                      {openDropdown === theme.id && (
+                        <div className="absolute right-0 mt-1 w-48 bg-card border rounded-md shadow-lg z-10">
+                          <div className="py-1">
+                            <a 
+                              href={theme.template_path} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-center px-4 py-2 text-sm hover:bg-muted"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Preview Theme
+                            </a>
+                            {theme.status !== 'inactive' && (
+                              <button 
+                                onClick={() => {
+                                  setOpenDropdown(null)
+                                  handleStatusChange(theme.id, 'inactive')
+                                }}
+                                disabled={updating === theme.id}
+                                className="flex items-center w-full px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+                              >
+                                {updating === theme.id ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                                    Deactivating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <PowerOff className="h-4 w-4 mr-2" />
+                                    Deactivate
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                setOpenDropdown(null)
+                                handleDelete(theme.id)
+                              }}
+                              disabled={deleting === theme.id}
+                              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deleting === theme.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Theme
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))

@@ -93,4 +93,87 @@ export async function getActiveThemesAction(): Promise<{ data: Theme[] | null; e
   }
 }
 
+export async function updateThemeAction(
+  themeId: string, 
+  updates: {
+    name?: string
+    description?: string
+    template_path?: string
+    preview_image?: string
+    status?: 'active' | 'inactive' | 'development'
+    metadata?: any
+  }
+): Promise<{ data: Theme | null; error: string | null }> {
+  try {
+    // Validate theme ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(themeId)) {
+      return { data: null, error: 'Invalid theme ID format' }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('themes')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', themeId)
+      .select()
+      .single()
+
+    if (error) {
+      return { data: null, error: `Failed to update theme: ${error.message}` }
+    }
+
+    return { data: data as Theme, error: null }
+  } catch (error) {
+    return { 
+      data: null, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
+export async function deleteThemeAction(themeId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    // Validate theme ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(themeId)) {
+      return { success: false, error: 'Invalid theme ID format' }
+    }
+
+    // Check if theme is being used by any sites
+    const { data: sitesUsingTheme, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('theme_id', themeId)
+      .limit(1)
+
+    if (sitesError) {
+      return { success: false, error: `Database error: ${sitesError.message}` }
+    }
+
+    if (sitesUsingTheme && sitesUsingTheme.length > 0) {
+      return { success: false, error: 'Cannot delete theme that is currently being used by sites' }
+    }
+
+    // Delete theme
+    const { error } = await supabaseAdmin
+      .from('themes')
+      .delete()
+      .eq('id', themeId)
+
+    if (error) {
+      return { success: false, error: `Failed to delete theme: ${error.message}` }
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
 // claude.md followed

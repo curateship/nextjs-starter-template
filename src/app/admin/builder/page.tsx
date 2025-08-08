@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings, Wrench, ExternalLink } from "lucide-react"
-import { getAllSitesAction } from "@/lib/actions/site-actions"
+import { Eye, Settings, Wrench, ExternalLink, Trash2, MoreHorizontal } from "lucide-react"
+import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
 type FilterStatus = 'all' | 'published' | 'draft' | 'in-progress'
@@ -16,10 +16,30 @@ export default function SiteBuilderPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>('all')
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
   useEffect(() => {
     loadSites()
   }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      const dropdownContainer = target.closest('.dropdown-container')
+      
+      if (openDropdown && !dropdownContainer) {
+        setOpenDropdown(null)
+      }
+    }
+
+    if (openDropdown) {
+      document.addEventListener('click', handleClickOutside)
+    }
+    
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [openDropdown])
 
   const loadSites = async () => {
     try {
@@ -45,6 +65,33 @@ export default function SiteBuilderPage() {
       setError('Failed to load sites')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async (siteId: string) => {
+    if (!confirm('Are you sure you want to delete this site? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setDeleting(siteId)
+      const { success, error } = await deleteSiteAction(siteId)
+      
+      if (error) {
+        console.error('Error deleting site:', error)
+        alert(`Failed to delete site: ${error}`)
+        return
+      }
+      
+      if (success) {
+        // Remove from local state
+        setSites(prev => prev.filter(site => site.id !== siteId))
+      }
+    } catch (err) {
+      console.error('Error deleting site:', err)
+      alert('Failed to delete site')
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -175,12 +222,11 @@ export default function SiteBuilderPage() {
           
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
-            <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
               <div className="col-span-2">Site</div>
               <div>Theme</div>
               <div>Status</div>
               <div>Last Updated</div>
-              <div>Created</div>
               <div>Actions</div>
             </div>
           </div>
@@ -214,7 +260,7 @@ export default function SiteBuilderPage() {
                 
                 return (
                   <div key={site.id} className="p-6">
-                    <div className="grid grid-cols-7 gap-4 items-center">
+                    <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <Link 
                           href={`/admin/builder/${site.id}`}
@@ -247,11 +293,6 @@ export default function SiteBuilderPage() {
                           {formatDate(site.updated_at)}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(site.created_at)}
-                        </span>
-                      </div>
                       <div className="flex items-center space-x-2">
                         <Button 
                           variant="default" 
@@ -263,31 +304,58 @@ export default function SiteBuilderPage() {
                             Build
                           </a>
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <a 
-                            href={`https://${site.subdomain}.domain.com`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            title="Preview site"
+                        <div className="relative dropdown-container">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => setOpenDropdown(openDropdown === site.id ? null : site.id)}
                           >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <a href={`/admin/sites/${site.id}/settings`} title="Site settings">
-                            <Settings className="h-4 w-4" />
-                          </a>
-                        </Button>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          {openDropdown === site.id && (
+                            <div className="absolute right-0 mt-1 w-48 bg-card border rounded-md shadow-lg z-10">
+                              <div className="py-1">
+                                <a 
+                                  href={`https://${site.subdomain}.domain.com`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="flex items-center px-4 py-2 text-sm hover:bg-muted"
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Preview Site
+                                </a>
+                                <a 
+                                  href={`/admin/sites/${site.id}/settings`}
+                                  className="flex items-center px-4 py-2 text-sm hover:bg-muted"
+                                >
+                                  <Settings className="h-4 w-4 mr-2" />
+                                  Site Settings
+                                </a>
+                                <button 
+                                  onClick={() => {
+                                    setOpenDropdown(null)
+                                    handleDelete(site.id)
+                                  }}
+                                  disabled={deleting === site.id}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                >
+                                  {deleting === site.id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                                      Deleting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete Site
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

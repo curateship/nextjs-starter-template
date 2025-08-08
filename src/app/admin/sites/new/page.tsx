@@ -57,8 +57,8 @@ export default function NewSitePage() {
 
       if (data) {
         console.log('Site created successfully:', data)
-        // Redirect to sites list or site builder
-        router.push('/admin/sites')
+        // Redirect to site builder for the new site
+        router.push(`/admin/builder/${data.id}`)
       }
     } catch (err) {
       console.error('Error creating site:', err)

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings, Trash2 } from "lucide-react"
+import { Eye, Settings, Trash2, Edit } from "lucide-react"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
@@ -276,6 +276,16 @@ export default function SitesPage() {
                           className="h-8 w-8 p-0"
                           asChild
                         >
+                          <Link href={`/admin/builder/${site.id}`} title="Edit in builder">
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
                           <a 
                             href={`https://${site.subdomain}.domain.com`} 
                             target="_blank" 
@@ -291,9 +301,9 @@ export default function SitesPage() {
                           className="h-8 w-8 p-0"
                           asChild
                         >
-                          <a href={`/admin/sites/${site.id}/settings`} title="Site settings">
+                          <Link href={`/admin/sites/${site.id}/settings`} title="Site settings">
                             <Settings className="h-4 w-4" />
-                          </a>
+                          </Link>
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -321,5 +331,3 @@ export default function SitesPage() {
     </AdminLayout>
   )
 }
-
-// claude.md followed

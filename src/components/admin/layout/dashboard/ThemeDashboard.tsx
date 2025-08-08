@@ -21,6 +21,8 @@ interface ThemeDashboardProps {
   onSecondaryFontChange: (value: string) => void
   onLogoChange: (file: File | null) => void
   onLogoPreviewChange: (preview: string | null) => void
+  templatePath?: string
+  onTemplatePathChange?: (value: string) => void
 }
 
 export function ThemeDashboard({
@@ -38,6 +40,8 @@ export function ThemeDashboard({
   onSecondaryFontChange,
   onLogoChange,
   onLogoPreviewChange,
+  templatePath,
+  onTemplatePathChange,
 }: ThemeDashboardProps) {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -92,11 +96,26 @@ export function ThemeDashboard({
             <SelectContent>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="beta">Beta</SelectItem>
-              <SelectItem value="deprecated">Deprecated</SelectItem>
+              <SelectItem value="development">Development</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {/* Template Path */}
+        {templatePath !== undefined && onTemplatePathChange && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Template Path</label>
+            <Input
+              id="templatePath"
+              value={templatePath}
+              onChange={(e) => onTemplatePathChange(e.target.value)}
+              placeholder="/themes/theme-name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Path to the theme template files (e.g., /themes/marketplace)
+            </p>
+          </div>
+        )}
 
         {/* Font Selection */}
         <div className="grid grid-cols-2 gap-4">
