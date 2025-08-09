@@ -1,4 +1,6 @@
 import { HeroRuixenBlock } from "./HeroRuixenBlock"
+import { NavigationBlock } from "./NavigationBlock"
+import { FooterBlock } from "./FooterBlock"
 import type { Block } from "@/lib/actions/site-blocks-actions"
 
 interface BlockPropertiesPanelProps {
@@ -34,16 +36,26 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'navigation' && (
-              <div className="p-4 border rounded">
-                <p>Navigation Block Editor</p>
-                <p className="text-sm text-muted-foreground">Coming soon...</p>
-              </div>
+              <NavigationBlock
+                logo={selectedBlock.content.logo || ''}
+                links={selectedBlock.content.links || []}
+                style={selectedBlock.content.style || { backgroundColor: '#ffffff', textColor: '#000000' }}
+                onLogoChange={(value) => updateBlockContent('logo', value)}
+                onLinksChange={(links) => updateBlockContent('links', links)}
+                onStyleChange={(style) => updateBlockContent('style', style)}
+              />
             )}
             {selectedBlock.type === 'footer' && (
-              <div className="p-4 border rounded">
-                <p>Footer Block Editor</p>
-                <p className="text-sm text-muted-foreground">Coming soon...</p>
-              </div>
+              <FooterBlock
+                copyright={selectedBlock.content.copyright || ''}
+                links={selectedBlock.content.links || []}
+                socialLinks={selectedBlock.content.socialLinks || []}
+                style={selectedBlock.content.style || { backgroundColor: '#1f2937', textColor: '#ffffff' }}
+                onCopyrightChange={(value) => updateBlockContent('copyright', value)}
+                onLinksChange={(links) => updateBlockContent('links', links)}
+                onSocialLinksChange={(socialLinks) => updateBlockContent('socialLinks', socialLinks)}
+                onStyleChange={(style) => updateBlockContent('style', style)}
+              />
             )}
           </div>
         </div>

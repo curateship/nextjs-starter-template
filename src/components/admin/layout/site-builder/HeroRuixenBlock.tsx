@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 
 interface HeroRuixenBlockProps {
   title: string
@@ -77,11 +76,9 @@ export function HeroRuixenBlock({
           </p>
         </div>
 
-        <Separator />
-
         {/* CTA Buttons */}
         <div className="space-y-4">
-          <h4 className="text-sm font-medium">Call-to-Action Buttons</h4>
+          <h3 className="text-base font-semibold">Call-to-Action Buttons</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -111,8 +108,6 @@ export function HeroRuixenBlock({
             </div>
           </div>
         </div>
-
-        <Separator />
 
         {/* Rainbow Button Settings */}
         <div className="space-y-4">
@@ -145,11 +140,9 @@ export function HeroRuixenBlock({
           )}
         </div>
 
-        <Separator />
-
         {/* Visual Effects */}
         <div className="space-y-4">
-          <h4 className="text-sm font-medium">Visual Effects</h4>
+          <h3 className="text-base font-semibold">Visual Effects</h3>
           
           <div className="flex items-center space-x-2">
             <input
