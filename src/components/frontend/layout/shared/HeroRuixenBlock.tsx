@@ -46,20 +46,43 @@ const particlePositions = [
 
 interface HeroRuixenBlockProps {
   className?: string;
+  title?: string;
+  subtitle?: string;
+  primaryButton?: string;
+  secondaryButton?: string;
+  showRainbowButton?: boolean;
+  githubLink?: string;
+  showParticles?: boolean;
 }
 
 // Main hero content component
-const HeroContent = () => (
+const HeroContent = ({ 
+  title, 
+  subtitle, 
+  primaryButton, 
+  secondaryButton, 
+  showRainbowButton, 
+  githubLink 
+}: Pick<HeroRuixenBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'showRainbowButton' | 'githubLink'>) => (
   <div className="relative z-10 text-center max-w-2xl space-y-6">
-    <RainbowButton />
-    <HeroTitle />
-    <HeroSubtitle />
-    <CTAButtons />
+    {showRainbowButton && <RainbowButton githubLink={githubLink} />}
+    <HeroTitle title={title} />
+    <HeroSubtitle subtitle={subtitle} />
+    <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} />
     <SocialProof />
   </div>
 )
 
-const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
+const HeroRuixenBlock = ({ 
+  className, 
+  title, 
+  subtitle, 
+  primaryButton, 
+  secondaryButton, 
+  showRainbowButton = false, 
+  githubLink, 
+  showParticles = true 
+}: HeroRuixenBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
 
@@ -75,8 +98,15 @@ const HeroRuixenBlock = ({ className }: HeroRuixenBlockProps) => {
       )} />
       
       <GradientOverlays />
-      <FloatingParticles isMounted={isMounted} />
-      <HeroContent />
+      {showParticles && <FloatingParticles isMounted={isMounted} />}
+      <HeroContent 
+        title={title}
+        subtitle={subtitle}
+        primaryButton={primaryButton}
+        secondaryButton={secondaryButton}
+        showRainbowButton={showRainbowButton}
+        githubLink={githubLink}
+      />
     </section>
   );
 };
@@ -118,7 +148,7 @@ const GradientOverlays = () => (
 )
 
 // Rainbow gradient button component
-const RainbowButton = () => (
+const RainbowButton = ({ githubLink }: { githubLink?: string }) => (
   <button
     className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
@@ -134,7 +164,7 @@ const RainbowButton = () => (
     }}
   >
     <Link
-      href="https://github.com/ruixenui/ruixen-free-components"
+      href={githubLink || "https://github.com/ruixenui/ruixen-free-components"}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
@@ -146,40 +176,40 @@ const RainbowButton = () => (
 )
 
 // Hero title component with animation
-const HeroTitle = () => (
+const HeroTitle = ({ title }: { title?: string }) => (
   <motion.h1
     initial={{ opacity: 0, y: 30 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6 }}
     className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
   >
-    Build Exceptional Interfaces with Ease
+    {title || "Build Exceptional Interfaces with Ease"}
   </motion.h1>
 )
 
 // Hero subtitle component with animation
-const HeroSubtitle = () => (
+const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
   <motion.p
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.2 }}
     className="text-lg text-muted-foreground max-w-xl mx-auto"
   >
-    Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs.
+    {subtitle || "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."}
   </motion.p>
 )
 
 // Call-to-action buttons component with animation
-const CTAButtons = () => (
+const CTAButtons = ({ primaryButton, secondaryButton }: { primaryButton?: string; secondaryButton?: string }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.4 }}
     className="mt-8 flex justify-center gap-4 flex-wrap"
   >
-    <Button size="lg">Get Started</Button>
+    <Button size="lg">{primaryButton || "Get Started"}</Button>
     <Button size="lg" variant="outline">
-      Browse Components
+      {secondaryButton || "Browse Components"}
     </Button>
   </motion.div>
 )
