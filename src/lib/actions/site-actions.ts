@@ -247,11 +247,44 @@ export async function updateSiteAction(
         return { data: null, error: 'Selected theme is not active' }
       }
     }
+
+    // If updating name, regenerate subdomain
+    let finalUpdates = { ...updates }
+    if (updates.name) {
+      let subdomain = updates.name.toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+      
+      // Check if subdomain is available (excluding current site)
+      let subdomainSuffix = ''
+      let attempts = 0
+      while (attempts < 10) {
+        const testSubdomain = subdomain + subdomainSuffix
+        
+        const { data: existing } = await supabaseAdmin
+          .from('sites')
+          .select('id')
+          .eq('subdomain', testSubdomain)
+          .neq('id', siteId) // Exclude current site
+          .single()
+        
+        if (!existing) {
+          subdomain = testSubdomain
+          break
+        }
+        
+        attempts++
+        subdomainSuffix = `-${attempts}`
+      }
+      
+      finalUpdates.subdomain = subdomain
+    }
     
     const { data, error } = await supabaseAdmin
       .from('sites')
       .update({
-        ...updates,
+        ...finalUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', siteId)

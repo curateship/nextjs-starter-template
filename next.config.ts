@@ -34,6 +34,7 @@ const securityHeaders = [
       img-src 'self' blob: data: https:;
       font-src 'self' data:;
       connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+      object-src 'none';
       frame-ancestors 'none';
       base-uri 'self';
       form-action 'self';
@@ -47,6 +48,14 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "dqlgeutcmshgcwbactmu.supabase.co",
+      },
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
       },
     ],
   },
