@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { use } from "react"
+import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useSiteData } from "@/hooks/useSiteData"
 import { useSiteBuilder } from "@/hooks/useSiteBuilder"
+import { useSiteContext } from "@/contexts/site-context"
 import { SiteBuilderHeader } from "@/components/admin/layout/site-builder/SiteBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/layout/site-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/layout/site-builder/BlockListPanel"
@@ -14,7 +16,16 @@ import { BlockTypesPanel } from "@/components/admin/layout/site-builder/BlockTyp
 
 export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
+  const router = useRouter()
+  const { currentSite } = useSiteContext()
   const [selectedPage, setSelectedPage] = useState("home")
+  
+  // Redirect when site changes in sidebar
+  useEffect(() => {
+    if (currentSite && currentSite.id !== siteId) {
+      router.push(`/admin/builder/${currentSite.id}`)
+    }
+  }, [currentSite, siteId, router])
   
   // Custom hooks for data and state management
   const { site, blocks, siteLoading, blocksLoading, siteError } = useSiteData(siteId)

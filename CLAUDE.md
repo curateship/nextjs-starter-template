@@ -103,6 +103,16 @@ const MobileNav = ({ menuItems }) => (...)
 9. **MANDATORY DISCLOSURE**: If Claude cannot find a solution that follows these coding standards, it MUST explicitly state that it might need to break coding standards and that it cannot and will not proceed until it has approval to explore alternative paths
 10. **ALWAYS delete test files and test code** immediately after they are no longer needed - no test files (test-*.js, test-*.ts, debug-*.*, etc.) should remain in the codebase
 
+**🎯 SIMPLICITY FIRST RULE (MANDATORY):**
+- **ALWAYS implement the simplest solution that works** - avoid over-engineering
+- **If adding more than 20 lines for a simple feature, STOP and reconsider** the approach
+- **Before adding state management, caching, or abstractions, ask: "Is this necessary?"**
+- **Direct solutions > Clever architecture** - prefer straightforward code over "smart" solutions
+- **When fixing issues, try removing code before adding code** - often the problem is too much complexity
+- **If the solution feels complicated, it probably is** - step back and find the simple path
+- **NEVER add layers of indirection** unless absolutely necessary
+- **Question every new dependency, hook, or context** - can this be done without it?
+
 **🧹 CODE CLEANUP PROTOCOL (MANDATORY):**
 - **ALWAYS delete test files** after debugging (test-*.js, test-*.ts, debug-*.*, tmp-*.*, etc.)
 - **NEVER leave debugging console.logs** in production code
