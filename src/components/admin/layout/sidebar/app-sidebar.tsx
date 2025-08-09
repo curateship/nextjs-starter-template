@@ -75,41 +75,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [])
 
-  // Site-specific navigation items (only shown when a site is selected)
-  const siteNavItems = currentSite ? [
+  // Site Builder - STATIC, always visible
+  const siteNavItems = [
     {
       title: "Site Builder",
-      url: `/admin/builder/${currentSite.id}`,
+      url: "/admin/builder",
       icon: Wrench,
       isActive: true,
       items: [
         {
           title: "Visual Builder",
-          url: `/admin/builder/${currentSite.id}`,
-        },
-        {
-          title: "Site Settings",
-          url: `/admin/sites/${currentSite.id}/settings`,
+          url: "/admin/builder",
         },
       ],
     },
-    // Future content items can be added here when implemented
-    // {
-    //   title: "Posts",
-    //   url: `/admin/sites/${currentSite.id}/posts`,
-    //   icon: FileText,
-    //   items: [
-    //     {
-    //       title: "All Posts",
-    //       url: `/admin/sites/${currentSite.id}/posts`,
-    //     },
-    //     {
-    //       title: "Categories",
-    //       url: `/admin/sites/${currentSite.id}/posts/categories`,
-    //     },
-    //   ],
-    // },
-  ] : []
+  ]
 
   // Platform management items (always visible)
   const platformProjects = [
@@ -141,9 +121,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SiteSwitcherMenu />
       </SidebarHeader>
       <SidebarContent>
-        {currentSite && siteNavItems.length > 0 && (
-          <NavMain items={siteNavItems} />
-        )}
+        <NavMain items={siteNavItems} />
         <NavProjects title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
