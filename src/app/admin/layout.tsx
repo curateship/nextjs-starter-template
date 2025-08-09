@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { SiteProvider } from "@/contexts/site-context"
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -11,8 +12,10 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      {children}
-    </div>
+    <SiteProvider>
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    </SiteProvider>
   )
 }

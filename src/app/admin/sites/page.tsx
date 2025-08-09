@@ -4,7 +4,15 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings, Trash2, Edit } from "lucide-react"
+import { Eye, Settings, Trash2, Edit, MoreHorizontal } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
@@ -270,55 +278,62 @@ export default function SitesPage() {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <Link href={`/admin/builder/${site.id}`} title="Edit in builder">
-                            <Edit className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <a 
-                            href={`https://${site.subdomain}.domain.com`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            title="Preview site"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </a>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <Link href={`/admin/sites/${site.id}/settings`} title="Site settings">
-                            <Settings className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                          onClick={() => handleDelete(site.id)}
-                          disabled={deleting === site.id}
-                          title="Delete site"
-                        >
-                          {deleting === site.id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/builder/${site.id}`} className="flex items-center">
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit in Builder
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <a 
+                                href={`https://${site.subdomain}.domain.com`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center"
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview Site
+                              </a>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/sites/${site.id}/settings`} className="flex items-center">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Site Settings
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDelete(site.id)}
+                              disabled={deleting === site.id}
+                              className="flex items-center text-red-600 focus:text-red-600"
+                            >
+                              {deleting === site.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Site
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>

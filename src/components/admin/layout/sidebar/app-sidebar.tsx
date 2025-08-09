@@ -4,11 +4,8 @@ import * as React from "react"
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import {
-  Package,
-  FileText,
   Globe,
   Users,
-  Mail,
   Palette,
   Image,
   Wrench,
@@ -17,7 +14,7 @@ import {
 import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
 import { NavProjects } from "@/components/admin/layout/sidebar/nav-projects"
 import { NavUser } from "@/components/admin/layout/sidebar/nav-user"
-import { TeamSwitcher } from "@/components/admin/layout/sidebar/team-switcher"
+import { SiteSwitcherMenu } from "@/components/admin/layout/sidebar/site-switcher-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -25,101 +22,10 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/admin/layout/sidebar/sidebar"
-
-// This is sample data.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  teams: [
-    {
-      name: "Acme Inc",
-      logo: Package,
-      plan: "Enterprise",
-    },
-  ],
-  navMain: [
-    {
-      title: "Products",
-      url: "/admin/products",
-      icon: Package,
-      isActive: true,
-      items: [
-        {
-          title: "All Products",
-          url: "/admin/products",
-        },
-        {
-          title: "Categories",
-          url: "/admin/products/categories",
-        },
-      ],
-    },
-    {
-      title: "Posts",
-      url: "/admin/posts",
-      icon: FileText,
-      items: [
-        {
-          title: "All Posts",
-          url: "/admin/posts",
-        },
-        {
-          title: "Categories",
-          url: "/admin/posts/categories",
-        },
-      ],
-    },
-    {
-      title: "Newsletters",
-      url: "/admin/newsletters",
-      icon: Mail,
-      items: [
-        {
-          title: "All Newsletters",
-          url: "/admin/newsletters",
-        },
-        {
-          title: "AI Generation",
-          url: "/admin/newsletters/generate",
-        },
-      ],
-    },
-  ],
-  builder: [
-    {
-      name: "Site Builder",
-      url: "/admin/builder",
-      icon: Wrench,
-    },
-  ],
-  projects: [
-    {
-      name: "Sites",
-      url: "/admin/sites",
-      icon: Globe,
-    },
-    {
-      name: "Users",
-      url: "/admin/users",
-      icon: Users,
-    },
-    {
-      name: "Themes",
-      url: "/admin/themes",
-      icon: Palette,
-    },
-    {
-      name: "Image Library",
-      url: "/admin/images",
-      icon: Image,
-    },
-  ],
-}
+import { useSiteContext } from "@/contexts/site-context"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { currentSite } = useSiteContext()
   const [user, setUser] = useState<{
     name: string
     email: string
@@ -168,16 +74,77 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       subscription.unsubscribe()
     }
   }, [])
+
+  // Site-specific navigation items (only shown when a site is selected)
+  const siteNavItems = currentSite ? [
+    {
+      title: "Site Builder",
+      url: `/admin/builder/${currentSite.id}`,
+      icon: Wrench,
+      isActive: true,
+      items: [
+        {
+          title: "Visual Builder",
+          url: `/admin/builder/${currentSite.id}`,
+        },
+        {
+          title: "Site Settings",
+          url: `/admin/sites/${currentSite.id}/settings`,
+        },
+      ],
+    },
+    // Future content items can be added here when implemented
+    // {
+    //   title: "Posts",
+    //   url: `/admin/sites/${currentSite.id}/posts`,
+    //   icon: FileText,
+    //   items: [
+    //     {
+    //       title: "All Posts",
+    //       url: `/admin/sites/${currentSite.id}/posts`,
+    //     },
+    //     {
+    //       title: "Categories",
+    //       url: `/admin/sites/${currentSite.id}/posts/categories`,
+    //     },
+    //   ],
+    // },
+  ] : []
+
+  // Platform management items (always visible)
+  const platformProjects = [
+    {
+      name: "Sites",
+      url: "/admin/sites",
+      icon: Globe,
+    },
+    {
+      name: "Themes",
+      url: "/admin/themes",
+      icon: Palette,
+    },
+    {
+      name: "Users",
+      url: "/admin/users",
+      icon: Users,
+    },
+    {
+      name: "Image Library",
+      url: "/admin/images",
+      icon: Image,
+    },
+  ]
   
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <SiteSwitcherMenu />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavProjects title="Builder" projects={data.builder} />
-        <NavProjects projects={data.projects} />
+        {currentSite && siteNavItems.length > 0 && (
+          <NavMain items={siteNavItems} />
+        )}
+        <NavProjects title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
         {!loading && user && <NavUser user={user} />}
