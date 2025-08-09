@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { useScroll } from 'motion/react'
+import { isSafeUrl } from '@/lib/utils/url-validator'
 
 // Navigation menu item interface
 interface MenuItem {
@@ -16,8 +17,18 @@ interface MenuItem {
   dropdownItems?: Array<{ name: string; href: string }>;
 }
 
-// Navigation menu configuration
-const menuItems: MenuItem[] = [
+// NavBlock props interface
+interface NavBlockProps {
+  logo?: string;
+  links?: Array<{ text: string; url: string }>;
+  style?: {
+    backgroundColor: string;
+    textColor: string;
+  };
+}
+
+// Default navigation menu configuration
+const defaultMenuItems: MenuItem[] = [
   { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
   { name: 'Products', href: '/themes/marketplace/products/archive', hasDropdown: false, dropdownItems: [] },
   { name: 'Posts', href: '/themes/marketplace/posts/archive', hasDropdown: false, dropdownItems: [] },
@@ -194,7 +205,20 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = () => {
+export function NavBlock({ logo, links, style }: NavBlockProps) {
+  // Transform database links to MenuItem format, fallback to defaults
+  const menuItems: MenuItem[] = React.useMemo(() => {
+    if (links && links.length > 0) {
+      return links.map(link => ({
+        name: link.text,
+        href: link.url,
+        hasDropdown: false,
+        dropdownItems: []
+      }))
+    }
+    return defaultMenuItems
+  }, [links])
+
   // State management for responsive navigation
   const [menuState, setMenuState] = React.useState(false)
   const [scrolled, setScrolled] = React.useState(false)
@@ -236,6 +260,10 @@ export const NavBlock = () => {
           'fixed z-20 w-full border-b bg-background transition-colors duration-150',
           scrolled && 'lg:bg-background/50 lg:backdrop-blur-3xl'
         )}
+        style={style ? {
+          backgroundColor: style.backgroundColor,
+          color: style.textColor
+        } : undefined}
       >
         <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
           <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
@@ -243,11 +271,23 @@ export const NavBlock = () => {
             {/* Logo and navigation */}
             <div className="flex w-full items-center justify-between gap-26 lg:w-auto">
               <Link
-                href="http://localhost:3000/themes/marketplace"
+                href="/"
                 aria-label="home"
                 className="flex items-center space-x-2"
               >
-                <Logo />
+                {logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? (
+                  <img 
+                    src={logo} 
+                    alt="Logo" 
+                    className="h-8 w-auto"
+                    onError={(e) => {
+                      // Fallback to default logo on error
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : ''} />
               </Link>
 
               <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />

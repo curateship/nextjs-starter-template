@@ -101,6 +101,14 @@ const MobileNav = ({ menuItems }) => (...)
 7. **NEVER commit code** that you wouldn't be comfortable running in production
 8. **ALWAYS consider the security implications** of every code change before implementation
 9. **MANDATORY DISCLOSURE**: If Claude cannot find a solution that follows these coding standards, it MUST explicitly state that it might need to break coding standards and that it cannot and will not proceed until it has approval to explore alternative paths
+10. **ALWAYS delete test files and test code** immediately after they are no longer needed - no test files (test-*.js, test-*.ts, debug-*.*, etc.) should remain in the codebase
+
+**🧹 CODE CLEANUP PROTOCOL (MANDATORY):**
+- **ALWAYS delete test files** after debugging (test-*.js, test-*.ts, debug-*.*, tmp-*.*, etc.)
+- **NEVER leave debugging console.logs** in production code
+- **ALWAYS remove temporary workarounds** once the proper solution is implemented
+- **NEVER commit test data or mock data** that was used for debugging
+- **ALWAYS clean up unused imports and dead code** before completing a task
 
 **📋 CODE GENERATION PROTOCOL:**
 - **ALWAYS confirm reading CLAUDE.md** by saying "Claude.md Read" at the end of responses (not in code files)

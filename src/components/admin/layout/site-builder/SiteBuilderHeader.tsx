@@ -51,9 +51,15 @@ export function SiteBuilderHeader({
               {saveMessage}
             </span>
           )}
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4 mr-2" />
-            Preview
+          <Button variant="outline" size="sm" asChild>
+            <Link 
+              href={`/${site.subdomain}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Preview Site
+            </Link>
           </Button>
           <Button 
             size="sm" 

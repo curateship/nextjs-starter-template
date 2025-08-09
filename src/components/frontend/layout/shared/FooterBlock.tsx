@@ -1,36 +1,53 @@
 import { Logo } from '@/components/ui/navigation/logo'
 import Link from 'next/link'
 
-const links = [
+interface FooterBlockProps {
+  copyright?: string;
+  links?: Array<{ text: string; url: string }>;
+  socialLinks?: Array<{ platform: string; url: string }>;
+  style?: {
+    backgroundColor: string;
+    textColor: string;
+  };
+}
+
+const defaultLinks = [
     {
-        title: 'Features',
-        href: '#',
+        text: 'Features',
+        url: '#',
     },
     {
-        title: 'Solution',
-        href: '#',
+        text: 'Solution',
+        url: '#',
     },
     {
-        title: 'Customers',
-        href: '#',
+        text: 'Customers',
+        url: '#',
     },
     {
-        title: 'Pricing',
-        href: '#',
+        text: 'Pricing',
+        url: '#',
     },
     {
-        title: 'Help',
-        href: '#',
+        text: 'Help',
+        url: '#',
     },
     {
-        title: 'About',
-        href: '#',
+        text: 'About',
+        url: '#',
     },
 ]
 
-const FooterBlock = () => {
+export function FooterBlock({ copyright, links, socialLinks, style }: FooterBlockProps) {
+    const footerLinks = links && links.length > 0 ? links : defaultLinks
     return (
-        <footer className="py-16 md:py-32">
+        <footer 
+            className="py-16 md:py-32"
+            style={style ? {
+                backgroundColor: style.backgroundColor,
+                color: style.textColor
+            } : undefined}
+        >
             <div className="mx-auto max-w-5xl px-6">
                 <Link
                     href="/"
@@ -40,12 +57,12 @@ const FooterBlock = () => {
                 </Link>
 
                 <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
-                    {links.map((link, index) => (
+                    {footerLinks.map((link, index) => (
                         <Link
                             key={index}
-                            href={link.href}
+                            href={link.url}
                             className="text-muted-foreground hover:text-primary block duration-150">
-                            <span>{link.title}</span>
+                            <span>{link.text}</span>
                         </Link>
                     ))}
                 </div>
@@ -158,10 +175,10 @@ const FooterBlock = () => {
                         </svg>
                     </Link>
                 </div>
-                <span className="text-muted-foreground block text-center text-sm"> © {new Date().getFullYear()} Tailark, All rights reserved</span>
+                <span className="text-muted-foreground block text-center text-sm">
+                    {copyright || `© ${new Date().getFullYear()} Tailark, All rights reserved`}
+                </span>
             </div>
         </footer>
     )
 }
-
-export { FooterBlock };
