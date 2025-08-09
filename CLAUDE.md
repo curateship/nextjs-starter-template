@@ -26,10 +26,18 @@ No specific test commands configured. Check for testing setup before running tes
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 npm run dev
 
-# If hot reload isn't working after builds/changes, clear cache and restart:
+# ⚠️ CRITICAL: After running 'npm run build', you MUST clear cache before 'npm run dev'
+# Running production build creates manifest files that conflict with development mode
+# This causes "ENOENT: no such file or directory" errors for build manifests
+
+# Use this automated script after any build:
+./scripts/dev-restart.sh
+
+# Or manual command:
 rm -rf .next && lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
 
 # Server restart is required after:
+# - Running 'npm run build' (ALWAYS clear cache first!)
 # - Server action changes (adding/modifying functions in lib/actions/)
 # - Middleware.ts modifications  
 # - Database schema changes
