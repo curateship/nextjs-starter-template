@@ -6,11 +6,13 @@ import type { Block } from "@/lib/actions/site-blocks-actions"
 interface BlockPropertiesPanelProps {
   selectedBlock: Block | null
   updateBlockContent: (field: string, value: any) => void
+  siteId: string
 }
 
 export function BlockPropertiesPanel({
   selectedBlock,
-  updateBlockContent
+  updateBlockContent,
+  siteId
 }: BlockPropertiesPanelProps) {
   return (
     <div className="w-[845px] border-r bg-muted/30 p-4 overflow-y-auto">
@@ -43,6 +45,8 @@ export function BlockPropertiesPanel({
                 onLogoChange={(value) => updateBlockContent('logo', value)}
                 onLinksChange={(links) => updateBlockContent('links', links)}
                 onStyleChange={(style) => updateBlockContent('style', style)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'footer' && (

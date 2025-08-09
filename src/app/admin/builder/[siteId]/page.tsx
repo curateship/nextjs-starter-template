@@ -93,6 +93,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.updateBlockContent}
+            siteId={siteId}
           />
           
           <BlockListPanel

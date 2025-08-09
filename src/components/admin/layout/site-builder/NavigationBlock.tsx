@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { ImageInput } from "@/components/admin/modules/images/ImageInput"
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react"
 
 interface NavigationLink {
@@ -22,6 +23,8 @@ interface NavigationBlockProps {
   onLogoChange: (value: string) => void
   onLinksChange: (links: NavigationLink[]) => void
   onStyleChange: (style: NavigationStyle) => void
+  siteId: string
+  blockId: string
 }
 
 export function NavigationBlock({
@@ -31,6 +34,8 @@ export function NavigationBlock({
   onLogoChange,
   onLinksChange,
   onStyleChange,
+  siteId,
+  blockId,
 }: NavigationBlockProps) {
   const addLink = () => {
     const newLinks = [...links, { text: "", url: "" }]
@@ -72,20 +77,16 @@ export function NavigationBlock({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Logo */}
-        <div className="space-y-2">
-          <Label htmlFor="navLogo">Logo URL</Label>
-          <input
-            id="navLogo"
-            type="url"
-            value={logo}
-            onChange={(e) => onLogoChange(e.target.value)}
-            className="w-full mt-1 px-3 py-2 border rounded-md"
-            placeholder="/images/logo.png"
-          />
-          <p className="text-xs text-muted-foreground">
-            Path or URL to your site logo image
-          </p>
-        </div>
+        <ImageInput
+          label="Logo"
+          value={logo}
+          onChange={onLogoChange}
+          placeholder="Enter logo URL or select from library"
+          description="Choose your site's logo image. Recommended size: 200x50px or similar aspect ratio."
+          siteId={siteId}
+          blockType="navigation"
+          usageContext={`${blockId}-logo`}
+        />
 
         {/* Navigation Links */}
         <div className="space-y-4">

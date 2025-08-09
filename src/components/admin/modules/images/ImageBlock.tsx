@@ -6,19 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 
 interface ImageBlockProps {
-  title: string
+  altText: string
   image: File | null
   imagePreview: string | null
-  onTitleChange: (value: string) => void
+  onAltTextChange: (value: string) => void
   onImageChange: (file: File | null) => void
   onImagePreviewChange: (preview: string | null) => void
 }
 
 export function ImageBlock({
-  title,
+  altText,
   image,
   imagePreview,
-  onTitleChange,
+  onAltTextChange,
   onImageChange,
   onImagePreviewChange,
 }: ImageBlockProps) {
@@ -45,17 +45,16 @@ export function ImageBlock({
         <CardTitle>Image Information</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Title */}
+        {/* Alt Text */}
         <div className="space-y-2">
           <Input
-            id="title"
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Enter descriptive image title"
-            required
+            id="altText"
+            value={altText}
+            onChange={(e) => onAltTextChange(e.target.value)}
+            placeholder="Describe this image for accessibility (optional)"
           />
           <p className="text-xs text-muted-foreground">
-            Use a descriptive title to help identify this image in the library
+            Alt text helps screen readers understand the image content and improves SEO
           </p>
         </div>
 
