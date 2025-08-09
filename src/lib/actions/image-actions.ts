@@ -351,15 +351,17 @@ export async function trackImageUsageAction(
       return { success: false, error: 'Authentication required' }
     }
 
-    // Insert or update usage record
+    // Insert or update usage record using admin client (internal operation)
+    const usageRecord = {
+      image_id: imageId,
+      site_id: siteId,
+      block_type: blockType,
+      usage_context: usageContext
+    }
+    
     const { error } = await supabaseAdmin
       .from('image_usage')
-      .upsert({
-        image_id: imageId,
-        site_id: siteId,
-        block_type: blockType,
-        usage_context: usageContext
-      })
+      .upsert(usageRecord)
 
     if (error) {
       return { success: false, error: `Failed to track usage: ${error.message}` }
