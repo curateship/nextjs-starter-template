@@ -69,7 +69,7 @@ export function SiteSwitcherMenu() {
     <SidebarMenu>
       <SidebarMenuItem>
         <div className="flex items-center w-full">
-          <Link href="/admin" className="flex-1">
+          <Link href={currentSite ? `/admin/sites/${currentSite.id}/dashboard` : "/admin"} className="flex-1">
             <SidebarMenuButton
               size="lg"
               className="w-full cursor-pointer"
@@ -107,7 +107,7 @@ export function SiteSwitcherMenu() {
                   key={site.id}
                   onClick={() => {
                     setCurrentSite(site)
-                    router.refresh()
+                    router.push(`/admin/sites/${site.id}/dashboard`)
                   }}
                   className="gap-2 p-2"
                 >
