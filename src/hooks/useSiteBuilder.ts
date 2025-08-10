@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, type Block } from "@/lib/actions/site-blocks-actions"
 
 interface UseSiteBuilderParams {
@@ -32,6 +32,11 @@ export function useSiteBuilder({
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
+
+  // Reset selected block when page changes
+  useEffect(() => {
+    setSelectedBlock(null)
+  }, [selectedPage])
 
   // Helper function to update block content
   const updateBlockContent = (field: string, value: any) => {
@@ -92,7 +97,7 @@ export function useSiteBuilder({
       if (success && block) {
         // Add to local state with proper positioning
         const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage]
+        const currentBlocks = updatedBlocks[selectedPage] || []
         const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
         const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
         

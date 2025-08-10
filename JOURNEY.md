@@ -567,6 +567,72 @@ const updateBlockContent = (field: string, value: any) => {
      - Authentication verification before any delete operation
      - Ownership validation (users can only delete their own sites)
      - Business logic protection (prevent deleting themes used by sites)
+
+---
+
+### Phase 12: Multi-Site Block System & Frontend Integration
+
+**User Request**: Fix multi-site block rendering and implement complete page management system
+
+**Major Issues Resolved**:
+
+1. **Critical Block Rendering Bug**
+   - **Issue**: Multiple hero blocks added but only one showing on frontend
+   - **Root Cause**: Frontend rendering logic assumed single block per type
+   - **Fix**: Updated data structure to support arrays of blocks per type
+   - **Files Modified**:
+     - `frontend-actions.ts`: Changed hero block from single object to array
+     - `site-content.tsx`: Updated rendering to map over hero block arrays
+     - Data processing logic now collects blocks into arrays instead of overwriting
+
+2. **Page Builder State Management Issues**
+   - **Issue**: Adding blocks failed when switching pages - `findIndex()` errors on undefined
+   - **Root Cause**: Block state not initialized for new/switched pages
+   - **Fix**: Added proper state initialization and fallbacks
+   - **Implementation**: `currentBlocks = updatedBlocks[selectedPage] || []`
+
+3. **Page Context Loss in Builder**
+   - **Issue**: Editing blocks from wrong page when switching pages
+   - **Root Cause**: `selectedBlock` state persisted across page changes
+   - **Fix**: Added `useEffect` to reset `selectedBlock` when `selectedPage` changes
+   - **Result**: Edit panel now correctly shows blocks for current page only
+
+4. **Smart Page URL Management**
+   - **Issue**: Manual slug editing was cumbersome and error-prone
+   - **Solution**: Implemented intelligent slug auto-generation with manual override
+   - **Features**:
+     - Auto-generates URL-safe slugs from page titles
+     - Tracks manual edits to preserve custom slugs
+     - Allows reset to auto-generation by clearing field
+     - Smart detection of existing custom slugs vs auto-generated ones
+   - **Files**: `create-page-form.tsx`, `settings/page.tsx`
+
+5. **Quick Page Settings Access**
+   - **Issue**: Had to navigate away from builder to edit page settings
+   - **Solution**: Added "Edit Settings" modal directly in page builder
+   - **Implementation**:
+     - Created reusable `EditPageForm` component
+     - Added modal dialog in `SiteBuilderHeader`
+     - Smart page updates with slug change handling
+     - Moves blocks to new slug if page URL changes
+   - **UX Enhancement**: Settings button positioned next to other page actions
+
+6. **UI/UX Improvements**
+   - **View Page Button**: Moved next to page selector for logical grouping
+   - **Header Layout**: Left side (page context) vs right side (editing actions)
+   - **Glass Blur Effects**: Maintained aesthetic backdrop blur on sticky headers
+
+**Security Measures Applied**:
+- Comprehensive security audits on all new form components
+- Proper input validation and sanitization for slug generation
+- XSS prevention in dynamic content rendering
+- Authentication verification for all page operations
+
+**Technical Architecture**:
+- Multi-tenant block system supporting unlimited blocks per page
+- Smart state management preventing cross-page contamination  
+- Reusable form components with consistent validation patterns
+- Modal-based editing for improved user workflow
      - Confirmation dialogs to prevent accidental deletions
 
 3. **Theme Management Enhancement**

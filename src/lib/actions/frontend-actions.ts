@@ -21,7 +21,7 @@ export interface SiteWithBlocks {
       buttons: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
       style: { backgroundColor: string; textColor: string }
     }
-    hero?: {
+    hero?: Array<{
       title: string
       subtitle: string
       primaryButton: string
@@ -35,7 +35,7 @@ export interface SiteWithBlocks {
       trustedByText: string
       trustedByCount: string
       trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
-    }
+    }>
     footer?: {
       logo: string
       copyright: string
@@ -125,7 +125,10 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug: string = '
           }
         }
       } else if (block.block_type === 'hero') {
-        blocks.hero = {
+        if (!blocks.hero) {
+          blocks.hero = []
+        }
+        blocks.hero.push({
           title: block.content.title || 'Welcome to Our Site',
           subtitle: block.content.subtitle || 'Build something amazing',
           primaryButton: block.content.primaryButton || 'Get Started',
@@ -143,7 +146,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug: string = '
             { src: "", alt: "User 2", fallback: "U2" },
             { src: "", alt: "User 3", fallback: "U3" }
           ]
-        }
+        })
       } else if (block.block_type === 'footer') {
         blocks.footer = {
           logo: block.content.logo || '/images/logo.png',

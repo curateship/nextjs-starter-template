@@ -37,13 +37,27 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
       .replace(/^-|-$/g, '')
   }
 
-  // Handle title change and auto-generate slug if slug is empty
+  // Handle title change and auto-generate slug if slug hasn't been manually edited
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({
       ...prev,
       title,
-      slug: prev.slug || generateSlug(title)
+      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
     }))
+  }
+
+  // Handle manual slug changes
+  const handleSlugChange = (slug: string) => {
+    if (slug === '') {
+      // If user clears the field, reset to auto-generation
+      setSlugManuallyEdited(false)
+      setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
+    } else {
+      setSlugManuallyEdited(true)
+      setFormData(prev => ({ ...prev, slug }))
+    }
   }
 
   // Handle form submission
@@ -99,15 +113,17 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
 
         {/* Page Slug */}
         <div className="col-span-2">
-          <Label htmlFor="slug">Page Slug</Label>
+          <Label htmlFor="slug">Page URL</Label>
           <Input
             id="slug"
             value={formData.slug}
-            onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+            onChange={(e) => handleSlugChange(e.target.value)}
             placeholder="page-url-slug"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            The URL slug for this page. Leave empty to auto-generate from title.
+            {slugManuallyEdited 
+              ? "Custom URL slug. Clear this field to auto-generate from title again." 
+              : "Auto-generated from title. You can edit this to customize the URL."}
           </p>
         </div>
 
