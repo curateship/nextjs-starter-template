@@ -174,7 +174,7 @@ export function NavigationBlock({
                       type="text"
                       value={link.text}
                       onChange={(e) => updateLink(index, 'text', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
+                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                       placeholder="Home"
                     />
                   </div>
@@ -184,7 +184,7 @@ export function NavigationBlock({
                       type="text"
                       value={link.url}
                       onChange={(e) => updateLink(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
+                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                       placeholder="/"
                     />
                   </div>
@@ -256,7 +256,7 @@ export function NavigationBlock({
                       type="text"
                       value={button.text}
                       onChange={(e) => updateButton(index, 'text', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
+                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                       placeholder="Sign Up"
                     />
                   </div>
@@ -266,7 +266,7 @@ export function NavigationBlock({
                       type="text"
                       value={button.url}
                       onChange={(e) => updateButton(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
+                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                       placeholder="/signup"
                     />
                   </div>
@@ -275,7 +275,7 @@ export function NavigationBlock({
                     <select
                       value={button.style}
                       onChange={(e) => updateButton(index, 'style', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
+                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                     >
                       <option value="primary">Primary</option>
                       <option value="outline">Outline</option>
@@ -316,13 +316,13 @@ export function NavigationBlock({
                   type="color"
                   value={style.backgroundColor}
                   onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-12 h-8 border rounded cursor-pointer"
+                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
                   value={style.backgroundColor}
                   onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                  className="flex-1 px-3 py-2 border rounded-md text-sm font-mono"
                   placeholder="#ffffff"
                 />
               </div>
@@ -336,13 +336,13 @@ export function NavigationBlock({
                   type="color"
                   value={style.textColor}
                   onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-12 h-8 border rounded cursor-pointer"
+                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
                   value={style.textColor}
                   onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                  className="flex-1 px-3 py-2 border rounded-md text-sm font-mono"
                   placeholder="#000000"
                 />
               </div>

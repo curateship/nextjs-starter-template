@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { User, Mail, Lock, Save, AlertTriangle } from "lucide-react"
-import { createClient } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/client"
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
