@@ -9,9 +9,11 @@ interface SiteLayoutProps {
   navigation?: {
     logo?: string
     links?: Array<{ text: string; url: string }>
+    buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
     style?: { backgroundColor: string; textColor: string }
   }
   footer?: {
+    logo?: string
     copyright?: string
     links?: Array<{ text: string; url: string }>
     socialLinks?: Array<{ platform: string; url: string }>
@@ -28,6 +30,7 @@ export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
           <NavBlock 
             logo={navigation?.logo}
             links={navigation?.links}
+            buttons={navigation?.buttons}
             style={navigation?.style}
           />
         </div>
@@ -38,6 +41,7 @@ export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
       
       {/* Footer */}
       <FooterBlock 
+        logo={footer?.logo}
         copyright={footer?.copyright}
         links={footer?.links}
         socialLinks={footer?.socialLinks}

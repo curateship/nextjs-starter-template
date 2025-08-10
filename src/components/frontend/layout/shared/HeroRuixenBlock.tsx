@@ -50,9 +50,15 @@ interface HeroRuixenBlockProps {
   subtitle?: string;
   primaryButton?: string;
   secondaryButton?: string;
+  primaryButtonLink?: string;
+  secondaryButtonLink?: string;
+  backgroundColor?: string;
   showRainbowButton?: boolean;
   githubLink?: string;
   showParticles?: boolean;
+  trustedByText?: string;
+  trustedByCount?: string;
+  trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
 }
 
 // Main hero content component
@@ -60,16 +66,22 @@ const HeroContent = ({
   title, 
   subtitle, 
   primaryButton, 
-  secondaryButton, 
+  secondaryButton,
+  primaryButtonLink,
+  secondaryButtonLink,
   showRainbowButton, 
-  githubLink 
-}: Pick<HeroRuixenBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'showRainbowButton' | 'githubLink'>) => (
+  githubLink,
+  trustedByText,
+  trustedByCount,
+  trustedByAvatars,
+  backgroundColor
+}: Pick<HeroRuixenBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'githubLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
   <div className="relative z-10 text-center max-w-2xl space-y-6">
     {showRainbowButton && <RainbowButton githubLink={githubLink} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
-    <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} />
-    <SocialProof />
+    <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
+    <SocialProof trustedByText={trustedByText} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </div>
 )
 
@@ -78,10 +90,16 @@ const HeroRuixenBlock = ({
   title, 
   subtitle, 
   primaryButton, 
-  secondaryButton, 
+  secondaryButton,
+  primaryButtonLink,
+  secondaryButtonLink,
+  backgroundColor = '#ffffff',
   showRainbowButton = false, 
   githubLink, 
-  showParticles = true 
+  showParticles = true,
+  trustedByText,
+  trustedByCount,
+  trustedByAvatars
 }: HeroRuixenBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -104,8 +122,14 @@ const HeroRuixenBlock = ({
         subtitle={subtitle}
         primaryButton={primaryButton}
         secondaryButton={secondaryButton}
+        primaryButtonLink={primaryButtonLink}
+        secondaryButtonLink={secondaryButtonLink}
         showRainbowButton={showRainbowButton}
         githubLink={githubLink}
+        trustedByText={trustedByText}
+        trustedByCount={trustedByCount}
+        trustedByAvatars={trustedByAvatars}
+        backgroundColor={backgroundColor}
       />
     </section>
   );
@@ -200,29 +224,43 @@ const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
 )
 
 // Call-to-action buttons component with animation
-const CTAButtons = ({ primaryButton, secondaryButton }: { primaryButton?: string; secondaryButton?: string }) => (
+const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.4 }}
     className="mt-8 flex justify-center gap-4 flex-wrap"
   >
-    <Button size="lg">{primaryButton || "Get Started"}</Button>
-    <Button size="lg" variant="outline">
-      {secondaryButton || "Browse Components"}
-    </Button>
+    {primaryButtonLink ? (
+      <Link href={primaryButtonLink}>
+        <Button size="lg">{primaryButton || "Get Started"}</Button>
+      </Link>
+    ) : (
+      <Button size="lg">{primaryButton || "Get Started"}</Button>
+    )}
+    {secondaryButtonLink ? (
+      <Link href={secondaryButtonLink}>
+        <Button size="lg" variant="outline">
+          {secondaryButton || "Browse Components"}
+        </Button>
+      </Link>
+    ) : (
+      <Button size="lg" variant="outline">
+        {secondaryButton || "Browse Components"}
+      </Button>
+    )}
   </motion.div>
 )
 
 // Social proof section component with animation
-const SocialProof = () => (
+const SocialProof = ({ trustedByText, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.6 }}
     className="mt-8 flex justify-center"
   >
-    <TrustedByAvatars />
+    <TrustedByAvatars text={trustedByText} count={trustedByCount} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </motion.div>
 )
 

@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { ImageInput } from "@/components/admin/modules/images/ImageInput"
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react"
 
 interface FooterLink {
@@ -21,14 +22,18 @@ interface FooterStyle {
 }
 
 interface FooterBlockProps {
+  logo: string
   copyright: string
   links: FooterLink[]
   socialLinks: SocialLink[]
   style: FooterStyle
+  onLogoChange: (value: string) => void
   onCopyrightChange: (value: string) => void
   onLinksChange: (links: FooterLink[]) => void
   onSocialLinksChange: (socialLinks: SocialLink[]) => void
   onStyleChange: (style: FooterStyle) => void
+  siteId: string
+  blockId: string
 }
 
 const socialPlatforms = [
@@ -36,14 +41,18 @@ const socialPlatforms = [
 ]
 
 export function FooterBlock({
+  logo,
   copyright,
   links,
   socialLinks,
   style,
+  onLogoChange,
   onCopyrightChange,
   onLinksChange,
   onSocialLinksChange,
   onStyleChange,
+  siteId,
+  blockId,
 }: FooterBlockProps) {
   const addLink = () => {
     const newLinks = [...links, { text: "", url: "" }]
@@ -112,7 +121,19 @@ export function FooterBlock({
       <CardHeader>
         <CardTitle>Footer</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8">
+        {/* Logo */}
+        <ImageInput
+          label="Logo"
+          value={logo}
+          onChange={onLogoChange}
+          placeholder="Enter logo URL or select from library"
+          description="Choose your footer logo image. Recommended size: 200x50px or similar aspect ratio."
+          siteId={siteId}
+          blockType="footer"
+          usageContext={`${blockId}-logo`}
+        />
+
         {/* Copyright Text */}
         <div className="space-y-2">
           <Label htmlFor="footerCopyright">Copyright Text</Label>
@@ -130,7 +151,7 @@ export function FooterBlock({
         </div>
 
         {/* Footer Links */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold">Footer Links</h3>
             <Button
@@ -212,7 +233,7 @@ export function FooterBlock({
         </div>
 
         {/* Social Links */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold">Social Media Links</h3>
             <Button
@@ -298,7 +319,7 @@ export function FooterBlock({
         </div>
 
         {/* Style Settings */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
           <h3 className="text-base font-semibold">Styling</h3>
           
           <div className="grid grid-cols-2 gap-4">
