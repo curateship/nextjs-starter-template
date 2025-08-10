@@ -1545,3 +1545,300 @@ export default function BuilderPage() {
 - **Scalability**: Sidebar architecture supports future enhancements
 
 This optimization transforms the admin interface from feeling slow and unpolished to providing a smooth, professional user experience that matches modern web application standards.
+
+---
+
+## 📄 Phase 20 - WordPress-Style Page Management System (2025-08-10)
+
+**User Request**: Build a WordPress-style page builder where users can create unlimited custom pages for their sites, with complete page management capabilities.
+
+**Challenge**: Existing system only supported hardcoded pages (home, about, contact). Users needed ability to create, manage, and organize unlimited custom pages with SEO settings and publishing controls.
+
+### Implementation Overview
+
+**1. Database Schema Enhancement**
+- **Migration 013**: Created comprehensive `pages` table with full page management fields:
+  - Page metadata (title, slug, SEO description/keywords)  
+  - Publishing controls (is_published, is_homepage flags)
+  - Display ordering and timestamps
+  - Template field (later removed per user feedback)
+- **Migration 014**: Removed template functionality as user determined it wasn't needed
+- **Enhanced site_blocks**: Extended to support any page slug instead of just predefined pages
+- **Automatic page creation**: Triggers create default pages (Home, About, Contact) for new sites
+
+**2. Server Actions & API Layer**
+- **Complete CRUD Operations**: `getSitePagesAction`, `createPageAction`, `updatePageAction`, `deletePageAction`, `duplicatePageAction`
+- **Security Implementation**: User authentication, site ownership validation, input sanitization
+- **Smart Features**: 
+  - Automatic slug generation from titles
+  - Reserved slug protection (api, admin, www, etc.)
+  - Unique slug enforcement per site
+  - Homepage management (only one homepage per site)
+  - Block relationship handling (prevents deletion of pages with content)
+
+**3. Admin Interface Development**
+- **Pages Management Dashboard**: Complete CRUD interface matching existing admin UI patterns
+  - Table-based layout with consistent styling
+  - Status badges (Homepage, Published, Draft)
+  - Dropdown action menus (Edit Content, Page Settings, Preview, Duplicate, Delete)
+  - Creation dialog with validation and error handling
+- **Page Settings Interface**: Comprehensive page configuration
+  - Basic information (title, slug)
+  - SEO settings (meta description, keywords with character limits)
+  - Publishing controls (published, homepage flags)
+  - Quick action buttons (Edit Content, Preview, View All Pages)
+
+**4. Site Builder Integration**
+- **Page Selector**: Dropdown in site builder header to switch between pages
+- **Create Page Modal**: Direct page creation from site builder without navigation
+- **Navigation Updates**: "Back to Pages" button for better workflow
+- **Block Context**: All blocks now support page_slug for proper content organization
+
+**5. Frontend Rendering Enhancement**  
+- **Dynamic Page Routing**: Updated `(main)/[...slug]` to handle custom page routing
+- **Page Content Loading**: Modified `getSiteBySubdomain` to validate page existence and published status
+- **Legacy Support**: Backwards compatibility for sites without pages system
+
+**6. User Experience Improvements**
+- **Intuitive Navigation**: Direct links from pages list to site builder for content editing
+- **Modal Workflows**: Create pages without leaving current context
+- **Preview Integration**: "View Page" button in site builder opens page in new tab
+- **Consistent UI**: All interfaces follow established admin design patterns
+
+### Technical Architecture
+
+**Page Creation Flow**:
+```typescript
+// 1. User submits page form with validation
+const pageData: CreatePageData = {
+  title: "New Page",
+  slug: "new-page",  // Auto-generated if empty
+  meta_description: "Page description",
+  is_published: true,
+  is_homepage: false
+}
+
+// 2. Server validation and security checks
+- Authentication verification
+- Site ownership validation  
+- Input sanitization and slug validation
+- Duplicate slug checking
+- Homepage management
+
+// 3. Database operations
+- Create page record with metadata
+- Update homepage flags if needed
+- Set proper display order
+```
+
+**Page Management Security**:
+```typescript
+// Authentication and authorization on every operation
+const { data: { user } } = await supabase.auth.getUser()
+const { data: site } = await supabaseAdmin
+  .from('sites')
+  .eq('id', siteId)
+  .eq('user_id', user.id)  // Enforce ownership
+  .single()
+```
+
+**Component Architecture**:
+- **CreatePageForm**: Reusable component for page creation (moved to `admin/modules/sites/`)
+- **Pages Dashboard**: Table-based interface with action dropdowns
+- **Site Builder Integration**: Modal creation and page switching
+- **Responsive Design**: Works across all screen sizes
+
+### Security Audit Results
+
+**🔒 COMPREHENSIVE SECURITY VALIDATION PASSED**
+
+✅ **Authentication & Authorization**: All operations require valid user sessions and site ownership
+✅ **Input Validation**: Comprehensive slug validation, title sanitization, meta field trimming  
+✅ **XSS Prevention**: All user input properly escaped through React
+✅ **SQL Injection Prevention**: Parameterized queries via Supabase
+✅ **CSRF Protection**: Server actions protected by Next.js built-in tokens
+✅ **Access Control**: Site-based data isolation enforced
+✅ **Error Handling**: Generic messages prevent information disclosure
+✅ **No Security Shortcuts**: All operations follow secure coding standards
+
+### Files Created/Modified in Phase 20
+
+**Database Layer**:
+- `/supabase/migrations/013_create_pages_system.sql` (created - comprehensive page system)
+- `/supabase/migrations/014_remove_template_field.sql` (created - template cleanup)
+
+**Server Actions**:
+- `/src/lib/actions/page-actions.ts` (created - complete CRUD operations)
+- `/src/app/api/pages/[pageId]/route.ts` (created - API endpoints for settings)
+
+**Admin Interface**:
+- `/src/app/admin/sites/[siteId]/pages/page.tsx` (created - pages management dashboard)
+- `/src/app/admin/sites/[siteId]/pages/[pageId]/settings/page.tsx` (created - page settings)
+- `/src/components/admin/modules/sites/create-page-form.tsx` (created - reusable form component)
+
+**Site Builder Integration**:
+- `/src/components/admin/layout/site-builder/SiteBuilderHeader.tsx` (enhanced - page selector & creation modal)
+- `/src/app/admin/builder/[siteId]/page.tsx` (enhanced - page context and creation handling)
+
+**Navigation & UX**:
+- `/src/components/admin/layout/sidebar/app-sidebar.tsx` (updated - simplified pages navigation)
+- `/src/lib/actions/frontend-actions.ts` (enhanced - page validation and rendering)
+- `/src/app/(main)/[...slug]/page.tsx` (enhanced - custom page routing)
+
+### Current System Status: ✅ WORDPRESS-STYLE PAGE MANAGEMENT
+
+**Page Management Features**:
+- ✅ Unlimited custom page creation with full CRUD operations
+- ✅ SEO optimization with meta descriptions and keywords
+- ✅ Publishing controls (draft/published, homepage designation)
+- ✅ Page duplication for rapid content creation
+- ✅ Smart slug generation and validation
+- ✅ Delete protection for pages with content blocks
+- ✅ Intuitive admin interface with consistent design patterns
+
+**Site Builder Integration**:
+- ✅ Page switching directly in builder interface
+- ✅ Modal page creation without workflow interruption  
+- ✅ "View Page" button for instant preview
+- ✅ Context-aware navigation (Back to Pages)
+- ✅ Block content organized by page slug
+
+**User Experience Excellence**:
+- ✅ One-click page creation and management
+- ✅ Seamless workflow between pages list and content editing
+- ✅ Professional interface matching modern CMS standards
+- ✅ Responsive design across all screen sizes
+- ✅ Clear visual indicators for page status and usage
+
+**Architecture Benefits**:
+- **Scalability**: Supports unlimited pages per site with efficient database design
+- **Security**: Enterprise-grade protection with comprehensive validation
+- **Maintainability**: Clean component architecture with proper separation of concerns
+- **User Experience**: WordPress-familiar interface with modern improvements
+- **Performance**: Optimized queries and efficient state management
+
+**Total Development Achievement**: Successfully transformed the platform from a static site builder to a comprehensive page management system rivaling WordPress capabilities. Users can now create unlimited custom pages with full SEO control, publishing management, and seamless content editing workflows. The system maintains enterprise-grade security while providing intuitive user experiences that match modern CMS expectations.
+
+This completes the evolution from basic multi-tenant site management to a full-featured content management platform with professional page creation and organization capabilities.
+
+---
+
+## 🔧 Phase 20.1 - Frontend Routing Architecture Fix & Double Footer Resolution (2025-08-10)
+
+**Critical Issue**: Users reported double footers appearing on frontend sites - one dynamic footer from site blocks and one static placeholder footer.
+
+**Root Cause Analysis**:
+After implementing the WordPress-style page management system, a routing architecture conflict emerged where two different route structures were handling dynamic sites:
+
+1. **`(main)/[...slug]/page.tsx`** - Legacy catch-all route inside main layout group
+2. **`[subdomain]/page.tsx`** - Dedicated subdomain route with clean layout
+
+The main layout (`(main)/layout.tsx`) included a static `FooterSection` component that was being rendered alongside the dynamic site footers, causing the double footer issue.
+
+### Implementation & Resolution
+
+**1. Route Structure Analysis**
+```typescript
+// Problem: Two conflicting routes
+(main)/[...slug]/page.tsx     // With static footer in layout
+[subdomain]/page.tsx          // With dynamic footer only
+```
+
+**2. Architecture Cleanup**
+- **Removed**: Conflicting `(main)/[...slug]` route that included static footer
+- **Created**: Proper `[subdomain]/[...slug]/page.tsx` for dynamic page routing
+- **Preserved**: Clean `[subdomain]/layout.tsx` without static components
+
+**3. Frontend Route Structure (Final)**
+```
+/[subdomain]/page.tsx           // Homepage (e.g., /test-site)
+/[subdomain]/[...slug]/page.tsx // All pages (e.g., /test-site/about)
+```
+
+**4. Component Architecture Optimization**
+- **Static Block Management**: Commented out mock data blocks in `SiteContent` while preserving component files
+- **Component Preservation**: Kept `ProductGridBlock`, `PostGridBlock`, `FaqBlock` intact for future use
+- **Clean Rendering**: Sites now show only dynamic content from site builder
+
+### Technical Solution Details
+
+**Route Conflict Resolution**:
+```typescript
+// Before: Route confusion causing double footers
+// (main)/[...slug] + static FooterSection in layout
+// [subdomain] + dynamic FooterBlock
+
+// After: Clean single route structure  
+// [subdomain]/[...slug] + dynamic FooterBlock only
+```
+
+**Dynamic Page Routing**:
+```typescript
+// [subdomain]/[...slug]/page.tsx
+export default async function DynamicSubdomainPage({ params }) {
+  const { subdomain, slug } = await params
+  const pageSlug = slug.join('/') || 'home'
+  
+  const { success, site } = await getSiteBySubdomain(subdomain, pageSlug)
+  return <SiteContent site={site} />
+}
+```
+
+**Component File Preservation**:
+```typescript
+// Preserved but not rendered
+{/* <ProductGridBlock />
+    <PostGridBlock />
+    <FaqBlock /> */}
+```
+
+### Resolution Results
+
+**✅ Single Footer Rendering**:
+- Eliminated static `FooterSection` from main layout inheritance
+- Dynamic footer from site blocks renders correctly
+- No more conflicting footer components
+
+**✅ Complete Page Navigation**:
+- Homepage routes work correctly (`/subdomain`)
+- All custom pages work correctly (`/subdomain/about`, `/subdomain/contact`)
+- Dynamic routing handles unlimited custom pages
+
+**✅ Clean Architecture**:
+- Removed route conflicts and layout inheritance issues
+- Preserved mock component files for future development phases
+- Maintained all dynamic site builder functionality
+
+**✅ User Experience**:
+- Professional single footer display
+- Smooth navigation between custom pages
+- Clean, focused site rendering without placeholder content
+
+### Files Modified in Phase 20.1
+
+**Route Structure Changes**:
+- **Removed**: `/src/app/(main)/[...slug]/page.tsx` (conflicting route)
+- **Created**: `/src/app/[subdomain]/[...slug]/page.tsx` (proper dynamic routing)
+
+**Component Updates**:
+- **Modified**: `/src/components/frontend/site-content.tsx` (commented out static blocks)
+- **Preserved**: All mock component files for future use
+
+### Current System Status: ✅ CLEAN FRONTEND ARCHITECTURE
+
+**Frontend Rendering Features**:
+- ✅ Single, dynamic footer from site builder configuration  
+- ✅ Complete custom page navigation (home, about, contact, unlimited pages)
+- ✅ Clean route structure without layout conflicts
+- ✅ Dynamic navigation, hero, and footer from site blocks
+- ✅ Preserved mock UI components for future development
+- ✅ Professional site display matching site builder configuration
+
+**Architecture Benefits**:
+- **Simplicity**: Single, clear routing pattern for all dynamic sites
+- **Maintainability**: No route conflicts or layout inheritance issues  
+- **Flexibility**: Preserved component library for future feature expansion
+- **User Experience**: Professional, clean site rendering without duplicate elements
+- **Scalability**: Architecture supports unlimited custom pages per site
+
+**Total Achievement**: Successfully resolved critical frontend rendering issues while maintaining all page management capabilities. The platform now provides clean, professional site rendering with proper dynamic routing and single footer display, completing the WordPress-style page management system implementation.

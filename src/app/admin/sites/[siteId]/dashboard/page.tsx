@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, use } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,13 +7,13 @@ import Link from 'next/link'
 import { getSiteByIdAction } from '@/lib/actions/site-actions'
 
 interface PageProps {
-  params: {
+  params: Promise<{
     siteId: string
-  }
+  }>
 }
 
 export default async function SiteDashboard({ params }: PageProps) {
-  const { siteId } = params
+  const { siteId } = await params
   
   // Get the site data
   const { data: site } = await getSiteByIdAction(siteId)
@@ -170,6 +170,12 @@ export default async function SiteDashboard({ params }: PageProps) {
               <Link href={`/admin/products/new`}>
                 <Edit3 className="mr-2 h-4 w-4" />
                 Add Product
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href={`/admin/sites/${siteId}/pages`}>
+                <Edit3 className="mr-2 h-4 w-4" />
+                Manage Pages
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start">

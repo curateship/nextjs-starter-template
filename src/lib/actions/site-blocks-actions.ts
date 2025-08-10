@@ -96,11 +96,7 @@ export async function getSiteBlocksAction(site_id: string): Promise<{
     }
 
     // Transform database blocks into the format expected by the builder
-    const blocks: Record<string, Block[]> = {
-      home: [],
-      about: [],
-      contact: []
-    }
+    const blocks: Record<string, Block[]> = {}
 
     data.forEach((siteBlock: SiteBlock) => {
       const block: Block = {
@@ -110,13 +106,14 @@ export async function getSiteBlocksAction(site_id: string): Promise<{
         content: siteBlock.content
       }
 
-      // Add to appropriate page
-      if (siteBlock.page_slug === 'global') {
-        // Global blocks (nav, footer) go on all pages, but for builder we'll put on home
-        blocks.home.push(block)
-      } else {
-        blocks[siteBlock.page_slug]?.push(block)
+      const pageSlug = siteBlock.page_slug === 'global' ? 'home' : siteBlock.page_slug
+
+      // Initialize page array if it doesn't exist
+      if (!blocks[pageSlug]) {
+        blocks[pageSlug] = []
       }
+
+      blocks[pageSlug].push(block)
     })
 
     return { success: true, blocks }
@@ -287,7 +284,7 @@ export async function deleteSiteBlockAction(blockId: string): Promise<{
  */
 export async function addSiteBlockAction(params: {
   site_id: string
-  page_slug: 'home' | 'about' | 'contact'
+  page_slug: string
   block_type: 'hero'
 }): Promise<{
   success: boolean
@@ -304,6 +301,11 @@ export async function addSiteBlockAction(params: {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(params.site_id)) {
       return { success: false, error: 'Invalid site ID format' }
+    }
+
+    // Validate page_slug format
+    if (!/^[a-zA-Z0-9_-]+$/.test(params.page_slug) && params.page_slug !== 'global') {
+      return { success: false, error: 'Invalid page slug format' }
     }
 
     // Only allow hero blocks for now

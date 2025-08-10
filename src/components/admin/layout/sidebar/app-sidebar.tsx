@@ -9,6 +9,7 @@ import {
   Palette,
   Image,
   Wrench,
+  FileText,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
@@ -88,6 +89,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/admin/builder",
         },
       ],
+    },
+    {
+      title: "Pages",
+      url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
+      icon: FileText,
+      isActive: false,
     },
   ]
 

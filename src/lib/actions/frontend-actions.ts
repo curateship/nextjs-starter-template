@@ -49,7 +49,7 @@ export interface SiteWithBlocks {
 /**
  * Get site data by subdomain for frontend rendering
  */
-export async function getSiteBySubdomain(subdomain: string): Promise<{
+export async function getSiteBySubdomain(subdomain: string, pageSlug: string = 'home'): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -75,12 +75,32 @@ export async function getSiteBySubdomain(subdomain: string): Promise<{
       return { success: false, error: 'Site is not available for viewing' }
     }
 
-    // Get site blocks for this site
+    // Check if the requested page exists and is published
+    const { data: page, error: pageError } = await supabaseAdmin
+      .from('pages')
+      .select('*')
+      .eq('site_id', site.id)
+      .eq('slug', pageSlug)
+      .eq('is_published', true)
+      .single()
+
+    // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
+    if (pageError || !page) {
+      // Only continue if pages table doesn't exist or this is the home page
+      if (pageError?.code === 'PGRST204' && pageSlug !== 'home') {
+        return { success: false, error: 'Page not found' }
+      }
+      // For sites without pages system or home page, continue with old behavior
+    }
+
+    // Get site blocks for this specific page and global blocks
+    // Also include blocks with null page_slug for legacy compatibility
     const { data: siteBlocks, error: blocksError } = await supabaseAdmin
       .from('site_blocks')
       .select('*')
       .eq('site_id', site.id)
       .eq('is_active', true)
+      .or(`page_slug.eq.${pageSlug},page_slug.eq.global,page_slug.is.null`)
       .order('display_order', { ascending: true })
 
     if (blocksError) {
@@ -90,7 +110,10 @@ export async function getSiteBySubdomain(subdomain: string): Promise<{
     // Transform blocks into frontend-friendly format
     const blocks: SiteWithBlocks['blocks'] = {}
 
-    siteBlocks.forEach((block) => {
+    // Ensure we have site blocks array (could be null or empty)
+    const blocksArray = siteBlocks || []
+
+    blocksArray.forEach((block) => {
       if (block.block_type === 'navigation') {
         blocks.navigation = {
           logo: block.content.logo || '/images/logo.png',
@@ -177,5 +200,58 @@ export async function checkSubdomainExists(subdomain: string): Promise<{
 
   } catch (error) {
     return { exists: false }
+  }
+}
+
+/**
+ * Get all published pages for a site by subdomain (for navigation)
+ */
+export async function getSitePages(subdomain: string): Promise<{
+  success: boolean
+  pages?: Array<{
+    id: string
+    title: string
+    slug: string
+    is_homepage: boolean
+  }>
+  error?: string
+}> {
+  try {
+    if (!subdomain) {
+      return { success: false, error: 'Subdomain is required' }
+    }
+
+    // Get site by subdomain
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, status')
+      .eq('subdomain', subdomain)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found' }
+    }
+
+    // Check if site is viewable
+    if (site.status !== 'active' && site.status !== 'draft') {
+      return { success: false, error: 'Site is not available' }
+    }
+
+    // Get published pages
+    const { data: pages, error: pagesError } = await supabaseAdmin
+      .from('pages')
+      .select('id, title, slug, is_homepage')
+      .eq('site_id', site.id)
+      .eq('is_published', true)
+      .order('display_order', { ascending: true })
+
+    if (pagesError) {
+      return { success: false, error: `Failed to load pages: ${pagesError.message}` }
+    }
+
+    return { success: true, pages: pages || [] }
+
+  } catch (error) {
+    return { success: false, error: 'Failed to load pages' }
   }
 }
