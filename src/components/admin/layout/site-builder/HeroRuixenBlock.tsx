@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
 import { Plus, X, ImageIcon } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
+import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 
 interface HeroRuixenBlockProps {
   title: string
@@ -71,6 +72,91 @@ export function HeroRuixenBlock({
   blockId,
 }: HeroRuixenBlockProps) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
+  const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string }>>(trustedByAvatars)
+
+  // Track avatar usage when avatars change
+  useEffect(() => {
+    const trackAvatarUsage = async () => {
+      if (!siteId) return
+
+      const previousAvatars = previousAvatarsRef.current
+
+      try {
+        console.log('Tracking avatar usage:', { 
+          current: trustedByAvatars.map(a => ({ src: a.src, hasUrl: !!a.src })), 
+          previous: previousAvatars.map(a => ({ src: a.src, hasUrl: !!a.src }))
+        })
+
+        // Track changes for each avatar position
+        for (let i = 0; i < Math.max(trustedByAvatars.length, previousAvatars.length); i++) {
+          const currentAvatar = trustedByAvatars[i]
+          const previousAvatar = previousAvatars[i]
+
+          // If previous avatar exists but current doesn't, remove tracking
+          if (previousAvatar?.src && !currentAvatar) {
+            console.log(`Removing tracking for avatar ${i}: ${previousAvatar.src}`)
+            const { data: imageId } = await getImageByUrlAction(previousAvatar.src)
+            if (imageId) {
+              const result = await removeImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
+              console.log(`Remove result:`, result)
+            }
+          }
+          // If both exist but URLs changed, remove old and add new
+          else if (previousAvatar?.src && currentAvatar?.src && previousAvatar.src !== currentAvatar.src) {
+            console.log(`Updating tracking for avatar ${i}: ${previousAvatar.src} -> ${currentAvatar.src}`)
+            const { data: oldImageId } = await getImageByUrlAction(previousAvatar.src)
+            if (oldImageId) {
+              await removeImageUsageAction(oldImageId, siteId, "hero-ruixen", `avatar-${i}`)
+            }
+            const { data: newImageId } = await getImageByUrlAction(currentAvatar.src)
+            if (newImageId) {
+              const result = await trackImageUsageAction(newImageId, siteId, "hero-ruixen", `avatar-${i}`)
+              console.log(`Track result:`, result)
+              // Force refresh image library data
+              if (typeof window !== 'undefined') {
+                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
+              }
+            }
+          }
+          // If only current exists (new avatar), add tracking
+          else if (!previousAvatar?.src && currentAvatar?.src) {
+            console.log(`Adding tracking for new avatar ${i}: ${currentAvatar.src}`)
+            const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
+            if (imageId) {
+              const result = await trackImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
+              console.log(`Track result:`, result)
+              // Force refresh image library data
+              if (typeof window !== 'undefined') {
+                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
+              }
+            } else {
+              console.log(`No image ID found for: ${currentAvatar.src}`)
+            }
+          }
+          // If current has a src and previous didn't have one OR it's the initial load with existing avatars
+          else if (currentAvatar?.src && (!previousAvatar || !previousAvatar.src)) {
+            console.log(`Adding tracking for avatar ${i} (initial or empty->filled): ${currentAvatar.src}`)
+            const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
+            if (imageId) {
+              const result = await trackImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
+              console.log(`Track result:`, result)
+              // Force refresh image library data
+              if (typeof window !== 'undefined') {
+                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
+              }
+            }
+          }
+        }
+
+        // Update the ref with current avatars
+        previousAvatarsRef.current = [...trustedByAvatars]
+      } catch (error) {
+        console.error('Error tracking avatar usage:', error)
+      }
+    }
+
+    trackAvatarUsage()
+  }, [trustedByAvatars, siteId])
 
   const addAvatar = () => {
     const newAvatars = [...trustedByAvatars, { src: "", alt: `User ${trustedByAvatars.length + 1}`, fallback: `U${trustedByAvatars.length + 1}` }]
@@ -93,6 +179,7 @@ export function HeroRuixenBlock({
     setShowPicker(null)
   }
 
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
@@ -107,7 +194,7 @@ export function HeroRuixenBlock({
             type="text"
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            className="w-full mt-1 px-3 py-2 border rounded-md"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Build Exceptional Interfaces with Ease"
             required
           />
@@ -142,7 +229,7 @@ export function HeroRuixenBlock({
               type="color"
               value={backgroundColor}
               onChange={(e) => onBackgroundColorChange(e.target.value)}
-              className="w-12 h-10 rounded border"
+              className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1"
             />
             <input
               type="text"

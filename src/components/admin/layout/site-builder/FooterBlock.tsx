@@ -331,7 +331,7 @@ export function FooterBlock({
                   type="color"
                   value={style.backgroundColor}
                   onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-12 h-8 border rounded cursor-pointer"
+                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
@@ -351,7 +351,7 @@ export function FooterBlock({
                   type="color"
                   value={style.textColor}
                   onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-12 h-8 border rounded cursor-pointer"
+                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
