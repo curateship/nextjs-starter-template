@@ -18,9 +18,7 @@ export default async function DynamicSitePage({ params }: DynamicSitePageProps) 
 
   return (
     <SiteContent
-      navigation={site.blocks.navigation}
-      hero={site.blocks.hero}
-      footer={site.blocks.footer}
+      site={site}
     />
   )
 }

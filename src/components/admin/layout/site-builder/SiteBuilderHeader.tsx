@@ -1,13 +1,25 @@
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Eye, Save } from "lucide-react"
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { ArrowLeft, Save, Eye, Plus } from "lucide-react"
 import Link from "next/link"
+import { CreatePageForm } from "@/components/admin/modules/sites/create-page-form"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import type { Page } from "@/lib/actions/page-actions"
 
 interface SiteBuilderHeaderProps {
   site: SiteWithTheme
+  pages: Page[]
   selectedPage: string
   onPageChange: (page: string) => void
+  onPageCreated: (page: Page) => void
   saveMessage: string
   isSaving: boolean
   onSave: () => void
@@ -15,33 +27,54 @@ interface SiteBuilderHeaderProps {
 
 export function SiteBuilderHeader({
   site,
+  pages,
   selectedPage,
   onPageChange,
+  onPageCreated,
   saveMessage,
   isSaving,
   onSave
 }: SiteBuilderHeaderProps) {
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const currentPage = pages.find(p => p.slug === selectedPage)
+  
   return (
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-15 z-40">
       <div className="flex h-16 items-center px-6">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/sites">
+            <Link href={`/admin/sites/${site.id}/pages`}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Sites
+              Back to Pages
             </Link>
           </Button>
           <div className="h-4 w-px bg-border"></div>
           <h1 className="text-lg font-semibold">{site.name || 'Site Builder'}</h1>
           <div className="h-4 w-px bg-border"></div>
           <Select value={selectedPage} onValueChange={onPageChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
+            <SelectTrigger className="w-[200px]">
+              <SelectValue>
+                {currentPage ? currentPage.title : selectedPage}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="home">🏠 Home</SelectItem>
-              <SelectItem value="about">📋 About</SelectItem>
-              <SelectItem value="contact">📞 Contact</SelectItem>
+              {pages.map((page) => (
+                <SelectItem key={page.id} value={page.slug}>
+                  {page.is_homepage && "🏠 "}{page.title}
+                  {!page.is_published && " (Draft)"}
+                </SelectItem>
+              ))}
+              <div className="border-t pt-1 mt-2">
+                <div 
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCreateDialog(true)}
+                >
+                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                    <Plus className="h-4 w-4" />
+                  </span>
+                  Create Page
+                </div>
+              </div>
             </SelectContent>
           </Select>
         </div>
@@ -51,15 +84,19 @@ export function SiteBuilderHeader({
               {saveMessage}
             </span>
           )}
-          <Button variant="outline" size="sm" asChild>
-            <Link 
-              href={`/${site.subdomain}`} 
-              target="_blank" 
+          <Button 
+            variant="outline"
+            size="sm" 
+            asChild
+          >
+            <a 
+              href={`/${site.subdomain}/${selectedPage}`}
+              target="_blank"
               rel="noopener noreferrer"
             >
               <Eye className="w-4 h-4 mr-2" />
-              Preview Site
-            </Link>
+              View Page
+            </a>
           </Button>
           <Button 
             size="sm" 
@@ -71,6 +108,26 @@ export function SiteBuilderHeader({
           </Button>
         </div>
       </div>
+      
+      {/* Create Page Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Page</DialogTitle>
+            <DialogDescription>
+              Add a new page to your site. You can customize the content after creation.
+            </DialogDescription>
+          </DialogHeader>
+          <CreatePageForm 
+            siteId={site.id}
+            onSuccess={(page) => {
+              onPageCreated(page)
+              setShowCreateDialog(false)
+            }}
+            onCancel={() => setShowCreateDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { use } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -13,12 +13,21 @@ import { SiteBuilderHeader } from "@/components/admin/layout/site-builder/SiteBu
 import { BlockPropertiesPanel } from "@/components/admin/layout/site-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/layout/site-builder/BlockListPanel"
 import { BlockTypesPanel } from "@/components/admin/layout/site-builder/BlockTypesPanel"
+import { getSitePagesAction } from "@/lib/actions/page-actions"
+import type { Page } from "@/lib/actions/page-actions"
 
 export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { currentSite } = useSiteContext()
-  const [selectedPage, setSelectedPage] = useState("home")
+  const [pages, setPages] = useState<Page[]>([])
+  const [pagesLoading, setPagesLoading] = useState(true)
+  const [pagesError, setPagesError] = useState<string | null>(null)
+  
+  // Get initial page from URL params or default to home
+  const initialPage = searchParams.get('page') || 'home'
+  const [selectedPage, setSelectedPage] = useState(initialPage)
   
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -26,6 +35,38 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
       router.push(`/admin/builder/${currentSite.id}`)
     }
   }, [currentSite, siteId, router])
+  
+  // Load pages data
+  useEffect(() => {
+    async function loadPages() {
+      try {
+        setPagesLoading(true)
+        setPagesError(null)
+        const { data, error } = await getSitePagesAction(siteId)
+        if (error) {
+          setPagesError(error)
+          return
+        }
+        setPages(data || [])
+        
+        // If initial page doesn't exist, redirect to homepage
+        if (data && data.length > 0) {
+          const pageExists = data.some(p => p.slug === initialPage)
+          if (!pageExists) {
+            const homepage = data.find(p => p.is_homepage) || data[0]
+            setSelectedPage(homepage.slug)
+            router.replace(`/admin/builder/${siteId}?page=${homepage.slug}`)
+          }
+        }
+      } catch (err) {
+        setPagesError('Failed to load pages')
+      } finally {
+        setPagesLoading(false)
+      }
+    }
+    
+    loadPages()
+  }, [siteId, initialPage, router])
   
   // Custom hooks for data and state management
   const { site, blocks, siteLoading, blocksLoading, siteError } = useSiteData(siteId)
@@ -44,30 +85,50 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   })
   
   // Current page data with staged deletions filtered out
+  const currentPageData = pages.find(p => p.slug === selectedPage)
   const currentPage = {
     slug: selectedPage,
-    name: selectedPage === 'home' ? 'Home' : selectedPage === 'about' ? 'About' : 'Contact',
+    name: currentPageData?.title || selectedPage,
     blocks: (localBlocks[selectedPage] || []).filter(block => !builderState.deletedBlockIds.has(block.id))
+  }
+  
+  // Handle page change with URL update
+  const handlePageChange = (pageSlug: string) => {
+    if (pageSlug !== selectedPage) {
+      setSelectedPage(pageSlug)
+      router.replace(`/admin/builder/${siteId}?page=${pageSlug}`)
+    }
+  }
+
+  // Handle page creation
+  const handlePageCreated = (newPage: Page) => {
+    setPages(prev => [...prev, newPage])
+    // Switch to the newly created page
+    setSelectedPage(newPage.slug)
+    router.replace(`/admin/builder/${siteId}?page=${newPage.slug}`)
   }
 
   // Show loading state
-  if (siteLoading || blocksLoading) {
+  if (siteLoading || blocksLoading || pagesLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
-          <p>Loading site...</p>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p>Loading site builder...</p>
+          </div>
         </div>
       </AdminLayout>
     )
   }
 
   // Show error state
-  if (siteError || !site) {
+  if (siteError || pagesError || !site) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-red-600 mb-2">{siteError || 'Site not found'}</p>
+            <p className="text-red-600 mb-2">{siteError || pagesError || 'Site not found'}</p>
             <p className="text-sm text-muted-foreground mb-4">
               Site ID: <code>{siteId}</code>
             </p>
@@ -93,8 +154,10 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
       <div className="flex flex-col -m-4 -mt-6 h-full">
         <SiteBuilderHeader
           site={site}
+          pages={pages}
           selectedPage={selectedPage}
-          onPageChange={setSelectedPage}
+          onPageChange={handlePageChange}
+          onPageCreated={handlePageCreated}
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
