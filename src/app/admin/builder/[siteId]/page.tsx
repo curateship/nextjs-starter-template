@@ -96,6 +96,11 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   const handlePageChange = (pageSlug: string) => {
     if (pageSlug !== selectedPage) {
       setSelectedPage(pageSlug)
+      // Ensure blocks array exists for this page
+      setLocalBlocks(prev => ({
+        ...prev,
+        [pageSlug]: prev[pageSlug] || []
+      }))
       router.replace(`/admin/builder/${siteId}?page=${pageSlug}`)
     }
   }
@@ -103,9 +108,37 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   // Handle page creation
   const handlePageCreated = (newPage: Page) => {
     setPages(prev => [...prev, newPage])
+    // Initialize blocks array for the new page
+    setLocalBlocks(prev => ({
+      ...prev,
+      [newPage.slug]: []
+    }))
     // Switch to the newly created page
     setSelectedPage(newPage.slug)
     router.replace(`/admin/builder/${siteId}?page=${newPage.slug}`)
+  }
+
+  // Handle page updates
+  const handlePageUpdated = (updatedPage: Page) => {
+    setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
+    
+    // If the slug changed, we need to update our local blocks and URL
+    const currentPage = pages.find(p => p.id === updatedPage.id)
+    if (currentPage && currentPage.slug !== updatedPage.slug) {
+      // Move blocks from old slug to new slug
+      setLocalBlocks(prev => {
+        const blocksForPage = prev[currentPage.slug] || []
+        const { [currentPage.slug]: removed, ...rest } = prev
+        return {
+          ...rest,
+          [updatedPage.slug]: blocksForPage
+        }
+      })
+      
+      // Update selected page and URL
+      setSelectedPage(updatedPage.slug)
+      router.replace(`/admin/builder/${siteId}?page=${updatedPage.slug}`)
+    }
   }
 
   // Show loading state
@@ -158,6 +191,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
           selectedPage={selectedPage}
           onPageChange={handlePageChange}
           onPageCreated={handlePageCreated}
+          onPageUpdated={handlePageUpdated}
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}

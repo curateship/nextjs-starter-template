@@ -17,23 +17,24 @@ export function SiteContent({ site }: SiteContentProps) {
   return (
     <SiteLayout navigation={blocks.navigation} footer={blocks.footer}>
       {/* Hero Section */}
-      {blocks.hero && (
+      {blocks.hero && blocks.hero.map((heroBlock, index) => (
         <HeroRuixenBlock
-          title={blocks.hero.title}
-          subtitle={blocks.hero.subtitle}
-          primaryButton={blocks.hero.primaryButton}
-          secondaryButton={blocks.hero.secondaryButton}
-          primaryButtonLink={blocks.hero.primaryButtonLink}
-          secondaryButtonLink={blocks.hero.secondaryButtonLink}
-          backgroundColor={blocks.hero.backgroundColor}
-          showRainbowButton={blocks.hero.showRainbowButton}
-          githubLink={blocks.hero.githubLink}
-          showParticles={blocks.hero.showParticles}
-          trustedByText={blocks.hero.trustedByText}
-          trustedByCount={blocks.hero.trustedByCount}
-          trustedByAvatars={blocks.hero.trustedByAvatars}
+          key={index}
+          title={heroBlock.title}
+          subtitle={heroBlock.subtitle}
+          primaryButton={heroBlock.primaryButton}
+          secondaryButton={heroBlock.secondaryButton}
+          primaryButtonLink={heroBlock.primaryButtonLink}
+          secondaryButtonLink={heroBlock.secondaryButtonLink}
+          backgroundColor={heroBlock.backgroundColor}
+          showRainbowButton={heroBlock.showRainbowButton}
+          githubLink={heroBlock.githubLink}
+          showParticles={heroBlock.showParticles}
+          trustedByText={heroBlock.trustedByText}
+          trustedByCount={heroBlock.trustedByCount}
+          trustedByAvatars={heroBlock.trustedByAvatars}
         />
-      )}
+      ))}
       
       {/* Static content blocks - preserved components for future phases but not rendered */}
       {/* <ProductGridBlock />
