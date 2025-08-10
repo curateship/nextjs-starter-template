@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Bell, Search, Settings } from "lucide-react"
 import Link from "next/link"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface StickyHeaderProps {
   className?: string
@@ -15,6 +16,8 @@ export function StickyHeader({
   className,
   children 
 }: StickyHeaderProps) {
+  const { currentSite } = useSiteContext()
+  
   return (
     <div className={cn(
       "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
@@ -34,7 +37,11 @@ export function StickyHeader({
         
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm" className="h-8 px-3">
-            <Link href="/" target="_blank" rel="noopener noreferrer">
+            <Link 
+              href={currentSite ? `/${currentSite.subdomain}` : "/"} 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
               View site
             </Link>
           </Button>
