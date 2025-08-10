@@ -18,6 +18,7 @@ export interface SiteWithBlocks {
     navigation?: {
       logo: string
       links: Array<{ text: string; url: string }>
+      buttons: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
       style: { backgroundColor: string; textColor: string }
     }
     hero?: {
@@ -25,11 +26,18 @@ export interface SiteWithBlocks {
       subtitle: string
       primaryButton: string
       secondaryButton: string
+      primaryButtonLink: string
+      secondaryButtonLink: string
+      backgroundColor: string
       showRainbowButton: boolean
       githubLink: string
       showParticles: boolean
+      trustedByText: string
+      trustedByCount: string
+      trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
     }
     footer?: {
+      logo: string
       copyright: string
       links: Array<{ text: string; url: string }>
       socialLinks: Array<{ platform: string; url: string }>
@@ -87,6 +95,7 @@ export async function getSiteBySubdomain(subdomain: string): Promise<{
         blocks.navigation = {
           logo: block.content.logo || '/images/logo.png',
           links: block.content.links || [],
+          buttons: block.content.buttons || [],
           style: block.content.style || {
             backgroundColor: '#ffffff',
             textColor: '#000000'
@@ -98,12 +107,23 @@ export async function getSiteBySubdomain(subdomain: string): Promise<{
           subtitle: block.content.subtitle || 'Build something amazing',
           primaryButton: block.content.primaryButton || 'Get Started',
           secondaryButton: block.content.secondaryButton || 'Learn More',
+          primaryButtonLink: block.content.primaryButtonLink || '',
+          secondaryButtonLink: block.content.secondaryButtonLink || '',
+          backgroundColor: block.content.backgroundColor || '#ffffff',
           showRainbowButton: block.content.showRainbowButton || false,
           githubLink: block.content.githubLink || '',
-          showParticles: block.content.showParticles !== false // default true
+          showParticles: block.content.showParticles !== false, // default true
+          trustedByText: block.content.trustedByText || 'users',
+          trustedByCount: block.content.trustedByCount || '10k+',
+          trustedByAvatars: block.content.trustedByAvatars || [
+            { src: "", alt: "User 1", fallback: "U1" },
+            { src: "", alt: "User 2", fallback: "U2" },
+            { src: "", alt: "User 3", fallback: "U3" }
+          ]
         }
       } else if (block.block_type === 'footer') {
         blocks.footer = {
+          logo: block.content.logo || '/images/logo.png',
           copyright: block.content.copyright || '© 2024 Your Company. All rights reserved.',
           links: block.content.links || [],
           socialLinks: block.content.socialLinks || [],

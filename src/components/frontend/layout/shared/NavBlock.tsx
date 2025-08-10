@@ -21,6 +21,7 @@ interface MenuItem {
 interface NavBlockProps {
   logo?: string;
   links?: Array<{ text: string; url: string }>;
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
   style?: {
     backgroundColor: string;
     textColor: string;
@@ -181,31 +182,55 @@ const MobileMenuButton = ({
 )
 
 // Call-to-action buttons component
-const CTAButtons = () => (
-  <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-    <Button asChild size="sm">
-      <Link href="#">
-        <span>All Access</span>
-      </Link>
-    </Button>
-  </div>
-)
+const CTAButtons = ({ buttons }: { buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }> }) => {
+  // Default button if no buttons provided
+  if (!buttons || buttons.length === 0) {
+    return (
+      <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+        <Button asChild size="sm">
+          <Link href="#">
+            <span>All Access</span>
+          </Link>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+      {buttons.filter(button => button && button.text && button.url).map((button, index) => (
+        <Button 
+          key={index}
+          asChild 
+          size="sm" 
+          variant={button.style === 'primary' ? 'default' : button.style}
+        >
+          <Link href={button.url}>
+            <span>{button.text}</span>
+          </Link>
+        </Button>
+      ))}
+    </div>
+  )
+}
 
 // Mobile menu panel component
 const MobileMenuPanel = ({ 
   menuItems, 
-  menuState 
+  menuState,
+  buttons 
 }: { 
   menuItems: MenuItem[];
   menuState: boolean;
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
 }) => (
   <div className="bg-background in-data-[state=active]:block lg:in-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
     <MobileNav menuItems={menuItems} />
-    <CTAButtons />
+    <CTAButtons buttons={buttons} />
   </div>
 )
 
-export function NavBlock({ logo, links, style }: NavBlockProps) {
+export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
   // Transform database links to MenuItem format, fallback to defaults
   const menuItems: MenuItem[] = React.useMemo(() => {
     if (links && links.length > 0) {
@@ -299,7 +324,7 @@ export function NavBlock({ logo, links, style }: NavBlockProps) {
               />
             </div>
 
-            <MobileMenuPanel menuItems={menuItems} menuState={menuState} />
+            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} />
           </div>
         </div>
       </nav>

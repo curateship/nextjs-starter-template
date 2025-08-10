@@ -25,25 +25,45 @@ export function BlockPropertiesPanel({
                 subtitle={selectedBlock.content.subtitle || ''}
                 primaryButton={selectedBlock.content.primaryButton || ''}
                 secondaryButton={selectedBlock.content.secondaryButton || ''}
+                primaryButtonLink={selectedBlock.content.primaryButtonLink || ''}
+                secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
+                backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
                 showRainbowButton={selectedBlock.content.showRainbowButton || false}
                 githubLink={selectedBlock.content.githubLink || ''}
                 showParticles={selectedBlock.content.showParticles || false}
+                trustedByText={selectedBlock.content.trustedByText || 'users'}
+                trustedByCount={selectedBlock.content.trustedByCount || '10k+'}
+                trustedByAvatars={selectedBlock.content.trustedByAvatars || [
+                  { src: "", alt: "User 1", fallback: "U1" },
+                  { src: "", alt: "User 2", fallback: "U2" },
+                  { src: "", alt: "User 3", fallback: "U3" }
+                ]}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
                 onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
+                onPrimaryButtonLinkChange={(value) => updateBlockContent('primaryButtonLink', value)}
+                onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
+                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
                 onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
                 onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
                 onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
+                onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
+                onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
+                onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'navigation' && (
               <NavigationBlock
                 logo={selectedBlock.content.logo || ''}
                 links={selectedBlock.content.links || []}
+                buttons={selectedBlock.content.buttons || []}
                 style={selectedBlock.content.style || { backgroundColor: '#ffffff', textColor: '#000000' }}
                 onLogoChange={(value) => updateBlockContent('logo', value)}
                 onLinksChange={(links) => updateBlockContent('links', links)}
+                onButtonsChange={(buttons) => updateBlockContent('buttons', buttons)}
                 onStyleChange={(style) => updateBlockContent('style', style)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
@@ -51,14 +71,18 @@ export function BlockPropertiesPanel({
             )}
             {selectedBlock.type === 'footer' && (
               <FooterBlock
+                logo={selectedBlock.content.logo || ''}
                 copyright={selectedBlock.content.copyright || ''}
                 links={selectedBlock.content.links || []}
                 socialLinks={selectedBlock.content.socialLinks || []}
                 style={selectedBlock.content.style || { backgroundColor: '#1f2937', textColor: '#ffffff' }}
+                onLogoChange={(value) => updateBlockContent('logo', value)}
                 onCopyrightChange={(value) => updateBlockContent('copyright', value)}
                 onLinksChange={(links) => updateBlockContent('links', links)}
                 onSocialLinksChange={(socialLinks) => updateBlockContent('socialLinks', socialLinks)}
                 onStyleChange={(style) => updateBlockContent('style', style)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
           </div>
