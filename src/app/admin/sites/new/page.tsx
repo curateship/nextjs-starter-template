@@ -12,6 +12,8 @@ export default function NewSitePage() {
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("draft")
   const [themeId, setThemeId] = useState("")
+  const [fontFamily, setFontFamily] = useState("playfair-display")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [logo, setLogo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -42,6 +44,8 @@ export default function NewSitePage() {
         description: description.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
+        font_family: fontFamily,
+        secondary_font_family: secondaryFontFamily,
         settings: {
           site_title: siteName.trim(),
           site_description: description.trim(),
@@ -96,12 +100,16 @@ export default function NewSitePage() {
             description={description}
             status={status}
             themeId={themeId}
+            fontFamily={fontFamily}
+            secondaryFontFamily={secondaryFontFamily}
             logo={logo}
             logoPreview={logoPreview}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
+            onFontFamilyChange={setFontFamily}
+            onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onLogoChange={setLogo}
             onLogoPreviewChange={setLogoPreview}
           />

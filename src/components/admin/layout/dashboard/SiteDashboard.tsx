@@ -9,6 +9,7 @@ import { Upload, X, AlertCircle, CheckCircle2 } from "lucide-react"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
+import { FontSelector } from "@/components/admin/modules/sites/font-selector"
 
 interface SiteDashboardProps {
   siteName: string
@@ -18,12 +19,16 @@ interface SiteDashboardProps {
   logoPreview: string | null
   description?: string
   isEditMode?: boolean
+  fontFamily?: string
+  secondaryFontFamily?: string
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
   onLogoChange: (file: File | null) => void
   onLogoPreviewChange: (preview: string | null) => void
   onDescriptionChange?: (value: string) => void
+  onFontFamilyChange?: (value: string) => void
+  onSecondaryFontFamilyChange?: (value: string) => void
 }
 
 export function SiteDashboard({
@@ -34,12 +39,16 @@ export function SiteDashboard({
   logoPreview,
   description = "",
   isEditMode = false,
+  fontFamily = "playfair-display",
+  secondaryFontFamily = "inter",
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
   onLogoChange,
   onLogoPreviewChange,
   onDescriptionChange,
+  onFontFamilyChange,
+  onSecondaryFontFamilyChange,
 }: SiteDashboardProps) {
   const [themes, setThemes] = useState<Theme[]>([])
   const [themesLoading, setThemesLoading] = useState(true)
@@ -252,6 +261,31 @@ export function SiteDashboard({
               </div>
             )}
         </div>
+
+        {/* Font Selectors - Two Column Layout */}
+        {(onFontFamilyChange || onSecondaryFontFamilyChange) && (
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold">Typography</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {onFontFamilyChange && (
+                <FontSelector
+                  value={fontFamily}
+                  onChange={onFontFamilyChange}
+                  label="Primary Font"
+                  description="Used for headings and titles"
+                />
+              )}
+              {onSecondaryFontFamilyChange && (
+                <FontSelector
+                  value={secondaryFontFamily}
+                  onChange={onSecondaryFontFamilyChange}
+                  label="Secondary Font"
+                  description="Used for body text and content"
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Status */}
         <div className="space-y-2">

@@ -14,6 +14,7 @@ export interface SiteWithBlocks {
   custom_domain: string | null
   theme_id: string
   theme_name: string
+  settings?: Record<string, any>
   blocks: {
     navigation?: {
       logo: string
@@ -195,6 +196,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       custom_domain: site.custom_domain,
       theme_id: site.theme_id,
       theme_name: site.theme_name,
+      settings: site.settings,
       blocks
     }
 
