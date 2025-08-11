@@ -175,10 +175,6 @@ export default function SitePagesPage({ params }: PageProps) {
             label: "Create Page",
             onClick: () => setShowCreateDialog(true)
           }}
-          secondaryAction={{
-            label: "Back to Site",
-            href: `/admin/sites/${siteId}/settings`
-          }}
         />
         
         <AdminCard>

@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bell, Search, Settings } from "lucide-react"
+import { Search, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 
@@ -17,7 +17,7 @@ export function StickyHeader({
   children 
 }: StickyHeaderProps) {
   const { currentSite } = useSiteContext()
-  
+
   return (
     <div className={cn(
       "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
@@ -42,16 +42,14 @@ export function StickyHeader({
               target="_blank" 
               rel="noopener noreferrer"
             >
-              View site
+              Visit site
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Bell className="h-4 w-4" />
-            <span className="sr-only">Notifications</span>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Settings className="h-4 w-4" />
-            <span className="sr-only">Settings</span>
+          <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+            <Link href={currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/settings"}>
+              <Settings className="h-4 w-4" />
+              <span className="sr-only">Settings</span>
+            </Link>
           </Button>
         </div>
       </div>
