@@ -60,14 +60,6 @@ export function usePageBuilder({
 
   // Stage a block for deletion (doesn't delete until save)
   const handleDeleteBlock = (block: Block) => {
-    const blockTypeName = block.type === 'hero' ? 'Hero Section' : 
-                         block.type === 'navigation' ? 'Navigation' :
-                         block.type === 'footer' ? 'Footer' : 'Block'
-    
-    if (!confirm(`Are you sure you want to delete the ${blockTypeName} block? It will be removed when you save.`)) {
-      return
-    }
-
     // Add to staged deletions
     setDeletedBlockIds(prev => new Set(prev).add(block.id))
     

@@ -22,7 +22,7 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
     meta_description: '',
     meta_keywords: '',
     is_homepage: false,
-    is_published: true
+    is_published: false
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,10 +60,8 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
     }
   }
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  // Handle saving as draft
+  const handleSaveDraft = async () => {
     if (!formData.title.trim()) {
       setError('Page title is required')
       return
@@ -73,7 +71,8 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
       setLoading(true)
       setError(null)
       
-      const { data, error: actionError } = await createPageAction(siteId, formData)
+      const draftData = { ...formData, is_published: false }
+      const { data, error: actionError } = await createPageAction(siteId, draftData)
       
       if (actionError) {
         setError(actionError)
@@ -84,10 +83,45 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
         onSuccess(data)
       }
     } catch (err) {
-      setError('Failed to create page')
+      setError('Failed to save page as draft')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Handle publishing immediately
+  const handlePublish = async () => {
+    if (!formData.title.trim()) {
+      setError('Page title is required')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const publishData = { ...formData, is_published: true }
+      const { data, error: actionError } = await createPageAction(siteId, publishData)
+      
+      if (actionError) {
+        setError(actionError)
+        return
+      }
+      
+      if (data) {
+        onSuccess(data)
+      }
+    } catch (err) {
+      setError('Failed to publish page')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle form submission (default to save as draft)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleSaveDraft()
   }
 
   return (
@@ -128,19 +162,8 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
         </div>
 
 
-        {/* Status Checkboxes */}
-        <div className="col-span-2 space-y-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="is_published"
-              checked={formData.is_published}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, is_published: checked === true }))
-              }
-            />
-            <Label htmlFor="is_published">Publish immediately</Label>
-          </div>
-          
+        {/* Homepage Checkbox */}
+        <div className="col-span-2">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="is_homepage"
@@ -184,13 +207,26 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
       </div>
 
       {/* Form Actions */}
-      <div className="flex items-center justify-end space-x-2">
+      <div className="flex items-center justify-between">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Page'}
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button 
+            type="submit" 
+            variant="outline" 
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Save as Draft'}
+          </Button>
+          <Button 
+            type="button" 
+            onClick={handlePublish}
+            disabled={loading}
+          >
+            {loading ? 'Publishing...' : 'Publish'}
+          </Button>
+        </div>
       </div>
     </form>
   )
