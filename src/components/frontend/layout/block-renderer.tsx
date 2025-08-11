@@ -15,37 +15,68 @@ interface BlockRendererProps {
 export function BlockRenderer({ site }: BlockRendererProps) {
   const { blocks = {} } = site
   
+  // Combine all content blocks and sort by display_order
+  const allBlocks: Array<{ type: 'hero' | 'richText'; data: any; display_order: number }> = []
+  
+  // Add hero blocks
+  if (blocks.hero) {
+    blocks.hero.forEach(heroBlock => {
+      allBlocks.push({
+        type: 'hero',
+        data: heroBlock,
+        display_order: heroBlock.display_order
+      })
+    })
+  }
+  
+  // Add rich text blocks
+  if (blocks.richText) {
+    blocks.richText.forEach(richTextBlock => {
+      allBlocks.push({
+        type: 'richText',
+        data: richTextBlock,
+        display_order: richTextBlock.display_order
+      })
+    })
+  }
+  
+  // Sort all blocks by display_order
+  const sortedBlocks = allBlocks.sort((a, b) => a.display_order - b.display_order)
+  
   return (
     <SiteLayout navigation={blocks.navigation} footer={blocks.footer}>
-      {/* Hero Section */}
-      {blocks.hero && blocks.hero.map((heroBlock, index) => (
-        <HeroRuixenBlock
-          key={index}
-          title={heroBlock.title}
-          subtitle={heroBlock.subtitle}
-          primaryButton={heroBlock.primaryButton}
-          secondaryButton={heroBlock.secondaryButton}
-          primaryButtonLink={heroBlock.primaryButtonLink}
-          secondaryButtonLink={heroBlock.secondaryButtonLink}
-          backgroundColor={heroBlock.backgroundColor}
-          showRainbowButton={heroBlock.showRainbowButton}
-          githubLink={heroBlock.githubLink}
-          showParticles={heroBlock.showParticles}
-          trustedByText={heroBlock.trustedByText}
-          trustedByCount={heroBlock.trustedByCount}
-          trustedByAvatars={heroBlock.trustedByAvatars}
-        />
-      ))}
-
-      {/* Rich Text Content */}
-      {blocks.richText && blocks.richText
-        .sort((a, b) => a.display_order - b.display_order)
-        .map((richTextBlock) => (
-        <RichTextBlock 
-          key={richTextBlock.id} 
-          content={richTextBlock} 
-        />
-      ))}
+      {sortedBlocks.map((block, index) => {
+        if (block.type === 'hero') {
+          const heroBlock = block.data
+          return (
+            <HeroRuixenBlock
+              key={`hero-${heroBlock.id}`}
+              title={heroBlock.title}
+              subtitle={heroBlock.subtitle}
+              primaryButton={heroBlock.primaryButton}
+              secondaryButton={heroBlock.secondaryButton}
+              primaryButtonLink={heroBlock.primaryButtonLink}
+              secondaryButtonLink={heroBlock.secondaryButtonLink}
+              backgroundColor={heroBlock.backgroundColor}
+              showRainbowButton={heroBlock.showRainbowButton}
+              githubLink={heroBlock.githubLink}
+              showParticles={heroBlock.showParticles}
+              trustedByText={heroBlock.trustedByText}
+              trustedByCount={heroBlock.trustedByCount}
+              trustedByAvatars={heroBlock.trustedByAvatars}
+            />
+          )
+        } else if (block.type === 'richText') {
+          const richTextBlock = block.data
+          return (
+            <RichTextBlock 
+              key={`richText-${richTextBlock.id}`}
+              content={richTextBlock} 
+            />
+          )
+        }
+        return null
+      })}
       
       {/* Static content blocks - preserved components for future phases but not rendered */}
       {/* <ProductGridBlock />

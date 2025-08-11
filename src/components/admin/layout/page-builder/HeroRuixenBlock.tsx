@@ -181,79 +181,94 @@ export function HeroRuixenBlock({
 
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Hero Section</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        {/* Hero Title */}
-        <div className="space-y-2">
-          <Label htmlFor="heroTitle">Hero Title</Label>
-          <input
-            id="heroTitle"
-            type="text"
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Build Exceptional Interfaces with Ease"
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Main heading displayed in large text
-          </p>
-        </div>
-
-        {/* Hero Subtitle */}
-        <div className="space-y-2">
-          <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
-          <textarea
-            id="heroSubtitle"
-            value={subtitle}
-            onChange={(e) => onSubtitleChange(e.target.value)}
-            className="w-full mt-1 px-3 py-2 border rounded-md"
-            placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
-            rows={3}
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Description text below the main heading
-          </p>
-        </div>
-
-        {/* Background Color */}
-        <div className="space-y-2 pt-2">
-          <Label htmlFor="backgroundColor">Avatar Group Background</Label>
-          <div className="flex gap-2 items-center">
+    <div className="space-y-4">
+      {/* Text Content Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Text Content</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Hero Title */}
+          <div className="space-y-2">
+            <Label htmlFor="heroTitle">Hero Title</Label>
             <input
-              id="backgroundColor"
-              type="color"
-              value={backgroundColor}
-              onChange={(e) => onBackgroundColorChange(e.target.value)}
-              className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1"
-            />
-            <input
+              id="heroTitle"
               type="text"
-              value={backgroundColor}
-              onChange={(e) => {
-                const value = e.target.value.trim()
-                // Validate hex color format
-                if (value === '' || /^#[0-9A-Fa-f]{6}$/.test(value) || /^#[0-9A-Fa-f]{3}$/.test(value)) {
-                  onBackgroundColorChange(value)
-                }
-              }}
-              className="flex-1 px-3 py-2 border rounded-md font-mono text-sm"
-              placeholder="#ffffff"
-              pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
+              value={title}
+              onChange={(e) => onTitleChange(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Build Exceptional Interfaces with Ease"
+              required
             />
+            <p className="text-xs text-muted-foreground">
+              Main heading displayed in large text
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Background color for the trusted by avatars section
-          </p>
-        </div>
 
-        {/* CTA Buttons */}
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold">Call-to-Action Buttons</h3>
+          {/* Hero Subtitle */}
+          <div className="space-y-2">
+            <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
+            <textarea
+              id="heroSubtitle"
+              value={subtitle}
+              onChange={(e) => onSubtitleChange(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
+              placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
+              rows={3}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Description text below the main heading
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Style Settings Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Style Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Background Color */}
+          <div className="space-y-2">
+            <Label htmlFor="backgroundColor">Avatar Group Background</Label>
+            <div className="flex gap-2 items-center">
+              <input
+                id="backgroundColor"
+                type="color"
+                value={backgroundColor}
+                onChange={(e) => onBackgroundColorChange(e.target.value)}
+                className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1"
+              />
+              <input
+                type="text"
+                value={backgroundColor}
+                onChange={(e) => {
+                  const value = e.target.value.trim()
+                  // Validate hex color format
+                  if (value === '' || /^#[0-9A-Fa-f]{6}$/.test(value) || /^#[0-9A-Fa-f]{3}$/.test(value)) {
+                    onBackgroundColorChange(value)
+                  }
+                }}
+                className="flex-1 px-3 py-2 border rounded-md font-mono text-sm"
+                placeholder="#ffffff"
+                pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Background color for the trusted by avatars section
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CTA Buttons Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Call-to-Action Buttons</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           
           <div className="space-y-4">
             {/* Primary Button */}
@@ -312,10 +327,15 @@ export function HeroRuixenBlock({
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Rainbow Button Settings */}
-        <div className="space-y-4 pt-2">
+      {/* Rainbow Button Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Rainbow Button Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
             <input
               id="showRainbowButton"
@@ -343,12 +363,15 @@ export function HeroRuixenBlock({
               </p>
             </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Visual Effects */}
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold">Visual Effects</h3>
-          
+      {/* Visual Effects Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Visual Effects</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="flex items-center space-x-2">
             <input
               id="showParticles"
@@ -359,11 +382,15 @@ export function HeroRuixenBlock({
             />
             <Label htmlFor="showParticles">Show Floating Particles</Label>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Trusted By Section */}
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold">Trusted By Badge</h3>
+      {/* Trusted By Section Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Trusted By Badge</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -451,16 +478,16 @@ export function HeroRuixenBlock({
               Leave empty to show default gray circles with initials
             </p>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Image Picker Modal */}
-        <ImagePicker
-          open={showPicker !== null}
-          onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
-          onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
-          currentImageUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
-        />
-      </CardContent>
-    </Card>
+      {/* Image Picker Modal */}
+      <ImagePicker
+        open={showPicker !== null}
+        onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
+        onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
+        currentImageUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
+      />
+    </div>
   )
 }
