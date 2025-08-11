@@ -72,6 +72,10 @@ export interface CreateSiteData {
   theme_id: string
   status?: 'active' | 'inactive' | 'draft'
   settings?: Record<string, any>
+  font_family?: string
+  font_weights?: string[]
+  secondary_font_family?: string
+  secondary_font_weights?: string[]
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -176,6 +180,20 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     const actualUserId = user.id
     // Creating site for authenticated user
 
+    // Prepare settings with font configuration
+    const settings = {
+      ...(siteData.settings || {
+        site_title: siteData.name,
+        site_description: siteData.description || '',
+        analytics_enabled: false,
+        seo_enabled: true
+      }),
+      font_family: siteData.font_family || 'playfair-display',
+      font_weights: siteData.font_weights || ['400', '500', '600', '700', '800', '900'],
+      secondary_font_family: siteData.secondary_font_family || 'inter',
+      secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700']
+    }
+
     // Create the site
     const { data, error } = await supabaseAdmin
       .from('sites')
@@ -186,12 +204,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         user_id: actualUserId,
         subdomain,
         status: siteData.status || 'draft',
-        settings: siteData.settings || {
-          site_title: siteData.name,
-          site_description: siteData.description || '',
-          analytics_enabled: false,
-          seo_enabled: true
-        }
+        settings
       }])
       .select()
       .single()
@@ -248,8 +261,32 @@ export async function updateSiteAction(
       }
     }
 
+    // If updating font settings, merge them into settings
+    let finalUpdates: any = { ...updates }
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights) {
+      const { data: currentSite } = await supabaseAdmin
+        .from('sites')
+        .select('settings')
+        .eq('id', siteId)
+        .single()
+      
+      finalUpdates.settings = {
+        ...(currentSite?.settings || {}),
+        ...(updates.settings || {}),
+        ...(updates.font_family && { font_family: updates.font_family }),
+        ...(updates.font_weights && { font_weights: updates.font_weights }),
+        ...(updates.secondary_font_family && { secondary_font_family: updates.secondary_font_family }),
+        ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights })
+      }
+      
+      // Remove font properties from top level as they're now in settings
+      delete finalUpdates.font_family
+      delete finalUpdates.font_weights
+      delete finalUpdates.secondary_font_family
+      delete finalUpdates.secondary_font_weights
+    }
+
     // If updating name, regenerate subdomain
-    let finalUpdates = { ...updates }
     if (updates.name) {
       let subdomain = updates.name.toLowerCase()
         .replace(/[^a-z0-9]/g, '-')

@@ -21,6 +21,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("draft")
   const [themeId, setThemeId] = useState("")
+  const [fontFamily, setFontFamily] = useState("playfair-display")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [logo, setLogo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -45,6 +47,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setDescription(data.description || "")
         setStatus(data.status)
         setThemeId(data.theme_id)
+        setFontFamily(data.settings?.font_family || "playfair-display")
+        setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         console.log('Loaded site for editing:', data)
       }
     } catch (err) {
@@ -84,6 +88,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         description: description.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
+        font_family: fontFamily,
+        secondary_font_family: secondaryFontFamily,
         settings: {
           site_title: siteName.trim(),
           site_description: description.trim(),
@@ -99,7 +105,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
       if (data) {
         console.log('Site updated successfully:', data)
-        router.push('/admin/sites')
+        // Stay on the same page after successful update
+        // Optionally show a success message or update the site state
+        setSite(data)
       }
     } catch (err) {
       console.error('Error updating site:', err)
@@ -168,6 +176,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             description={description}
             status={status}
             themeId={themeId}
+            fontFamily={fontFamily}
+            secondaryFontFamily={secondaryFontFamily}
             logo={logo}
             logoPreview={logoPreview}
             isEditMode={true}
@@ -175,6 +185,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
+            onFontFamilyChange={setFontFamily}
+            onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onLogoChange={setLogo}
             onLogoPreviewChange={setLogoPreview}
           />
