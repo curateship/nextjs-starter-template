@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react"
 import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, type Block } from "@/lib/actions/site-blocks-actions"
 
-interface UseSiteBuilderParams {
+interface UsePageBuilderParams {
   siteId: string
   blocks: Record<string, Block[]>
   setBlocks: React.Dispatch<React.SetStateAction<Record<string, Block[]>>>
   selectedPage: string
 }
 
-interface UseSiteBuilderReturn {
+interface UsePageBuilderReturn {
   selectedBlock: Block | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<Block | null>>
   deletedBlockIds: Set<string>
@@ -22,12 +22,12 @@ interface UseSiteBuilderReturn {
   handleSaveAllBlocks: () => Promise<void>
 }
 
-export function useSiteBuilder({ 
+export function usePageBuilder({ 
   siteId, 
   blocks, 
   setBlocks, 
   selectedPage 
-}: UseSiteBuilderParams): UseSiteBuilderReturn {
+}: UsePageBuilderParams): UsePageBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
   const [deletedBlockIds, setDeletedBlockIds] = useState<Set<string>>(new Set())
   const [isSaving, setIsSaving] = useState(false)

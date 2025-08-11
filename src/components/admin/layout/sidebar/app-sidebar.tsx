@@ -76,20 +76,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [])
 
-  // Site Builder - STATIC, always visible
+  // Site navigation items
   const siteNavItems = [
-    {
-      title: "Site Builder",
-      url: "/admin/builder",
-      icon: Wrench,
-      isActive: true,
-      items: [
-        {
-          title: "Visual Builder",
-          url: "/admin/builder",
-        },
-      ],
-    },
     {
       title: "Pages",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",

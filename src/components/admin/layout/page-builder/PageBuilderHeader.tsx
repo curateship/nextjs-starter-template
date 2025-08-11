@@ -15,7 +15,7 @@ import { EditPageForm } from "@/components/admin/modules/sites/edit-page-form"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 import type { Page } from "@/lib/actions/page-actions"
 
-interface SiteBuilderHeaderProps {
+interface PageBuilderHeaderProps {
   site: SiteWithTheme
   pages: Page[]
   selectedPage: string
@@ -27,7 +27,7 @@ interface SiteBuilderHeaderProps {
   onSave: () => void
 }
 
-export function SiteBuilderHeader({
+export function PageBuilderHeader({
   site,
   pages,
   selectedPage,
@@ -37,7 +37,7 @@ export function SiteBuilderHeader({
   saveMessage,
   isSaving,
   onSave
-}: SiteBuilderHeaderProps) {
+}: PageBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const currentPage = pages.find(p => p.slug === selectedPage)
@@ -53,7 +53,7 @@ export function SiteBuilderHeader({
             </Link>
           </Button>
           <div className="h-4 w-px bg-border"></div>
-          <h1 className="text-lg font-semibold">{site.name || 'Site Builder'}</h1>
+          <h1 className="text-lg font-semibold">{site.name || 'Page Builder'}</h1>
           <div className="h-4 w-px bg-border"></div>
           <Select value={selectedPage} onValueChange={onPageChange}>
             <SelectTrigger className="w-[200px]">
