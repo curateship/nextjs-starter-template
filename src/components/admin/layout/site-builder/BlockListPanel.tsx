@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
-import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/blocks/block-utils"
+import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
 import type { Block } from "@/lib/actions/site-blocks-actions"
 
 interface CurrentPage {
@@ -103,6 +103,13 @@ export function BlockListPanel({
                     <>
                       <div>Copyright: {block.content.copyright}</div>
                       <div>Links: {block.content.links?.length || 0} items</div>
+                    </>
+                  )}
+                  {block.type === 'rich-text' && (
+                    <>
+                      {block.content.title && <div>Title: {block.content.title}</div>}
+                      {block.content.subtitle && <div>Subtitle: {block.content.subtitle}</div>}
+                      <div>Content: {(typeof block.content.content === 'string' ? block.content.content : '')?.replace(/<[^>]*>/g, '').substring(0, 80)}...</div>
                     </>
                   )}
                 </div>

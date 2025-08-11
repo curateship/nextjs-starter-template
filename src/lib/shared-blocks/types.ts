@@ -13,7 +13,7 @@ export interface BlockSchema {
 }
 
 export interface BlockProperty {
-  type: 'string' | 'boolean' | 'number' | 'url' | 'textarea' | 'array'
+  type: 'string' | 'boolean' | 'number' | 'url' | 'textarea' | 'richtext' | 'array'
   label: string
   placeholder?: string
   description?: string

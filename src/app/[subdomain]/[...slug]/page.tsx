@@ -1,4 +1,4 @@
-import { SiteContent } from "@/components/frontend/site-content"
+import { BlockRenderer } from "@/components/frontend/layout/block-renderer"
 import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
 import { notFound } from "next/navigation"
 
@@ -23,7 +23,7 @@ export default async function DynamicSubdomainPage({ params }: DynamicSubdomainP
   }
 
   return (
-    <SiteContent
+    <BlockRenderer
       site={site}
     />
   )

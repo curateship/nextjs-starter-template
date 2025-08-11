@@ -57,12 +57,21 @@ export async function POST(request: NextRequest) {
 
 // Handle preflight requests for CORS
 export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get('origin')
+  const allowedOrigins = [
+    process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    'https://yourapp.com' // Add your production domain
+  ]
+  
+  const isAllowedOrigin = allowedOrigins.includes(origin || '')
+  
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': isAllowedOrigin ? origin! : 'null',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
     },
   })
 }

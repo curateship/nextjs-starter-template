@@ -1,6 +1,7 @@
 import { HeroRuixenBlock } from "./HeroRuixenBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
+import { RichTextBlock } from "@/components/admin/modules/shared-blocks/RichTextBlock"
 import type { Block } from "@/lib/actions/site-blocks-actions"
 
 interface BlockPropertiesPanelProps {
@@ -83,6 +84,22 @@ export function BlockPropertiesPanel({
                 onStyleChange={(style) => updateBlockContent('style', style)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+              />
+            )}
+            {selectedBlock.type === 'rich-text' && (
+              <RichTextBlock
+                content={{
+                  title: selectedBlock.content.title || '',
+                  subtitle: selectedBlock.content.subtitle || '',
+                  headerAlign: selectedBlock.content.headerAlign || 'left',
+                  content: selectedBlock.content.content || ''
+                }}
+                onContentChange={(contentObj) => {
+                  updateBlockContent('title', contentObj.title)
+                  updateBlockContent('subtitle', contentObj.subtitle)
+                  updateBlockContent('headerAlign', contentObj.headerAlign)
+                  updateBlockContent('content', contentObj.content)
+                }}
               />
             )}
           </div>
