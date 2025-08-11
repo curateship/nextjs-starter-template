@@ -1,6 +1,6 @@
 import { type ReactNode } from "react"
 import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
-import { FontProvider } from "@/components/frontend/font-provider"
+import { FontProvider } from "@/components/frontend/layout/font-provider"
 
 interface DynamicSiteLayoutProps {
   children: ReactNode

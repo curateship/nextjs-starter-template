@@ -1,15 +1,16 @@
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
-interface BlockTypesPanelProps {
+interface SharedBlockTypesPanelProps {
   onAddHeroBlock: () => void
+  onAddRichTextBlock?: () => void
 }
 
-export function BlockTypesPanel({ onAddHeroBlock }: BlockTypesPanelProps) {
+export function SharedBlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock }: SharedBlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
       <div>
-        <h3 className="font-semibold mb-4">Block Types</h3>
+        <h3 className="font-semibold mb-4">Shared Blocks</h3>
         <div className="space-y-2 text-sm text-muted-foreground">
           <div className="p-3 rounded-lg border bg-background">
             <div className="font-medium">🧭 Navigation</div>
@@ -30,6 +31,25 @@ export function BlockTypesPanel({ onAddHeroBlock }: BlockTypesPanelProps) {
               >
                 <Plus className="w-5 h-5" />
               </Button>
+            </div>
+          </div>
+          <div className="p-3 rounded-lg border bg-background">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">📝 Rich Text</div>
+                <div className="text-xs">Formatted content for pages</div>
+              </div>
+              {onAddRichTextBlock && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+                  onClick={onAddRichTextBlock}
+                  title="Add rich text block"
+                >
+                  <Plus className="w-5 h-5" />
+                </Button>
+              )}
             </div>
           </div>
           <div className="p-3 rounded-lg border bg-background">

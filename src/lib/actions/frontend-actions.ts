@@ -44,6 +44,14 @@ export interface SiteWithBlocks {
       socialLinks: Array<{ platform: string; url: string }>
       style: { backgroundColor: string; textColor: string }
     }
+    richText?: Array<{
+      title?: string
+      subtitle?: string
+      headerAlign?: 'left' | 'center'
+      content: string
+      id: string
+      display_order: number
+    }>
   }
 }
 
@@ -186,6 +194,74 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
             textColor: '#ffffff'
           }
         }
+      } else if (block.block_type === 'rich-text') {
+        if (!blocks.richText) {
+          blocks.richText = []
+        }
+        
+        // Handle both old format (content as string) and new format (content as object)
+        let richTextContent
+        
+        if (typeof block.content === 'string') {
+          // Old format: content is directly a string
+          richTextContent = {
+            title: undefined,
+            subtitle: undefined,
+            headerAlign: 'left',
+            content: block.content
+          }
+        } else if (block.content && typeof block.content === 'object') {
+          // Extract title, subtitle, and headerAlign
+          const title = block.content.title || undefined
+          const subtitle = block.content.subtitle || undefined
+          const headerAlign = block.content.headerAlign || 'left'
+          
+          // Handle malformed content that was converted to array-like object
+          let content = ''
+          
+          if (typeof block.content.content === 'string') {
+            // Normal case: content is a string
+            content = block.content.content
+          } else if (block.content.content && typeof block.content.content === 'object') {
+            // Malformed case: content is an array-like object with indexed characters
+            // Check if it looks like an array-like object (has numeric indices)
+            const contentObj = block.content.content
+            if (typeof contentObj === 'object' && '0' in contentObj) {
+              // Reconstruct string from indexed characters
+              const indices = Object.keys(contentObj)
+                .filter(key => !isNaN(parseInt(key)))
+                .sort((a, b) => parseInt(a) - parseInt(b))
+              content = indices.map(index => contentObj[index]).join('')
+            } else {
+              // Some other object format
+              content = JSON.stringify(contentObj)
+            }
+          } else {
+            // Fallback
+            content = ''
+          }
+          
+          richTextContent = {
+            title,
+            subtitle,
+            headerAlign,
+            content
+          }
+        } else {
+          // Fallback
+          richTextContent = {
+            title: undefined,
+            subtitle: undefined,
+            headerAlign: 'left',
+            content: ''
+          }
+        }
+        
+        blocks.richText.push({
+          ...richTextContent,
+          id: block.id,
+          display_order: block.display_order || 0
+        })
       }
     })
 

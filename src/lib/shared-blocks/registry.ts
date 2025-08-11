@@ -1,11 +1,13 @@
 import { BlockDefinition, BlockInstance } from './types'
 import { heroRuixenBlockDefinition } from './definitions/hero-ruixen-block'
+import { richTextBlockDefinition } from './definitions/rich-text-block'
 
 class BlockRegistry {
   private blocks: Map<string, BlockDefinition> = new Map()
 
   constructor() {
     this.registerBlock(heroRuixenBlockDefinition)
+    this.registerBlock(richTextBlockDefinition)
   }
 
   registerBlock(definition: BlockDefinition): void {
@@ -65,7 +67,7 @@ class BlockRegistry {
       
       if (value !== undefined && value !== null) {
         // Type validation
-        if (property.type === 'string' || property.type === 'textarea' || property.type === 'url') {
+        if (property.type === 'string' || property.type === 'textarea' || property.type === 'richtext' || property.type === 'url') {
           if (typeof value !== 'string') {
             errors.push(`${property.label} must be a string`)
             continue

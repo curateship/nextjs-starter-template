@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getBlockTitle } from '@/lib/blocks/block-utils'
+import { getBlockTitle } from '@/lib/shared-blocks/block-utils'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +39,7 @@ async function createServerSupabaseClient() {
 export interface SiteBlock {
   id: string
   site_id: string
-  block_type: 'navigation' | 'hero' | 'footer'
+  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text'
   page_slug: 'home' | 'global'
   content: Record<string, any>
   display_order: number
@@ -285,7 +285,7 @@ export async function deleteSiteBlockAction(blockId: string): Promise<{
 export async function addSiteBlockAction(params: {
   site_id: string
   page_slug: string
-  block_type: 'hero'
+  block_type: 'hero' | 'rich-text'
 }): Promise<{
   success: boolean
   block?: Block
@@ -308,9 +308,9 @@ export async function addSiteBlockAction(params: {
       return { success: false, error: 'Invalid page slug format' }
     }
 
-    // Only allow hero blocks for now
-    if (params.block_type !== 'hero') {
-      return { success: false, error: 'Only hero blocks can be added' }
+    // Allow hero and rich-text blocks
+    if (params.block_type !== 'hero' && params.block_type !== 'rich-text') {
+      return { success: false, error: 'Only hero and rich-text blocks can be added' }
     }
 
     // Verify user is authenticated
@@ -367,15 +367,28 @@ export async function addSiteBlockAction(params: {
       }
     }
 
-    // Default content for hero block
-    const defaultContent = {
-      title: 'New Hero Section',
-      subtitle: 'Add your subtitle here',
-      primaryButton: 'Get Started',
-      secondaryButton: 'Learn More',
-      showRainbowButton: false,
-      githubLink: '',
-      showParticles: true
+    // Default content based on block type
+    let defaultContent: Record<string, any>
+    
+    if (params.block_type === 'hero') {
+      defaultContent = {
+        title: 'New Hero Section',
+        subtitle: 'Add your subtitle here',
+        primaryButton: 'Get Started',
+        secondaryButton: 'Learn More',
+        showRainbowButton: false,
+        githubLink: '',
+        showParticles: true
+      }
+    } else if (params.block_type === 'rich-text') {
+      defaultContent = {
+        title: 'Content Section',
+        subtitle: 'Professional content with rich formatting',
+        headerAlign: 'left',
+        content: '<p>This is a sample rich text block. You can add <strong>bold text</strong>, <em>italic text</em>, create lists, add links, and format your content with professional typography.</p><ul><li>Create bullet points</li><li>Add numbered lists</li><li>Include links and emphasis</li></ul><p>Perfect for contact pages, about sections, legal documents, and any content that needs professional formatting.</p>'
+      }
+    } else {
+      defaultContent = {}
     }
 
     // Create the new block
