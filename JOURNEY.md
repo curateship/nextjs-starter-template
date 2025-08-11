@@ -633,6 +633,17 @@ const updateBlockContent = (field: string, value: any) => {
 - Smart state management preventing cross-page contamination  
 - Reusable form components with consistent validation patterns
 - Modal-based editing for improved user workflow
+
+7. **Sticky Header Collision Bug Fix**
+   - **Issue**: Site builder header shrinking by 2px when scrolling
+   - **Root Cause**: Browser rendering conflict between two consecutive sticky headers
+   - **Discovery Process**:
+     - Initially suspected backdrop-blur effects or border calculations
+     - Systematically removed elements to isolate the issue
+     - Discovered the "bumper cart" effect - headers physically colliding when top sticky reached its position
+   - **Solution**: Added 1px buffer (`top-[57px]`) between sticky headers
+   - **Result**: Prevents collision without creating visible gap
+   - **Technical Insight**: Browser sticky positioning can cause subtle rendering conflicts with stacked sticky elements
      - Confirmation dialogs to prevent accidental deletions
 
 3. **Theme Management Enhancement**
