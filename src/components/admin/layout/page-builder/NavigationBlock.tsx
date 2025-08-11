@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { ImageInput } from "@/components/admin/modules/images/ImageInput"
-import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react"
+import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
+import { Plus, Trash2, ChevronUp, ChevronDown, ImageIcon, X } from "lucide-react"
 
 interface NavigationLink {
   text: string
@@ -47,6 +48,8 @@ export function NavigationBlock({
   siteId,
   blockId,
 }: NavigationBlockProps) {
+  const [showPicker, setShowPicker] = useState(false)
+  
   const addLink = () => {
     const newLinks = [...links, { text: "", url: "" }]
     onLinksChange(newLinks)
@@ -110,27 +113,83 @@ export function NavigationBlock({
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Navigation</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        {/* Logo */}
-        <ImageInput
-          label="Logo"
-          value={logo}
-          onChange={onLogoChange}
-          placeholder="Enter logo URL or select from library"
-          description="Choose your site's logo image. Recommended size: 200x50px or similar aspect ratio."
-          siteId={siteId}
-          blockType="navigation"
-          usageContext={`${blockId}-logo`}
-        />
+    <div className="space-y-4">
+      {/* Logo Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Logo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {/* Logo Preview */}
+              {logo && logo !== '/images/logo.png' ? (
+                <div className="relative group" style={{ padding: '8px' }}>
+                  <div className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border">
+                    <img
+                      src={logo}
+                      alt="Logo"
+                      className="h-full w-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => onLogoChange('')}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                </div>
+              )}
+              
+              {/* Image Library Button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPicker(true)}
+              >
+                <ImageIcon className="w-4 h-4 mr-2" />
+                Select from Library
+              </Button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              Recommended: 200x50px or similar ratio
+            </p>
+          </div>
+          
+          {/* Image Picker Modal */}
+          <ImagePicker
+            open={showPicker}
+            onOpenChange={setShowPicker}
+            onSelectImage={(imageUrl) => {
+              onLogoChange(imageUrl)
+              setShowPicker(false)
+            }}
+            currentImageUrl={logo}
+          />
+        </CardContent>
+      </Card>
 
-        {/* Navigation Links */}
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Navigation Links</h3>
+      {/* Navigation Links Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Navigation Links</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Links</Label>
             <Button
               type="button"
               variant="outline"
@@ -207,12 +266,19 @@ export function NavigationBlock({
               No navigation links. Click + to add one.
             </p>
           )}
-        </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Navigation Buttons */}
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Action Buttons</h3>
+      {/* Action Buttons Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Action Buttons</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Buttons</Label>
             <Button
               type="button"
               variant="outline"
@@ -301,11 +367,16 @@ export function NavigationBlock({
               No action buttons. Click + to add one.
             </p>
           )}
-        </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Style Settings */}
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold">Styling</h3>
+      {/* Style Settings Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Styling</CardTitle>
+        </CardHeader>
+        <CardContent>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -348,8 +419,8 @@ export function NavigationBlock({
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

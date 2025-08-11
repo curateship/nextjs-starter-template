@@ -282,6 +282,168 @@ export async function deleteSiteBlockAction(blockId: string): Promise<{
 /**
  * Add a new hero block to a site
  */
+/**
+ * Reorder site blocks by updating their display_order
+ */
+export async function reorderSiteBlocksAction(params: {
+  site_id: string
+  page_slug: string
+  block_ids: string[]
+}): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    // Validate input
+    if (!params.site_id || !params.page_slug || !Array.isArray(params.block_ids)) {
+      return { success: false, error: 'Missing required parameters' }
+    }
+
+    if (params.block_ids.length === 0) {
+      return { success: true } // No blocks to reorder, return success
+    }
+
+    // Validate site_id is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.site_id)) {
+      return { success: false, error: 'Invalid site ID format' }
+    }
+
+    // Validate all block IDs are valid UUIDs
+    for (const blockId of params.block_ids) {
+      if (!uuidRegex.test(blockId)) {
+        return { success: false, error: 'Invalid block ID format' }
+      }
+    }
+
+    // Validate page_slug format
+    if (!/^[a-zA-Z0-9_-]+$/.test(params.page_slug) && params.page_slug !== 'global') {
+      return { success: false, error: 'Invalid page slug format' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns the site
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', params.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Get existing blocks to verify they all belong to this site and page
+    const { data: existingBlocks, error: blocksError } = await supabaseAdmin
+      .from('site_blocks')
+      .select('id, block_type')
+      .eq('site_id', params.site_id)
+      .eq('page_slug', params.page_slug)
+      .in('id', params.block_ids)
+
+    if (blocksError) {
+      return { success: false, error: `Failed to verify blocks: ${blocksError.message}` }
+    }
+
+    // Verify all requested blocks exist and belong to this page
+    if (existingBlocks.length !== params.block_ids.length) {
+      return { success: false, error: 'Some blocks not found or do not belong to this page' }
+    }
+
+    // Get protected blocks to calculate proper display order
+    const { data: allBlocks, error: allBlocksError } = await supabaseAdmin
+      .from('site_blocks')
+      .select('id, block_type, display_order')
+      .eq('site_id', params.site_id)
+      .eq('page_slug', params.page_slug)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+
+    if (allBlocksError) {
+      return { success: false, error: `Failed to get all blocks: ${allBlocksError.message}` }
+    }
+
+    // Separate protected and reorderable blocks
+    const protectedBlocks = allBlocks.filter(block => 
+      block.block_type === 'navigation' || block.block_type === 'footer'
+    )
+    const navigationBlocks = protectedBlocks.filter(b => b.block_type === 'navigation')
+    const footerBlocks = protectedBlocks.filter(b => b.block_type === 'footer')
+
+    // Calculate display orders: navigation first, then reorderable blocks, then footer
+    let currentOrder = 1
+
+    // Update navigation blocks to be first
+    const navUpdatePromises = navigationBlocks.map(async (block) => {
+      const order = currentOrder++
+      return supabaseAdmin
+        .from('site_blocks')
+        .update({
+          display_order: order,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', block.id)
+    })
+
+    // Update reorderable blocks in their new order
+    const reorderUpdatePromises = params.block_ids.map(async (blockId, index) => {
+      const newDisplayOrder = currentOrder + index
+      
+      return supabaseAdmin
+        .from('site_blocks')
+        .update({
+          display_order: newDisplayOrder,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', blockId)
+    })
+
+    // Update current order counter
+    currentOrder += params.block_ids.length
+
+    // Update footer blocks to be last  
+    const footerUpdatePromises = footerBlocks.map(async (block) => {
+      const order = currentOrder++
+      return supabaseAdmin
+        .from('site_blocks')
+        .update({
+          display_order: order,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', block.id)
+    })
+
+    // Execute all updates
+    const updatePromises = [
+      ...navUpdatePromises,
+      ...reorderUpdatePromises,
+      ...footerUpdatePromises
+    ]
+
+    const results = await Promise.all(updatePromises)
+    
+    // Check if any updates failed
+    const failedUpdates = results.filter(result => result.error)
+    if (failedUpdates.length > 0) {
+      return { success: false, error: `Failed to update block order: ${failedUpdates[0].error.message}` }
+    }
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error reordering site blocks:', error)
+    return { success: false, error: 'Failed to reorder blocks' }
+  }
+}
+
 export async function addSiteBlockAction(params: {
   site_id: string
   page_slug: string

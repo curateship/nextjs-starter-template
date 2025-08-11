@@ -69,7 +69,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }, [siteId, initialPage, router])
   
   // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError } = usePageData(siteId)
+  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change
@@ -81,7 +81,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     siteId, 
     blocks: localBlocks, 
     setBlocks: setLocalBlocks, 
-    selectedPage 
+    selectedPage,
+    reloadBlocks
   })
   
   // Current page data with staged deletions filtered out
@@ -209,6 +210,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
             deleting={builderState.deleting}
           />
           

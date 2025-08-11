@@ -23,6 +23,7 @@ export interface SiteWithBlocks {
       style: { backgroundColor: string; textColor: string }
     }
     hero?: Array<{
+      id: string
       title: string
       subtitle: string
       primaryButton: string
@@ -36,6 +37,7 @@ export interface SiteWithBlocks {
       trustedByText: string
       trustedByCount: string
       trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
+      display_order: number
     }>
     footer?: {
       logo: string
@@ -157,6 +159,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
           blocks.hero = []
         }
         blocks.hero.push({
+          id: block.id,
           title: block.content.title || 'Welcome to Our Site',
           subtitle: block.content.subtitle || 'Build something amazing',
           primaryButton: typeof block.content.primaryButton === 'object' && block.content.primaryButton?.text 
@@ -181,7 +184,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
             { src: "", alt: "User 1", fallback: "U1" },
             { src: "", alt: "User 2", fallback: "U2" },
             { src: "", alt: "User 3", fallback: "U3" }
-          ]
+          ],
+          display_order: block.display_order || 0
         })
       } else if (block.block_type === 'footer') {
         blocks.footer = {

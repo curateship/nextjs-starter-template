@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { ImageInput } from "@/components/admin/modules/images/ImageInput"
-import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react"
+import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
+import { Plus, Trash2, ChevronUp, ChevronDown, ImageIcon, X } from "lucide-react"
 
 interface FooterLink {
   text: string
@@ -54,6 +55,8 @@ export function FooterBlock({
   siteId,
   blockId,
 }: FooterBlockProps) {
+  const [showPicker, setShowPicker] = useState(false)
+  
   const addLink = () => {
     const newLinks = [...links, { text: "", url: "" }]
     onLinksChange(newLinks)
@@ -117,43 +120,89 @@ export function FooterBlock({
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Footer</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        {/* Logo */}
-        <ImageInput
-          label="Logo"
-          value={logo}
-          onChange={onLogoChange}
-          placeholder="Enter logo URL or select from library"
-          description="Choose your footer logo image. Recommended size: 200x50px or similar aspect ratio."
-          siteId={siteId}
-          blockType="footer"
-          usageContext={`${blockId}-logo`}
-        />
+    <div className="space-y-4">
+      {/* Brand Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Brand</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Logo Section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {/* Logo Preview */}
+              {logo && logo !== '/images/logo.png' ? (
+                <div className="relative group" style={{ padding: '8px' }}>
+                  <div className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border">
+                    <img
+                      src={logo}
+                      alt="Logo"
+                      className="h-full w-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => onLogoChange('')}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                </div>
+              )}
+              
+              {/* Image Library Button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPicker(true)}
+              >
+                <ImageIcon className="w-4 h-4 mr-2" />
+                Select from Library
+              </Button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground">
+              Recommended: 200x50px or similar ratio
+            </p>
+          </div>
 
-        {/* Copyright Text */}
-        <div className="space-y-2">
-          <Label htmlFor="footerCopyright">Copyright Text</Label>
-          <input
-            id="footerCopyright"
-            type="text"
-            value={copyright}
-            onChange={(e) => onCopyrightChange(e.target.value)}
-            className="w-full mt-1 px-3 py-2 border rounded-md"
-            placeholder="© 2024 Your Company. All rights reserved."
-          />
-          <p className="text-xs text-muted-foreground">
-            Copyright notice displayed in the footer
-          </p>
-        </div>
+          {/* Copyright Text */}
+          <div className="space-y-2">
+            <Label htmlFor="footerCopyright">Copyright Text</Label>
+            <input
+              id="footerCopyright"
+              type="text"
+              value={copyright}
+              onChange={(e) => onCopyrightChange(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
+              placeholder="© 2024 Your Company. All rights reserved."
+            />
+            <p className="text-xs text-muted-foreground">
+              Copyright notice displayed in the footer
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Footer Links */}
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Footer Links</h3>
+      {/* Footer Links Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Footer Links</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Links</Label>
             <Button
               type="button"
               variant="outline"
@@ -230,12 +279,19 @@ export function FooterBlock({
               No footer links. Click + to add one.
             </p>
           )}
-        </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Social Links */}
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Social Media Links</h3>
+      {/* Social Media Links Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Social Media Links</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Social Links</Label>
             <Button
               type="button"
               variant="outline"
@@ -316,11 +372,16 @@ export function FooterBlock({
               No social links. Click + to add one.
             </p>
           )}
-        </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Style Settings */}
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold">Styling</h3>
+      {/* Style Settings Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Styling</CardTitle>
+        </CardHeader>
+        <CardContent>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -363,8 +424,19 @@ export function FooterBlock({
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      
+      {/* Image Picker Modal */}
+      <ImagePicker
+        open={showPicker}
+        onOpenChange={setShowPicker}
+        onSelectImage={(imageUrl) => {
+          onLogoChange(imageUrl)
+          setShowPicker(false)
+        }}
+        currentImageUrl={logo}
+      />
+    </div>
   )
 }

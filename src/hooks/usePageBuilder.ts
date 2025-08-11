@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react"
-import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, type Block } from "@/lib/actions/site-blocks-actions"
+import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, reorderSiteBlocksAction, type Block } from "@/lib/actions/site-blocks-actions"
+import { isBlockTypeProtected } from "@/lib/shared-blocks/block-utils"
 
 interface UsePageBuilderParams {
   siteId: string
   blocks: Record<string, Block[]>
   setBlocks: React.Dispatch<React.SetStateAction<Record<string, Block[]>>>
   selectedPage: string
+  reloadBlocks?: () => Promise<void>
 }
 
 interface UsePageBuilderReturn {
@@ -17,6 +19,7 @@ interface UsePageBuilderReturn {
   deleting: string | null
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: Block) => void
+  handleReorderBlocks: (blocks: Block[]) => void
   handleAddHeroBlock: () => Promise<void>
   handleAddRichTextBlock: () => Promise<void>
   handleSaveAllBlocks: () => Promise<void>
@@ -26,7 +29,8 @@ export function usePageBuilder({
   siteId, 
   blocks, 
   setBlocks, 
-  selectedPage 
+  selectedPage,
+  reloadBlocks
 }: UsePageBuilderParams): UsePageBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
   const [deletedBlockIds, setDeletedBlockIds] = useState<Set<string>>(new Set())
@@ -122,6 +126,73 @@ export function usePageBuilder({
     } catch (err) {
       console.error('Error adding hero block:', err)
       setSaveMessage("Error adding hero block")
+      setTimeout(() => setSaveMessage(""), 5000)
+    }
+  }
+
+  // Handle block reordering
+  const handleReorderBlocks = async (reorderedBlocks: Block[]) => {
+    try {
+      // Get current blocks to preserve protected ones that might not be in reorderedBlocks
+      const currentBlocks = blocks[selectedPage] || []
+      const protectedBlocks = currentBlocks.filter(block => 
+        isBlockTypeProtected(block.type) && !deletedBlockIds.has(block.id)
+      )
+      
+      // Filter out any blocks that are marked for deletion
+      const validReorderedBlocks = reorderedBlocks.filter(block => !deletedBlockIds.has(block.id))
+      
+      // Combine protected blocks with reordered blocks, maintaining proper order
+      // Navigation should be first, footer should be last
+      const navigationBlocks = protectedBlocks.filter(b => b.type === 'navigation')
+      const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
+      const reorderableBlocks = validReorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
+      
+      const finalBlocks = [
+        ...navigationBlocks,
+        ...reorderableBlocks,
+        ...footerBlocks
+      ]
+      
+      // Update local state immediately for responsive UX
+      const updatedBlocks = { ...blocks }
+      updatedBlocks[selectedPage] = finalBlocks
+      setBlocks(updatedBlocks)
+
+      // Send reorder request to server only for reorderable blocks (not protected ones)
+      const reorderableBlockIds = reorderableBlocks.map(block => block.id)
+      
+      // Only send reorder request if there are reorderable blocks
+      if (reorderableBlockIds.length === 0) {
+        setSaveMessage("No reorderable blocks")
+        setTimeout(() => setSaveMessage(""), 2000)
+        return
+      }
+      
+      const { success, error } = await reorderSiteBlocksAction({
+        site_id: siteId,
+        page_slug: selectedPage,
+        block_ids: reorderableBlockIds
+      })
+
+      if (error) {
+        // Rollback on error
+        const originalBlocks = { ...blocks }
+        setBlocks(originalBlocks)
+        setSaveMessage(`Error reordering blocks: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+        return
+      }
+
+      if (success) {
+        // Success - no message needed, visual feedback is sufficient
+      }
+    } catch (err) {
+      console.error('Error reordering blocks:', err)
+      // Rollback on error
+      const originalBlocks = { ...blocks }
+      setBlocks(originalBlocks)
+      setSaveMessage("Error reordering blocks")
       setTimeout(() => setSaveMessage(""), 5000)
     }
   }
@@ -252,6 +323,7 @@ export function usePageBuilder({
     deleting,
     updateBlockContent,
     handleDeleteBlock,
+    handleReorderBlocks,
     handleAddHeroBlock,
     handleAddRichTextBlock,
     handleSaveAllBlocks

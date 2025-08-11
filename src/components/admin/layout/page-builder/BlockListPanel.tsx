@@ -7,7 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2 } from "lucide-react"
+import { Trash2, GripVertical } from "lucide-react"
+import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
 import type { Block } from "@/lib/actions/site-blocks-actions"
 
@@ -22,6 +23,7 @@ interface BlockListPanelProps {
   selectedBlock: Block | null
   onSelectBlock: (block: Block) => void
   onDeleteBlock: (block: Block) => void
+  onReorderBlocks: (blocks: Block[]) => void
   deleting: string | null
 }
 
@@ -30,6 +32,7 @@ export function BlockListPanel({
   selectedBlock,
   onSelectBlock,
   onDeleteBlock,
+  onReorderBlocks,
   deleting
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -69,19 +72,63 @@ export function BlockListPanel({
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              {currentPage.blocks.map((block) => (
-                <div
-                  key={block.id}
-                  className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+            <Reorder.Group 
+              axis="y" 
+              values={currentPage.blocks} 
+              onReorder={onReorderBlocks}
+              className="space-y-4"
+            >
+              {currentPage.blocks.map((block) => {
+                const isProtected = isBlockTypeProtected(block.type)
+                
+                return (
+                <Reorder.Item 
+                  key={block.id} 
+                  value={block}
+                  className={`border rounded-lg p-4 transition-colors cursor-pointer ${
                     selectedBlock?.id === block.id
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-muted-foreground'
-                  }`}
+                  } ${isProtected ? 'opacity-80' : ''}`}
+                  whileDrag={!isProtected ? { 
+                    scale: 1.01, 
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                    zIndex: 1000
+                  } : undefined}
+                  style={{ 
+                    cursor: isProtected ? "default" : "grab"
+                  }}
+                  onPointerDown={(e) => {
+                    // Prevent drag for protected blocks
+                    if (isProtected) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      return
+                    }
+                    
+                    // Don't start drag if clicking on buttons
+                    const target = e.target as HTMLElement
+                    if (target.closest('button')) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  }}
+                  drag={!isProtected}
                   onClick={() => onSelectBlock(block)}
                 >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{block.title}</h3>
+                  <div 
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`${
+                        isProtected 
+                          ? 'text-gray-400 cursor-not-allowed' 
+                          : 'text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing'
+                      }`}>
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                      <h3 className="font-medium">{block.title}</h3>
+                    </div>
                     <div className="flex items-center space-x-2">
                       <div className="text-xs text-muted-foreground">
                         {block.type}
@@ -114,9 +161,10 @@ export function BlockListPanel({
                       )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                </Reorder.Item>
+                )
+              })}
+            </Reorder.Group>
           )}
         </div>
       </div>
