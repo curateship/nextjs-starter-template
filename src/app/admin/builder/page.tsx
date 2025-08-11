@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSiteContext } from "@/contexts/site-context"
 
-export default function SiteBuilderPage() {
+export default function PageBuilderPage() {
   const router = useRouter()
   const { currentSite, sites } = useSiteContext()
 

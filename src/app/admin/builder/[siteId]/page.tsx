@@ -6,17 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useSiteData } from "@/hooks/useSiteData"
-import { useSiteBuilder } from "@/hooks/useSiteBuilder"
+import { usePageData } from "@/hooks/usePageData"
+import { usePageBuilder } from "@/hooks/usePageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { SiteBuilderHeader } from "@/components/admin/layout/site-builder/SiteBuilderHeader"
-import { BlockPropertiesPanel } from "@/components/admin/layout/site-builder/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/layout/site-builder/BlockListPanel"
-import { SharedBlockTypesPanel } from "@/components/admin/layout/site-builder/SharedBlockTypesPanel"
+import { PageBuilderHeader } from "@/components/admin/layout/page-builder/PageBuilderHeader"
+import { BlockPropertiesPanel } from "@/components/admin/layout/page-builder/BlockPropertiesPanel"
+import { BlockListPanel } from "@/components/admin/layout/page-builder/BlockListPanel"
+import { SharedBlockTypesPanel } from "@/components/admin/layout/page-builder/SharedBlockTypesPanel"
 import { getSitePagesAction } from "@/lib/actions/page-actions"
 import type { Page } from "@/lib/actions/page-actions"
 
-export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
+export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,7 +69,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   }, [siteId, initialPage, router])
   
   // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError } = useSiteData(siteId)
+  const { site, blocks, siteLoading, blocksLoading, siteError } = usePageData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change
@@ -77,7 +77,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
     setLocalBlocks(blocks)
   }, [blocks])
   
-  const builderState = useSiteBuilder({ 
+  const builderState = usePageBuilder({ 
     siteId, 
     blocks: localBlocks, 
     setBlocks: setLocalBlocks, 
@@ -148,7 +148,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Loading site builder...</p>
+            <p>Loading page builder...</p>
           </div>
         </div>
       </AdminLayout>
@@ -185,7 +185,7 @@ export default function SiteBuilderEditor({ params }: { params: Promise<{ siteId
   return (
     <AdminLayout>
       <div className="flex flex-col -m-4 -mt-6 h-full">
-        <SiteBuilderHeader
+        <PageBuilderHeader
           site={site}
           pages={pages}
           selectedPage={selectedPage}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
 import { getSiteBlocksAction, type Block } from "@/lib/actions/site-blocks-actions"
 
-interface UseSiteDataReturn {
+interface UsePageDataReturn {
   site: SiteWithTheme | null
   blocks: Record<string, Block[]>
   siteLoading: boolean
@@ -11,7 +11,7 @@ interface UseSiteDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useSiteData(siteId: string): UseSiteDataReturn {
+export function usePageData(siteId: string): UsePageDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteLoading, setSiteLoading] = useState(true)
   const [siteError, setSiteError] = useState("")
