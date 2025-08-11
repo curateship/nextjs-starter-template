@@ -49,7 +49,7 @@ export interface SiteWithBlocks {
 /**
  * Get site data by subdomain for frontend rendering
  */
-export async function getSiteBySubdomain(subdomain: string, pageSlug: string = 'home'): Promise<{
+export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -75,19 +75,38 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug: string = '
       return { success: false, error: 'Site is not available for viewing' }
     }
 
+    // If no page slug provided, find the homepage
+    let actualPageSlug = pageSlug
+    if (!pageSlug) {
+      const { data: homePage, error: homePageError } = await supabaseAdmin
+        .from('pages')
+        .select('slug')
+        .eq('site_id', site.id)
+        .eq('is_homepage', true)
+        .eq('is_published', true)
+        .single()
+      
+      if (!homePageError && homePage) {
+        actualPageSlug = homePage.slug
+      } else {
+        // Fallback to 'home' if no homepage is set
+        actualPageSlug = 'home'
+      }
+    }
+
     // Check if the requested page exists and is published
     const { data: page, error: pageError } = await supabaseAdmin
       .from('pages')
       .select('*')
       .eq('site_id', site.id)
-      .eq('slug', pageSlug)
+      .eq('slug', actualPageSlug)
       .eq('is_published', true)
       .single()
 
     // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
     if (pageError || !page) {
       // Only continue if pages table doesn't exist or this is the home page
-      if (pageError?.code === 'PGRST204' && pageSlug !== 'home') {
+      if (pageError?.code === 'PGRST204' && actualPageSlug !== 'home') {
         return { success: false, error: 'Page not found' }
       }
       // For sites without pages system or home page, continue with old behavior
@@ -100,7 +119,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug: string = '
       .select('*')
       .eq('site_id', site.id)
       .eq('is_active', true)
-      .or(`page_slug.eq.${pageSlug},page_slug.eq.global,page_slug.is.null`)
+      .or(`page_slug.eq.${actualPageSlug},page_slug.eq.global,page_slug.is.null`)
       .order('display_order', { ascending: true })
 
     if (blocksError) {
@@ -131,10 +150,18 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug: string = '
         blocks.hero.push({
           title: block.content.title || 'Welcome to Our Site',
           subtitle: block.content.subtitle || 'Build something amazing',
-          primaryButton: block.content.primaryButton || 'Get Started',
-          secondaryButton: block.content.secondaryButton || 'Learn More',
-          primaryButtonLink: block.content.primaryButtonLink || '',
-          secondaryButtonLink: block.content.secondaryButtonLink || '',
+          primaryButton: typeof block.content.primaryButton === 'object' && block.content.primaryButton?.text 
+            ? block.content.primaryButton.text 
+            : (block.content.primaryButton || 'Get Started'),
+          secondaryButton: typeof block.content.secondaryButton === 'object' && block.content.secondaryButton?.text 
+            ? block.content.secondaryButton.text 
+            : (block.content.secondaryButton || 'Learn More'),
+          primaryButtonLink: typeof block.content.primaryButton === 'object' && block.content.primaryButton?.url 
+            ? block.content.primaryButton.url 
+            : (block.content.primaryButtonLink || ''),
+          secondaryButtonLink: typeof block.content.secondaryButton === 'object' && block.content.secondaryButton?.url 
+            ? block.content.secondaryButton.url 
+            : (block.content.secondaryButtonLink || ''),
           backgroundColor: block.content.backgroundColor || '#ffffff',
           showRainbowButton: block.content.showRainbowButton || false,
           githubLink: block.content.githubLink || '',
