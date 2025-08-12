@@ -32,9 +32,12 @@ export interface SiteWithBlocks {
       secondaryButtonLink: string
       backgroundColor: string
       showRainbowButton: boolean
+      rainbowButtonText: string
+      rainbowButtonIcon: string
       githubLink: string
       showParticles: boolean
       trustedByText: string
+      trustedByTextColor: string
       trustedByCount: string
       trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
       display_order: number
@@ -176,9 +179,12 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
             : (block.content.secondaryButtonLink || ''),
           backgroundColor: block.content.backgroundColor || '#ffffff',
           showRainbowButton: block.content.showRainbowButton || false,
+          rainbowButtonText: block.content.rainbowButtonText || 'Get Access to Everything',
+          rainbowButtonIcon: block.content.rainbowButtonIcon || 'github',
           githubLink: block.content.githubLink || '',
           showParticles: block.content.showParticles !== false, // default true
           trustedByText: block.content.trustedByText || '',
+          trustedByTextColor: block.content.trustedByTextColor || '#6b7280',
           trustedByCount: block.content.trustedByCount || '',
           trustedByAvatars: block.content.trustedByAvatars || [
             { src: "", alt: "User 1", fallback: "U1" },

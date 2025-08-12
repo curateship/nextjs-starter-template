@@ -53,6 +53,32 @@ export const heroRuixenBlockDefinition: BlockDefinition = {
         label: 'Show Rainbow Button',
         description: 'Display the special GitHub access button'
       },
+      rainbowButtonText: {
+        type: 'string',
+        label: 'Rainbow Button Text',
+        placeholder: 'Get Access to Everything',
+        description: 'Text displayed on the rainbow button',
+        validation: {
+          minLength: 2,
+          maxLength: 50,
+          allowEmpty: false
+        }
+      },
+      rainbowButtonIcon: {
+        type: 'select',
+        label: 'Rainbow Button Icon',
+        options: [
+          { value: 'none', label: 'No Icon' },
+          { value: 'github', label: 'GitHub' },
+          { value: 'arrow-right', label: 'Arrow Right' },
+          { value: 'download', label: 'Download' },
+          { value: 'external-link', label: 'External Link' },
+          { value: 'star', label: 'Star' },
+          { value: 'rocket', label: 'Rocket' },
+          { value: 'zap', label: 'Zap' }
+        ],
+        description: 'Icon displayed on the rainbow button'
+      },
       githubLink: {
         type: 'url',
         label: 'GitHub Link',
@@ -66,6 +92,12 @@ export const heroRuixenBlockDefinition: BlockDefinition = {
         type: 'boolean',
         label: 'Show Floating Particles',
         description: 'Enable floating particle animation'
+      },
+      trustedByTextColor: {
+        type: 'color',
+        label: 'Badge Text Color',
+        placeholder: '#6b7280',
+        description: 'Color for the trusted by badge text'
       }
     },
     required: ['title', 'subtitle', 'primaryButton', 'secondaryButton']
@@ -76,8 +108,11 @@ export const heroRuixenBlockDefinition: BlockDefinition = {
     primaryButton: 'Get Started',
     secondaryButton: 'Browse Components',
     showRainbowButton: true,
+    rainbowButtonText: 'Get Access to Everything',
+    rainbowButtonIcon: 'github',
     githubLink: 'https://github.com/ruixenui/ruixen-free-components',
-    showParticles: true
+    showParticles: true,
+    trustedByTextColor: '#6b7280'
   }
 }
 

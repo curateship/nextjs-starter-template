@@ -32,9 +32,12 @@ export function BlockPropertiesPanel({
                 secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
                 backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
                 showRainbowButton={selectedBlock.content.showRainbowButton || false}
+                rainbowButtonText={selectedBlock.content.rainbowButtonText || 'Get Access to Everything'}
+                rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
                 githubLink={selectedBlock.content.githubLink || ''}
                 showParticles={selectedBlock.content.showParticles || false}
                 trustedByText={selectedBlock.content.trustedByText || ''}
+                trustedByTextColor={selectedBlock.content.trustedByTextColor || '#6b7280'}
                 trustedByCount={selectedBlock.content.trustedByCount || ''}
                 trustedByAvatars={selectedBlock.content.trustedByAvatars || [
                   { src: "", alt: "User 1", fallback: "U1" },
@@ -51,9 +54,12 @@ export function BlockPropertiesPanel({
                 onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
                 onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
                 onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
+                onRainbowButtonTextChange={(value) => updateBlockContent('rainbowButtonText', value)}
+                onRainbowButtonIconChange={(value) => updateBlockContent('rainbowButtonIcon', value)}
                 onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
                 onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
                 onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
+                onTrustedByTextColorChange={(value) => updateBlockContent('trustedByTextColor', value)}
                 onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
                 onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
                 siteId={siteId}
