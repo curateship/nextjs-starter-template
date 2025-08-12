@@ -1,15 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
-import { Plus, Trash2, ChevronUp, ChevronDown, ImageIcon, X } from "lucide-react"
+import { Plus, Trash2, ImageIcon, X, GripVertical } from "lucide-react"
+import { Reorder } from "motion/react"
 
 interface NavigationLink {
   text: string
   url: string
+  id?: string
 }
 
 interface NavigationButton {
@@ -50,8 +52,20 @@ export function NavigationBlock({
 }: NavigationBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
+  // Ensure all links have unique IDs
+  useEffect(() => {
+    const linksNeedIds = links.some(link => !link.id)
+    if (linksNeedIds) {
+      const linksWithIds = links.map((link, index) => ({
+        ...link,
+        id: link.id || `link-${Date.now()}-${index}-${Math.random()}`
+      }))
+      onLinksChange(linksWithIds)
+    }
+  }, [links, onLinksChange])
+  
   const addLink = () => {
-    const newLinks = [...links, { text: "", url: "" }]
+    const newLinks = [...links, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }]
     onLinksChange(newLinks)
   }
 
@@ -70,18 +84,23 @@ export function NavigationBlock({
     onStyleChange({ ...style, [field]: value })
   }
 
-  const moveLink = (index: number, direction: 'up' | 'down') => {
-    if ((direction === 'up' && index === 0) || (direction === 'down' && index === links.length - 1)) {
-      return
+  const linksTimeoutRef = useRef<NodeJS.Timeout>()
+  const handleReorderLinks = useCallback((reorderedLinks: NavigationLink[]) => {
+    // Clear previous timeout
+    if (linksTimeoutRef.current) {
+      clearTimeout(linksTimeoutRef.current)
     }
     
-    const newLinks = [...links]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    const temp = newLinks[index]
-    newLinks[index] = newLinks[targetIndex]
-    newLinks[targetIndex] = temp
-    onLinksChange(newLinks)
-  }
+    // Set new timeout to debounce the save
+    linksTimeoutRef.current = setTimeout(() => {
+      // Ensure IDs are preserved in reordered links
+      const reorderedWithIds = reorderedLinks.map(link => ({
+        ...link,
+        id: link.id || `link-${Date.now()}-${Math.random()}`
+      }))
+      onLinksChange(reorderedWithIds)
+    }, 300)
+  }, [onLinksChange])
 
   const addButton = () => {
     const newButtons = [...buttons, { text: "", url: "", style: "primary" as const }]
@@ -99,18 +118,18 @@ export function NavigationBlock({
     onButtonsChange(newButtons)
   }
 
-  const moveButton = (index: number, direction: 'up' | 'down') => {
-    if ((direction === 'up' && index === 0) || (direction === 'down' && index === buttons.length - 1)) {
-      return
+  const buttonsTimeoutRef = useRef<NodeJS.Timeout>()
+  const handleReorderButtons = useCallback((reorderedButtons: NavigationButton[]) => {
+    // Clear previous timeout
+    if (buttonsTimeoutRef.current) {
+      clearTimeout(buttonsTimeoutRef.current)
     }
     
-    const newButtons = [...buttons]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    const temp = newButtons[index]
-    newButtons[index] = newButtons[targetIndex]
-    newButtons[targetIndex] = temp
-    onButtonsChange(newButtons)
-  }
+    // Set new timeout to debounce the save
+    buttonsTimeoutRef.current = setTimeout(() => {
+      onButtonsChange(reorderedButtons)
+    }, 300)
+  }, [onButtonsChange])
 
   return (
     <div className="space-y-4">
@@ -184,12 +203,8 @@ export function NavigationBlock({
       {/* Navigation Links Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Navigation Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Links</Label>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Navigation Links</CardTitle>
             <Button
               type="button"
               variant="outline"
@@ -200,85 +215,77 @@ export function NavigationBlock({
               <Plus className="h-4 w-4" />
             </Button>
           </div>
-
-          <div className="space-y-3">
+        </CardHeader>
+        <CardContent>
+          <Reorder.Group 
+            axis="y" 
+            values={links} 
+            onReorder={handleReorderLinks}
+            className="space-y-3"
+          >
             {links.map((link, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex flex-col gap-1">
+              <Reorder.Item 
+                key={link.id || `nav-link-${index}`}
+                value={link}
+                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  zIndex: 1000
+                }}
+                style={{ cursor: "grab" }}
+              >
+                <div className="flex gap-2 items-center">
+                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 flex-1">
+                    <div>
+                      <input
+                        type="text"
+                        value={link.text}
+                        onChange={(e) => updateLink(index, 'text', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Link Text"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={link.url}
+                        onChange={(e) => updateLink(index, 'url', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="URL"
+                      />
+                    </div>
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => moveLink(index, 'up')}
-                    disabled={index === 0}
-                    className="h-6 w-6 p-0"
+                    onClick={() => removeLink(index)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    <ChevronUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveLink(index, 'down')}
-                    disabled={index === links.length - 1}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 flex-1">
-                  <div>
-                    <Label className="text-xs">Link Text</Label>
-                    <input
-                      type="text"
-                      value={link.text}
-                      onChange={(e) => updateLink(index, 'text', e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
-                      placeholder="Home"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">URL</Label>
-                    <input
-                      type="text"
-                      value={link.url}
-                      onChange={(e) => updateLink(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
-                      placeholder="/"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeLink(index)}
-                  className="h-8 w-8 p-0 hover:bg-transparent cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           {links.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4">
               No navigation links. Click + to add one.
-            </p>
+            </div>
           )}
-          </div>
         </CardContent>
       </Card>
 
       {/* Action Buttons Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Action Buttons</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Buttons</Label>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Action Buttons</CardTitle>
             <Button
               type="button"
               variant="outline"
@@ -289,85 +296,80 @@ export function NavigationBlock({
               <Plus className="h-4 w-4" />
             </Button>
           </div>
-
-          <div className="space-y-3">
+        </CardHeader>
+        <CardContent>
+          <Reorder.Group 
+            axis="y" 
+            values={buttons} 
+            onReorder={handleReorderButtons}
+            className="space-y-3"
+          >
             {buttons.map((button, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex flex-col gap-1">
+              <Reorder.Item 
+                key={`nav-button-${index}`} 
+                value={button}
+                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  zIndex: 1000
+                }}
+                style={{ cursor: "grab" }}
+              >
+                <div className="flex gap-2 items-center">
+                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 flex-1">
+                    <div>
+                      <input
+                        type="text"
+                        value={button.text}
+                        onChange={(e) => updateButton(index, 'text', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Button Text"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={button.url}
+                        onChange={(e) => updateButton(index, 'url', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="URL"
+                      />
+                    </div>
+                    <div>
+                      <select
+                        value={button.style}
+                        onChange={(e) => updateButton(index, 'style', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      >
+                        <option value="primary">Primary</option>
+                        <option value="outline">Outline</option>
+                        <option value="ghost">Ghost</option>
+                      </select>
+                    </div>
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => moveButton(index, 'up')}
-                    disabled={index === 0}
-                    className="h-6 w-6 p-0"
+                    onClick={() => removeButton(index)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    <ChevronUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveButton(index, 'down')}
-                    disabled={index === buttons.length - 1}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-3 gap-2 flex-1">
-                  <div>
-                    <Label className="text-xs">Button Text</Label>
-                    <input
-                      type="text"
-                      value={button.text}
-                      onChange={(e) => updateButton(index, 'text', e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
-                      placeholder="Sign Up"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">URL</Label>
-                    <input
-                      type="text"
-                      value={button.url}
-                      onChange={(e) => updateButton(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
-                      placeholder="/signup"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Style</Label>
-                    <select
-                      value={button.style}
-                      onChange={(e) => updateButton(index, 'style', e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
-                    >
-                      <option value="primary">Primary</option>
-                      <option value="outline">Outline</option>
-                      <option value="ghost">Ghost</option>
-                    </select>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeButton(index)}
-                  className="h-8 w-8 p-0 hover:bg-transparent cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           {buttons.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4">
               No action buttons. Click + to add one.
-            </p>
+            </div>
           )}
-          </div>
         </CardContent>
       </Card>
 
