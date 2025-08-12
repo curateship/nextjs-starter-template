@@ -65,7 +65,7 @@ export function BlockPropertiesPanel({
                 logo={selectedBlock.content.logo || ''}
                 links={selectedBlock.content.links || []}
                 buttons={selectedBlock.content.buttons || []}
-                style={selectedBlock.content.style || { backgroundColor: '#ffffff', textColor: '#000000' }}
+                style={selectedBlock.content.style || { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'medium' }}
                 onLogoChange={(value) => updateBlockContent('logo', value)}
                 onLinksChange={(links) => updateBlockContent('links', links)}
                 onButtonsChange={(buttons) => updateBlockContent('buttons', buttons)}

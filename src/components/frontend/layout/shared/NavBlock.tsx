@@ -25,6 +25,7 @@ interface NavBlockProps {
   style?: {
     backgroundColor: string;
     textColor: string;
+    blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
   };
 }
 
@@ -277,16 +278,26 @@ export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
     }, 150) // 150ms delay to prevent flickering
   }
 
+  const blurEffect = style?.blurEffect || 'medium'
+  const blurClass = {
+    'none': '',
+    'light': 'lg:backdrop-blur-sm',
+    'medium': 'lg:backdrop-blur-xl',
+    'heavy': 'lg:backdrop-blur-3xl'
+  }[blurEffect]
+
   return (
     <header>
       <nav
         data-state={menuState && 'active'}
         className={cn(
-          'fixed z-20 w-full border-b bg-background transition-colors duration-150',
-          scrolled && 'lg:bg-background/50 lg:backdrop-blur-3xl'
+          'fixed z-20 w-full border-b transition-colors duration-150',
+          !style && 'bg-background',
+          scrolled && !style && 'lg:bg-background/50 lg:backdrop-blur-xl',
+          scrolled && style && blurEffect !== 'none' && blurClass
         )}
         style={style ? {
-          backgroundColor: style.backgroundColor,
+          backgroundColor: scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor,
           color: style.textColor
         } : undefined}
       >

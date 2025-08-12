@@ -24,6 +24,7 @@ interface NavigationButton {
 interface NavigationStyle {
   backgroundColor: string
   textColor: string
+  blurEffect: 'none' | 'light' | 'medium' | 'heavy'
 }
 
 interface NavigationBlockProps {
@@ -385,7 +386,7 @@ export function NavigationBlock({
         </CardHeader>
         <CardContent>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="navBgColor">Background Color</Label>
               <div className="flex gap-2">
@@ -394,16 +395,34 @@ export function NavigationBlock({
                   type="color"
                   value={style.backgroundColor}
                   onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
                   value={style.backgroundColor}
                   onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-md text-sm font-mono"
+                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
                   placeholder="#ffffff"
                 />
               </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="navBlurEffect">Glass Blur Effect</Label>
+              <Select 
+                value={style.blurEffect || 'medium'} 
+                onValueChange={(value) => updateStyle('blurEffect', value as 'none' | 'light' | 'medium' | 'heavy')}
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="heavy">Heavy</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">
@@ -414,13 +433,13 @@ export function NavigationBlock({
                   type="color"
                   value={style.textColor}
                   onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-12 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
                 />
                 <input
                   type="text"
                   value={style.textColor}
                   onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-md text-sm font-mono"
+                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
                   placeholder="#000000"
                 />
               </div>
