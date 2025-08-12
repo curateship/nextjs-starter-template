@@ -1,20 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
-import { Plus, Trash2, ChevronUp, ChevronDown, ImageIcon, X } from "lucide-react"
+import { Plus, Trash2, ImageIcon, X, GripVertical } from "lucide-react"
+import { Reorder } from "motion/react"
 
 interface FooterLink {
   text: string
   url: string
+  id?: string
 }
 
 interface SocialLink {
   platform: string
   url: string
+  id?: string
 }
 
 interface FooterStyle {
@@ -57,8 +60,32 @@ export function FooterBlock({
 }: FooterBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
+  // Ensure all links have unique IDs
+  useEffect(() => {
+    const linksNeedIds = links.some(link => !link.id)
+    if (linksNeedIds) {
+      const linksWithIds = links.map((link, index) => ({
+        ...link,
+        id: link.id || `footer-link-${Date.now()}-${index}-${Math.random()}`
+      }))
+      onLinksChange(linksWithIds)
+    }
+  }, [links, onLinksChange])
+
+  // Ensure all social links have unique IDs
+  useEffect(() => {
+    const socialLinksNeedIds = socialLinks.some(link => !link.id)
+    if (socialLinksNeedIds) {
+      const socialLinksWithIds = socialLinks.map((link, index) => ({
+        ...link,
+        id: link.id || `social-link-${Date.now()}-${index}-${Math.random()}`
+      }))
+      onSocialLinksChange(socialLinksWithIds)
+    }
+  }, [socialLinks, onSocialLinksChange])
+  
   const addLink = () => {
-    const newLinks = [...links, { text: "", url: "" }]
+    const newLinks = [...links, { text: "", url: "", id: `footer-link-${Date.now()}-${Math.random()}` }]
     onLinksChange(newLinks)
   }
 
@@ -74,7 +101,7 @@ export function FooterBlock({
   }
 
   const addSocialLink = () => {
-    const newSocialLinks = [...socialLinks, { platform: "twitter", url: "" }]
+    const newSocialLinks = [...socialLinks, { platform: "twitter", url: "", id: `social-link-${Date.now()}-${Math.random()}` }]
     onSocialLinksChange(newSocialLinks)
   }
 
@@ -93,31 +120,42 @@ export function FooterBlock({
     onStyleChange({ ...style, [field]: value })
   }
 
-  const moveLink = (index: number, direction: 'up' | 'down') => {
-    if ((direction === 'up' && index === 0) || (direction === 'down' && index === links.length - 1)) {
-      return
+  const linksTimeoutRef = useRef<NodeJS.Timeout>()
+  const handleReorderLinks = useCallback((reorderedLinks: FooterLink[]) => {
+    // Clear previous timeout
+    if (linksTimeoutRef.current) {
+      clearTimeout(linksTimeoutRef.current)
     }
     
-    const newLinks = [...links]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    const temp = newLinks[index]
-    newLinks[index] = newLinks[targetIndex]
-    newLinks[targetIndex] = temp
-    onLinksChange(newLinks)
-  }
+    // Set new timeout to debounce the save
+    linksTimeoutRef.current = setTimeout(() => {
+      // Ensure IDs are preserved in reordered links
+      const reorderedWithIds = reorderedLinks.map(link => ({
+        ...link,
+        id: link.id || `footer-link-${Date.now()}-${Math.random()}`
+      }))
+      onLinksChange(reorderedWithIds)
+    }, 300)
+  }, [onLinksChange])
 
-  const moveSocialLink = (index: number, direction: 'up' | 'down') => {
-    if ((direction === 'up' && index === 0) || (direction === 'down' && index === socialLinks.length - 1)) {
-      return
+  const socialTimeoutRef = useRef<NodeJS.Timeout>()
+  const handleReorderSocialLinks = useCallback((reorderedSocialLinks: SocialLink[]) => {
+    // Clear previous timeout
+    if (socialTimeoutRef.current) {
+      clearTimeout(socialTimeoutRef.current)
     }
     
-    const newSocialLinks = [...socialLinks]
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    const temp = newSocialLinks[index]
-    newSocialLinks[index] = newSocialLinks[targetIndex]
-    newSocialLinks[targetIndex] = temp
-    onSocialLinksChange(newSocialLinks)
-  }
+    // Set new timeout to debounce the save
+    socialTimeoutRef.current = setTimeout(() => {
+      // Ensure IDs are preserved in reordered social links
+      const reorderedWithIds = reorderedSocialLinks.map(link => ({
+        ...link,
+        id: link.id || `social-link-${Date.now()}-${Math.random()}`
+      }))
+      onSocialLinksChange(reorderedWithIds)
+    }, 300)
+  }, [onSocialLinksChange])
+
 
   return (
     <div className="space-y-4">
@@ -197,12 +235,8 @@ export function FooterBlock({
       {/* Footer Links Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Footer Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Links</Label>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Footer Links</CardTitle>
             <Button
               type="button"
               variant="outline"
@@ -213,85 +247,78 @@ export function FooterBlock({
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+        </CardHeader>
+        <CardContent>
 
-          <div className="space-y-3">
+          <Reorder.Group 
+            axis="y" 
+            values={links} 
+            onReorder={handleReorderLinks}
+            className="space-y-3"
+          >
             {links.map((link, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex flex-col gap-1">
+              <Reorder.Item 
+                key={link.id || `footer-link-${index}`} 
+                value={link}
+                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  zIndex: 1000
+                }}
+                style={{ cursor: "grab" }}
+              >
+                <div className="flex gap-2 items-center">
+                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 flex-1">
+                    <div>
+                      <input
+                        type="text"
+                        value={link.text}
+                        onChange={(e) => updateLink(index, 'text', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Link Text"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={link.url}
+                        onChange={(e) => updateLink(index, 'url', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="URL"
+                      />
+                    </div>
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => moveLink(index, 'up')}
-                    disabled={index === 0}
-                    className="h-6 w-6 p-0"
+                    onClick={() => removeLink(index)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    <ChevronUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveLink(index, 'down')}
-                    disabled={index === links.length - 1}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 flex-1">
-                  <div>
-                    <Label className="text-xs">Link Text</Label>
-                    <input
-                      type="text"
-                      value={link.text}
-                      onChange={(e) => updateLink(index, 'text', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
-                      placeholder="Privacy Policy"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">URL</Label>
-                    <input
-                      type="text"
-                      value={link.url}
-                      onChange={(e) => updateLink(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
-                      placeholder="/privacy"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeLink(index)}
-                  className="h-8 w-8 p-0 hover:bg-transparent cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           {links.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4">
               No footer links. Click + to add one.
-            </p>
+            </div>
           )}
-          </div>
         </CardContent>
       </Card>
 
       {/* Social Media Links Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Social Media Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Social Links</Label>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Social Media Links</CardTitle>
             <Button
               type="button"
               variant="outline"
@@ -302,77 +329,74 @@ export function FooterBlock({
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+        </CardHeader>
+        <CardContent>
 
-          <div className="space-y-3">
+          <Reorder.Group 
+            axis="y" 
+            values={socialLinks} 
+            onReorder={handleReorderSocialLinks}
+            className="space-y-3"
+          >
             {socialLinks.map((socialLink, index) => (
-              <div key={index} className="flex gap-2 items-end">
-                <div className="flex flex-col gap-1">
+              <Reorder.Item 
+                key={socialLink.id || `footer-social-${index}`} 
+                value={socialLink}
+                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  zIndex: 1000
+                }}
+                style={{ cursor: "grab" }}
+              >
+                <div className="flex gap-2 items-center">
+                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 flex-1">
+                    <div>
+                      <select
+                        value={socialLink.platform}
+                        onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      >
+                        {socialPlatforms.map(platform => (
+                          <option key={platform} value={platform}>
+                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <input
+                        type="url"
+                        value={socialLink.url}
+                        onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Social Media URL"
+                      />
+                    </div>
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => moveSocialLink(index, 'up')}
-                    disabled={index === 0}
-                    className="h-6 w-6 p-0"
+                    onClick={() => removeSocialLink(index)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    <ChevronUp className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => moveSocialLink(index, 'down')}
-                    disabled={index === socialLinks.length - 1}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronDown className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 flex-1">
-                  <div>
-                    <Label className="text-xs">Platform</Label>
-                    <select
-                      value={socialLink.platform}
-                      onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
-                    >
-                      {socialPlatforms.map(platform => (
-                        <option key={platform} value={platform}>
-                          {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">URL</Label>
-                    <input
-                      type="url"
-                      value={socialLink.url}
-                      onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-                      className="w-full mt-1 px-2 py-1 border rounded text-sm h-8"
-                      placeholder="https://twitter.com/yourcompany"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeSocialLink(index)}
-                  className="h-8 w-8 p-0 hover:bg-transparent cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
 
           {socialLinks.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4">
               No social links. Click + to add one.
-            </p>
+            </div>
           )}
-          </div>
         </CardContent>
       </Card>
 
