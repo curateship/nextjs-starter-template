@@ -178,8 +178,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
           showRainbowButton: block.content.showRainbowButton || false,
           githubLink: block.content.githubLink || '',
           showParticles: block.content.showParticles !== false, // default true
-          trustedByText: block.content.trustedByText || 'users',
-          trustedByCount: block.content.trustedByCount || '10k+',
+          trustedByText: block.content.trustedByText || '',
+          trustedByCount: block.content.trustedByCount || '',
           trustedByAvatars: block.content.trustedByAvatars || [
             { src: "", alt: "User 1", fallback: "U1" },
             { src: "", alt: "User 2", fallback: "U2" },

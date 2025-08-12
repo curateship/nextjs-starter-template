@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
 import { Plus, Trash2, ImageIcon, X, GripVertical } from "lucide-react"
 import { Reorder } from "motion/react"
@@ -356,17 +357,21 @@ export function FooterBlock({
                   </div>
                   <div className="grid grid-cols-2 gap-2 flex-1">
                     <div>
-                      <select
+                      <Select
                         value={socialLink.platform}
-                        onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        onValueChange={(value) => updateSocialLink(index, 'platform', value)}
                       >
-                        {socialPlatforms.map(platform => (
-                          <option key={platform} value={platform}>
-                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {socialPlatforms.map(platform => (
+                            <SelectItem key={platform} value={platform}>
+                              {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <input

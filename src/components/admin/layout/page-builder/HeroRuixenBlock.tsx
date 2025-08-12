@@ -5,9 +5,11 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
-import { Plus, X, ImageIcon } from "lucide-react"
-import { useState, useEffect, useRef } from "react"
+import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Reorder } from "motion/react"
 import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 
 interface HeroRuixenBlockProps {
@@ -17,26 +19,30 @@ interface HeroRuixenBlockProps {
   secondaryButton: string
   primaryButtonLink: string
   secondaryButtonLink: string
+  primaryButtonStyle: 'primary' | 'outline' | 'ghost'
+  secondaryButtonStyle: 'primary' | 'outline' | 'ghost'
   backgroundColor: string
   showRainbowButton: boolean
   githubLink: string
   showParticles: boolean
   trustedByText: string
   trustedByCount: string
-  trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
+  trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }>
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onPrimaryButtonChange: (value: string) => void
   onSecondaryButtonChange: (value: string) => void
   onPrimaryButtonLinkChange: (value: string) => void
   onSecondaryButtonLinkChange: (value: string) => void
+  onPrimaryButtonStyleChange: (value: 'primary' | 'outline' | 'ghost') => void
+  onSecondaryButtonStyleChange: (value: 'primary' | 'outline' | 'ghost') => void
   onBackgroundColorChange: (value: string) => void
   onShowRainbowButtonChange: (value: boolean) => void
   onGithubLinkChange: (value: string) => void
   onShowParticlesChange: (value: boolean) => void
   onTrustedByTextChange: (value: string) => void
   onTrustedByCountChange: (value: string) => void
-  onTrustedByAvatarsChange: (avatars: Array<{ src: string; alt: string; fallback: string }>) => void
+  onTrustedByAvatarsChange: (avatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => void
   siteId: string
   blockId: string
 }
@@ -48,6 +54,8 @@ export function HeroRuixenBlock({
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
+  primaryButtonStyle,
+  secondaryButtonStyle,
   backgroundColor,
   showRainbowButton,
   githubLink,
@@ -61,6 +69,8 @@ export function HeroRuixenBlock({
   onSecondaryButtonChange,
   onPrimaryButtonLinkChange,
   onSecondaryButtonLinkChange,
+  onPrimaryButtonStyleChange,
+  onSecondaryButtonStyleChange,
   onBackgroundColorChange,
   onShowRainbowButtonChange,
   onGithubLinkChange,
@@ -72,7 +82,19 @@ export function HeroRuixenBlock({
   blockId,
 }: HeroRuixenBlockProps) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
-  const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string }>>(trustedByAvatars)
+  const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string; id?: string }>>(trustedByAvatars)
+
+  // Ensure all avatars have unique IDs
+  useEffect(() => {
+    const avatarsNeedIds = trustedByAvatars.some(avatar => !avatar.id)
+    if (avatarsNeedIds) {
+      const avatarsWithIds = trustedByAvatars.map((avatar, index) => ({
+        ...avatar,
+        id: avatar.id || `avatar-${Date.now()}-${index}-${Math.random()}`
+      }))
+      onTrustedByAvatarsChange(avatarsWithIds)
+    }
+  }, [trustedByAvatars, onTrustedByAvatarsChange])
 
   // Track avatar usage when avatars change
   useEffect(() => {
@@ -159,7 +181,12 @@ export function HeroRuixenBlock({
   }, [trustedByAvatars, siteId])
 
   const addAvatar = () => {
-    const newAvatars = [...trustedByAvatars, { src: "", alt: `User ${trustedByAvatars.length + 1}`, fallback: `U${trustedByAvatars.length + 1}` }]
+    const newAvatars = [...trustedByAvatars, { 
+      src: "", 
+      alt: `User ${trustedByAvatars.length + 1}`, 
+      fallback: `U${trustedByAvatars.length + 1}`,
+      id: `avatar-${Date.now()}-${Math.random()}`
+    }]
     onTrustedByAvatarsChange(newAvatars)
   }
 
@@ -178,6 +205,24 @@ export function HeroRuixenBlock({
     updateAvatar(index, imageUrl)
     setShowPicker(null)
   }
+
+  const avatarsTimeoutRef = useRef<NodeJS.Timeout>()
+  const handleReorderAvatars = useCallback((reorderedAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => {
+    // Clear previous timeout
+    if (avatarsTimeoutRef.current) {
+      clearTimeout(avatarsTimeoutRef.current)
+    }
+    
+    // Set new timeout to debounce the save
+    avatarsTimeoutRef.current = setTimeout(() => {
+      // Ensure IDs are preserved in reordered avatars
+      const reorderedWithIds = reorderedAvatars.map(avatar => ({
+        ...avatar,
+        id: avatar.id || `avatar-${Date.now()}-${Math.random()}`
+      }))
+      onTrustedByAvatarsChange(reorderedWithIds)
+    }, 300)
+  }, [onTrustedByAvatarsChange])
 
 
   return (
@@ -221,6 +266,189 @@ export function HeroRuixenBlock({
               Description text below the main heading
             </p>
           </div>
+
+          {/* Primary Button */}
+          <div className="space-y-2">
+            <Label>Primary Button</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={primaryButton}
+                onChange={(e) => onPrimaryButtonChange(e.target.value)}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="Get Started"
+                required
+              />
+              <input
+                type="url"
+                value={primaryButtonLink}
+                onChange={(e) => {
+                  const value = e.target.value.trim()
+                  // Basic URL validation - allow relative paths and http/https URLs
+                  if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
+                    onPrimaryButtonLinkChange(value)
+                  }
+                }}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="https://example.com or /page"
+              />
+              <Select
+                value={primaryButtonStyle}
+                onValueChange={(value) => onPrimaryButtonStyleChange(value as 'primary' | 'outline' | 'ghost')}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="primary">Primary</SelectItem>
+                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="ghost">Ghost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Secondary Button */}
+          <div className="space-y-2">
+            <Label>Secondary Button</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={secondaryButton}
+                onChange={(e) => onSecondaryButtonChange(e.target.value)}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="Browse Components"
+                required
+              />
+              <input
+                type="url"
+                value={secondaryButtonLink}
+                onChange={(e) => {
+                  const value = e.target.value.trim()
+                  // Basic URL validation - allow relative paths and http/https URLs
+                  if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
+                    onSecondaryButtonLinkChange(value)
+                  }
+                }}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="https://example.com or /page"
+              />
+              <Select
+                value={secondaryButtonStyle}
+                onValueChange={(value) => onSecondaryButtonStyleChange(value as 'primary' | 'outline' | 'ghost')}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="primary">Primary</SelectItem>
+                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="ghost">Ghost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
+      {/* Trusted By Section Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Trusted By Badge</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addAvatar}
+              className="h-8 w-8 p-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          
+          {/* Avatar Management */}
+          <Reorder.Group 
+            axis="y" 
+            values={trustedByAvatars} 
+            onReorder={handleReorderAvatars}
+            className="space-y-2"
+          >
+            {trustedByAvatars.map((avatar, index) => (
+              <Reorder.Item 
+                key={avatar.id || `avatar-${index}`}
+                value={avatar}
+                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  zIndex: 1000
+                }}
+                style={{ cursor: "grab" }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={avatar.src} alt={avatar.alt} />
+                    <AvatarFallback>{avatar.fallback}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <Input
+                      value={avatar.src}
+                      onChange={(e) => updateAvatar(index, e.target.value)}
+                      placeholder={`Avatar ${index + 1} URL`}
+                      className="w-full"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPicker(index)}
+                    className="h-8 w-8 p-0 flex items-center justify-center"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeAvatar(index)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center justify-center"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+          
+          {trustedByAvatars.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+              No avatars. Click + to add one.
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="badgeText">Badge Text</Label>
+            <input
+              id="badgeText"
+              type="text"
+              value={trustedByText}
+              onChange={(e) => onTrustedByTextChange(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              placeholder="Badge text (e.g., 'Trusted by developers')"
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Leave empty to show default gray circles with initials
+          </p>
         </CardContent>
       </Card>
 
@@ -229,7 +457,7 @@ export function HeroRuixenBlock({
         <CardHeader>
           <CardTitle className="text-base">Style Settings</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {/* Background Color */}
           <div className="space-y-2">
             <Label htmlFor="backgroundColor">Avatar Group Background</Label>
@@ -260,82 +488,8 @@ export function HeroRuixenBlock({
               Background color for the trusted by avatars section
             </p>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* CTA Buttons Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Call-to-Action Buttons</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          
-          <div className="space-y-4">
-            {/* Primary Button */}
-            <div className="space-y-2">
-              <Label>Primary Button</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={primaryButton}
-                  onChange={(e) => onPrimaryButtonChange(e.target.value)}
-                  className="px-3 py-2 border rounded-md"
-                  placeholder="Get Started"
-                  required
-                />
-                <input
-                  type="url"
-                  value={primaryButtonLink}
-                  onChange={(e) => {
-                    const value = e.target.value.trim()
-                    // Basic URL validation - allow relative paths and http/https URLs
-                    if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
-                      onPrimaryButtonLinkChange(value)
-                    }
-                  }}
-                  className="px-3 py-2 border rounded-md"
-                  placeholder="https://example.com or /page"
-                />
-              </div>
-            </div>
-            
-            {/* Secondary Button */}
-            <div className="space-y-2">
-              <Label>Secondary Button</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={secondaryButton}
-                  onChange={(e) => onSecondaryButtonChange(e.target.value)}
-                  className="px-3 py-2 border rounded-md"
-                  placeholder="Browse Components"
-                  required
-                />
-                <input
-                  type="url"
-                  value={secondaryButtonLink}
-                  onChange={(e) => {
-                    const value = e.target.value.trim()
-                    // Basic URL validation - allow relative paths and http/https URLs
-                    if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
-                      onSecondaryButtonLinkChange(value)
-                    }
-                  }}
-                  className="px-3 py-2 border rounded-md"
-                  placeholder="https://example.com or /page"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Rainbow Button Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Rainbow Button Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          {/* Rainbow Button */}
           <div className="flex items-center space-x-2">
             <input
               id="showRainbowButton"
@@ -346,32 +500,8 @@ export function HeroRuixenBlock({
             />
             <Label htmlFor="showRainbowButton">Show Rainbow Button</Label>
           </div>
-          
-          {showRainbowButton && (
-            <div className="space-y-2">
-              <Label htmlFor="githubLink">GitHub Link</Label>
-              <input
-                id="githubLink"
-                type="url"
-                value={githubLink}
-                onChange={(e) => onGithubLinkChange(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-                placeholder="https://github.com/ruixenui/ruixen-free-components"
-              />
-              <p className="text-xs text-muted-foreground">
-                Link for the &ldquo;Get Access to Everything&rdquo; button
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Visual Effects Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Visual Effects</CardTitle>
-        </CardHeader>
-        <CardContent>
+          {/* Floating Particles */}
           <div className="flex items-center space-x-2">
             <input
               id="showParticles"
@@ -382,102 +512,24 @@ export function HeroRuixenBlock({
             />
             <Label htmlFor="showParticles">Show Floating Particles</Label>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Trusted By Section Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Trusted By Badge</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          
-          <div className="grid grid-cols-2 gap-4">
+          {/* GitHub Link (conditional) */}
+          {showRainbowButton && (
             <div className="space-y-2">
-              <Label htmlFor="trustedByCount">Count</Label>
+              <Label htmlFor="githubLink">GitHub Link</Label>
               <input
-                id="trustedByCount"
-                type="text"
-                value={trustedByCount}
-                onChange={(e) => onTrustedByCountChange(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-                placeholder="10k+"
+                id="githubLink"
+                type="url"
+                value={githubLink}
+                onChange={(e) => onGithubLinkChange(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="https://github.com/ruixenui/ruixen-free-components"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="trustedByText">Text</Label>
-              <input
-                id="trustedByText"
-                type="text"
-                value={trustedByText}
-                onChange={(e) => onTrustedByTextChange(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-                placeholder="users"
-              />
-            </div>
-          </div>
-
-          {/* Avatar Management */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Avatar Images</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addAvatar}
-                className="h-8"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Avatar
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {trustedByAvatars.map((avatar, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={avatar.src} alt={avatar.alt} />
-                    <AvatarFallback>{avatar.fallback}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 flex gap-2">
-                    <Input
-                      value={avatar.src}
-                      onChange={(e) => updateAvatar(index, e.target.value)}
-                      placeholder={`Avatar ${index + 1} URL`}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPicker(index)}
-                      className="h-10 w-10 p-0"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeAvatar(index)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            {trustedByAvatars.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                No avatars. Click "Add Avatar" to add one.
+              <p className="text-xs text-muted-foreground">
+                Link for the &ldquo;Get Access to Everything&rdquo; button
               </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Leave empty to show default gray circles with initials
-            </p>
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
