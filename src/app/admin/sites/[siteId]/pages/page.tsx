@@ -50,6 +50,8 @@ export default function SitePagesPage({ params }: PageProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const filterRef = useRef<HTMLDivElement>(null)
 
   // Load site and pages data
@@ -105,9 +107,39 @@ export default function SitePagesPage({ params }: PageProps) {
   }, [isFilterOpen])
 
   const handleDeletePage = async (pageId: string) => {
+    const page = pages.find(p => p.id === pageId)
+    
+    // For home page, skip confirmation and go straight to error
+    if (page?.slug === 'home') {
+      try {
+        setDeletePageId(pageId)
+        const { success, error: deleteError } = await deletePageAction(pageId)
+        
+        if (deleteError) {
+          setErrorMessage(deleteError)
+          setErrorDialogOpen(true)
+        }
+      } catch (err) {
+        setErrorMessage('Failed to delete page')
+        setErrorDialogOpen(true)
+      } finally {
+        setDeletePageId(null)
+      }
+      return
+    }
+    
+    // For other pages, show confirmation first
+    setPendingDeleteId(pageId)
+    setConfirmDialogOpen(true)
+  }
+
+  const confirmDeletePage = async () => {
+    if (!pendingDeleteId) return
+    
     try {
-      setDeletePageId(pageId)
-      const { success, error: deleteError } = await deletePageAction(pageId)
+      setDeletePageId(pendingDeleteId)
+      setConfirmDialogOpen(false)
+      const { success, error: deleteError } = await deletePageAction(pendingDeleteId)
       
       if (deleteError) {
         setErrorMessage(deleteError)
@@ -116,14 +148,20 @@ export default function SitePagesPage({ params }: PageProps) {
       }
       
       if (success) {
-        setPages(prev => prev.filter(page => page.id !== pageId))
+        setPages(prev => prev.filter(page => page.id !== pendingDeleteId))
       }
     } catch (err) {
       setErrorMessage('Failed to delete page')
       setErrorDialogOpen(true)
     } finally {
       setDeletePageId(null)
+      setPendingDeleteId(null)
     }
+  }
+
+  const cancelDeletePage = () => {
+    setConfirmDialogOpen(false)
+    setPendingDeleteId(null)
   }
 
   const handleDuplicatePage = async (pageId: string) => {
@@ -459,6 +497,32 @@ export default function SitePagesPage({ params }: PageProps) {
           site={site}
           onSuccess={handlePageUpdated}
         />
+
+        {/* Confirmation Dialog */}
+        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Page</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this page? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button 
+                onClick={cancelDeletePage}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={confirmDeletePage}
+                variant="destructive"
+              >
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Error Dialog */}
         <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
