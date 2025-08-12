@@ -42,24 +42,24 @@ export function TrustedByAvatars({
   return (
     <Badge
       variant="outline"
-      className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-3 font-normal transition-all ease-in-out hover:gap-3"
+      className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-2.5 font-normal transition-all ease-in-out hover:gap-2.5"
       style={backgroundColor ? { backgroundColor } : undefined}
     >
       {displayAvatars.map((avatar, index) => (
         <Avatar 
           key={index} 
-          className="relative -mr-5 overflow-hidden rounded-full border md:size-10"
+          className="relative -mr-4 overflow-hidden rounded-full border size-7 md:size-8"
         >
           <AvatarImage 
             src={avatar.src} 
             alt={avatar.alt}
             onError={() => handleImageError(avatar.src)}
           />
-          <AvatarFallback>{avatar.fallback}</AvatarFallback>
+          <AvatarFallback className="text-sm">{avatar.fallback}</AvatarFallback>
         </Avatar>
       ))}
       {badgeText && (
-        <p className="ml-6 capitalize tracking-tight md:text-lg">
+        <p className="ml-5 capitalize tracking-tight text-base md:text-base">
           {badgeText}
         </p>
       )}
