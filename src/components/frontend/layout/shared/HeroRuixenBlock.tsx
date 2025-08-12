@@ -260,7 +260,7 @@ const SocialProof = ({ trustedByText, trustedByCount, trustedByAvatars, backgrou
     transition={{ duration: 0.6, delay: 0.6 }}
     className="mt-8 flex justify-center"
   >
-    <TrustedByAvatars text={trustedByText} count={trustedByCount} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
+    <TrustedByAvatars badgeText={trustedByText} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </motion.div>
 )
 

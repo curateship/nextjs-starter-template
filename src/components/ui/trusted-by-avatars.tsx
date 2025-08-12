@@ -8,6 +8,7 @@ interface TrustedByAvatarsProps {
   avatars?: Array<{ src: string; alt: string; fallback: string }>;
   text?: string;
   count?: string;
+  badgeText?: string;
   backgroundColor?: string;
 }
 
@@ -19,8 +20,9 @@ const defaultAvatars = [
 
 export function TrustedByAvatars({ 
   avatars = defaultAvatars, 
-  text = "users", 
-  count = "10k+",
+  text = "", 
+  count = "",
+  badgeText = "",
   backgroundColor 
 }: TrustedByAvatarsProps) {
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -56,13 +58,11 @@ export function TrustedByAvatars({
           <AvatarFallback>{avatar.fallback}</AvatarFallback>
         </Avatar>
       ))}
-      <p className="ml-6 capitalize tracking-tight md:text-lg">
-        {" "}
-        Trusted by <span className="text-foreground font-bold">
-          {count}
-        </span>{" "}
-        {text}.
-      </p>
+      {badgeText && (
+        <p className="ml-6 capitalize tracking-tight md:text-lg">
+          {badgeText}
+        </p>
+      )}
     </Badge>
   );
 } 

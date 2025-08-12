@@ -28,12 +28,14 @@ export function BlockPropertiesPanel({
                 secondaryButton={selectedBlock.content.secondaryButton || ''}
                 primaryButtonLink={selectedBlock.content.primaryButtonLink || ''}
                 secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
+                primaryButtonStyle={selectedBlock.content.primaryButtonStyle || 'primary'}
+                secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
                 backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
                 showRainbowButton={selectedBlock.content.showRainbowButton || false}
                 githubLink={selectedBlock.content.githubLink || ''}
                 showParticles={selectedBlock.content.showParticles || false}
-                trustedByText={selectedBlock.content.trustedByText || 'users'}
-                trustedByCount={selectedBlock.content.trustedByCount || '10k+'}
+                trustedByText={selectedBlock.content.trustedByText || ''}
+                trustedByCount={selectedBlock.content.trustedByCount || ''}
                 trustedByAvatars={selectedBlock.content.trustedByAvatars || [
                   { src: "", alt: "User 1", fallback: "U1" },
                   { src: "", alt: "User 2", fallback: "U2" },
@@ -45,6 +47,8 @@ export function BlockPropertiesPanel({
                 onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
                 onPrimaryButtonLinkChange={(value) => updateBlockContent('primaryButtonLink', value)}
                 onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
+                onPrimaryButtonStyleChange={(value) => updateBlockContent('primaryButtonStyle', value)}
+                onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
                 onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
                 onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
                 onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}

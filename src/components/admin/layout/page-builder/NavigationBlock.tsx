@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
 import { Plus, Trash2, ImageIcon, X, GripVertical } from "lucide-react"
 import { Reorder } from "motion/react"
@@ -340,15 +341,19 @@ export function NavigationBlock({
                       />
                     </div>
                     <div>
-                      <select
+                      <Select
                         value={button.style}
-                        onChange={(e) => updateButton(index, 'style', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        onValueChange={(value) => updateButton(index, 'style', value)}
                       >
-                        <option value="primary">Primary</option>
-                        <option value="outline">Outline</option>
-                        <option value="ghost">Ghost</option>
-                      </select>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="primary">Primary</SelectItem>
+                          <SelectItem value="outline">Outline</SelectItem>
+                          <SelectItem value="ghost">Ghost</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button
