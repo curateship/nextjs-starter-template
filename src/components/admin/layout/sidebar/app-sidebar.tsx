@@ -10,6 +10,7 @@ import {
   Image,
   Wrench,
   FileText,
+  Package,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
@@ -82,6 +83,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Pages",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
       icon: FileText,
+      isActive: false,
+    },
+    {
+      title: "Products",
+      url: "/admin/products",
+      icon: Package,
       isActive: false,
     },
   ]
