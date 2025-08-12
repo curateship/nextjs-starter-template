@@ -563,21 +563,35 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // Check if page has blocks
-    const { count: blockCount } = await supabaseAdmin
-      .from('site_blocks')
-      .select('id', { count: 'exact', head: true })
-      .eq('site_id', page.site_id)
-      .eq('page_slug', page.slug)
-
     // Prevent deleting homepage
     if (page.is_homepage) {
       return { success: false, error: 'Cannot delete the homepage. Set another page as homepage first.' }
     }
 
     // Check if page has blocks
+    const { data: pageBlocks, count: blockCount } = await supabaseAdmin
+      .from('site_blocks')
+      .select('block_type', { count: 'exact' })
+      .eq('site_id', page.site_id)
+      .or(`page_slug.eq.${page.slug},page_slug.eq.global`)
+
     if (blockCount && blockCount > 0) {
-      return { success: false, error: 'Cannot delete page that contains blocks. Remove all blocks first.' }
+      // Check if blocks are global navigation/footer blocks
+      const hasGlobalBlocks = pageBlocks?.some(block => 
+        (block.block_type === 'navigation' || block.block_type === 'footer')
+      )
+      
+      if (hasGlobalBlocks) {
+        return { 
+          success: false, 
+          error: `Cannot delete this page because it contains essential site elements (Navigation and Footer blocks). These blocks are required for your site's structure and cannot be removed.`
+        }
+      }
+      
+      return { 
+        success: false, 
+        error: 'Cannot delete page that contains content blocks. Remove all blocks first.' 
+      }
     }
 
     // Delete the page

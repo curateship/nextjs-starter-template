@@ -48,6 +48,8 @@ export default function SitePagesPage({ params }: PageProps) {
   const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string>('')
   const filterRef = useRef<HTMLDivElement>(null)
 
   // Load site and pages data
@@ -103,16 +105,13 @@ export default function SitePagesPage({ params }: PageProps) {
   }, [isFilterOpen])
 
   const handleDeletePage = async (pageId: string) => {
-    if (!confirm('Are you sure you want to delete this page? This action cannot be undone.')) {
-      return
-    }
-
     try {
       setDeletePageId(pageId)
       const { success, error: deleteError } = await deletePageAction(pageId)
       
       if (deleteError) {
-        alert(`Failed to delete page: ${deleteError}`)
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
         return
       }
       
@@ -120,7 +119,8 @@ export default function SitePagesPage({ params }: PageProps) {
         setPages(prev => prev.filter(page => page.id !== pageId))
       }
     } catch (err) {
-      alert('Failed to delete page')
+      setErrorMessage('Failed to delete page')
+      setErrorDialogOpen(true)
     } finally {
       setDeletePageId(null)
     }
@@ -135,7 +135,8 @@ export default function SitePagesPage({ params }: PageProps) {
       const { data, error: duplicateError } = await duplicatePageAction(pageId, duplicateTitle)
       
       if (duplicateError) {
-        alert(`Failed to duplicate page: ${duplicateError}`)
+        setErrorMessage(`Failed to duplicate page: ${duplicateError}`)
+        setErrorDialogOpen(true)
         return
       }
       
@@ -143,7 +144,8 @@ export default function SitePagesPage({ params }: PageProps) {
         setPages(prev => [...prev, data])
       }
     } catch (err) {
-      alert('Failed to duplicate page')
+      setErrorMessage('Failed to duplicate page')
+      setErrorDialogOpen(true)
     } finally {
       setDuplicatingPageId(null)
     }
@@ -457,6 +459,26 @@ export default function SitePagesPage({ params }: PageProps) {
           site={site}
           onSuccess={handlePageUpdated}
         />
+
+        {/* Error Dialog */}
+        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cannot Delete Page</DialogTitle>
+              <DialogDescription>
+                {errorMessage}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end">
+              <Button 
+                onClick={() => setErrorDialogOpen(false)}
+                variant="default"
+              >
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   )
