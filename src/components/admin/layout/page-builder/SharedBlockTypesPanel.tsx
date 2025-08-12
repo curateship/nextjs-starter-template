@@ -12,9 +12,6 @@ export function SharedBlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock }: Sh
       <div>
         <h3 className="font-semibold mb-4">Shared Blocks</h3>
         <div className="space-y-2 text-sm text-muted-foreground">
-          <div className="p-3 rounded-lg border bg-background">
-            <div className="font-medium">🧭 Navigation</div>
-          </div>
           <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
             <div className="font-medium">🎯 Hero</div>
             <Button
@@ -40,9 +37,6 @@ export function SharedBlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock }: Sh
                 <Plus className="w-4 h-4" />
               </Button>
             )}
-          </div>
-          <div className="p-3 rounded-lg border bg-background">
-            <div className="font-medium">🦶 Footer</div>
           </div>
         </div>
       </div>

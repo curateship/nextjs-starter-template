@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Key, Settings2, Sparkles, Zap } from "lucide-react";
+import { Key, Settings2, Sparkles, Zap, Github, ArrowRight, Download, ExternalLink, Star, Rocket } from "lucide-react";
 import DotPattern from "@/components/ui/dot-pattern";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -54,9 +54,12 @@ interface HeroRuixenBlockProps {
   secondaryButtonLink?: string;
   backgroundColor?: string;
   showRainbowButton?: boolean;
+  rainbowButtonText?: string;
+  rainbowButtonIcon?: string;
   githubLink?: string;
   showParticles?: boolean;
   trustedByText?: string;
+  trustedByTextColor?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
 }
@@ -69,19 +72,22 @@ const HeroContent = ({
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
-  showRainbowButton, 
+  showRainbowButton,
+  rainbowButtonText,
+  rainbowButtonIcon,
   githubLink,
   trustedByText,
+  trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
   backgroundColor
-}: Pick<HeroRuixenBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'githubLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
+}: Pick<HeroRuixenBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
   <div className="relative z-10 text-center max-w-2xl space-y-6">
-    {showRainbowButton && <RainbowButton githubLink={githubLink} />}
+    {showRainbowButton && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
-    <SocialProof trustedByText={trustedByText} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />
+    <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </div>
 )
 
@@ -94,10 +100,13 @@ const HeroRuixenBlock = ({
   primaryButtonLink,
   secondaryButtonLink,
   backgroundColor = '#ffffff',
-  showRainbowButton = false, 
+  showRainbowButton = false,
+  rainbowButtonText,
+  rainbowButtonIcon,
   githubLink, 
   showParticles = true,
   trustedByText,
+  trustedByTextColor,
   trustedByCount,
   trustedByAvatars
 }: HeroRuixenBlockProps) => {
@@ -125,8 +134,11 @@ const HeroRuixenBlock = ({
         primaryButtonLink={primaryButtonLink}
         secondaryButtonLink={secondaryButtonLink}
         showRainbowButton={showRainbowButton}
+        rainbowButtonText={rainbowButtonText}
+        rainbowButtonIcon={rainbowButtonIcon}
         githubLink={githubLink}
         trustedByText={trustedByText}
+        trustedByTextColor={trustedByTextColor}
         trustedByCount={trustedByCount}
         trustedByAvatars={trustedByAvatars}
         backgroundColor={backgroundColor}
@@ -172,7 +184,7 @@ const GradientOverlays = () => (
 )
 
 // Rainbow gradient button component
-const RainbowButton = ({ githubLink }: { githubLink?: string }) => (
+const RainbowButton = ({ githubLink, buttonText, buttonIcon }: { githubLink?: string; buttonText?: string; buttonIcon?: string }) => (
   <button
     className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
@@ -193,11 +205,37 @@ const RainbowButton = ({ githubLink }: { githubLink?: string }) => (
       rel="noopener noreferrer"
       className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
     >
-      <Key className="w-4 h-4 mr-2" />
-      Get Access to Everything
+      {getButtonIcon(buttonIcon)}
+      {buttonText || "Get Access to Everything"}
     </Link>
   </button>
 )
+
+// Helper function to get icon component based on string value
+const getButtonIcon = (iconName?: string) => {
+  const iconClass = "w-4 h-4 mr-2"
+  
+  switch (iconName) {
+    case 'github':
+      return <Github className={iconClass} />
+    case 'arrow-right':
+      return <ArrowRight className={iconClass} />
+    case 'download':
+      return <Download className={iconClass} />
+    case 'external-link':
+      return <ExternalLink className={iconClass} />
+    case 'star':
+      return <Star className={iconClass} />
+    case 'rocket':
+      return <Rocket className={iconClass} />
+    case 'zap':
+      return <Zap className={iconClass} />
+    case 'none':
+      return null
+    default:
+      return <Key className={iconClass} />
+  }
+}
 
 // Hero title component with animation
 const HeroTitle = ({ title }: { title?: string }) => (
@@ -253,14 +291,14 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 )
 
 // Social proof section component with animation
-const SocialProof = ({ trustedByText, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
+const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByTextColor?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.6 }}
     className="mt-8 flex justify-center"
   >
-    <TrustedByAvatars badgeText={trustedByText} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
+    <TrustedByAvatars badgeText={trustedByText} badgeTextColor={trustedByTextColor} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </motion.div>
 )
 

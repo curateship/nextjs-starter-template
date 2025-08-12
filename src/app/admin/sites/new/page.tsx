@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { createSiteAction } from "@/lib/actions/site-actions"
+import { useSiteContext } from "@/contexts/site-context"
 
 export default function NewSitePage() {
   const router = useRouter()
+  const { refreshSites, setCurrentSite } = useSiteContext()
   const [siteName, setSiteName] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("draft")
@@ -61,6 +63,12 @@ export default function NewSitePage() {
 
       if (data) {
         console.log('Site created successfully:', data)
+        // Refresh the site context to get the new site
+        await refreshSites()
+        // Set the newly created site as the current site in context
+        setCurrentSite(data)
+        // Update localStorage to set the new site as selected
+        localStorage.setItem('selectedSiteId', data.id)
         // Redirect to site builder for the new site
         router.push(`/admin/builder/${data.id}`)
       }

@@ -9,6 +9,7 @@ interface TrustedByAvatarsProps {
   text?: string;
   count?: string;
   badgeText?: string;
+  badgeTextColor?: string;
   backgroundColor?: string;
 }
 
@@ -23,6 +24,7 @@ export function TrustedByAvatars({
   text = "", 
   count = "",
   badgeText = "",
+  badgeTextColor = "#6b7280",
   backgroundColor 
 }: TrustedByAvatarsProps) {
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -59,7 +61,10 @@ export function TrustedByAvatars({
         </Avatar>
       ))}
       {badgeText && (
-        <p className="ml-5 capitalize tracking-tight text-base md:text-base">
+        <p 
+          className="ml-5 capitalize tracking-tight text-base md:text-base"
+          style={{ color: badgeTextColor }}
+        >
           {badgeText}
         </p>
       )}

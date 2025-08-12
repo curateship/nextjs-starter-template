@@ -23,9 +23,12 @@ interface HeroRuixenBlockProps {
   secondaryButtonStyle: 'primary' | 'outline' | 'ghost'
   backgroundColor: string
   showRainbowButton: boolean
+  rainbowButtonText: string
+  rainbowButtonIcon: string
   githubLink: string
   showParticles: boolean
   trustedByText: string
+  trustedByTextColor: string
   trustedByCount: string
   trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }>
   onTitleChange: (value: string) => void
@@ -38,14 +41,46 @@ interface HeroRuixenBlockProps {
   onSecondaryButtonStyleChange: (value: 'primary' | 'outline' | 'ghost') => void
   onBackgroundColorChange: (value: string) => void
   onShowRainbowButtonChange: (value: boolean) => void
+  onRainbowButtonTextChange: (value: string) => void
+  onRainbowButtonIconChange: (value: string) => void
   onGithubLinkChange: (value: string) => void
   onShowParticlesChange: (value: boolean) => void
   onTrustedByTextChange: (value: string) => void
+  onTrustedByTextColorChange: (value: string) => void
   onTrustedByCountChange: (value: string) => void
   onTrustedByAvatarsChange: (avatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => void
   siteId: string
   blockId: string
 }
+
+// Helper functions
+const validateUrl = (value: string, onChange: (value: string) => void) => {
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    onChange(trimmed)
+  }
+}
+
+const validateHexColor = (value: string, onChange: (value: string) => void) => {
+  const trimmed = value.trim()
+  if (trimmed === '' || /^#[0-9A-Fa-f]{6}$/.test(trimmed) || /^#[0-9A-Fa-f]{3}$/.test(trimmed)) {
+    onChange(trimmed)
+  }
+}
+
+// Reusable button style selector
+const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (value: 'primary' | 'outline' | 'ghost') => void }) => (
+  <Select value={value} onValueChange={onChange}>
+    <SelectTrigger className="w-full">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="primary">Primary</SelectItem>
+      <SelectItem value="outline">Outline</SelectItem>
+      <SelectItem value="ghost">Ghost</SelectItem>
+    </SelectContent>
+  </Select>
+)
 
 export function HeroRuixenBlock({
   title,
@@ -58,9 +93,12 @@ export function HeroRuixenBlock({
   secondaryButtonStyle,
   backgroundColor,
   showRainbowButton,
+  rainbowButtonText,
+  rainbowButtonIcon,
   githubLink,
   showParticles,
   trustedByText,
+  trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
   onTitleChange,
@@ -73,9 +111,12 @@ export function HeroRuixenBlock({
   onSecondaryButtonStyleChange,
   onBackgroundColorChange,
   onShowRainbowButtonChange,
+  onRainbowButtonTextChange,
+  onRainbowButtonIconChange,
   onGithubLinkChange,
   onShowParticlesChange,
   onTrustedByTextChange,
+  onTrustedByTextColorChange,
   onTrustedByCountChange,
   onTrustedByAvatarsChange,
   siteId,
@@ -241,13 +282,10 @@ export function HeroRuixenBlock({
               type="text"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full px-3 py-2 border rounded-md"
               placeholder="Build Exceptional Interfaces with Ease"
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Main heading displayed in large text
-            </p>
           </div>
 
           {/* Hero Subtitle */}
@@ -257,14 +295,11 @@ export function HeroRuixenBlock({
               id="heroSubtitle"
               value={subtitle}
               onChange={(e) => onSubtitleChange(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md"
               placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
               rows={3}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Description text below the main heading
-            </p>
           </div>
 
           {/* Primary Button */}
@@ -282,29 +317,11 @@ export function HeroRuixenBlock({
               <input
                 type="url"
                 value={primaryButtonLink}
-                onChange={(e) => {
-                  const value = e.target.value.trim()
-                  // Basic URL validation - allow relative paths and http/https URLs
-                  if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
-                    onPrimaryButtonLinkChange(value)
-                  }
-                }}
+                onChange={(e) => validateUrl(e.target.value, onPrimaryButtonLinkChange)}
                 className="px-3 py-2 border rounded-md text-sm"
                 placeholder="https://example.com or /page"
               />
-              <Select
-                value={primaryButtonStyle}
-                onValueChange={(value) => onPrimaryButtonStyleChange(value as 'primary' | 'outline' | 'ghost')}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">Primary</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
-                  <SelectItem value="ghost">Ghost</SelectItem>
-                </SelectContent>
-              </Select>
+              <ButtonStyleSelect value={primaryButtonStyle} onChange={onPrimaryButtonStyleChange} />
             </div>
           </div>
           
@@ -323,29 +340,11 @@ export function HeroRuixenBlock({
               <input
                 type="url"
                 value={secondaryButtonLink}
-                onChange={(e) => {
-                  const value = e.target.value.trim()
-                  // Basic URL validation - allow relative paths and http/https URLs
-                  if (value === '' || value.startsWith('/') || value.startsWith('http://') || value.startsWith('https://')) {
-                    onSecondaryButtonLinkChange(value)
-                  }
-                }}
+                onChange={(e) => validateUrl(e.target.value, onSecondaryButtonLinkChange)}
                 className="px-3 py-2 border rounded-md text-sm"
                 placeholder="https://example.com or /page"
               />
-              <Select
-                value={secondaryButtonStyle}
-                onValueChange={(value) => onSecondaryButtonStyleChange(value as 'primary' | 'outline' | 'ghost')}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">Primary</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
-                  <SelectItem value="ghost">Ghost</SelectItem>
-                </SelectContent>
-              </Select>
+              <ButtonStyleSelect value={secondaryButtonStyle} onChange={onSecondaryButtonStyleChange} />
             </div>
           </div>
         </CardContent>
@@ -435,100 +434,103 @@ export function HeroRuixenBlock({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="badgeText">Badge Text</Label>
-            <input
-              id="badgeText"
-              type="text"
-              value={trustedByText}
-              onChange={(e) => onTrustedByTextChange(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Badge text (e.g., 'Trusted by developers')"
-            />
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Label htmlFor="badgeText">Badge Text</Label>
+                <input
+                  id="badgeText"
+                  type="text"
+                  value={trustedByText}
+                  onChange={(e) => onTrustedByTextChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md mt-1"
+                  placeholder="Badge text (e.g., 'Trusted by developers')"
+                />
+              </div>
+              <div className="flex flex-col items-center">
+                <Label className="text-xs">Text Color</Label>
+                <input
+                  type="color"
+                  value={trustedByTextColor}
+                  onChange={(e) => onTrustedByTextColorChange(e.target.value)}
+                  className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1 mt-1"
+                />
+              </div>
+              <div className="flex flex-col items-center">
+                <Label className="text-xs">BG Color</Label>
+                <input
+                  type="color"
+                  value={backgroundColor}
+                  onChange={(e) => onBackgroundColorChange(e.target.value)}
+                  className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1 mt-1"
+                />
+              </div>
+            </div>
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            Leave empty to show default gray circles with initials
-          </p>
         </CardContent>
       </Card>
 
-      {/* Style Settings Card */}
+      {/* Rainbow Button Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Style Settings</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Rainbow Button</CardTitle>
+            <div className="flex items-center">
+              <input
+                id="showRainbowButton"
+                type="checkbox"
+                checked={showRainbowButton}
+                onChange={(e) => onShowRainbowButtonChange(e.target.checked)}
+                className="mr-2"
+              />
+              <Label htmlFor="showRainbowButton" className="text-sm font-normal">Show Button</Label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Background Color */}
-          <div className="space-y-2">
-            <Label htmlFor="backgroundColor">Avatar Group Background</Label>
-            <div className="flex gap-2 items-center">
-              <input
-                id="backgroundColor"
-                type="color"
-                value={backgroundColor}
-                onChange={(e) => onBackgroundColorChange(e.target.value)}
-                className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1"
-              />
-              <input
-                type="text"
-                value={backgroundColor}
-                onChange={(e) => {
-                  const value = e.target.value.trim()
-                  // Validate hex color format
-                  if (value === '' || /^#[0-9A-Fa-f]{6}$/.test(value) || /^#[0-9A-Fa-f]{3}$/.test(value)) {
-                    onBackgroundColorChange(value)
-                  }
-                }}
-                className="flex-1 px-3 py-2 border rounded-md font-mono text-sm"
-                placeholder="#ffffff"
-                pattern="^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Background color for the trusted by avatars section
-            </p>
-          </div>
-
-          {/* Rainbow Button */}
-          <div className="flex items-center space-x-2">
-            <input
-              id="showRainbowButton"
-              type="checkbox"
-              checked={showRainbowButton}
-              onChange={(e) => onShowRainbowButtonChange(e.target.checked)}
-              className="mr-2"
-            />
-            <Label htmlFor="showRainbowButton">Show Rainbow Button</Label>
-          </div>
-
-          {/* Floating Particles */}
-          <div className="flex items-center space-x-2">
-            <input
-              id="showParticles"
-              type="checkbox"
-              checked={showParticles}
-              onChange={(e) => onShowParticlesChange(e.target.checked)}
-              className="mr-2"
-            />
-            <Label htmlFor="showParticles">Show Floating Particles</Label>
-          </div>
-
-          {/* GitHub Link (conditional) */}
+          {/* Rainbow Button Settings (conditional) */}
           {showRainbowButton && (
             <div className="space-y-2">
-              <Label htmlFor="githubLink">GitHub Link</Label>
-              <input
-                id="githubLink"
-                type="url"
-                value={githubLink}
-                onChange={(e) => onGithubLinkChange(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
-                placeholder="https://github.com/ruixenui/ruixen-free-components"
-              />
-              <p className="text-xs text-muted-foreground">
-                Link for the &ldquo;Get Access to Everything&rdquo; button
-              </p>
+              <Label>Rainbow Button Settings</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={rainbowButtonText}
+                  onChange={(e) => onRainbowButtonTextChange(e.target.value)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Button text"
+                />
+                <Select
+                  value={rainbowButtonIcon}
+                  onValueChange={onRainbowButtonIconChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Icon</SelectItem>
+                    <SelectItem value="github">GitHub</SelectItem>
+                    <SelectItem value="arrow-right">Arrow Right</SelectItem>
+                    <SelectItem value="download">Download</SelectItem>
+                    <SelectItem value="external-link">External Link</SelectItem>
+                    <SelectItem value="star">Star</SelectItem>
+                    <SelectItem value="rocket">Rocket</SelectItem>
+                    <SelectItem value="zap">Zap</SelectItem>
+                  </SelectContent>
+                </Select>
+                <input
+                  type="url"
+                  value={githubLink}
+                  onChange={(e) => validateUrl(e.target.value, onGithubLinkChange)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Button link URL"
+                />
+              </div>
             </div>
+          )}
+          {!showRainbowButton && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Enable &ldquo;Show Button&rdquo; to add a rainbow call-to-action button
+            </p>
           )}
         </CardContent>
       </Card>
