@@ -109,7 +109,9 @@ export function useProductBuilder({
           backgroundPattern: 'dots',
           backgroundPatternSize: 'medium',
           backgroundPatternOpacity: 80,
-          backgroundPatternColor: '#a3a3a3'
+          backgroundPatternColor: '#a3a3a3',
+          heroImage: '',
+          showHeroImage: false
         }
       default:
         return {}

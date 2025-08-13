@@ -35,6 +35,8 @@ interface ProductHeroBlockProps {
   backgroundPatternSize: string
   backgroundPatternOpacity: number
   backgroundPatternColor: string
+  heroImage: string
+  showHeroImage: boolean
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onPrimaryButtonChange: (value: string) => void
@@ -57,6 +59,8 @@ interface ProductHeroBlockProps {
   onBackgroundPatternSizeChange: (value: string) => void
   onBackgroundPatternOpacityChange: (value: number) => void
   onBackgroundPatternColorChange: (value: string) => void
+  onHeroImageChange: (value: string) => void
+  onShowHeroImageChange: (value: boolean) => void
   siteId: string
   blockId: string
 }
@@ -113,6 +117,8 @@ export function ProductHeroBlock({
   backgroundPatternSize,
   backgroundPatternOpacity,
   backgroundPatternColor,
+  heroImage,
+  showHeroImage,
   onTitleChange,
   onSubtitleChange,
   onPrimaryButtonChange,
@@ -135,10 +141,13 @@ export function ProductHeroBlock({
   onBackgroundPatternSizeChange,
   onBackgroundPatternOpacityChange,
   onBackgroundPatternColorChange,
+  onHeroImageChange,
+  onShowHeroImageChange,
   siteId,
   blockId,
 }: ProductHeroBlockProps) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
+  const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
   const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string; id?: string }>>(trustedByAvatars)
 
   // Ensure all avatars have unique IDs
@@ -472,6 +481,72 @@ export function ProductHeroBlock({
         </CardContent>
       </Card>
 
+      {/* Hero Image Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Hero Image</CardTitle>
+            <div className="flex items-center">
+              <input
+                id="showHeroImage"
+                type="checkbox"
+                checked={showHeroImage}
+                onChange={(e) => onShowHeroImageChange(e.target.checked)}
+                className="mr-2"
+              />
+              <Label htmlFor="showHeroImage" className="text-sm font-normal">Show Image</Label>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showHeroImage && (
+            <div className="space-y-4">
+              <div className="relative">
+                {heroImage ? (
+                  <div 
+                    className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setShowHeroImagePicker(true)}
+                  >
+                    <img 
+                      src={heroImage} 
+                      alt="Hero preview" 
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                      <div className="text-white text-center">
+                        <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                        <p className="text-sm font-medium">Click to change image</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                    onClick={() => setShowHeroImagePicker(true)}
+                  >
+                    <div className="text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                      <p className="mt-2 text-sm text-muted-foreground">Click to select image</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              
+              <p className="text-sm text-muted-foreground">
+                Display a hero image below the hero content with animated reveal effect
+              </p>
+            </div>
+          )}
+          {!showHeroImage && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Enable &ldquo;Show Image&rdquo; to add a hero showcase image
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Rainbow Button Card */}
       <Card className="shadow-sm">
         <CardHeader>
@@ -635,12 +710,23 @@ export function ProductHeroBlock({
         </CardContent>
       </Card>
 
-      {/* Image Picker Modal */}
+      {/* Image Picker Modal for Avatars */}
       <ImagePicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
         onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
         currentImageUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
+      />
+      
+      {/* Image Picker Modal for Hero Image */}
+      <ImagePicker
+        open={showHeroImagePicker}
+        onOpenChange={setShowHeroImagePicker}
+        onSelectImage={(imageUrl) => {
+          onHeroImageChange(imageUrl)
+          setShowHeroImagePicker(false)
+        }}
+        currentImageUrl={heroImage}
       />
     </div>
   )

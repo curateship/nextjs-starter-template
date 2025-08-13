@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Key, Settings2, Sparkles, Zap, Github, ArrowRight, Download, ExternalLink, Star, Rocket } from "lucide-react";
 import DotPattern from "@/components/ui/dot-pattern";
+import Image from "next/image";
+import { AnimatedGroup } from "@/components/ui/animated-group";
 
 // Background Pattern component that supports different pattern types
 const BackgroundPattern = ({ 
@@ -140,6 +142,8 @@ interface ProductHeroBlockProps {
   backgroundPatternSize?: string;
   backgroundPatternOpacity?: number;
   backgroundPatternColor?: string;
+  heroImage?: string;
+  showHeroImage?: boolean;
 }
 
 // Main hero content component
@@ -190,7 +194,9 @@ const ProductHeroBlock = ({
   backgroundPattern,
   backgroundPatternSize,
   backgroundPatternOpacity,
-  backgroundPatternColor
+  backgroundPatternColor,
+  heroImage,
+  showHeroImage = false
 }: ProductHeroBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -228,6 +234,7 @@ const ProductHeroBlock = ({
         trustedByAvatars={trustedByAvatars}
         backgroundColor={backgroundColor}
       />
+      <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
     </section>
   );
 };
@@ -386,5 +393,69 @@ const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, truste
     <TrustedByAvatars badgeText={trustedByText} badgeTextColor={trustedByTextColor} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
   </motion.div>
 )
+
+// Hero Image component with animation
+const HeroImage = ({ heroImage, showHeroImage }: { heroImage?: string; showHeroImage?: boolean }) => {
+  if (!showHeroImage || !heroImage) return null;
+  
+  return (
+    <div className="max-w-6xl mx-auto">
+      <AnimatedGroup
+        variants={{
+          container: {
+            visible: {
+              transition: {
+                staggerChildren: 0.05,
+              },
+            },
+          },
+          item: {
+            hidden: {
+              opacity: 0,
+              filter: 'blur(12px)',
+              y: 12,
+            },
+            visible: {
+              opacity: 1,
+              filter: 'blur(0px)',
+              y: 0,
+              transition: {
+                type: 'spring',
+                bounce: 0.3,
+                duration: 1.5,
+              },
+            },
+          },
+        }}
+      >
+        <div className="-mr-56 overflow-hidden px-2 sm:mr-0 sm:mt-8">
+          <div
+            aria-hidden
+            className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
+          />
+          <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
+            <Image
+              className="bg-background relative hidden h-auto w-full rounded-2xl object-cover dark:block"
+              src={heroImage}
+              alt="app screen"
+              width={1100}
+              height={675}
+              style={{ width: '100%', height: 'auto' }}
+            />
+            <Image
+              className="z-2 relative h-auto w-full rounded-2xl object-cover dark:hidden"
+              src={heroImage}
+              alt="app screen"
+              width={1100}
+              height={675}
+              style={{ width: '100%', height: 'auto' }}
+            />
+          </div>
+        </div>
+      </AnimatedGroup>
+      <div className="bg-linear-to-t absolute bottom-0 h-2/3 w-full from-white to-transparent" />
+    </div>
+  );
+}
 
 export { ProductHeroBlock };
