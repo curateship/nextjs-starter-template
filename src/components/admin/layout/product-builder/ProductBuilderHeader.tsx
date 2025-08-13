@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
+import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -35,7 +36,21 @@ export function ProductBuilderHeader({
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
+  
+  // Generate product URL for frontend viewing
+  const getProductUrl = () => {
+    if (!currentProduct) {
+      return '#'
+    }
+    
+    // Use path-based routing like the existing themes structure
+    // TODO: Make this dynamic based on actual site routing
+    const url = `http://localhost:3000/themes/marketplace/products/${currentProduct.slug}`
+    console.log('Generated product URL:', url)
+    return url
+  }
   
   return (
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[57px] z-40">
@@ -80,9 +95,23 @@ export function ProductBuilderHeader({
             variant="outline"
             size="sm" 
             disabled={!currentProduct}
+            asChild={currentProduct}
           >
-            <Eye className="w-4 h-4 mr-2" />
-            View Product
+            {currentProduct ? (
+              <a 
+                href={getProductUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View Product
+              </a>
+            ) : (
+              <>
+                <Eye className="w-4 h-4 mr-2" />
+                View Product
+              </>
+            )}
           </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">
