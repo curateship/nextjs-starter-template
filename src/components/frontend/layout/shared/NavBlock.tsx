@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Logo } from '@/components/ui/navigation/logo'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import React from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useScroll } from 'motion/react'
 import { isSafeUrl } from '@/lib/utils/url-validator'
@@ -233,7 +233,7 @@ const MobileMenuPanel = ({
 
 export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
   // Transform database links to MenuItem format, fallback to defaults
-  const menuItems: MenuItem[] = React.useMemo(() => {
+  const menuItems: MenuItem[] = useMemo(() => {
     if (links && links.length > 0) {
       return links.map(link => ({
         name: link.text,
@@ -246,18 +246,18 @@ export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
   }, [links])
 
   // State management for responsive navigation
-  const [menuState, setMenuState] = React.useState(false)
-  const [scrolled, setScrolled] = React.useState(false)
-  const [dropdownOpen, setDropdownOpen] = React.useState(false)
+  const [menuState, setMenuState] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   
   // Timeout ref for dropdown hover delay
-  const dropdownTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Track scroll progress for navbar background effect
   const { scrollYProgress } = useScroll()
 
   // Update scrolled state based on scroll position
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = scrollYProgress.on('change', (latest) => {
       setScrolled(latest > 0.01)
     })

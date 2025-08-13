@@ -35,10 +35,77 @@ export interface GetProductResult {
   success: boolean
   product?: ProductWithBlocks
   error?: string
+  site?: any // For direct product access
 }
 
 /**
- * Get a product by slug for frontend display
+ * Helper function to fetch product blocks
+ */
+async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
+  try {
+    const { data: blocks, error } = await supabaseAdmin
+      .from('product_blocks')
+      .select('*')
+      .eq('product_id', productId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      // Silently handle table not existing (migration not applied)
+      if (!error.message.includes('relation') || !error.message.includes('does not exist')) {
+        console.warn('Failed to load product blocks:', error.message)
+      }
+      return []
+    }
+
+    return blocks?.map(block => ({
+      id: block.id,
+      type: block.block_type,
+      content: block.content,
+      display_order: block.display_order
+    })) || []
+  } catch (error) {
+    console.warn('Error loading product blocks:', error)
+    return []
+  }
+}
+
+/**
+ * Helper function to fetch site navigation and footer
+ */
+async function fetchSiteBlocks(siteId: string) {
+  // Get the homepage for navigation/footer blocks
+  const { data: homePage } = await supabaseAdmin
+    .from('pages')
+    .select('*')
+    .eq('site_id', siteId)
+    .eq('is_homepage', true)
+    .eq('is_published', true)
+    .single()
+
+  if (!homePage) {
+    return { navigation: null, footer: null }
+  }
+
+  // Get navigation and footer blocks
+  const { data: pageBlocks } = await supabaseAdmin
+    .from('page_blocks')
+    .select('*')
+    .eq('page_id', homePage.id)
+    .in('block_type', ['navigation', 'footer'])
+    .eq('is_active', true)
+
+  const navigationBlock = pageBlocks?.find(b => b.block_type === 'navigation')
+  const footerBlock = pageBlocks?.find(b => b.block_type === 'footer')
+
+  return {
+    navigation: navigationBlock?.content || null,
+    footer: footerBlock?.content || null
+  }
+}
+
+/**
+ * Get a product by slug for a specific site (subdomain-based access)
  */
 export async function getProductBySlug(siteId: string, productSlug: string): Promise<GetProductResult> {
   try {
@@ -48,40 +115,19 @@ export async function getProductBySlug(siteId: string, productSlug: string): Pro
       .select('*')
       .eq('site_id', siteId)
       .eq('slug', productSlug)
-      .eq('is_published', true) // Only show published products on frontend
+      .eq('is_published', true)
       .single()
 
-    if (productError) {
-      // Check if it's a table not found error (products table doesn't exist yet)
-      if (productError.message.includes('relation') && productError.message.includes('does not exist')) {
-        return {
-          success: false,
-          error: 'Products feature not yet available'
-        }
-      }
-      
-      if (productError.code === 'PGRST116') {
-        return {
-          success: false,
-          error: 'Product not found'
-        }
-      }
-      
-      return {
-        success: false,
-        error: `Failed to fetch product: ${productError.message}`
-      }
-    }
-
-    if (!product) {
+    if (productError || !product) {
       return {
         success: false,
         error: 'Product not found'
       }
     }
 
-    // For now, return empty blocks array since we haven't implemented product blocks storage yet
-    // TODO: Get actual product blocks from database
+    // Get product blocks
+    const blocks = await fetchProductBlocks(product.id)
+
     const productWithBlocks: ProductWithBlocks = {
       id: product.id,
       title: product.title,
@@ -89,12 +135,87 @@ export async function getProductBySlug(siteId: string, productSlug: string): Pro
       meta_description: product.meta_description,
       meta_keywords: product.meta_keywords,
       is_published: product.is_published,
-      blocks: [] // Empty for now - will be populated from database in future
+      blocks
     }
 
     return {
       success: true,
       product: productWithBlocks
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
+ * Get a product by slug directly (for non-subdomain access at /products/[slug])
+ */
+export async function getProductBySlugDirect(productSlug: string): Promise<GetProductResult> {
+  try {
+    // Find the product across all sites
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('*, site_id')
+      .eq('slug', productSlug)
+      .eq('is_published', true)
+      .single()
+
+    if (productError || !product) {
+      return {
+        success: false,
+        error: 'Product not found'
+      }
+    }
+
+    // Get the site data
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('site_details')
+      .select('*')
+      .eq('id', product.site_id)
+      .single()
+
+    if (siteError || !site) {
+      return {
+        success: false,
+        error: 'Site not found for this product'
+      }
+    }
+
+    // Get navigation and footer blocks from site's homepage
+    const siteBlocks = await fetchSiteBlocks(site.id)
+
+    // Get product blocks
+    const blocks = await fetchProductBlocks(product.id)
+
+    const productWithBlocks: ProductWithBlocks = {
+      id: product.id,
+      title: product.title,
+      slug: product.slug,
+      meta_description: product.meta_description,
+      meta_keywords: product.meta_keywords,
+      is_published: product.is_published,
+      blocks
+    }
+
+    // Format site data with blocks
+    const siteWithBlocks = {
+      id: site.id,
+      name: site.name,
+      subdomain: site.subdomain,
+      custom_domain: site.custom_domain,
+      theme_id: site.theme_id,
+      theme_name: site.theme_name || 'Default Theme',
+      settings: site.settings,
+      blocks: siteBlocks
+    }
+
+    return {
+      success: true,
+      product: productWithBlocks,
+      site: siteWithBlocks
     }
   } catch (error) {
     return {

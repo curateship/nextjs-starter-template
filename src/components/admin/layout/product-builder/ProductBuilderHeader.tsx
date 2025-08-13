@@ -41,13 +41,12 @@ export function ProductBuilderHeader({
   
   // Generate product URL for frontend viewing
   const getProductUrl = () => {
-    if (!currentProduct) {
+    if (!currentProduct || !currentSite?.subdomain) {
       return '#'
     }
     
-    // Use path-based routing like the existing themes structure
-    // TODO: Make this dynamic based on actual site routing
-    const url = `http://localhost:3000/themes/marketplace/products/${currentProduct.slug}`
+    // Use site-specific routing: /[site]/products/[slug]
+    const url = `http://localhost:3000/${currentSite.subdomain}/products/${currentProduct.slug}`
     console.log('Generated product URL:', url)
     return url
   }
@@ -94,10 +93,10 @@ export function ProductBuilderHeader({
           <Button 
             variant="outline"
             size="sm" 
-            disabled={!currentProduct}
-            asChild={currentProduct}
+            disabled={!currentProduct || !currentSite?.subdomain}
+            asChild={!!currentProduct && !!currentSite?.subdomain}
           >
-            {currentProduct ? (
+            {currentProduct && currentSite?.subdomain ? (
               <a 
                 href={getProductUrl()}
                 target="_blank"

@@ -3,30 +3,30 @@ import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
 import { getProductBySlug } from "@/lib/actions/product-frontend-actions"
 import { notFound } from "next/navigation"
 
-interface ProductPageProps {
+interface SiteProductPageProps {
   params: Promise<{ 
-    subdomain: string
-    productSlug: string
+    site: string
+    slug: string
   }>
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
-  const { subdomain, productSlug } = await params
+export default async function SiteProductPage({ params }: SiteProductPageProps) {
+  const { site: siteSubdomain, slug } = await params
   
   // Get site data
-  const { success, site, error } = await getSiteBySubdomain(subdomain, 'home')
+  const { success: siteSuccess, site } = await getSiteBySubdomain(siteSubdomain, 'home')
   
-  if (!success || !site) {
+  if (!siteSuccess || !site) {
     notFound()
   }
-
-  // Get product data
-  const productResult = await getProductBySlug(site.id, productSlug)
+  
+  // Get product data for this specific site
+  const productResult = await getProductBySlug(site.id, slug)
   
   if (!productResult.success || !productResult.product) {
     notFound()
   }
-
+  
   return (
     <ProductBlockRenderer
       site={site}
@@ -35,20 +35,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
   )
 }
 
-export async function generateMetadata({ params }: ProductPageProps) {
-  const { subdomain, productSlug } = await params
+export async function generateMetadata({ params }: SiteProductPageProps) {
+  const { site: siteSubdomain, slug } = await params
   
   try {
-    const { success, site } = await getSiteBySubdomain(subdomain, 'home')
+    const { success: siteSuccess, site } = await getSiteBySubdomain(siteSubdomain, 'home')
     
-    if (!success || !site) {
+    if (!siteSuccess || !site) {
       return {
         title: 'Product Not Found',
         description: 'The requested product could not be found.',
       }
     }
-
-    const productResult = await getProductBySlug(site.id, productSlug)
+    
+    const productResult = await getProductBySlug(site.id, slug)
     
     if (!productResult.success || !productResult.product) {
       return {
