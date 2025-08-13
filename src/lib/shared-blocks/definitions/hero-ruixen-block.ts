@@ -98,6 +98,42 @@ export const heroRuixenBlockDefinition: BlockDefinition = {
         label: 'Badge Text Color',
         placeholder: '#6b7280',
         description: 'Color for the trusted by badge text'
+      },
+      backgroundPattern: {
+        type: 'select',
+        label: 'Background Pattern',
+        options: [
+          { value: 'dots', label: 'Dot Pattern' },
+          { value: 'grid', label: 'Grid Pattern' },
+          { value: 'none', label: 'No Pattern' }
+        ],
+        description: 'Background pattern displayed behind the hero content'
+      },
+      backgroundPatternSize: {
+        type: 'select',
+        label: 'Pattern Size',
+        options: [
+          { value: 'small', label: 'Small' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'large', label: 'Large' }
+        ],
+        description: 'Size of the background pattern elements'
+      },
+      backgroundPatternOpacity: {
+        type: 'number',
+        label: 'Pattern Opacity',
+        placeholder: '80',
+        description: 'Opacity percentage (0-100) of the background pattern',
+        validation: {
+          min: 0,
+          max: 100
+        }
+      },
+      backgroundPatternColor: {
+        type: 'color',
+        label: 'Pattern Color',
+        placeholder: '#a3a3a3',
+        description: 'Color of the background pattern'
       }
     },
     required: ['title', 'subtitle', 'primaryButton', 'secondaryButton']
@@ -112,7 +148,11 @@ export const heroRuixenBlockDefinition: BlockDefinition = {
     rainbowButtonIcon: 'github',
     githubLink: 'https://github.com/ruixenui/ruixen-free-components',
     showParticles: true,
-    trustedByTextColor: '#6b7280'
+    trustedByTextColor: '#6b7280',
+    backgroundPattern: 'dots',
+    backgroundPatternSize: 'medium',
+    backgroundPatternOpacity: 80,
+    backgroundPatternColor: '#a3a3a3'
   }
 }
 

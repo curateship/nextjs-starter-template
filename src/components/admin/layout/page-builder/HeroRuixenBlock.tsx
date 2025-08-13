@@ -31,6 +31,10 @@ interface HeroRuixenBlockProps {
   trustedByTextColor: string
   trustedByCount: string
   trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }>
+  backgroundPattern: string
+  backgroundPatternSize: string
+  backgroundPatternOpacity: number
+  backgroundPatternColor: string
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onPrimaryButtonChange: (value: string) => void
@@ -49,6 +53,10 @@ interface HeroRuixenBlockProps {
   onTrustedByTextColorChange: (value: string) => void
   onTrustedByCountChange: (value: string) => void
   onTrustedByAvatarsChange: (avatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => void
+  onBackgroundPatternChange: (value: string) => void
+  onBackgroundPatternSizeChange: (value: string) => void
+  onBackgroundPatternOpacityChange: (value: number) => void
+  onBackgroundPatternColorChange: (value: string) => void
   siteId: string
   blockId: string
 }
@@ -101,6 +109,10 @@ export function HeroRuixenBlock({
   trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
+  backgroundPattern,
+  backgroundPatternSize,
+  backgroundPatternOpacity,
+  backgroundPatternColor,
   onTitleChange,
   onSubtitleChange,
   onPrimaryButtonChange,
@@ -119,6 +131,10 @@ export function HeroRuixenBlock({
   onTrustedByTextColorChange,
   onTrustedByCountChange,
   onTrustedByAvatarsChange,
+  onBackgroundPatternChange,
+  onBackgroundPatternSizeChange,
+  onBackgroundPatternOpacityChange,
+  onBackgroundPatternColorChange,
   siteId,
   blockId,
 }: HeroRuixenBlockProps) {
@@ -145,10 +161,6 @@ export function HeroRuixenBlock({
       const previousAvatars = previousAvatarsRef.current
 
       try {
-        console.log('Tracking avatar usage:', { 
-          current: trustedByAvatars.map(a => ({ src: a.src, hasUrl: !!a.src })), 
-          previous: previousAvatars.map(a => ({ src: a.src, hasUrl: !!a.src }))
-        })
 
         // Track changes for each avatar position
         for (let i = 0; i < Math.max(trustedByAvatars.length, previousAvatars.length); i++) {
@@ -157,16 +169,13 @@ export function HeroRuixenBlock({
 
           // If previous avatar exists but current doesn't, remove tracking
           if (previousAvatar?.src && !currentAvatar) {
-            console.log(`Removing tracking for avatar ${i}: ${previousAvatar.src}`)
             const { data: imageId } = await getImageByUrlAction(previousAvatar.src)
             if (imageId) {
               const result = await removeImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
-              console.log(`Remove result:`, result)
             }
           }
           // If both exist but URLs changed, remove old and add new
           else if (previousAvatar?.src && currentAvatar?.src && previousAvatar.src !== currentAvatar.src) {
-            console.log(`Updating tracking for avatar ${i}: ${previousAvatar.src} -> ${currentAvatar.src}`)
             const { data: oldImageId } = await getImageByUrlAction(previousAvatar.src)
             if (oldImageId) {
               await removeImageUsageAction(oldImageId, siteId, "hero-ruixen", `avatar-${i}`)
@@ -174,7 +183,6 @@ export function HeroRuixenBlock({
             const { data: newImageId } = await getImageByUrlAction(currentAvatar.src)
             if (newImageId) {
               const result = await trackImageUsageAction(newImageId, siteId, "hero-ruixen", `avatar-${i}`)
-              console.log(`Track result:`, result)
               // Force refresh image library data
               if (typeof window !== 'undefined') {
                 fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
@@ -183,26 +191,21 @@ export function HeroRuixenBlock({
           }
           // If only current exists (new avatar), add tracking
           else if (!previousAvatar?.src && currentAvatar?.src) {
-            console.log(`Adding tracking for new avatar ${i}: ${currentAvatar.src}`)
             const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
             if (imageId) {
               const result = await trackImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
-              console.log(`Track result:`, result)
               // Force refresh image library data
               if (typeof window !== 'undefined') {
                 fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
               }
             } else {
-              console.log(`No image ID found for: ${currentAvatar.src}`)
             }
           }
           // If current has a src and previous didn't have one OR it's the initial load with existing avatars
           else if (currentAvatar?.src && (!previousAvatar || !previousAvatar.src)) {
-            console.log(`Adding tracking for avatar ${i} (initial or empty->filled): ${currentAvatar.src}`)
             const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
             if (imageId) {
               const result = await trackImageUsageAction(imageId, siteId, "hero-ruixen", `avatar-${i}`)
-              console.log(`Track result:`, result)
               // Force refresh image library data
               if (typeof window !== 'undefined') {
                 fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
@@ -532,6 +535,103 @@ export function HeroRuixenBlock({
               Enable &ldquo;Show Button&rdquo; to add a rainbow call-to-action button
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Background Pattern Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Background Pattern</CardTitle>
+            <div className="flex items-center">
+              <input
+                id="showBackgroundPattern"
+                type="checkbox"
+                checked={backgroundPattern !== 'none'}
+                onChange={(e) => onBackgroundPatternChange(e.target.checked ? 'dots' : 'none')}
+                className="mr-2"
+              />
+              <Label htmlFor="showBackgroundPattern" className="text-sm font-normal">Show Background</Label>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Pattern Type</Label>
+            <Select
+              value={backgroundPattern || 'dots'}
+              onValueChange={onBackgroundPatternChange}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dots">Dot Pattern</SelectItem>
+                <SelectItem value="grid">Grid Pattern</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {backgroundPattern !== 'none' && (
+            <>
+              <div className="space-y-2">
+                <Label>Pattern Size</Label>
+                <Select
+                  value={backgroundPatternSize || 'medium'}
+                  onValueChange={onBackgroundPatternSizeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Pattern Opacity</Label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={backgroundPatternOpacity || 80}
+                    onChange={(e) => onBackgroundPatternOpacityChange(parseInt(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-muted-foreground w-12">
+                    {backgroundPatternOpacity || 80}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Pattern Color</Label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    value={backgroundPatternColor || '#a3a3a3'}
+                    onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
+                    className="w-10 h-10 rounded border"
+                  />
+                  <input
+                    type="text"
+                    value={backgroundPatternColor || '#a3a3a3'}
+                    onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
+                    className="px-3 py-2 border rounded-md text-sm flex-1"
+                    placeholder="#a3a3a3"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+          
+          <p className="text-sm text-muted-foreground">
+            Customize the background pattern that appears behind the hero content
+          </p>
         </CardContent>
       </Card>
 
