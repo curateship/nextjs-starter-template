@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createGlobalProductAction } from "@/lib/actions/product-actions"
+import { createProductAction } from "@/lib/actions/product-actions"
+import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/product-actions"
 
 interface CreateGlobalProductFormProps {
@@ -14,6 +15,7 @@ interface CreateGlobalProductFormProps {
 }
 
 export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalProductFormProps) {
+  const { currentSite } = useSiteContext()
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',
     slug: '',
@@ -64,12 +66,17 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       return
     }
 
+    if (!currentSite?.id) {
+      setError('No site selected')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
       
       const draftData = { ...formData, is_published: false }
-      const { data, error: actionError } = await createGlobalProductAction(draftData)
+      const { data, error: actionError } = await createProductAction(currentSite.id, draftData)
       
       if (actionError) {
         setError(actionError)
@@ -93,12 +100,17 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       return
     }
 
+    if (!currentSite?.id) {
+      setError('No site selected')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
       
       const publishData = { ...formData, is_published: true }
-      const { data, error: actionError } = await createGlobalProductAction(publishData)
+      const { data, error: actionError } = await createProductAction(currentSite.id, publishData)
       
       if (actionError) {
         setError(actionError)

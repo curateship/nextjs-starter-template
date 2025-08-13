@@ -3,14 +3,10 @@ import { Plus } from "lucide-react"
 
 interface ProductBlockTypesPanelProps {
   onAddProductHeroBlock: () => void
-  onAddProductDetailsBlock: () => void
-  onAddProductGalleryBlock: () => void
 }
 
 export function ProductBlockTypesPanel({ 
-  onAddProductHeroBlock, 
-  onAddProductDetailsBlock,
-  onAddProductGalleryBlock 
+  onAddProductHeroBlock
 }: ProductBlockTypesPanelProps) {
   const productBlocks = [
     { 
@@ -19,20 +15,6 @@ export function ProductBlockTypesPanel({
       icon: "🏷️",
       description: "Main product showcase with title, price, and CTA",
       onClick: onAddProductHeroBlock
-    },
-    { 
-      type: "product-details", 
-      name: "Product Details", 
-      icon: "📋",
-      description: "Product description and specifications",
-      onClick: onAddProductDetailsBlock
-    },
-    { 
-      type: "product-gallery", 
-      name: "Product Gallery", 
-      icon: "🖼️",
-      description: "Image gallery with thumbnails",
-      onClick: onAddProductGalleryBlock
     }
   ]
 
@@ -70,7 +52,7 @@ export function ProductBlockTypesPanel({
         
         <div className="mt-6 p-3 rounded-lg bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-800">
-            <strong>Tip:</strong> Start with a Product Hero block to showcase your main product information, then add details and gallery as needed.
+            <strong>Tip:</strong> Use the Product Hero block to showcase your main product information including title, price, and call-to-action.
           </p>
         </div>
       </div>

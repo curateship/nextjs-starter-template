@@ -25,11 +25,13 @@ import {
 import { CreateGlobalProductForm } from "@/components/admin/modules/products/create-global-product-form"
 import { ProductSettingsModal } from "@/components/admin/modules/products/product-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package } from "lucide-react"
-import { getAllProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
+import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
+import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/product-actions"
 
 export default function ProductsPage() {
   const router = useRouter()
+  const { currentSite } = useSiteContext()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,28 +50,36 @@ export default function ProductsPage() {
   // Load products
   useEffect(() => {
     async function loadProducts() {
+      if (!currentSite?.id) {
+        // Keep loading true when no site is selected (during site switching)
+        setLoading(true)
+        setProducts([])
+        return
+      }
+      
       try {
         setLoading(true)
         setError(null)
 
-        const { data: productsData, error: productsError } = await getAllProductsAction()
+        const { data: productsData, error: productsError } = await getSiteProductsAction(currentSite.id)
         if (productsError) {
           setError(productsError)
+          setLoading(false)
           return
         }
         
         if (productsData) {
           setProducts(productsData)
         }
+        setLoading(false)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load products')
-      } finally {
         setLoading(false)
       }
     }
 
     loadProducts()
-  }, [])
+  }, [currentSite?.id])
 
   // Close filter dropdown when clicking outside
   useEffect(() => {

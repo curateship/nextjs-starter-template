@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { saveProductBlocksAction } from "@/lib/actions/product-blocks-actions"
 
 interface ProductBlock {
   id: string
@@ -11,6 +12,7 @@ interface UseProductBuilderParams {
   blocks: Record<string, ProductBlock[]>
   setBlocks: React.Dispatch<React.SetStateAction<Record<string, ProductBlock[]>>>
   selectedProduct: string
+  productId?: string // Add product ID for saving to database
 }
 
 interface UseProductBuilderReturn {
@@ -24,15 +26,14 @@ interface UseProductBuilderReturn {
   handleDeleteBlock: (block: ProductBlock) => void
   handleReorderBlocks: (blocks: ProductBlock[]) => void
   handleAddProductHeroBlock: () => void
-  handleAddProductDetailsBlock: () => void
-  handleAddProductGalleryBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
 export function useProductBuilder({ 
   blocks, 
   setBlocks, 
-  selectedProduct
+  selectedProduct,
+  productId
 }: UseProductBuilderParams): UseProductBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
   const [deletedBlockIds, setDeletedBlockIds] = useState<Set<string>>(new Set())
@@ -88,19 +89,6 @@ export function useProductBuilder({
           price: "$99",
           ctaText: "Add to Cart"
         }
-      case 'product-details':
-        return {
-          description: "Product description goes here...",
-          specifications: [
-            { label: "Feature 1", value: "Value 1" },
-            { label: "Feature 2", value: "Value 2" }
-          ]
-        }
-      case 'product-gallery':
-        return {
-          images: [],
-          showThumbnails: true
-        }
       default:
         return {}
     }
@@ -126,45 +114,6 @@ export function useProductBuilder({
     setTimeout(() => setSaveMessage(""), 3000)
   }
 
-  // Add a new product details block
-  const handleAddProductDetailsBlock = () => {
-    const newBlock: ProductBlock = {
-      id: `product-details-${Date.now()}`,
-      type: 'product-details',
-      title: 'Product Details',
-      content: getDefaultContent('product-details')
-    }
-    
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedProduct] || []
-    updatedBlocks[selectedProduct] = [...currentBlocks, newBlock]
-    
-    setBlocks(updatedBlocks)
-    setSelectedBlock(newBlock)
-    
-    setSaveMessage("Product details block added!")
-    setTimeout(() => setSaveMessage(""), 3000)
-  }
-
-  // Add a new product gallery block
-  const handleAddProductGalleryBlock = () => {
-    const newBlock: ProductBlock = {
-      id: `product-gallery-${Date.now()}`,
-      type: 'product-gallery',
-      title: 'Product Gallery',
-      content: getDefaultContent('product-gallery')
-    }
-    
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedProduct] || []
-    updatedBlocks[selectedProduct] = [...currentBlocks, newBlock]
-    
-    setBlocks(updatedBlocks)
-    setSelectedBlock(newBlock)
-    
-    setSaveMessage("Product gallery block added!")
-    setTimeout(() => setSaveMessage(""), 3000)
-  }
 
   // Handle block reordering
   const handleReorderBlocks = (reorderedBlocks: ProductBlock[]) => {
@@ -177,33 +126,44 @@ export function useProductBuilder({
     setBlocks(updatedBlocks)
   }
 
-  // Save all block customizations (placeholder - no server calls yet)
-  const handleSaveAllBlocks = () => {    
-    const hasActiveBlocks = blocks[selectedProduct] && blocks[selectedProduct].length > 0
-    const hasDeletions = deletedBlockIds.size > 0
-    
-    if (!hasActiveBlocks && !hasDeletions) {
-      setSaveMessage("No changes to save")
+  // Save all block customizations to database
+  const handleSaveAllBlocks = async () => {    
+    if (!productId) {
+      setSaveMessage("Error: Product ID required for saving")
+      setTimeout(() => setSaveMessage(""), 3000)
       return
     }
 
+    const currentBlocks = blocks[selectedProduct] || []
+    const activeBlocks = currentBlocks.filter(b => !deletedBlockIds.has(b.id))
+    
     setIsSaving(true)
-    setSaveMessage("")
+    setSaveMessage("Saving...")
 
-    // Simulate save operation
-    setTimeout(() => {
-      // Clear staged deletions and update local state
-      if (hasDeletions) {
-        const updatedBlocks = { ...blocks }
-        updatedBlocks[selectedProduct] = updatedBlocks[selectedProduct].filter(b => !deletedBlockIds.has(b.id))
-        setBlocks(updatedBlocks)
-        setDeletedBlockIds(new Set())
-      }
+    try {
+      const result = await saveProductBlocksAction(productId, activeBlocks)
       
-      setSaveMessage("Saved!")
-      setTimeout(() => setSaveMessage(""), 3000)
+      if (result.success) {
+        // Clear staged deletions and update local state
+        if (deletedBlockIds.size > 0) {
+          const updatedBlocks = { ...blocks }
+          updatedBlocks[selectedProduct] = activeBlocks
+          setBlocks(updatedBlocks)
+          setDeletedBlockIds(new Set())
+        }
+        
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      } else {
+        setSaveMessage(`Error: ${result.error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+      }
+    } catch (error) {
+      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
       setIsSaving(false)
-    }, 1000)
+    }
   }
 
   return {
@@ -217,8 +177,6 @@ export function useProductBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddProductHeroBlock,
-    handleAddProductDetailsBlock,
-    handleAddProductGalleryBlock,
     handleSaveAllBlocks
   }
 }

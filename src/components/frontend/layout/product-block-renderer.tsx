@@ -45,9 +45,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           )
         }
         
-        // Add more product block types here as they're implemented
-        // if (block.type === 'product-details') { ... }
-        // if (block.type === 'product-gallery') { ... }
+        // Additional block types can be added here as needed
         
         return null
       })}

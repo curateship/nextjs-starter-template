@@ -42,14 +42,15 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
     }
   }, [products, productSlug, router])
   
+  // Current product data with staged deletions filtered out
+  const currentProductData = products.find(p => p.slug === selectedProduct)
+  
   const builderState = useProductBuilder({
     blocks: localBlocks,
     setBlocks: setLocalBlocks,
-    selectedProduct
+    selectedProduct,
+    productId: currentProductData?.id
   })
-  
-  // Current product data with staged deletions filtered out
-  const currentProductData = products.find(p => p.slug === selectedProduct)
   const currentProduct = {
     slug: selectedProduct,
     name: currentProductData?.title || selectedProduct,
@@ -123,8 +124,6 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           
           <ProductBlockTypesPanel
             onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
-            onAddProductDetailsBlock={builderState.handleAddProductDetailsBlock}
-            onAddProductGalleryBlock={builderState.handleAddProductGalleryBlock}
           />
         </div>
       </div>
