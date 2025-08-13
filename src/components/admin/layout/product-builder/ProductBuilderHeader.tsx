@@ -11,6 +11,7 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
+import { ProductSettingsModal } from "@/components/admin/modules/products/product-settings-modal"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -154,20 +155,19 @@ export function ProductBuilderHeader({
         </DialogContent>
       </Dialog>
 
-      {/* Edit Product Settings Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Product Settings</DialogTitle>
-            <DialogDescription>
-              Configure settings for "{currentProduct?.title || selectedProduct}"
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-4">
-            <p className="text-sm text-muted-foreground">Product settings form will be implemented here.</p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Product Settings Modal */}
+      <ProductSettingsModal
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        product={currentProduct || null}
+        site={currentSite}
+        onSuccess={(updatedProduct) => {
+          // Update the product in the list
+          if (onProductUpdated) {
+            onProductUpdated(updatedProduct)
+          }
+        }}
+      />
     </div>
   )
 }
