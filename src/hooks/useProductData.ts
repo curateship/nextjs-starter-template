@@ -38,30 +38,42 @@ export function useProductData(): UseProductDataReturn {
     setProductsLoading(true)
     setProductsError("")
     
-    const result = await getSiteProductsAction(currentSite.id)
-    if (result.data) {
-      setProducts(result.data)
+    try {
+      const result = await getSiteProductsAction(currentSite.id)
       
-      // Load blocks for each product
-      const allBlocks: Record<string, ProductBlock[]> = {}
-      
-      // Load blocks for each product
-      for (const product of result.data) {
-        const blocksResult = await getProductBlocksAction(product.id)
-        if (blocksResult.success && blocksResult.blocks) {
-          // The blocks action returns blocks keyed by product identifier
-          // We want them keyed by product slug for the UI
-          const productBlocks = Object.values(blocksResult.blocks).flat()
-          allBlocks[product.slug] = productBlocks
-        } else {
-          // Initialize empty blocks if loading fails
-          allBlocks[product.slug] = []
+      if (result && result.data) {
+        setProducts(result.data)
+        
+        // Load blocks for each product
+        const allBlocks: Record<string, ProductBlock[]> = {}
+        
+        // Load blocks for each product
+        for (const product of result.data) {
+          try {
+            const blocksResult = await getProductBlocksAction(product.id)
+            if (blocksResult && blocksResult.success && blocksResult.blocks) {
+              // The blocks action returns blocks keyed by product identifier
+              // We want them keyed by product slug for the UI
+              const productBlocks = Object.values(blocksResult.blocks).flat()
+              allBlocks[product.slug] = productBlocks
+            } else {
+              // Initialize empty blocks if loading fails
+              allBlocks[product.slug] = []
+            }
+          } catch (blockError) {
+            console.error(`Error loading blocks for product ${product.id}:`, blockError)
+            // Initialize empty blocks if loading fails
+            allBlocks[product.slug] = []
+          }
         }
+        
+        setBlocks(allBlocks)
+      } else {
+        setProductsError(result?.error || 'Failed to load products')
       }
-      
-      setBlocks(allBlocks)
-    } else {
-      setProductsError(result.error || 'Failed to load products')
+    } catch (error) {
+      console.error('Error loading products:', error)
+      setProductsError('Failed to load products')
     }
     
     setProductsLoading(false)
