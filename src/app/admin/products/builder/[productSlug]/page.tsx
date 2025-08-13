@@ -15,7 +15,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
   const { productSlug } = use(params)
   const router = useRouter()
   // Data and state management
-  const { products, blocks, productsLoading, productsError } = useProductData()
+  const { products, blocks, productsLoading, productsError, reloadProducts } = useProductData()
   const [localBlocks, setLocalBlocks] = useState(blocks)
   const [selectedProduct, setSelectedProduct] = useState(productSlug)
   
@@ -102,6 +102,15 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           products={products}
           selectedProduct={selectedProduct}
           onProductChange={handleProductChange}
+          onProductUpdated={async (updatedProduct) => {
+            // Reload products data to get fresh product information
+            await reloadProducts()
+            
+            // If the slug changed, redirect to the new URL
+            if (updatedProduct.slug !== productSlug) {
+              router.push(`/admin/products/builder/${updatedProduct.slug}`)
+            }
+          }}
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
