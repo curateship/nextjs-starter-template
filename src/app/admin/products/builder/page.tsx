@@ -1,57 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { useProductData } from "@/hooks/useProductData"
-import { useProductBuilder } from "@/hooks/useProductBuilder"
-import { ProductBuilderHeader } from "@/components/admin/layout/product-builder/ProductBuilderHeader"
-import { ProductBlockPropertiesPanel } from "@/components/admin/layout/product-builder/ProductBlockPropertiesPanel"
-import { ProductBlockListPanel } from "@/components/admin/layout/product-builder/ProductBlockListPanel"
-import { ProductBlockTypesPanel } from "@/components/admin/layout/product-builder/ProductBlockTypesPanel"
+import { Button } from "@/components/ui/button"
+import { Package } from "lucide-react"
+import Link from "next/link"
 
-export default function ProductBuilderPage() {
-  // Data and state management
-  const { products, blocks, productsLoading, productsError } = useProductData()
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-  const [selectedProduct, setSelectedProduct] = useState("")
-  
-  // Update local blocks when server blocks change
+export default function ProductBuilderRootPage() {
+  const router = useRouter()
+  const { products, productsLoading, productsError } = useProductData()
+
+  // Redirect to first product if products are available
   useEffect(() => {
-    setLocalBlocks(blocks)
-  }, [blocks])
-  
-  // Set initial product when products load
-  useEffect(() => {
-    if (products.length > 0 && !selectedProduct) {
-      setSelectedProduct(products[0].slug)
+    if (products.length > 0) {
+      router.push(`/admin/products/builder/${products[0].slug}`)
     }
-  }, [products, selectedProduct])
-  
-  const builderState = useProductBuilder({
-    blocks: localBlocks,
-    setBlocks: setLocalBlocks,
-    selectedProduct
-  })
-  
-  // Current product data with staged deletions filtered out
-  const currentProductData = products.find(p => p.slug === selectedProduct)
-  const currentProduct = {
-    slug: selectedProduct,
-    name: currentProductData?.title || selectedProduct,
-    blocks: (localBlocks[selectedProduct] || []).filter(block => !builderState.deletedBlockIds.has(block.id))
-  }
-  
-  // Handle product change
-  const handleProductChange = (productSlug: string) => {
-    if (productSlug !== selectedProduct) {
-      setSelectedProduct(productSlug)
-      // Ensure blocks array exists for this product
-      setLocalBlocks(prev => ({
-        ...prev,
-        [productSlug]: prev[productSlug] || []
-      }))
-    }
-  }
+  }, [products, router])
 
   // Show loading state
   if (productsLoading) {
@@ -60,7 +26,7 @@ export default function ProductBuilderPage() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Loading product builder...</p>
+            <p>Loading products...</p>
           </div>
         </div>
       </AdminLayout>
@@ -77,46 +43,35 @@ export default function ProductBuilderPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Please try refreshing the page or check your connection.
             </p>
+            <Button asChild variant="outline">
+              <Link href="/admin/products">Back to Products</Link>
+            </Button>
           </div>
         </div>
       </AdminLayout>
     )
   }
 
-  return (
-    <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <ProductBuilderHeader
-          products={products}
-          selectedProduct={selectedProduct}
-          onProductChange={handleProductChange}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-        />
-        
-        <div className="flex-1 flex">
-          <ProductBlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-          />
-          
-          <ProductBlockListPanel
-            currentProduct={currentProduct}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            deleting={builderState.deleting}
-          />
-          
-          <ProductBlockTypesPanel
-            onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
-            onAddProductDetailsBlock={builderState.handleAddProductDetailsBlock}
-            onAddProductGalleryBlock={builderState.handleAddProductGalleryBlock}
-          />
+  // Show no products state
+  if (products.length === 0) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Products Found</h3>
+            <p className="text-muted-foreground mb-4">
+              You need to create a product before you can use the builder.
+            </p>
+            <Button asChild>
+              <Link href="/admin/products">Go to Products</Link>
+            </Button>
+          </div>
         </div>
-      </div>
-    </AdminLayout>
-  )
-} 
+      </AdminLayout>
+    )
+  }
+
+  // This should not be reached due to the redirect effect above
+  return null
+}
