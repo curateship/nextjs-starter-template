@@ -556,31 +556,31 @@ export function ProductHeroBlock({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Pattern Type</Label>
-            <Select
-              value={backgroundPattern || 'dots'}
-              onValueChange={onBackgroundPatternChange}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dots">Dot Pattern</SelectItem>
-                <SelectItem value="grid">Grid Pattern</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {backgroundPattern !== 'none' && (
-            <>
+            <div className="grid grid-cols-4 gap-3">
               <div className="space-y-2">
-                <Label>Pattern Size</Label>
+                <Label className="text-xs">Pattern Type</Label>
+                <Select
+                  value={backgroundPattern || 'dots'}
+                  onValueChange={onBackgroundPatternChange}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dots">Dots</SelectItem>
+                    <SelectItem value="grid">Grid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Size</Label>
                 <Select
                   value={backgroundPatternSize || 'medium'}
                   onValueChange={onBackgroundPatternSizeChange}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -592,41 +592,41 @@ export function ProductHeroBlock({
               </div>
 
               <div className="space-y-2">
-                <Label>Pattern Opacity</Label>
-                <div className="flex items-center space-x-2">
+                <Label className="text-xs">Opacity</Label>
+                <div className="flex items-center space-x-1 h-9">
                   <input
                     type="range"
                     min="0"
                     max="100"
                     value={backgroundPatternOpacity || 80}
                     onChange={(e) => onBackgroundPatternOpacityChange(parseInt(e.target.value))}
-                    className="flex-1"
+                    className="flex-1 h-2"
                   />
-                  <span className="text-sm text-muted-foreground w-12">
+                  <span className="text-xs text-muted-foreground w-8 text-right">
                     {backgroundPatternOpacity || 80}%
                   </span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Pattern Color</Label>
-                <div className="flex items-center space-x-2">
+                <Label className="text-xs">Color</Label>
+                <div className="flex items-center space-x-1">
                   <input
                     type="color"
                     value={backgroundPatternColor || '#a3a3a3'}
                     onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                    className="w-10 h-10 rounded border"
+                    className="w-9 h-9 rounded border cursor-pointer"
                   />
                   <input
                     type="text"
                     value={backgroundPatternColor || '#a3a3a3'}
                     onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                    className="px-3 py-2 border rounded-md text-sm flex-1"
+                    className="px-2 py-1 border rounded text-xs flex-1"
                     placeholder="#a3a3a3"
                   />
                 </div>
               </div>
-            </>
+            </div>
           )}
           
           <p className="text-sm text-muted-foreground">
