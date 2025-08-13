@@ -44,6 +44,10 @@ export function BlockPropertiesPanel({
                   { src: "", alt: "User 2", fallback: "U2" },
                   { src: "", alt: "User 3", fallback: "U3" }
                 ]}
+                backgroundPattern={selectedBlock.content.backgroundPattern || 'dots'}
+                backgroundPatternSize={selectedBlock.content.backgroundPatternSize || 'medium'}
+                backgroundPatternOpacity={selectedBlock.content.backgroundPatternOpacity || 80}
+                backgroundPatternColor={selectedBlock.content.backgroundPatternColor || '#a3a3a3'}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
@@ -62,6 +66,10 @@ export function BlockPropertiesPanel({
                 onTrustedByTextColorChange={(value) => updateBlockContent('trustedByTextColor', value)}
                 onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
                 onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
+                onBackgroundPatternChange={(value) => updateBlockContent('backgroundPattern', value)}
+                onBackgroundPatternSizeChange={(value) => updateBlockContent('backgroundPatternSize', value)}
+                onBackgroundPatternOpacityChange={(value) => updateBlockContent('backgroundPatternOpacity', value)}
+                onBackgroundPatternColorChange={(value) => updateBlockContent('backgroundPatternColor', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />

@@ -34,7 +34,11 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
       trustedByText: '',
       trustedByTextColor: '#6b7280',
       trustedByCount: '',
-      trustedByAvatars: []
+      trustedByAvatars: [],
+      backgroundPattern: 'dots',
+      backgroundPatternSize: 'medium',
+      backgroundPatternOpacity: 80,
+      backgroundPatternColor: '#a3a3a3'
     },
     display_order: 0
   }] : productBlocks
@@ -65,6 +69,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               trustedByTextColor={block.content?.trustedByTextColor}
               trustedByCount={block.content?.trustedByCount}
               trustedByAvatars={block.content?.trustedByAvatars}
+              backgroundPattern={block.content?.backgroundPattern}
+              backgroundPatternSize={block.content?.backgroundPatternSize}
+              backgroundPatternOpacity={block.content?.backgroundPatternOpacity}
+              backgroundPatternColor={block.content?.backgroundPatternColor}
             />
           )
         }

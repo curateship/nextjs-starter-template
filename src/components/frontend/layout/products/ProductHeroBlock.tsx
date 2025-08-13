@@ -4,6 +4,80 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Key, Settings2, Sparkles, Zap, Github, ArrowRight, Download, ExternalLink, Star, Rocket } from "lucide-react";
 import DotPattern from "@/components/ui/dot-pattern";
+
+// Background Pattern component that supports different pattern types
+const BackgroundPattern = ({ 
+  pattern, 
+  size, 
+  opacity, 
+  color 
+}: { 
+  pattern?: string; 
+  size?: string; 
+  opacity?: number; 
+  color?: string; 
+}) => {
+  if (pattern === 'none') return null;
+  
+  const getPatternSize = (size?: string) => {
+    switch (size) {
+      case 'small': return { width: 12, height: 12 };
+      case 'large': return { width: 24, height: 24 };
+      default: return { width: 16, height: 16 }; // medium
+    }
+  };
+
+  const getPatternOpacity = (opacity?: number) => {
+    return opacity ? opacity / 100 : 0.8;
+  };
+
+  const patternSize = getPatternSize(size);
+  const patternOpacity = getPatternOpacity(opacity);
+  const patternColor = color || '#a3a3a3';
+
+  if (pattern === 'grid') {
+    return (
+      <svg
+        className={cn(
+          "pointer-events-none absolute inset-0 h-full w-full",
+          "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]"
+        )}
+        style={{ opacity: patternOpacity }}
+      >
+        <defs>
+          <pattern
+            id="grid-pattern"
+            width={patternSize.width}
+            height={patternSize.height}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M ${patternSize.width} 0 L 0 0 0 ${patternSize.height}`}
+              fill="none"
+              stroke={patternColor}
+              strokeWidth="0.5"
+            />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+      </svg>
+    );
+  }
+
+  // Default to dot pattern
+  return (
+    <DotPattern 
+      className={cn(
+        "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]"
+      )}
+      {...patternSize}
+      style={{ 
+        opacity: patternOpacity,
+        fill: patternColor
+      }}
+    />
+  );
+};
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -62,6 +136,10 @@ interface ProductHeroBlockProps {
   trustedByTextColor?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
+  backgroundPattern?: string;
+  backgroundPatternSize?: string;
+  backgroundPatternOpacity?: number;
+  backgroundPatternColor?: string;
 }
 
 // Main hero content component
@@ -82,7 +160,7 @@ const HeroContent = ({
   trustedByAvatars,
   backgroundColor
 }: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
-  <div className="relative z-10 text-center max-w-2xl space-y-6">
+  <div className="relative z-10 text-center max-w-3xl space-y-6">
     {showRainbowButton && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
@@ -108,7 +186,11 @@ const ProductHeroBlock = ({
   trustedByText,
   trustedByTextColor,
   trustedByCount,
-  trustedByAvatars
+  trustedByAvatars,
+  backgroundPattern,
+  backgroundPatternSize,
+  backgroundPatternOpacity,
+  backgroundPatternColor
 }: ProductHeroBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -119,10 +201,13 @@ const ProductHeroBlock = ({
 
   return (
     <section className="relative w-full flex flex-col items-center justify-center px-6 py-30 overflow-hidden">
-      {/* Background dot pattern with radial mask for visual depth */}
-      <DotPattern className={cn(
-        "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]",
-      )} />
+      {/* Background pattern with radial mask for visual depth */}
+      <BackgroundPattern 
+        pattern={backgroundPattern || 'dots'}
+        size={backgroundPatternSize || 'medium'}
+        opacity={backgroundPatternOpacity || 80}
+        color={backgroundPatternColor || '#a3a3a3'}
+      />
       
       <GradientOverlays />
       {showParticles && <FloatingParticles isMounted={isMounted} />}

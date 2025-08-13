@@ -67,6 +67,10 @@ export function BlockRenderer({ site }: BlockRendererProps) {
               trustedByTextColor={heroBlock.trustedByTextColor}
               trustedByCount={heroBlock.trustedByCount}
               trustedByAvatars={heroBlock.trustedByAvatars}
+              backgroundPattern={heroBlock.backgroundPattern}
+              backgroundPatternSize={heroBlock.backgroundPatternSize}
+              backgroundPatternOpacity={heroBlock.backgroundPatternOpacity}
+              backgroundPatternColor={heroBlock.backgroundPatternColor}
             />
           )
         } else if (block.type === 'richText') {

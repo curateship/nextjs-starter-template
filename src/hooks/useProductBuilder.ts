@@ -105,7 +105,11 @@ export function useProductBuilder({
             { src: "", alt: "User 1", fallback: "U1" },
             { src: "", alt: "User 2", fallback: "U2" },
             { src: "", alt: "User 3", fallback: "U3" }
-          ]
+          ],
+          backgroundPattern: 'dots',
+          backgroundPatternSize: 'medium',
+          backgroundPatternOpacity: 80,
+          backgroundPatternColor: '#a3a3a3'
         }
       default:
         return {}
