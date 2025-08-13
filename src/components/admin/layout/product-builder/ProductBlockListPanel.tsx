@@ -62,35 +62,6 @@ export function ProductBlockListPanel({
            block.type === 'product-gallery' ? 'Product Gallery' : 'Block'
   }
 
-  const getBlockPreview = (block: ProductBlock) => {
-    switch (block.type) {
-      case 'product-hero':
-        return (
-          <div className="text-sm text-muted-foreground space-y-1">
-            <div>Title: {block.content.title || 'Untitled'}</div>
-            <div>Price: {block.content.price || 'No price'}</div>
-            <div>CTA: {block.content.ctaText || 'No CTA'}</div>
-          </div>
-        )
-      case 'product-details':
-        return (
-          <div className="text-sm text-muted-foreground space-y-1">
-            <div>Description: {block.content.description ? 'Added' : 'None'}</div>
-            <div>Specifications: {block.content.specifications?.length || 0} items</div>
-          </div>
-        )
-      case 'product-gallery':
-        return (
-          <div className="text-sm text-muted-foreground space-y-1">
-            <div>Images: {block.content.images?.length || 0} images</div>
-            <div>Thumbnails: {block.content.showThumbnails ? "✓" : "✗"}</div>
-          </div>
-        )
-      default:
-        return null
-    }
-  }
-
   return (
     <>
       <div className="flex-1 p-6">
@@ -140,19 +111,16 @@ export function ProductBlockListPanel({
                   }}
                   onClick={() => onSelectBlock(block)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3 flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
                       <div className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
                         <GripVertical className="w-4 h-4" />
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium mb-2">{block.title}</h3>
-                        {getBlockPreview(block)}
-                      </div>
+                      <h3 className="font-medium">{block.title}</h3>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="text-xs text-muted-foreground">
-                        {getBlockTypeName(block)}
+                        {block.type}
                       </div>
                       <Button
                         variant="ghost"

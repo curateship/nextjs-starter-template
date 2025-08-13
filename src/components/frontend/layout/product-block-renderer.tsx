@@ -21,8 +21,20 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
     content: {
       title: product.title,
       subtitle: product.meta_description || 'This is a sample product built with the Product Builder',
-      price: '$99.99',
-      ctaText: 'Add to Cart'
+      primaryButton: 'Get Started',
+      secondaryButton: 'Learn More',
+      primaryButtonLink: '',
+      secondaryButtonLink: '',
+      backgroundColor: '#ffffff',
+      showRainbowButton: false,
+      rainbowButtonText: 'Get Access to Everything',
+      rainbowButtonIcon: 'github',
+      githubLink: '',
+      showParticles: true,
+      trustedByText: '',
+      trustedByTextColor: '#6b7280',
+      trustedByCount: '',
+      trustedByAvatars: []
     },
     display_order: 0
   }] : productBlocks
@@ -39,8 +51,20 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               key={`product-hero-${block.id}`}
               title={block.content?.title}
               subtitle={block.content?.subtitle}
-              price={block.content?.price}
-              ctaText={block.content?.ctaText}
+              primaryButton={block.content?.primaryButton}
+              secondaryButton={block.content?.secondaryButton}
+              primaryButtonLink={block.content?.primaryButtonLink}
+              secondaryButtonLink={block.content?.secondaryButtonLink}
+              backgroundColor={block.content?.backgroundColor}
+              showRainbowButton={block.content?.showRainbowButton}
+              rainbowButtonText={block.content?.rainbowButtonText}
+              rainbowButtonIcon={block.content?.rainbowButtonIcon}
+              githubLink={block.content?.githubLink}
+              showParticles={block.content?.showParticles}
+              trustedByText={block.content?.trustedByText}
+              trustedByTextColor={block.content?.trustedByTextColor}
+              trustedByCount={block.content?.trustedByCount}
+              trustedByAvatars={block.content?.trustedByAvatars}
             />
           )
         }
@@ -55,8 +79,11 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         <ProductHeroBlock
           title={product.title}
           subtitle="This product is under construction"
-          price="Coming Soon"
-          ctaText="Notify Me"
+          primaryButton="Notify Me"
+          secondaryButton="Learn More"
+          backgroundColor="#ffffff"
+          showParticles={true}
+          trustedByAvatars={[]}
         />
       )}
     </SiteLayout>

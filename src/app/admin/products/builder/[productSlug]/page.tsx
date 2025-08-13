@@ -111,6 +111,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           <ProductBlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.updateBlockContent}
+            siteId={currentProductData?.site_id || ''}
           />
           
           <ProductBlockListPanel

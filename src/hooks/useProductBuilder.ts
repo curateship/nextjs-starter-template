@@ -84,10 +84,28 @@ export function useProductBuilder({
     switch (blockType) {
       case 'product-hero':
         return {
-          title: "New Product",
-          subtitle: "Product description",
-          price: "$99",
-          ctaText: "Add to Cart"
+          title: 'New Hero Section',
+          subtitle: 'Add your subtitle here',
+          primaryButton: 'Get Started',
+          secondaryButton: 'Learn More',
+          primaryButtonLink: '',
+          secondaryButtonLink: '',
+          primaryButtonStyle: 'primary',
+          secondaryButtonStyle: 'outline',
+          backgroundColor: '#ffffff',
+          showRainbowButton: false,
+          rainbowButtonText: 'Get Access to Everything',
+          rainbowButtonIcon: 'github',
+          githubLink: '',
+          showParticles: true,
+          trustedByText: '',
+          trustedByTextColor: '#6b7280',
+          trustedByCount: '',
+          trustedByAvatars: [
+            { src: "", alt: "User 1", fallback: "U1" },
+            { src: "", alt: "User 2", fallback: "U2" },
+            { src: "", alt: "User 3", fallback: "U3" }
+          ]
         }
       default:
         return {}
