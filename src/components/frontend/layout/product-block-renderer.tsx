@@ -73,6 +73,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               backgroundPatternSize={block.content?.backgroundPatternSize}
               backgroundPatternOpacity={block.content?.backgroundPatternOpacity}
               backgroundPatternColor={block.content?.backgroundPatternColor}
+              heroImage={block.content?.heroImage}
+              showHeroImage={block.content?.showHeroImage}
             />
           )
         }

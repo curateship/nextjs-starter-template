@@ -53,6 +53,8 @@ export function ProductBlockPropertiesPanel({
                 backgroundPatternSize={selectedBlock.content.backgroundPatternSize || 'medium'}
                 backgroundPatternOpacity={selectedBlock.content.backgroundPatternOpacity || 80}
                 backgroundPatternColor={selectedBlock.content.backgroundPatternColor || '#a3a3a3'}
+                heroImage={selectedBlock.content.heroImage || ''}
+                showHeroImage={selectedBlock.content.showHeroImage || false}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
@@ -75,6 +77,8 @@ export function ProductBlockPropertiesPanel({
                 onBackgroundPatternSizeChange={(value) => updateBlockContent('backgroundPatternSize', value)}
                 onBackgroundPatternOpacityChange={(value) => updateBlockContent('backgroundPatternOpacity', value)}
                 onBackgroundPatternColorChange={(value) => updateBlockContent('backgroundPatternColor', value)}
+                onHeroImageChange={(value) => updateBlockContent('heroImage', value)}
+                onShowHeroImageChange={(value) => updateBlockContent('showHeroImage', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
