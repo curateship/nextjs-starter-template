@@ -12,14 +12,16 @@ interface ProductBlock {
 interface ProductBlockPropertiesPanelProps {
   selectedBlock: ProductBlock | null
   updateBlockContent: (field: string, value: any) => void
+  siteId: string
 }
 
 export function ProductBlockPropertiesPanel({
   selectedBlock,
-  updateBlockContent
+  updateBlockContent,
+  siteId
 }: ProductBlockPropertiesPanelProps) {
   return (
-    <div className="w-[650px] border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="w-[845px] border-r bg-muted/30 p-4 overflow-y-auto">
       {selectedBlock ? (
         <div>
           <div className="space-y-4">
@@ -27,12 +29,46 @@ export function ProductBlockPropertiesPanel({
               <ProductHeroBlock
                 title={selectedBlock.content.title || ''}
                 subtitle={selectedBlock.content.subtitle || ''}
-                price={selectedBlock.content.price || ''}
-                ctaText={selectedBlock.content.ctaText || ''}
+                primaryButton={selectedBlock.content.primaryButton || ''}
+                secondaryButton={selectedBlock.content.secondaryButton || ''}
+                primaryButtonLink={selectedBlock.content.primaryButtonLink || ''}
+                secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
+                primaryButtonStyle={selectedBlock.content.primaryButtonStyle || 'primary'}
+                secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
+                backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
+                showRainbowButton={selectedBlock.content.showRainbowButton || false}
+                rainbowButtonText={selectedBlock.content.rainbowButtonText || 'Get Access to Everything'}
+                rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
+                githubLink={selectedBlock.content.githubLink || ''}
+                showParticles={selectedBlock.content.showParticles || false}
+                trustedByText={selectedBlock.content.trustedByText || ''}
+                trustedByTextColor={selectedBlock.content.trustedByTextColor || '#6b7280'}
+                trustedByCount={selectedBlock.content.trustedByCount || ''}
+                trustedByAvatars={selectedBlock.content.trustedByAvatars || [
+                  { src: "", alt: "User 1", fallback: "U1" },
+                  { src: "", alt: "User 2", fallback: "U2" },
+                  { src: "", alt: "User 3", fallback: "U3" }
+                ]}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
-                onPriceChange={(value) => updateBlockContent('price', value)}
-                onCtaTextChange={(value) => updateBlockContent('ctaText', value)}
+                onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
+                onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
+                onPrimaryButtonLinkChange={(value) => updateBlockContent('primaryButtonLink', value)}
+                onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
+                onPrimaryButtonStyleChange={(value) => updateBlockContent('primaryButtonStyle', value)}
+                onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
+                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
+                onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
+                onRainbowButtonTextChange={(value) => updateBlockContent('rainbowButtonText', value)}
+                onRainbowButtonIconChange={(value) => updateBlockContent('rainbowButtonIcon', value)}
+                onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
+                onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
+                onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
+                onTrustedByTextColorChange={(value) => updateBlockContent('trustedByTextColor', value)}
+                onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
+                onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
             
