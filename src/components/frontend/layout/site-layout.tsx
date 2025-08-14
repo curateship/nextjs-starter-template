@@ -27,12 +27,7 @@ export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
       {/* Navigation */}
       <div className="sticky top-0 z-50">
         <div>
-          <NavBlock 
-            logo={navigation?.logo}
-            links={navigation?.links}
-            buttons={navigation?.buttons}
-            style={navigation?.style}
-          />
+          <NavBlock {...navigation} />
         </div>
       </div>
       
@@ -40,13 +35,7 @@ export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
       {children}
       
       {/* Footer */}
-      <FooterBlock 
-        logo={footer?.logo}
-        copyright={footer?.copyright}
-        links={footer?.links}
-        socialLinks={footer?.socialLinks}
-        style={footer?.style}
-      />
+      <FooterBlock {...footer} />
     </>
   )
 }

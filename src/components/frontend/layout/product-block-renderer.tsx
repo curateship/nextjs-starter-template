@@ -38,7 +38,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
       backgroundPattern: 'dots',
       backgroundPatternSize: 'medium',
       backgroundPatternOpacity: 80,
-      backgroundPatternColor: '#a3a3a3'
+      backgroundPatternColor: '#a3a3a3',
+      heroImage: '',
+      showHeroImage: false,
+      showTrustedByBadge: true
     },
     display_order: 0
   }] : productBlocks
@@ -53,29 +56,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductHeroBlock
               key={`product-hero-${block.id}`}
-              title={block.content?.title}
-              subtitle={block.content?.subtitle}
-              primaryButton={block.content?.primaryButton}
-              secondaryButton={block.content?.secondaryButton}
-              primaryButtonLink={block.content?.primaryButtonLink}
-              secondaryButtonLink={block.content?.secondaryButtonLink}
-              backgroundColor={block.content?.backgroundColor}
-              showRainbowButton={block.content?.showRainbowButton}
-              rainbowButtonText={block.content?.rainbowButtonText}
-              rainbowButtonIcon={block.content?.rainbowButtonIcon}
-              githubLink={block.content?.githubLink}
-              showParticles={block.content?.showParticles}
-              trustedByText={block.content?.trustedByText}
-              trustedByTextColor={block.content?.trustedByTextColor}
-              trustedByCount={block.content?.trustedByCount}
-              trustedByAvatars={block.content?.trustedByAvatars}
-              backgroundPattern={block.content?.backgroundPattern}
-              backgroundPatternSize={block.content?.backgroundPatternSize}
-              backgroundPatternOpacity={block.content?.backgroundPatternOpacity}
-              backgroundPatternColor={block.content?.backgroundPatternColor}
-              heroImage={block.content?.heroImage}
-              showHeroImage={block.content?.showHeroImage}
-              showTrustedByBadge={block.content?.showTrustedByBadge}
+              {...block.content}
             />
           )
         }
