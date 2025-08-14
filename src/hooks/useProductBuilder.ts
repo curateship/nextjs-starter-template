@@ -26,6 +26,7 @@ interface UseProductBuilderReturn {
   handleDeleteBlock: (block: ProductBlock) => void
   handleReorderBlocks: (blocks: ProductBlock[]) => void
   handleAddProductHeroBlock: () => void
+  handleAddProductFeaturesBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -114,6 +115,31 @@ export function useProductBuilder({
           showHeroImage: false,
           showTrustedByBadge: true
         }
+      case 'product-features':
+        return {
+          headerTitle: 'Effortless Task Management',
+          headerSubtitle: 'Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more. AI-powered scheduling helps you stay on track and adapt to changing priorities.',
+          features: [
+            {
+              id: `feature-${Date.now()}-1`,
+              image: '',
+              title: 'Marketing Campaigns',
+              description: 'Effortlessly book and manage your meetings. Stay on top of your schedule.'
+            },
+            {
+              id: `feature-${Date.now()}-2`,
+              image: '',
+              title: 'AI Meeting Scheduler',
+              description: 'Effortlessly book and manage your meetings. Stay on top of your schedule.'
+            },
+            {
+              id: `feature-${Date.now()}-3`,
+              image: '',
+              title: 'Task Automation',
+              description: 'Effortlessly book and manage your meetings. Stay on top of your schedule.'
+            }
+          ]
+        }
       default:
         return {}
     }
@@ -136,6 +162,26 @@ export function useProductBuilder({
     setSelectedBlock(newBlock)
     
     setSaveMessage("Product hero block added!")
+    setTimeout(() => setSaveMessage(""), 3000)
+  }
+
+  // Add a new product features block
+  const handleAddProductFeaturesBlock = () => {
+    const newBlock: ProductBlock = {
+      id: `product-features-${Date.now()}`,
+      type: 'product-features',
+      title: 'Product Features',
+      content: getDefaultContent('product-features')
+    }
+    
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedProduct] || []
+    updatedBlocks[selectedProduct] = [...currentBlocks, newBlock]
+    
+    setBlocks(updatedBlocks)
+    setSelectedBlock(newBlock)
+    
+    setSaveMessage("Product features block added!")
     setTimeout(() => setSaveMessage(""), 3000)
   }
 
@@ -202,6 +248,7 @@ export function useProductBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddProductHeroBlock,
+    handleAddProductFeaturesBlock,
     handleSaveAllBlocks
   }
 }

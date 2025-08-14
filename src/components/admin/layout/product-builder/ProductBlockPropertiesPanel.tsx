@@ -1,6 +1,7 @@
 import { ProductHeroBlock } from "@/components/admin/modules/product-blocks/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/modules/product-blocks/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/modules/product-blocks/ProductGalleryBlock"
+import { ProductFeaturesBlock } from "@/components/admin/modules/product-blocks/ProductFeaturesBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -123,6 +124,19 @@ export function ProductBlockPropertiesPanel({
                 showThumbnails={selectedBlock.content.showThumbnails || false}
                 onImagesChange={(images) => updateBlockContent('images', images)}
                 onShowThumbnailsChange={(show) => updateBlockContent('showThumbnails', show)}
+              />
+            )}
+            
+            {selectedBlock.type === 'product-features' && (
+              <ProductFeaturesBlock
+                headerTitle={selectedBlock.content.headerTitle || 'Effortless Task Management'}
+                headerSubtitle={selectedBlock.content.headerSubtitle || 'Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more.'}
+                features={selectedBlock.content.features || []}
+                onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
+                onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
+                onFeaturesChange={(features) => updateBlockContent('features', features)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
           </div>

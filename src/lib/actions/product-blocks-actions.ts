@@ -38,7 +38,7 @@ async function createServerSupabaseClient() {
 export interface ProductBlock {
   id: string
   product_id: string
-  block_type: 'product-hero' | 'product-details' | 'product-gallery'
+  block_type: 'product-hero' | 'product-details' | 'product-gallery' | 'product-features'
   content: Record<string, any>
   display_order: number
   is_active: boolean
@@ -128,14 +128,99 @@ export async function getProductBlocksAction(product_id: string): Promise<{
 }
 
 /**
- * Save all blocks for a product
+ * Validate block types against database constraints
+ */
+function validateBlockTypes(blocks: Block[]): { valid: boolean; error?: string } {
+  const allowedTypes = ['product-hero', 'product-details', 'product-gallery', 'product-features']
+  
+  for (const block of blocks) {
+    if (!allowedTypes.includes(block.type)) {
+      return {
+        valid: false,
+        error: `Invalid block type '${block.type}'. Allowed types: ${allowedTypes.join(', ')}`
+      }
+    }
+  }
+  
+  return { valid: true }
+}
+
+/**
+ * Create a backup of existing blocks before making changes
+ */
+async function createBlocksBackup(product_id: string): Promise<{ 
+  success: boolean; 
+  backup?: ProductBlock[]; 
+  error?: string 
+}> {
+  try {
+    const { data: existingBlocks, error } = await supabaseAdmin
+      .from('product_blocks')
+      .select('*')
+      .eq('product_id', product_id)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      // If table doesn't exist, that's ok - no backup needed
+      if (error.message.includes('relation') && error.message.includes('does not exist')) {
+        return { success: true, backup: [] }
+      }
+      return { success: false, error: `Failed to create backup: ${error.message}` }
+    }
+
+    return { success: true, backup: existingBlocks || [] }
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Backup failed: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
+ * Restore blocks from backup
+ */
+async function restoreFromBackup(product_id: string, backup: ProductBlock[]): Promise<void> {
+  if (backup.length === 0) return
+
+  try {
+    // First, deactivate all current blocks
+    await supabaseAdmin
+      .from('product_blocks')
+      .update({ is_active: false })
+      .eq('product_id', product_id)
+
+    // Restore backup blocks
+    const restoreBlocks = backup.map(block => ({
+      ...block,
+      id: undefined, // Let database generate new IDs
+      created_at: undefined,
+      updated_at: undefined,
+      is_active: true
+    }))
+
+    await supabaseAdmin
+      .from('product_blocks')
+      .insert(restoreBlocks)
+
+  } catch (error) {
+    console.error('Failed to restore backup:', error)
+    // Log but don't throw - we don't want to make things worse
+  }
+}
+
+/**
+ * Safe save using upsert logic with transaction-like behavior
  */
 export async function saveProductBlocksAction(
   product_id: string, 
   blocks: Block[]
 ): Promise<{ success: boolean; error?: string }> {
+  let backup: ProductBlock[] = []
+  
   try {
-    // Verify user is authenticated
+    // Step 1: Authentication
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
@@ -143,7 +228,7 @@ export async function saveProductBlocksAction(
       return { success: false, error: 'Authentication required' }
     }
 
-    // Verify user owns this product (through site ownership)
+    // Step 2: Authorization
     const { data: product, error: productError } = await supabaseAdmin
       .from('products')
       .select(`
@@ -162,44 +247,76 @@ export async function saveProductBlocksAction(
       return { success: false, error: 'Product not found or access denied' }
     }
 
-    // Start a transaction to update blocks
-    const { error: deleteError } = await supabaseAdmin
-      .from('product_blocks')
-      .delete()
-      .eq('product_id', product_id)
-
-    if (deleteError) {
-      // If table doesn't exist yet, continue (migration not applied)
-      if (!deleteError.message.includes('relation') || !deleteError.message.includes('does not exist')) {
-        return { success: false, error: `Failed to clear existing blocks: ${deleteError.message}` }
-      }
+    // Step 3: Pre-save validation
+    const validation = validateBlockTypes(blocks)
+    if (!validation.valid) {
+      return { success: false, error: validation.error }
     }
 
-    // Insert new blocks
-    if (blocks.length > 0) {
-      const productBlocks = blocks.map((block, index) => ({
-        product_id,
-        block_type: block.type as 'product-hero' | 'product-details' | 'product-gallery',
-        content: block.content,
-        display_order: index,
-        is_active: true
-      }))
+    // Step 4: Create backup before making any changes
+    const backupResult = await createBlocksBackup(product_id)
+    if (!backupResult.success) {
+      return { success: false, error: backupResult.error }
+    }
+    backup = backupResult.backup || []
 
-      const { error: insertError } = await supabaseAdmin
+    // Step 5: Perform safe upsert operations
+    try {
+      // First, mark all existing blocks as inactive (soft delete)
+      const { error: deactivateError } = await supabaseAdmin
         .from('product_blocks')
-        .insert(productBlocks)
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('product_id', product_id)
 
-      if (insertError) {
-        // If table doesn't exist yet, return success (migration not applied)
-        if (insertError.message.includes('relation') && insertError.message.includes('does not exist')) {
-          console.warn('product_blocks table does not exist yet. Migration 018 needs to be applied.')
-          return { success: true }
+      if (deactivateError) {
+        // If table doesn't exist yet, continue (migration not applied)
+        if (!deactivateError.message.includes('relation') || !deactivateError.message.includes('does not exist')) {
+          throw new Error(`Failed to deactivate existing blocks: ${deactivateError.message}`)
         }
-        return { success: false, error: `Failed to save blocks: ${insertError.message}` }
+      }
+
+      // Then insert new blocks
+      if (blocks.length > 0) {
+        const productBlocks = blocks.map((block, index) => ({
+          product_id,
+          block_type: block.type as 'product-hero' | 'product-details' | 'product-gallery' | 'product-features',
+          content: block.content,
+          display_order: index,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }))
+
+        const { error: insertError } = await supabaseAdmin
+          .from('product_blocks')
+          .insert(productBlocks)
+
+        if (insertError) {
+          // If table doesn't exist yet, return success (migration not applied)
+          if (insertError.message.includes('relation') && insertError.message.includes('does not exist')) {
+            console.warn('product_blocks table does not exist yet. Migration 018 needs to be applied.')
+            return { success: true }
+          }
+          throw new Error(`Failed to save blocks: ${insertError.message}`)
+        }
+      }
+
+      // Step 6: Clean up old inactive blocks (optional, can be done later)
+      // We keep them for now in case we need to restore
+
+      return { success: true }
+
+    } catch (saveError) {
+      // Step 7: If anything failed, restore from backup
+      console.error('Save operation failed, attempting to restore backup:', saveError)
+      await restoreFromBackup(product_id, backup)
+      
+      return { 
+        success: false, 
+        error: `Save failed and backup restored: ${saveError instanceof Error ? saveError.message : String(saveError)}`
       }
     }
 
-    return { success: true }
   } catch (error) {
     return { 
       success: false, 
@@ -217,6 +334,8 @@ function getBlockTitle(blockType: string): string {
       return 'Product Details'
     case 'product-gallery':
       return 'Product Gallery'
+    case 'product-features':
+      return 'Product Features'
     default:
       return 'Product Block'
   }

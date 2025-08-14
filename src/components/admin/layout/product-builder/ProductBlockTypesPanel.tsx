@@ -1,12 +1,14 @@
 import { Button } from "@/components/ui/button"
-import { Plus, Zap, Package, Image } from "lucide-react"
+import { Plus, Zap, Package, Image, Grid3X3 } from "lucide-react"
 
 interface ProductBlockTypesPanelProps {
   onAddProductHeroBlock: () => void
+  onAddProductFeaturesBlock: () => void
 }
 
 export function ProductBlockTypesPanel({ 
-  onAddProductHeroBlock
+  onAddProductHeroBlock,
+  onAddProductFeaturesBlock
 }: ProductBlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
@@ -24,6 +26,21 @@ export function ProductBlockTypesPanel({
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
               onClick={onAddProductHeroBlock}
               title="Add product hero block"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Grid3X3 className="w-4 h-4" />
+              <span className="font-medium">Product Features</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+              onClick={onAddProductFeaturesBlock}
+              title="Add product features block"
             >
               <Plus className="w-4 h-4" />
             </Button>
