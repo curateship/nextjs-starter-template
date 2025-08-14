@@ -51,26 +51,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
           return (
             <HeroRuixenBlock
               key={`hero-${heroBlock.id}`}
-              title={heroBlock.title}
-              subtitle={heroBlock.subtitle}
-              primaryButton={heroBlock.primaryButton}
-              secondaryButton={heroBlock.secondaryButton}
-              primaryButtonLink={heroBlock.primaryButtonLink}
-              secondaryButtonLink={heroBlock.secondaryButtonLink}
-              backgroundColor={heroBlock.backgroundColor}
-              showRainbowButton={heroBlock.showRainbowButton}
-              rainbowButtonText={heroBlock.rainbowButtonText}
-              rainbowButtonIcon={heroBlock.rainbowButtonIcon}
-              githubLink={heroBlock.githubLink}
-              showParticles={heroBlock.showParticles}
-              trustedByText={heroBlock.trustedByText}
-              trustedByTextColor={heroBlock.trustedByTextColor}
-              trustedByCount={heroBlock.trustedByCount}
-              trustedByAvatars={heroBlock.trustedByAvatars}
-              backgroundPattern={heroBlock.backgroundPattern}
-              backgroundPatternSize={heroBlock.backgroundPatternSize}
-              backgroundPatternOpacity={heroBlock.backgroundPatternOpacity}
-              backgroundPatternColor={heroBlock.backgroundPatternColor}
+              {...heroBlock}
             />
           )
         } else if (block.type === 'richText') {

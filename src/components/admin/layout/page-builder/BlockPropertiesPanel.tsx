@@ -4,6 +4,16 @@ import { FooterBlock } from "./FooterBlock"
 import { RichTextBlock } from "@/components/admin/modules/shared-blocks/RichTextBlock"
 import type { Block } from "@/lib/actions/site-blocks-actions"
 
+// Helper function to generate callback props dynamically
+const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {
+  const callbacks: Record<string, (value: any) => void> = {}
+  fields.forEach(field => {
+    const callbackName = `on${field.charAt(0).toUpperCase() + field.slice(1)}Change`
+    callbacks[callbackName] = (value: any) => updateFn(field, value)
+  })
+  return callbacks
+}
+
 interface BlockPropertiesPanelProps {
   selectedBlock: Block | null
   updateBlockContent: (field: string, value: any) => void
@@ -22,96 +32,38 @@ export function BlockPropertiesPanel({
           <div className="space-y-4">
             {selectedBlock.type === 'hero' && (
               <HeroRuixenBlock
-                title={selectedBlock.content.title || ''}
-                subtitle={selectedBlock.content.subtitle || ''}
-                primaryButton={selectedBlock.content.primaryButton || ''}
-                secondaryButton={selectedBlock.content.secondaryButton || ''}
-                primaryButtonLink={selectedBlock.content.primaryButtonLink || ''}
-                secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
-                primaryButtonStyle={selectedBlock.content.primaryButtonStyle || 'primary'}
-                secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
-                backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
-                showRainbowButton={selectedBlock.content.showRainbowButton || false}
-                rainbowButtonText={selectedBlock.content.rainbowButtonText || 'Get Access to Everything'}
-                rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
-                githubLink={selectedBlock.content.githubLink || ''}
-                showParticles={selectedBlock.content.showParticles || false}
-                trustedByText={selectedBlock.content.trustedByText || ''}
-                trustedByTextColor={selectedBlock.content.trustedByTextColor || '#6b7280'}
-                trustedByCount={selectedBlock.content.trustedByCount || ''}
-                trustedByAvatars={selectedBlock.content.trustedByAvatars || [
-                  { src: "", alt: "User 1", fallback: "U1" },
-                  { src: "", alt: "User 2", fallback: "U2" },
-                  { src: "", alt: "User 3", fallback: "U3" }
-                ]}
-                backgroundPattern={selectedBlock.content.backgroundPattern || 'dots'}
-                backgroundPatternSize={selectedBlock.content.backgroundPatternSize || 'medium'}
-                backgroundPatternOpacity={selectedBlock.content.backgroundPatternOpacity || 80}
-                backgroundPatternColor={selectedBlock.content.backgroundPatternColor || '#a3a3a3'}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
-                onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
-                onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
-                onPrimaryButtonLinkChange={(value) => updateBlockContent('primaryButtonLink', value)}
-                onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
-                onPrimaryButtonStyleChange={(value) => updateBlockContent('primaryButtonStyle', value)}
-                onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
-                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
-                onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
-                onRainbowButtonTextChange={(value) => updateBlockContent('rainbowButtonText', value)}
-                onRainbowButtonIconChange={(value) => updateBlockContent('rainbowButtonIcon', value)}
-                onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
-                onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
-                onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
-                onTrustedByTextColorChange={(value) => updateBlockContent('trustedByTextColor', value)}
-                onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
-                onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
-                onBackgroundPatternChange={(value) => updateBlockContent('backgroundPattern', value)}
-                onBackgroundPatternSizeChange={(value) => updateBlockContent('backgroundPatternSize', value)}
-                onBackgroundPatternOpacityChange={(value) => updateBlockContent('backgroundPatternOpacity', value)}
-                onBackgroundPatternColorChange={(value) => updateBlockContent('backgroundPatternColor', value)}
+                {...selectedBlock.content}
+                {...createCallbacks(updateBlockContent, [
+                  'title', 'subtitle', 'primaryButton', 'secondaryButton', 
+                  'primaryButtonLink', 'secondaryButtonLink', 'primaryButtonStyle', 'secondaryButtonStyle',
+                  'backgroundColor', 'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
+                  'githubLink', 'showParticles', 'trustedByText', 'trustedByTextColor', 
+                  'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
+                  'backgroundPatternOpacity', 'backgroundPatternColor'
+                ])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'navigation' && (
               <NavigationBlock
-                logo={selectedBlock.content.logo || ''}
-                links={selectedBlock.content.links || []}
-                buttons={selectedBlock.content.buttons || []}
-                style={selectedBlock.content.style || { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'medium' }}
-                onLogoChange={(value) => updateBlockContent('logo', value)}
-                onLinksChange={(links) => updateBlockContent('links', links)}
-                onButtonsChange={(buttons) => updateBlockContent('buttons', buttons)}
-                onStyleChange={(style) => updateBlockContent('style', style)}
+                {...selectedBlock.content}
+                {...createCallbacks(updateBlockContent, ['logo', 'links', 'buttons', 'style'])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'footer' && (
               <FooterBlock
-                logo={selectedBlock.content.logo || ''}
-                copyright={selectedBlock.content.copyright || ''}
-                links={selectedBlock.content.links || []}
-                socialLinks={selectedBlock.content.socialLinks || []}
-                style={selectedBlock.content.style || { backgroundColor: '#1f2937', textColor: '#ffffff' }}
-                onLogoChange={(value) => updateBlockContent('logo', value)}
-                onCopyrightChange={(value) => updateBlockContent('copyright', value)}
-                onLinksChange={(links) => updateBlockContent('links', links)}
-                onSocialLinksChange={(socialLinks) => updateBlockContent('socialLinks', socialLinks)}
-                onStyleChange={(style) => updateBlockContent('style', style)}
+                {...selectedBlock.content}
+                {...createCallbacks(updateBlockContent, ['logo', 'copyright', 'links', 'socialLinks', 'style'])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'rich-text' && (
               <RichTextBlock
-                content={{
-                  title: selectedBlock.content.title || '',
-                  subtitle: selectedBlock.content.subtitle || '',
-                  headerAlign: selectedBlock.content.headerAlign || 'left',
-                  content: selectedBlock.content.content || ''
-                }}
+                content={selectedBlock.content}
                 onContentChange={(contentObj) => {
                   updateBlockContent('title', contentObj.title)
                   updateBlockContent('subtitle', contentObj.subtitle)
