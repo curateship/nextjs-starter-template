@@ -7,6 +7,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogPortal,
+  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -15,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
 import { ImageIcon, X } from "lucide-react"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 import Link from "next/link"
 import { updateProductAction } from "@/lib/actions/product-actions"
 import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
@@ -257,7 +260,16 @@ export function ProductSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+      <DialogPortal>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
+             onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
+          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
+               style={{ width: '840px', maxWidth: '95vw' }}
+               onClick={(e) => e.stopPropagation()}>
+            <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
         <DialogHeader>
           <DialogTitle>Product Settings</DialogTitle>
           <DialogDescription>
@@ -487,7 +499,9 @@ export function ProductSettingsModal({
           }}
           currentImageUrl={formData.featured_image || ''}
         />
-      </DialogContent>
+          </div>
+        </div>
+      </DialogPortal>
     </Dialog>
   )
 }

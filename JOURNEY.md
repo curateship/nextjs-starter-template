@@ -3156,3 +3156,34 @@ const createCallbacks = (updateFn: (field: string, value: any) => void, fields: 
 - `/src/components/frontend/layout/site-layout.tsx`
 
 **Total Achievement**: Successfully eliminated prop drilling across the entire block system while maintaining type safety and improving code maintainability. The refactor demonstrates clean architecture principles and sets a consistent pattern for future development.
+
+## Critical Security Vulnerability Fixed (Aug 14, 2025)
+
+### Issue Discovered
+Multiple database tables were created WITHOUT Row Level Security (RLS) policies, leaving them completely exposed via the Supabase API. Any user with the anon key could read/write/delete all data.
+
+### Affected Tables
+- `pages` - All site pages exposed
+- `products` - All products exposed
+- `product_blocks` - All product blocks exposed
+- `theme_blocks` - All theme blocks exposed
+- `site_blocks` - All site blocks exposed
+
+### Root Cause
+Despite CLAUDE.md explicitly requiring:
+- "MANDATORY SECURITY AUDIT PROTOCOL" after every code change
+- "NEVER sacrifice security for speed"
+- "ALWAYS validate authentication on the server side"
+
+These critical security requirements were ignored when creating migrations 013, 017, and 018. The migrations created tables without enabling RLS, violating fundamental security principles.
+
+### Resolution
+Created migrations 020-025 to:
+1. Enable RLS on all unprotected tables
+2. Add proper access policies (user ownership, public read for published content, admin override)
+3. Recreate views with `security_invoker = true` for additional security
+
+### Lessons Learned
+- Security guidelines in CLAUDE.md are only effective when actually followed
+- Automated security checks should be implemented to prevent such oversights
+- Every table creation MUST include RLS policies from the start
