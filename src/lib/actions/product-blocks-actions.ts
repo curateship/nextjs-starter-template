@@ -38,7 +38,7 @@ async function createServerSupabaseClient() {
 export interface ProductBlock {
   id: string
   product_id: string
-  block_type: 'product-hero' | 'product-details' | 'product-gallery' | 'product-features'
+  block_type: 'product-hero' | 'product-details' | 'product-gallery' | 'product-features' | 'product-hotspot'
   content: Record<string, any>
   display_order: number
   is_active: boolean
@@ -131,7 +131,7 @@ export async function getProductBlocksAction(product_id: string): Promise<{
  * Validate block types against database constraints
  */
 function validateBlockTypes(blocks: Block[]): { valid: boolean; error?: string } {
-  const allowedTypes = ['product-hero', 'product-details', 'product-gallery', 'product-features']
+  const allowedTypes = ['product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot']
   
   for (const block of blocks) {
     if (!allowedTypes.includes(block.type)) {
@@ -279,7 +279,7 @@ export async function saveProductBlocksAction(
       if (blocks.length > 0) {
         const productBlocks = blocks.map((block, index) => ({
           product_id,
-          block_type: block.type as 'product-hero' | 'product-details' | 'product-gallery' | 'product-features',
+          block_type: block.type as 'product-hero' | 'product-details' | 'product-gallery' | 'product-features' | 'product-hotspot',
           content: block.content,
           display_order: index,
           is_active: true,

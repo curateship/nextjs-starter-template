@@ -1,7 +1,8 @@
-import { ProductHeroBlock } from "@/components/admin/modules/product-blocks/ProductHeroBlock"
-import { ProductDetailsBlock } from "@/components/admin/modules/product-blocks/ProductDetailsBlock"
-import { ProductGalleryBlock } from "@/components/admin/modules/product-blocks/ProductGalleryBlock"
-import { ProductFeaturesBlock } from "@/components/admin/modules/product-blocks/ProductFeaturesBlock"
+import { ProductHeroBlock } from "@/components/admin/layout/product-builder/ProductHeroBlock"
+import { ProductDetailsBlock } from "@/components/admin/layout/product-builder/ProductDetailsBlock"
+import { ProductGalleryBlock } from "@/components/admin/layout/product-builder/ProductGalleryBlock"
+import { ProductFeaturesBlock } from "@/components/admin/layout/product-builder/ProductFeaturesBlock"
+import { ProductHotspotBlock } from "@/components/admin/layout/product-builder/ProductHotspotBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -135,6 +136,23 @@ export function ProductBlockPropertiesPanel({
                 onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
                 onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
                 onFeaturesChange={(features) => updateBlockContent('features', features)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
+              />
+            )}
+            
+            {selectedBlock.type === 'product-hotspot' && (
+              <ProductHotspotBlock
+                title={selectedBlock.content.title || 'Interactive Product Overview'}
+                subtitle={selectedBlock.content.subtitle || 'Hover over the blinking dots to discover more about our features'}
+                backgroundImage={selectedBlock.content.backgroundImage || ''}
+                hotspots={selectedBlock.content.hotspots || []}
+                showTooltipsAlways={selectedBlock.content.showTooltipsAlways || false}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onBackgroundImageChange={(value) => updateBlockContent('backgroundImage', value)}
+                onHotspotsChange={(hotspots) => updateBlockContent('hotspots', hotspots)}
+                onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />

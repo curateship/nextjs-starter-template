@@ -27,6 +27,7 @@ interface UseProductBuilderReturn {
   handleReorderBlocks: (blocks: ProductBlock[]) => void
   handleAddProductHeroBlock: () => void
   handleAddProductFeaturesBlock: () => void
+  handleAddProductHotspotBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -140,6 +141,14 @@ export function useProductBuilder({
             }
           ]
         }
+      case 'product-hotspot':
+        return {
+          title: 'Interactive Product Overview',
+          subtitle: 'Hover over the blinking dots to discover more about our features',
+          backgroundImage: '',
+          hotspots: [],
+          showTooltipsAlways: false
+        }
       default:
         return {}
     }
@@ -182,6 +191,26 @@ export function useProductBuilder({
     setSelectedBlock(newBlock)
     
     setSaveMessage("Product features block added!")
+    setTimeout(() => setSaveMessage(""), 3000)
+  }
+
+  // Add a new product hotspot block
+  const handleAddProductHotspotBlock = () => {
+    const newBlock: ProductBlock = {
+      id: `product-hotspot-${Date.now()}`,
+      type: 'product-hotspot',
+      title: 'Product Hotspot',
+      content: getDefaultContent('product-hotspot')
+    }
+    
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedProduct] || []
+    updatedBlocks[selectedProduct] = [...currentBlocks, newBlock]
+    
+    setBlocks(updatedBlocks)
+    setSelectedBlock(newBlock)
+    
+    setSaveMessage("Product hotspot block added!")
     setTimeout(() => setSaveMessage(""), 3000)
   }
 
@@ -249,6 +278,7 @@ export function useProductBuilder({
     handleReorderBlocks,
     handleAddProductHeroBlock,
     handleAddProductFeaturesBlock,
+    handleAddProductHotspotBlock,
     handleSaveAllBlocks
   }
 }
