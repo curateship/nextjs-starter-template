@@ -13,8 +13,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
+import { ImageIcon, X } from "lucide-react"
 import Link from "next/link"
 import { updateProductAction } from "@/lib/actions/product-actions"
+import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import type { Product, UpdateProductData } from "@/lib/actions/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
@@ -38,6 +41,7 @@ export function ProductSettingsModal({
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [showImagePicker, setShowImagePicker] = useState(false)
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -70,6 +74,49 @@ export function ProductSettingsModal({
     }
   }
 
+  // Handle featured image changes with usage tracking
+  const handleImageChange = async (newImageUrl: string) => {
+    try {
+      // Remove tracking for old image
+      if (formData.featured_image && site?.id) {
+        const { data: oldImageId } = await getImageByUrlAction(formData.featured_image)
+        if (oldImageId) {
+          await removeImageUsageAction(oldImageId, site.id, "product", "featured-image")
+        }
+      }
+
+      // Track usage for new image
+      if (newImageUrl && site?.id) {
+        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
+        if (newImageId) {
+          await trackImageUsageAction(newImageId, site.id, "product", "featured-image")
+        }
+      }
+
+      // Update the form data
+      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
+    } catch (error) {
+      console.error('Error tracking image usage:', error)
+      // Still update the image even if tracking fails
+      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
+    }
+  }
+
+  // Handle removing the featured image
+  const handleRemoveImage = async () => {
+    if (formData.featured_image && site?.id) {
+      try {
+        const { data: imageId } = await getImageByUrlAction(formData.featured_image)
+        if (imageId) {
+          await removeImageUsageAction(imageId, site.id, "product", "featured-image")
+        }
+      } catch (error) {
+        console.error('Error removing image usage tracking:', error)
+      }
+    }
+    setFormData(prev => ({ ...prev, featured_image: '' }))
+  }
+
 
   // Initialize form data when product changes
   useEffect(() => {
@@ -79,6 +126,7 @@ export function ProductSettingsModal({
         slug: product.slug,
         meta_description: product.meta_description || '',
         meta_keywords: product.meta_keywords || '',
+        featured_image: product.featured_image || '',
         is_published: product.is_published
       })
       
@@ -91,6 +139,19 @@ export function ProductSettingsModal({
       setSaveMessage(null)
     }
   }, [product])
+
+  // Track initial featured image usage
+  useEffect(() => {
+    const trackInitialImage = async () => {
+      if (product?.featured_image && site?.id) {
+        const { data: imageId } = await getImageByUrlAction(product.featured_image)
+        if (imageId) {
+          await trackImageUsageAction(imageId, site.id, "product", "featured-image")
+        }
+      }
+    }
+    trackInitialImage()
+  }, []) // Only run on mount
 
   // Handle saving as draft
   const handleSaveDraft = async () => {
@@ -253,6 +314,51 @@ export function ProductSettingsModal({
                     : "Auto-generated from title. You can edit this to customize the URL."}
                 </p>
               </div>
+
+              {/* Featured Image */}
+              <div className="space-y-2">
+                <Label htmlFor="featured_image">Featured Image</Label>
+                <div className="mt-2">
+                  {formData.featured_image ? (
+                    <div className="relative rounded-lg overflow-hidden bg-muted">
+                      <img 
+                        src={formData.featured_image} 
+                        alt="Featured image preview" 
+                        className="w-full h-48 object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                        onClick={() => setShowImagePicker(true)}
+                      >
+                        <div className="text-white text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                          <p className="text-sm font-medium">Click to change image</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      onClick={() => setShowImagePicker(true)}
+                    >
+                      <div className="text-center">
+                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Optional featured image for this product
+                </p>
+              </div>
                 
               {/* Current Status Display */}
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -370,6 +476,17 @@ export function ProductSettingsModal({
             </div>
           </div>
         </form>
+
+        {/* Image Picker Modal */}
+        <ImagePicker
+          open={showImagePicker}
+          onOpenChange={setShowImagePicker}
+          onSelectImage={(imageUrl) => {
+            handleImageChange(imageUrl)
+            setShowImagePicker(false)
+          }}
+          currentImageUrl={formData.featured_image || ''}
+        />
       </DialogContent>
     </Dialog>
   )

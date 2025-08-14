@@ -155,6 +155,19 @@ export function ProductHeroBlock({
   const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string; id?: string }>>(trustedByAvatars)
 
   // Ensure all avatars have unique IDs
+  // Track hero image usage on initial load
+  useEffect(() => {
+    const trackInitialHeroImage = async () => {
+      if (heroImage && siteId) {
+        const { data: imageId } = await getImageByUrlAction(heroImage)
+        if (imageId) {
+          await trackImageUsageAction(imageId, siteId, "product-hero", "hero-image")
+        }
+      }
+    }
+    trackInitialHeroImage()
+  }, []) // Only run on mount
+
   useEffect(() => {
     const avatarsNeedIds = trustedByAvatars.some(avatar => !avatar.id)
     if (avatarsNeedIds) {
@@ -280,6 +293,34 @@ export function ProductHeroBlock({
       onTrustedByAvatarsChange(reorderedWithIds)
     }, 300)
   }, [onTrustedByAvatarsChange])
+
+  // Handle hero image changes with usage tracking
+  const handleHeroImageChange = async (newImageUrl: string) => {
+    try {
+      // Remove tracking for old hero image
+      if (heroImage) {
+        const { data: oldImageId } = await getImageByUrlAction(heroImage)
+        if (oldImageId) {
+          await removeImageUsageAction(oldImageId, siteId, "product-hero", "hero-image")
+        }
+      }
+
+      // Track usage for new hero image
+      if (newImageUrl) {
+        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
+        if (newImageId) {
+          await trackImageUsageAction(newImageId, siteId, "product-hero", "hero-image")
+        }
+      }
+
+      // Update the actual hero image value
+      onHeroImageChange(newImageUrl)
+    } catch (error) {
+      console.error('Error tracking hero image usage:', error)
+      // Still update the image even if tracking fails
+      onHeroImageChange(newImageUrl)
+    }
+  }
 
 
   return (
@@ -739,7 +780,7 @@ export function ProductHeroBlock({
         open={showHeroImagePicker}
         onOpenChange={setShowHeroImagePicker}
         onSelectImage={(imageUrl) => {
-          onHeroImageChange(imageUrl)
+          handleHeroImageChange(imageUrl)
           setShowHeroImagePicker(false)
         }}
         currentImageUrl={heroImage}
