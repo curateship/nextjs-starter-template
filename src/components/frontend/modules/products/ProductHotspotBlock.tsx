@@ -1,37 +1,123 @@
-import { BlockContainer } from "@/components/ui/block-container";
+"use client"
 
-const ProductHotspotBlock = () => {
+import { BlockContainer } from "@/components/ui/block-container"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useState } from "react"
+
+interface Hotspot {
+  id: string
+  x: number
+  y: number
+  text: string
+}
+
+interface ProductHotspotBlockProps {
+  title?: string
+  subtitle?: string
+  backgroundImage?: string
+  hotspots?: Hotspot[]
+  showTooltipsAlways?: boolean
+  className?: string
+}
+
+const ProductHotspotBlock = ({
+  title = "Interactive Product Overview",
+  subtitle = "Hover over the blinking dots to discover more about our features",
+  backgroundImage = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
+  hotspots = [],
+  showTooltipsAlways = false,
+  className = "white"
+}: ProductHotspotBlockProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false)
+
   return (
     <BlockContainer
       id="product-hotspot"
-      className="white"
+      className={className}
       header={{
-        title: "Coaching OS Dashboard",
-        subtitle: "A comprehensive coaching management platform designed to streamline client engagement, task tracking, and lead management for coaching professionals.",
+        title,
+        subtitle,
         align: "center"
       }}
     >
       <div className="flex flex-col items-center">
-        <div className="mt-8 w-full">
+        <div className="relative mt-8 w-full">
           <img
-            src="https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg"
-            alt="Coaching OS Dashboard Interface"
-            className="w-full rounded-lg border shadow-lg"
+            src={backgroundImage}
+            alt={title}
+            className="w-full rounded-lg border shadow-lg transition-opacity duration-300"
             style={{
-              aspectRatio: "16/10",
-              objectFit: "cover"
+              objectFit: "contain",
+              opacity: imageLoaded ? 1 : 0.8
             }}
+            onLoad={() => setImageLoaded(true)}
           />
-        </div>
-        <div className="mt-8 text-center">
-          <p className="text-muted-foreground max-w-2xl">
-            Experience the future of coaching management with our intuitive dashboard that combines task tracking, 
-            client engagement, and lead management in one powerful platform.
-          </p>
+          
+          {/* Hotspots */}
+          {hotspots.map((hotspot) => (
+            showTooltipsAlways ? (
+              <div key={hotspot.id} className="absolute z-10" style={{
+                left: `${hotspot.x}%`,
+                top: `${hotspot.y}%`,
+                transform: 'translate(-50%, -50%)'
+              }}>
+                <button
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  style={{
+                    animation: 'hotspot-blink 2s infinite'
+                  }}
+                  aria-label={`Hotspot: ${hotspot.text}`}
+                >
+                  <div className="h-2 w-2 rounded-full bg-white" />
+                </button>
+                <div className="absolute mt-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-sm rounded-md px-3 py-2 shadow-lg max-w-md w-64 z-20">
+                  <div>{hotspot.text}</div>
+                </div>
+              </div>
+            ) : (
+              <Tooltip key={hotspot.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    className="absolute z-10 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    style={{
+                      left: `${hotspot.x}%`,
+                      top: `${hotspot.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      animation: 'hotspot-blink 2s infinite'
+                    }}
+                    aria-label={`Hotspot: ${hotspot.text}`}
+                  >
+                    <div className="h-2 w-2 rounded-full bg-white" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-md w-64">
+                  <div className="text-sm">{hotspot.text}</div>
+                </TooltipContent>
+              </Tooltip>
+            )
+          ))}
         </div>
       </div>
+      
+      <style jsx>{`
+        @keyframes hotspot-blink {
+          0%, 70% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+          }
+          85% {
+            opacity: 0.8;
+            box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+          }
+          100% {
+            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+          }
+        }
+      `}</style>
     </BlockContainer>
-  );
-};
+  )
+}
 
-export { ProductHotspotBlock }; 
+export { ProductHotspotBlock }
+export type { Hotspot, ProductHotspotBlockProps } 

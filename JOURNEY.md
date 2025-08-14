@@ -3465,3 +3465,87 @@ Comprehensive security audit completed per CLAUDE.md:
 - **Audit Trail** - Track who changed what and when
 - **Rollback Capability** - Can undo problematic changes
 - **Automated Cleanup** - Maintains database performance without risk
+
+---
+
+## Phase 9: Product Hotspot Block Implementation
+
+### User Request
+Build a complex "Product Hotspot" block for the product builder system allowing:
+- Admin interface: Large image where users can click to add hotspots with text
+- Frontend display: Image with blinking dots that show tooltips on hover
+- Integration with existing Next.js/React/Supabase product builder architecture
+
+### Implementation Overview
+
+**Database Updates**:
+- Added `'product-hotspot'` to allowed block types in database constraints
+- Created migration `027_add_product_hotspot_block_type.sql`
+- Updated TypeScript interfaces to include hotspot block type
+
+**Frontend Component** (`src/components/frontend/modules/products/ProductHotspotBlock.tsx`):
+- Interactive hotspots with percentage-based positioning for responsive design
+- CSS keyframe animations for blinking effect
+- Radix UI tooltips with hover interactions
+- Support for always-visible tooltips vs hover-only mode
+- Clean responsive layout with image optimization
+
+**Admin Management** (`src/components/admin/layout/product-builder/ProductHotspotBlock.tsx`):
+- Click-to-add hotspot functionality with visual feedback
+- Real-time hotspot editing with inline forms
+- Image picker integration with usage tracking
+- Hotspot list management with edit/delete controls
+- Tooltip visibility controls (always visible vs hover-only)
+
+**System Integration**:
+- Updated `ProductBlockTypesPanel` with Target icon and "Add Hotspot" button
+- Enhanced `ProductBlockPropertiesPanel` to handle hotspot-specific props
+- Updated `useProductBuilder` hook with default hotspot content
+- Modified product block renderer to support hotspot blocks
+- Added proper import paths and component organization
+
+### Technical Features
+
+**Interactive Hotspot Creation**:
+- Click anywhere on image to place hotspot at precise coordinates
+- Automatic coordinate calculation using `getBoundingClientRect()`
+- Visual hotspot preview with colored dots and hover states
+- Inline text editing with textarea for descriptions
+
+**Responsive Design**:
+- Percentage-based positioning ensures hotspots stay aligned across screen sizes
+- Full-height images without arbitrary constraints
+- Mobile-friendly tooltip positioning and sizing
+- Optimized image loading with fade-in transitions
+
+**User Experience Enhancements**:
+- Tooltip visibility toggle: always show vs hover-only
+- Streamlined editing workflow with clear visual feedback
+- Clean admin interface without coordinate clutter
+- Wider tooltip boxes for better text readability
+
+### Code Quality Improvements
+
+**File Organization**:
+- Moved all product block admin components to correct folder structure
+- Consolidated imports and removed unused dependencies
+- Removed unnecessary migration files after feature completion
+- Cleaned up unused functions and debugging code
+
+**Simplified Implementation**:
+- Removed complex hotspot positioning/moving functionality 
+- Eliminated unnecessary coordinate display in admin interface
+- Streamlined tooltip system to text-only (removed title field)
+- Removed migration scaffolding once feature was stable
+
+### Result
+
+**Complete Interactive Product Feature**: Users can now create rich, interactive product showcases with clickable hotspots that reveal detailed information. The implementation provides both a powerful admin interface for content creation and an engaging frontend experience for visitors.
+
+**Key Benefits**:
+- **Rich Interactivity** - Transform static product images into engaging experiences
+- **Easy Content Management** - Intuitive click-to-add interface for admins
+- **Mobile Responsive** - Hotspots work perfectly across all device sizes
+- **Flexible Display** - Choose between hover tooltips or always-visible information
+- **Professional Polish** - Smooth animations and polished UI components
+- **Integrated Workflow** - Seamless integration with existing product builder system

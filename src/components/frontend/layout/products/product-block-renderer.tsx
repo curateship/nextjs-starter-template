@@ -2,6 +2,7 @@
 
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/layout/products/ProductFeaturesBlock"
+import { ProductHotspotBlock } from "@/components/frontend/modules/products/ProductHotspotBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
@@ -66,6 +67,15 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductFeaturesBlock
               key={`product-features-${block.id}`}
+              {...block.content}
+            />
+          )
+        }
+        
+        if (block.type === 'product-hotspot') {
+          return (
+            <ProductHotspotBlock
+              key={`product-hotspot-${block.id}`}
               {...block.content}
             />
           )

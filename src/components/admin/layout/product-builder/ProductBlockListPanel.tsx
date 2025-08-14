@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, Package, Image, Star } from "lucide-react"
+import { Trash2, GripVertical, Zap, Package, Image, Star, Target } from "lucide-react"
 import { Reorder } from "motion/react"
 
 interface ProductBlock {
@@ -60,7 +60,8 @@ export function ProductBlockListPanel({
     return block.type === 'product-hero' ? 'Product Hero' : 
            block.type === 'product-details' ? 'Product Details' :
            block.type === 'product-gallery' ? 'Product Gallery' :
-           block.type === 'product-features' ? 'Product Features' : 'Block'
+           block.type === 'product-features' ? 'Product Features' :
+           block.type === 'product-hotspot' ? 'Product Hotspot' : 'Block'
   }
 
   const getBlockIcon = (blockType: string) => {
@@ -73,6 +74,8 @@ export function ProductBlockListPanel({
         return <Image className="w-4 h-4" />
       case 'product-features':
         return <Star className="w-4 h-4" />
+      case 'product-hotspot':
+        return <Target className="w-4 h-4" />
       default:
         return <div className="w-4 h-4" />
     }
