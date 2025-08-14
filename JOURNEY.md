@@ -3289,3 +3289,41 @@ Conducted mandatory security audit per CLAUDE.md requirements:
 
 ### Result
 Both page and product builders now provide instant, contextual previews that significantly improve the editing experience while maintaining all existing functionality and security standards.
+
+---
+
+## Phase 27: Preview Panel Scaling Fix (Aug 14, 2025)
+
+### Problem
+Preview panels using `zoom: 0.8` had navigation elements overflowing their containers. The browser treated scaled content as full-size for positioning, causing sticky navigation to reference the viewport instead of the scaled container.
+
+### Solution Discovery
+After trying multiple approaches (wrapper containers, CSS overrides, transform scale with negative margins), the solution was CSS `contain: 'layout style'`.
+
+**Key Insight**: Positioned elements were escaping their containing block context.
+
+### Final Implementation
+```typescript
+<div style={{
+  zoom: 0.8,
+  width: '100%',
+  contain: 'layout style', // Creates new containing block
+  position: 'relative'
+}}>
+```
+
+### Result
+- Navigation and all positioned elements now respect scaled container boundaries
+- No overflow, no scrolling gaps  
+- Clean preview scaling with proper containment
+
+### Security Audit
+Comprehensive security audit completed per CLAUDE.md:
+- ✅ No vulnerabilities introduced
+- ✅ All changes are UI/styling only
+- ✅ No user input handling changes
+- ✅ Authentication patterns preserved
+- ✅ OWASP Top 10 compliance maintained
+
+### Result
+The preview system now provides a flawless viewing experience with proper scaling, no overflow issues, and professional visual design. The CSS containment solution elegantly solves what was initially a complex problem, demonstrating the value of exploring modern CSS capabilities over complex JavaScript workarounds.

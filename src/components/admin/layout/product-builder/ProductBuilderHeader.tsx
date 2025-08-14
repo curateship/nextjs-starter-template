@@ -102,6 +102,17 @@ export function ProductBuilderHeader({
             <Eye className="w-4 h-4 mr-2" />
             Preview Product
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            disabled={!currentProduct || !currentSite?.subdomain}
+          >
+            <Link href={currentProduct && currentSite?.subdomain ? `/${currentSite.subdomain}/products/${selectedProduct}` : '#'} target="_blank">
+              <Eye className="w-4 h-4 mr-2" />
+              View Product
+            </Link>
+          </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">
           {saveMessage && (

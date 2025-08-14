@@ -19,13 +19,13 @@ export function PagePreview({ blocks, site, className = "" }: PagePreviewProps) 
   const previewSite = createPreviewSite(blocks, site)
   
   return (
-    <div className={`overflow-y-auto overflow-x-hidden ${className}`}>
+    <div className={`overflow-x-hidden ${className}`}>
       <div 
         style={{
-          // Scale down the preview to fit better in the panel
-          transform: 'scale(0.75)',
-          transformOrigin: 'top left',
-          width: '133.33%', // Compensate for 0.75 scale (1/0.75 = 1.33)
+          zoom: 0.8,
+          width: '100%',
+          contain: 'layout style', // Create new containing block
+          position: 'relative',
         }}
       >
         <div className="bg-background">
