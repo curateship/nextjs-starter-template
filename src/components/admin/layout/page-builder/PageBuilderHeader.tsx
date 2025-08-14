@@ -91,6 +91,16 @@ export function PageBuilderHeader({
             <Eye className="w-4 h-4 mr-2" />
             Preview Page
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+          >
+            <Link href={`/${site.subdomain}/${selectedPage === 'home' ? '' : selectedPage}`} target="_blank">
+              <Eye className="w-4 h-4 mr-2" />
+              View Page
+            </Link>
+          </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">
           {saveMessage && (

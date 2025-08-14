@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical } from "lucide-react"
+import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse } from "lucide-react"
 import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
 import type { Block } from "@/lib/actions/page-blocks-actions"
@@ -54,11 +54,27 @@ export function BlockListPanel({
   const getBlockTypeName = (block: Block) => {
     return block.type === 'hero' ? 'Hero Section' : 
            block.type === 'navigation' ? 'Navigation' :
-           block.type === 'footer' ? 'Footer' : 'Block'
+           block.type === 'footer' ? 'Footer' : 
+           block.type === 'rich-text' ? 'Rich Text' : 'Block'
+  }
+
+  const getBlockIcon = (blockType: string) => {
+    switch (blockType) {
+      case 'hero':
+        return <Zap className="w-4 h-4" />
+      case 'rich-text':
+        return <FileText className="w-4 h-4" />
+      case 'navigation':
+        return <Navigation className="w-4 h-4" />
+      case 'footer':
+        return <Mouse className="w-4 h-4" />
+      default:
+        return <div className="w-4 h-4" />
+    }
   }
   return (
     <>
-      <div className="w-[500px] p-6">
+      <div className="w-[400px] p-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-xl font-semibold mb-6">
             {currentPage.name} Page Blocks
@@ -87,9 +103,9 @@ export function BlockListPanel({
                   value={block}
                   className={`border rounded-lg p-4 transition-colors cursor-pointer ${
                     selectedBlock?.id === block.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-muted-foreground'
-                  } ${isProtected ? 'opacity-80' : ''}`}
+                      ? 'border-gray-300 bg-gray-50 shadow-sm'
+                      : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
+                  }`}
                   whileDrag={!isProtected ? { 
                     scale: 1.01, 
                     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
@@ -127,7 +143,10 @@ export function BlockListPanel({
                       }`}>
                         <GripVertical className="w-4 h-4" />
                       </div>
-                      <h3 className="font-medium">{block.title}</h3>
+                      <div className="flex items-center space-x-2">
+                        {getBlockIcon(block.type)}
+                        <h3 className="font-medium">{block.title}</h3>
+                      </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="text-xs text-muted-foreground">
