@@ -1,4 +1,4 @@
-import { HeroRuixenBlock } from "./HeroRuixenBlock"
+import { ProductHeroBlock } from "../product-builder/ProductHeroBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
@@ -44,7 +44,7 @@ export function BlockPropertiesPanel({
         <div>
           <div className="space-y-4">
             {selectedBlock.type === 'hero' && (
-              <HeroRuixenBlock
+              <ProductHeroBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'primaryButton', 'secondaryButton', 
@@ -52,7 +52,7 @@ export function BlockPropertiesPanel({
                   'backgroundColor', 'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
                   'githubLink', 'showParticles', 'trustedByText', 'trustedByTextColor', 
                   'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-                  'backgroundPatternOpacity', 'backgroundPatternColor'
+                  'backgroundPatternOpacity', 'backgroundPatternColor', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
                 ])}
                 siteId={siteId}
                 blockId={selectedBlock.id}

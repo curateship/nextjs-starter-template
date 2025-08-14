@@ -1,6 +1,6 @@
 "use client"
 
-import { HeroRuixenBlock } from "@/components/frontend/layout/pages/HeroRuixenBlock"
+import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
 import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock"
 import { FaqBlock } from "@/components/frontend/layout/shared/FaqBlock"
 import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock"
@@ -49,7 +49,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         if (block.type === 'hero') {
           const heroBlock = block.data
           return (
-            <HeroRuixenBlock
+            <ProductHeroBlock
               key={`hero-${heroBlock.id}`}
               {...heroBlock}
             />
