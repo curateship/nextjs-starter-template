@@ -1,5 +1,5 @@
 
-import { HeroRuixenBlock } from "@/components/frontend/layout/shared/HeroRuixenBlock";
+import { HeroRuixenBlock } from "@/components/frontend/layout/pages/HeroRuixenBlock";
 import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock";
 import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock";
 

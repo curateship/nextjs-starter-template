@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockRenderer } from "@/components/frontend/layout/pages/block-renderer"
+import { BlockRenderer } from "@/components/frontend/layout/pages/page-block-renderer"
 import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 

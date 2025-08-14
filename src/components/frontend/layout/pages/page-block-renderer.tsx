@@ -1,11 +1,11 @@
 "use client"
 
-import { HeroRuixenBlock } from "@/components/frontend/layout/shared/HeroRuixenBlock"
+import { HeroRuixenBlock } from "@/components/frontend/layout/pages/HeroRuixenBlock"
 import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock"
 import { FaqBlock } from "@/components/frontend/layout/shared/FaqBlock"
 import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { RichTextBlock } from "@/components/frontend/layout/shared/RichTextBlock"
+import { RichTextBlock } from "@/components/frontend/layout/pages/RichTextBlock"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 
 interface BlockRendererProps {

@@ -35,7 +35,7 @@ interface RichTextBlockProps {
   onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
 }
 
-export function RichTextBlock({ content, onContentChange }: RichTextBlockProps) {
+export function RichTextEditor({ content, onContentChange }: RichTextBlockProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({
