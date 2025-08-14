@@ -1,12 +1,12 @@
 
-import { HeroRuixenBlock } from "@/components/frontend/layout/pages/HeroRuixenBlock";
+import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock";
 import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock";
 import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock";
 
 export default function Home() {
   return (
     <>
-      <HeroRuixenBlock />
+      <ProductHeroBlock />
       <ProductGridBlock />
       <PostGridBlock />
     </>
