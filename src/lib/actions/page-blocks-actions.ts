@@ -541,7 +541,9 @@ export async function addSiteBlockAction(params: {
         showRainbowButton: false,
         githubLink: '',
         showParticles: true,
-        trustedByAvatars: []
+        trustedByAvatars: [],
+        heroImage: '',
+        showHeroImage: false
       }
     } else if (params.block_type === 'rich-text') {
       defaultContent = {

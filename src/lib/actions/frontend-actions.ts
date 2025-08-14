@@ -40,6 +40,8 @@ export interface SiteWithBlocks {
       trustedByTextColor: string
       trustedByCount: string
       trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
+      heroImage: string
+      showHeroImage: boolean
       display_order: number
     }>
     footer?: {
@@ -191,6 +193,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
             { src: "", alt: "User 2", fallback: "U2" },
             { src: "", alt: "User 3", fallback: "U3" }
           ],
+          heroImage: block.content.heroImage || '',
+          showHeroImage: block.content.showHeroImage || false,
           display_order: block.display_order || 0
         })
       } else if (block.block_type === 'footer') {

@@ -1,4 +1,4 @@
-import { ProductHeroBlock } from "../product-builder/ProductHeroBlock"
+import { PageHeroBlock } from "./PageHeroBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
@@ -44,7 +44,7 @@ export function BlockPropertiesPanel({
         <div>
           <div className="space-y-4">
             {selectedBlock.type === 'hero' && (
-              <ProductHeroBlock
+              <PageHeroBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'primaryButton', 'secondaryButton', 
