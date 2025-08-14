@@ -1,7 +1,7 @@
 import { HeroRuixenBlock } from "./HeroRuixenBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
-import { RichTextBlock } from "@/components/shared/RichTextBlock"
+import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 
@@ -75,7 +75,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'rich-text' && (
-              <RichTextBlock
+              <RichTextEditor
                 content={selectedBlock.content}
                 onContentChange={(contentObj) => {
                   updateBlockContent('title', contentObj.title)
