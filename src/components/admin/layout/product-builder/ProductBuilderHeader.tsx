@@ -23,6 +23,7 @@ interface ProductBuilderHeaderProps {
   saveMessage: string
   isSaving: boolean
   onSave: () => void
+  onPreviewProduct?: () => void
 }
 
 export function ProductBuilderHeader({
@@ -33,7 +34,8 @@ export function ProductBuilderHeader({
   onProductUpdated,
   saveMessage,
   isSaving,
-  onSave
+  onSave,
+  onPreviewProduct
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -94,24 +96,11 @@ export function ProductBuilderHeader({
           <Button 
             variant="outline"
             size="sm" 
-            disabled={!currentProduct || !currentSite?.subdomain}
-            asChild={!!currentProduct && !!currentSite?.subdomain}
+            onClick={onPreviewProduct}
+            disabled={!currentProduct}
           >
-            {currentProduct && currentSite?.subdomain ? (
-              <a 
-                href={getProductUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View Product
-              </a>
-            ) : (
-              <>
-                <Eye className="w-4 h-4 mr-2" />
-                View Product
-              </>
-            )}
+            <Eye className="w-4 h-4 mr-2" />
+            Preview Product
           </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">

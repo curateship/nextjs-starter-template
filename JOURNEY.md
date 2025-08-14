@@ -3208,3 +3208,84 @@ Created migrations 020-025 to:
 - Security guidelines in CLAUDE.md are only effective when actually followed
 - Automated security checks should be implemented to prevent such oversights
 - Every table creation MUST include RLS policies from the start
+
+## Page & Product Builder Preview Enhancement (Aug 14, 2025)
+
+### Enhancement Overview
+Implemented live preview functionality in both page and product builders, allowing users to see complete page/product layouts directly in the left panel without leaving the builder interface.
+
+### Key Features Added
+
+#### **1. Page Builder Preview**
+- **Preview Button**: Changed "View Page" → "Preview Page" in `PageBuilderHeader`
+- **Live Preview**: Click preview button deselects current block and shows full page preview
+- **Responsive Layout**: Left panel uses `flex-1` (maximum space), middle panel fixed `w-[500px]`
+- **Real Content**: Shows actual page with all blocks rendered using existing frontend components
+
+#### **2. Product Builder Preview**  
+- **Preview Button**: Changed "View Product" → "Preview Product" in `ProductBuilderHeader`
+- **Live Preview**: Same deselect-to-preview functionality as pages
+- **Site Integration**: Loads actual navigation and footer blocks from site pages
+- **Product Context**: Shows product blocks within proper site layout
+
+#### **3. Technical Implementation**
+
+**New Components Created**:
+- `PagePreview.tsx` - Renders complete page preview using `BlockRenderer`
+- `ProductPreview.tsx` - Renders complete product preview using `ProductBlockRenderer`  
+- `admin-to-frontend-blocks.ts` - Utility to transform admin block format to frontend format
+
+**Layout Optimizations**:
+- Left panels: `w-[845px]` → `flex-1` (responsive width)
+- Middle panels: `flex-1` → `w-[500px]` (fixed width)
+- Right panels: Unchanged at `w-[256px]`
+
+**Preview Integration**:
+- Shows preview when `selectedBlock` is `null`
+- Maintains all existing block editing functionality
+- Uses existing frontend rendering architecture
+- 75% scale for optimal panel fit
+
+#### **4. Security Audit Completed**
+Conducted mandatory security audit per CLAUDE.md requirements:
+- ✅ **Zero vulnerabilities** found in all implementations
+- ✅ **OWASP Top 10 compliance** maintained
+- ✅ **XSS prevention** through React's safe JSX rendering
+- ✅ **Authentication patterns** preserved
+- ✅ **Input validation** and type safety enforced
+- ✅ **Defense-in-depth** principles followed
+
+### User Experience Impact
+- **Contextual Editing**: See complete page/product while editing individual blocks
+- **No Context Switching**: Preview without opening new tabs or leaving builder
+- **Real-time Updates**: Preview reflects changes immediately
+- **Better Layout Understanding**: See how blocks work together in full context
+- **Responsive Design**: Optimal use of screen space with flexible left panel
+
+### Technical Benefits
+- **Reuses Existing Architecture**: Leverages proven frontend rendering components
+- **Type Safe**: Full TypeScript support throughout
+- **Performance Optimized**: Only renders preview when needed
+- **Maintainable**: Clean separation of concerns between admin and frontend
+- **Scalable**: Pattern can be extended to other builder types
+
+### Files Modified
+**Page Builder**:
+- `PageBuilderHeader.tsx` - Preview button functionality
+- `BlockPropertiesPanel.tsx` - Layout and preview integration  
+- `BlockListPanel.tsx` - Layout optimization
+- `page.tsx` - Main integration and props passing
+
+**Product Builder**:
+- `ProductBuilderHeader.tsx` - Preview button functionality
+- `ProductBlockPropertiesPanel.tsx` - Layout and preview integration
+- `ProductBlockListPanel.tsx` - Layout optimization  
+- `[productSlug]/page.tsx` - Site blocks loading and integration
+
+**Utilities**:
+- `admin-to-frontend-blocks.ts` - Block format transformation
+- `PagePreview.tsx` - Page preview component
+- `ProductPreview.tsx` - Product preview component
+
+### Result
+Both page and product builders now provide instant, contextual previews that significantly improve the editing experience while maintaining all existing functionality and security standards.

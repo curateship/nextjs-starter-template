@@ -58,7 +58,7 @@ export function BlockListPanel({
   }
   return (
     <>
-      <div className="flex-1 p-6">
+      <div className="w-[500px] p-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-xl font-semibold mb-6">
             {currentPage.name} Page Blocks

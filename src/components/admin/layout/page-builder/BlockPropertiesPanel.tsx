@@ -2,6 +2,7 @@ import { HeroRuixenBlock } from "./HeroRuixenBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextBlock } from "@/components/admin/modules/shared-blocks/RichTextBlock"
+import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 
 // Helper function to generate callback props dynamically
@@ -18,15 +19,27 @@ interface BlockPropertiesPanelProps {
   selectedBlock: Block | null
   updateBlockContent: (field: string, value: any) => void
   siteId: string
+  currentPage?: {
+    slug: string
+    name: string
+    blocks: Block[]
+  }
+  site?: {
+    id: string
+    name: string
+    subdomain: string
+  }
 }
 
 export function BlockPropertiesPanel({
   selectedBlock,
   updateBlockContent,
-  siteId
+  siteId,
+  currentPage,
+  site
 }: BlockPropertiesPanelProps) {
   return (
-    <div className="w-[845px] border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
       {selectedBlock ? (
         <div>
           <div className="space-y-4">
@@ -75,8 +88,21 @@ export function BlockPropertiesPanel({
           </div>
         </div>
       ) : (
-        <div className="text-center text-muted-foreground">
-          <p>Select a block to edit its properties</p>
+        <div className="h-full">
+          {currentPage && currentPage.blocks.length > 0 ? (
+            <PagePreview 
+              blocks={currentPage.blocks} 
+              site={site}
+              className="h-full"
+            />
+          ) : (
+            <div className="text-center text-muted-foreground h-full flex items-center justify-center">
+              <div>
+                <p className="text-lg font-medium mb-2">No blocks added yet</p>
+                <p className="text-sm">Add blocks to see your page preview</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
