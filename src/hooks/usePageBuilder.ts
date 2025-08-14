@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, reorderSiteBlocksAction, type Block } from "@/lib/actions/site-blocks-actions"
+import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, reorderSiteBlocksAction, type Block } from "@/lib/actions/page-blocks-actions"
 import { isBlockTypeProtected } from "@/lib/shared-blocks/block-utils"
 
 interface UsePageBuilderParams {

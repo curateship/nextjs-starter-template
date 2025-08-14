@@ -660,7 +660,7 @@ export async function deleteProductAction(productId: string): Promise<{ success:
 
     // Delete associated blocks first (cleanup orphaned blocks)
     const { error: blockDeleteError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .delete()
       .eq('site_id', product.site_id)
       .eq('page_slug', `product-${product.slug}`)
@@ -793,7 +793,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
 
     // Copy all blocks from the original product to the new product
     const { data: originalBlocks } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('*')
       .eq('site_id', originalProduct.site_id)
       .eq('page_slug', `product-${originalProduct.slug}`)
@@ -810,7 +810,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
       }))
 
       await supabaseAdmin
-        .from('site_blocks')
+        .from('page_blocks')
         .insert(duplicatedBlocks)
     }
 

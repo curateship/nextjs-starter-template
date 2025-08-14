@@ -2,7 +2,7 @@ import { HeroRuixenBlock } from "./HeroRuixenBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextBlock } from "@/components/admin/modules/shared-blocks/RichTextBlock"
-import type { Block } from "@/lib/actions/site-blocks-actions"
+import type { Block } from "@/lib/actions/page-blocks-actions"
 
 // Helper function to generate callback props dynamically
 const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {

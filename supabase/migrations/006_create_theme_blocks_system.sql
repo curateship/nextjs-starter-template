@@ -29,8 +29,8 @@ ON theme_blocks(theme_id, block_type, page_slug);
 CREATE TRIGGER update_theme_blocks_updated_at BEFORE UPDATE ON theme_blocks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Create site_blocks table to store actual block content for each site
-CREATE TABLE IF NOT EXISTS site_blocks (
+-- Create page_blocks table to store actual block content for each site
+CREATE TABLE IF NOT EXISTS page_blocks (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
     block_type VARCHAR(50) NOT NULL CHECK (block_type IN ('navigation', 'hero', 'footer')),
@@ -43,21 +43,21 @@ CREATE TABLE IF NOT EXISTS site_blocks (
 );
 
 -- Create indexes for efficient queries
-CREATE INDEX IF NOT EXISTS idx_site_blocks_site_id ON site_blocks(site_id);
-CREATE INDEX IF NOT EXISTS idx_site_blocks_type ON site_blocks(block_type);
-CREATE INDEX IF NOT EXISTS idx_site_blocks_page ON site_blocks(page_slug);
-CREATE INDEX IF NOT EXISTS idx_site_blocks_active ON site_blocks(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_page_blocks_site_id ON page_blocks(site_id);
+CREATE INDEX IF NOT EXISTS idx_page_blocks_type ON page_blocks(block_type);
+CREATE INDEX IF NOT EXISTS idx_page_blocks_page ON page_blocks(page_slug);
+CREATE INDEX IF NOT EXISTS idx_page_blocks_active ON page_blocks(is_active) WHERE is_active = true;
 
 -- Create composite index for common query patterns
-CREATE INDEX IF NOT EXISTS idx_site_blocks_site_page ON site_blocks(site_id, page_slug);
-CREATE INDEX IF NOT EXISTS idx_site_blocks_site_active ON site_blocks(site_id, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_page_blocks_site_page ON page_blocks(site_id, page_slug);
+CREATE INDEX IF NOT EXISTS idx_page_blocks_site_active ON page_blocks(site_id, is_active) WHERE is_active = true;
 
 -- Ensure unique active block types per site per page
-CREATE UNIQUE INDEX IF NOT EXISTS idx_site_blocks_unique_active 
-ON site_blocks(site_id, block_type, page_slug) WHERE is_active = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_page_blocks_unique_active 
+ON page_blocks(site_id, block_type, page_slug) WHERE is_active = true;
 
 -- Create updated_at trigger
-CREATE TRIGGER update_site_blocks_updated_at BEFORE UPDATE ON site_blocks
+CREATE TRIGGER update_page_blocks_updated_at BEFORE UPDATE ON page_blocks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert default blocks for the existing Marketplace theme
@@ -136,7 +136,7 @@ CREATE OR REPLACE FUNCTION copy_theme_blocks_to_site(p_site_id UUID, p_theme_id 
 RETURNS VOID AS $$
 BEGIN
     -- Insert site blocks based on theme blocks
-    INSERT INTO site_blocks (site_id, block_type, page_slug, content, display_order)
+    INSERT INTO page_blocks (site_id, block_type, page_slug, content, display_order)
     SELECT 
         p_site_id,
         tb.block_type,
