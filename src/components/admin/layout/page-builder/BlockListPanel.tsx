@@ -149,9 +149,6 @@ export function BlockListPanel({
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <div className="text-xs text-muted-foreground">
-                        {block.type}
-                      </div>
                       {isBlockTypeProtected(block.type) ? (
                         <div 
                           className="p-1 text-gray-400 cursor-not-allowed" 

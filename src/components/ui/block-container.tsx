@@ -18,7 +18,7 @@ export function BlockContainer({
   header
 }: BlockContainerProps) {
   return (
-    <section id={id} className={`py-16 md:py-23 ${className}`}>
+    <section id={id} className={`py-16 md:py-16 ${className}`}>
       <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
         {header && (
           <div className={`mb-12 ${header.align === 'left' ? 'text-left' : header.align === 'right' ? 'text-right' : 'text-center'}`}>

@@ -1,7 +1,7 @@
 "use client"
 
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
-import { ProductFeaturesBlock } from "@/components/frontend/modules/products/ProductFeaturesBlock"
+import { ProductFeaturesBlock } from "@/components/frontend/layout/products/ProductFeaturesBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
