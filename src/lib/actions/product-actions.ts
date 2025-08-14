@@ -51,6 +51,7 @@ export interface Product {
   slug: string
   meta_description: string | null
   meta_keywords: string | null
+  featured_image: string | null
   is_homepage: boolean
   is_published: boolean
   display_order: number
@@ -70,6 +71,7 @@ export interface CreateProductData {
   slug?: string
   meta_description?: string
   meta_keywords?: string
+  featured_image?: string
   is_published?: boolean
 }
 
@@ -78,6 +80,7 @@ export interface UpdateProductData {
   slug?: string
   meta_description?: string
   meta_keywords?: string
+  featured_image?: string
   is_published?: boolean
 }
 
@@ -477,6 +480,7 @@ export async function createProductAction(siteId: string, productData: CreatePro
         slug,
         meta_description: productData.meta_description?.trim() || null,
         meta_keywords: productData.meta_keywords?.trim() || null,
+        featured_image: productData.featured_image?.trim() || null,
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder
@@ -580,7 +584,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     const finalUpdates: any = {}
     Object.entries(processedUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'meta_keywords') {
+        if (key === 'title' || key === 'meta_description' || key === 'meta_keywords' || key === 'featured_image') {
           finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
         } else {
           finalUpdates[key] = value
