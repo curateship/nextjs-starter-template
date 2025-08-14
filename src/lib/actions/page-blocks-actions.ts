@@ -85,7 +85,7 @@ export async function getSiteBlocksAction(site_id: string): Promise<{
     }
 
     const { data, error } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('*')
       .eq('site_id', site_id)
       .eq('is_active', true)
@@ -161,7 +161,7 @@ export async function saveSiteBlockAction(params: {
 
     // Get the block to verify ownership
     const { data: block, error: blockError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('id, site_id')
       .eq('id', params.block_id)
       .single()
@@ -184,7 +184,7 @@ export async function saveSiteBlockAction(params: {
 
     // Update the block
     const { error } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .update({
         content: params.content,
         updated_at: new Date().toISOString()
@@ -232,7 +232,7 @@ export async function deleteSiteBlockAction(blockId: string): Promise<{
 
     // Get the block to verify ownership and check type
     const { data: block, error: blockError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('id, site_id, block_type')
       .eq('id', blockId)
       .single()
@@ -263,7 +263,7 @@ export async function deleteSiteBlockAction(blockId: string): Promise<{
 
     // Delete the block
     const { error } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .delete()
       .eq('id', blockId)
 
@@ -343,7 +343,7 @@ export async function reorderSiteBlocksAction(params: {
 
     // Get existing blocks to verify they all belong to this site and page
     const { data: existingBlocks, error: blocksError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('id, block_type')
       .eq('site_id', params.site_id)
       .eq('page_slug', params.page_slug)
@@ -360,7 +360,7 @@ export async function reorderSiteBlocksAction(params: {
 
     // Get protected blocks to calculate proper display order
     const { data: allBlocks, error: allBlocksError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('id, block_type, display_order')
       .eq('site_id', params.site_id)
       .eq('page_slug', params.page_slug)
@@ -385,7 +385,7 @@ export async function reorderSiteBlocksAction(params: {
     const navUpdatePromises = navigationBlocks.map(async (block) => {
       const order = currentOrder++
       return supabaseAdmin
-        .from('site_blocks')
+        .from('page_blocks')
         .update({
           display_order: order,
           updated_at: new Date().toISOString()
@@ -398,7 +398,7 @@ export async function reorderSiteBlocksAction(params: {
       const newDisplayOrder = currentOrder + index
       
       return supabaseAdmin
-        .from('site_blocks')
+        .from('page_blocks')
         .update({
           display_order: newDisplayOrder,
           updated_at: new Date().toISOString()
@@ -413,7 +413,7 @@ export async function reorderSiteBlocksAction(params: {
     const footerUpdatePromises = footerBlocks.map(async (block) => {
       const order = currentOrder++
       return supabaseAdmin
-        .from('site_blocks')
+        .from('page_blocks')
         .update({
           display_order: order,
           updated_at: new Date().toISOString()
@@ -497,7 +497,7 @@ export async function addSiteBlockAction(params: {
 
     // Get existing blocks to determine proper insertion order
     const { data: existingBlocks, error: orderError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('block_type, display_order')
       .eq('site_id', params.site_id)
       .eq('page_slug', params.page_slug)
@@ -540,7 +540,8 @@ export async function addSiteBlockAction(params: {
         secondaryButton: 'Learn More',
         showRainbowButton: false,
         githubLink: '',
-        showParticles: true
+        showParticles: true,
+        trustedByAvatars: []
       }
     } else if (params.block_type === 'rich-text') {
       defaultContent = {
@@ -555,7 +556,7 @@ export async function addSiteBlockAction(params: {
 
     // Create the new block
     const { data: newBlock, error } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .insert({
         site_id: params.site_id,
         block_type: params.block_type,

@@ -17,7 +17,7 @@ SELECT
     s.user_id,
     (
         SELECT COUNT(*)
-        FROM site_blocks sb 
+        FROM page_blocks sb 
         WHERE sb.site_id = p.site_id 
         AND sb.page_slug = p.slug 
         AND sb.is_active = true

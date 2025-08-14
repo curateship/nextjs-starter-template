@@ -573,7 +573,7 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
 
     // Delete associated blocks first (cleanup orphaned blocks)
     const { error: blockDeleteError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .delete()
       .eq('site_id', page.site_id)
       .eq('page_slug', page.slug)
@@ -706,7 +706,7 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
 
     // Copy all blocks from the original page to the new page
     const { data: originalBlocks } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('*')
       .eq('site_id', originalPage.site_id)
       .eq('page_slug', originalPage.slug)
@@ -723,7 +723,7 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       }))
 
       await supabaseAdmin
-        .from('site_blocks')
+        .from('page_blocks')
         .insert(duplicatedBlocks)
     }
 

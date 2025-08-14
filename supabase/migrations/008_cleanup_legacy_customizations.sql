@@ -1,5 +1,5 @@
 -- Cleanup legacy site customizations system
--- These tables were replaced by the site_blocks system in migration 006
+-- These tables were replaced by the page_blocks system in migration 006
 -- and are no longer used in the codebase
 
 -- Drop the view first (depends on the table)
@@ -13,5 +13,5 @@ DROP FUNCTION IF EXISTS rollback_block_customization(UUID, VARCHAR(255), VARCHAR
 -- Drop the legacy table and all its indexes/triggers
 DROP TABLE IF EXISTS site_customizations CASCADE;
 
--- Note: The current system uses the site_blocks table (migration 006) 
+-- Note: The current system uses the page_blocks table (migration 006) 
 -- which provides a cleaner, simpler approach to block management

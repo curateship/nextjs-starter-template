@@ -37,22 +37,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pages_site_homepage_unique ON pages(site_i
 CREATE TRIGGER update_pages_updated_at BEFORE UPDATE ON pages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Remove the constraint on page_slug from site_blocks to allow any page
-ALTER TABLE site_blocks 
-DROP CONSTRAINT IF EXISTS site_blocks_page_slug_check;
+-- Remove the constraint on page_slug from page_blocks to allow any page
+ALTER TABLE page_blocks 
+DROP CONSTRAINT IF EXISTS page_blocks_page_slug_check;
 
 -- Add new constraint that allows any valid page slug (alphanumeric, hyphens, underscores)
-ALTER TABLE site_blocks 
-ADD CONSTRAINT site_blocks_page_slug_check 
+ALTER TABLE page_blocks 
+ADD CONSTRAINT page_blocks_page_slug_check 
 CHECK (page_slug ~ '^[a-zA-Z0-9_-]+$' OR page_slug = 'global');
 
--- Remove the unique constraint on site_blocks that was too restrictive
-DROP INDEX IF EXISTS idx_site_blocks_unique_active;
+-- Remove the unique constraint on page_blocks that was too restrictive
+DROP INDEX IF EXISTS idx_page_blocks_unique_active;
 
 -- Create new unique constraint that allows multiple blocks per page but ensures unique block types per page
 -- Only navigation and footer blocks should be unique per page, other blocks can have multiple instances
-CREATE UNIQUE INDEX IF NOT EXISTS idx_site_blocks_nav_footer_unique 
-ON site_blocks(site_id, block_type, page_slug) 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_page_blocks_nav_footer_unique 
+ON page_blocks(site_id, block_type, page_slug) 
 WHERE is_active = true AND block_type IN ('navigation', 'footer');
 
 -- Insert default pages for existing sites
@@ -132,7 +132,7 @@ SELECT
     s.user_id,
     (
         SELECT COUNT(*)
-        FROM site_blocks sb 
+        FROM page_blocks sb 
         WHERE sb.site_id = p.site_id 
         AND sb.page_slug = p.slug 
         AND sb.is_active = true

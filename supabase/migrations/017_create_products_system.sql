@@ -32,14 +32,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_products_site_slug_unique ON products(site
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Update site_blocks constraint to allow product slugs
+-- Update page_blocks constraint to allow product slugs
 -- First, drop the existing constraint
-ALTER TABLE site_blocks 
-DROP CONSTRAINT IF EXISTS site_blocks_page_slug_check;
+ALTER TABLE page_blocks 
+DROP CONSTRAINT IF EXISTS page_blocks_page_slug_check;
 
 -- Add new constraint that allows product slugs (pattern: product-{slug})
-ALTER TABLE site_blocks 
-ADD CONSTRAINT site_blocks_page_slug_check 
+ALTER TABLE page_blocks 
+ADD CONSTRAINT page_blocks_page_slug_check 
 CHECK (page_slug ~ '^[a-zA-Z0-9_-]+$' OR page_slug = 'global' OR page_slug ~ '^product-[a-zA-Z0-9_-]+$');
 
 -- Insert default product for existing sites
@@ -93,7 +93,7 @@ SELECT
     s.user_id,
     (
         SELECT COUNT(*)
-        FROM site_blocks sb 
+        FROM page_blocks sb 
         WHERE sb.site_id = p.site_id 
         AND sb.page_slug = CONCAT('product-', p.slug)
         AND sb.is_active = true

@@ -22,7 +22,7 @@
 - `products` - ALL product data (complete exposure)
 - `product_blocks` - ALL product content blocks
 - `theme_blocks` - ALL theme configurations
-- `site_blocks` - ALL site content blocks
+- `page_blocks` - ALL site content blocks
 
 **Attack Surface**:
 - Any user with Supabase URL and anon key could:
@@ -56,7 +56,7 @@ These requirements were completely ignored during the creation of migrations 013
 - `021_add_products_rls_policies.sql` - Secured products table
 - `022_add_product_blocks_rls_policies.sql` - Secured product_blocks table
 - `023_add_theme_blocks_rls_policies.sql` - Secured theme_blocks table
-- `024_add_site_blocks_rls_policies.sql` - Secured site_blocks table
+- `024_add_page_blocks_rls_policies.sql` - Secured page_blocks table
 - `025_add_views_rls_policies.sql` - Enhanced view security with security_invoker
 
 **Security Measures Implemented**:

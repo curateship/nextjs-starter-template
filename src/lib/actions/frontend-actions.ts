@@ -129,7 +129,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     // Get site blocks for this specific page and global blocks
     // Also include blocks with null page_slug for legacy compatibility
     const { data: siteBlocks, error: blocksError } = await supabaseAdmin
-      .from('site_blocks')
+      .from('page_blocks')
       .select('*')
       .eq('site_id', site.id)
       .eq('is_active', true)

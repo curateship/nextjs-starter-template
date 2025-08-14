@@ -850,7 +850,7 @@ export async function deleteResourceAction(id: string) {
 - `/src/components/admin/layout/site-builder/BlockPropertiesPanel.tsx` (created)
 - `/src/components/admin/layout/site-builder/BlockListPanel.tsx` (created) 
 - `/src/components/admin/layout/site-builder/BlockTypesPanel.tsx` (created)
-- `/src/lib/actions/site-blocks-actions.ts` (enhanced - addSiteBlockAction)
+- `/src/lib/actions/page-blocks-actions.ts` (enhanced - addSiteBlockAction)
 - `/src/lib/blocks/block-utils.ts` (created - helper utilities)
 - `/src/app/admin/builder/[siteId]/page.tsx` (major refactoring)
 - `/CLAUDE.md` (updated - development server notes)
@@ -1053,7 +1053,7 @@ CREATE VIEW site_details AS SELECT ...
 
 **Legacy Database Cleanup**:
 - **Migration 008**: Removed unused `site_customizations` and `active_site_customizations` tables
-- **Replaced by**: Modern `site_blocks` system from migration 006
+- **Replaced by**: Modern `page_blocks` system from migration 006
 - **Result**: Cleaner database schema and reduced maintenance overhead
 
 **Files Created/Modified in Phase 15**:
@@ -1640,7 +1640,7 @@ This optimization transforms the admin interface from feeling slow and unpolishe
   - Display ordering and timestamps
   - Template field (later removed per user feedback)
 - **Migration 014**: Removed template functionality as user determined it wasn't needed
-- **Enhanced site_blocks**: Extended to support any page slug instead of just predefined pages
+- **Enhanced page_blocks**: Extended to support any page slug instead of just predefined pages
 - **Automatic page creation**: Triggers create default pages (Home, About, Contact) for new sites
 
 **2. Server Actions & API Layer**
@@ -2170,7 +2170,7 @@ This enhancement elevates the platform's design capabilities to match profession
      - `frontend-actions.ts` - Public site data
      - `image-actions.ts` - Image library operations
      - `page-actions.ts` - Page management
-     - `site-blocks-actions.ts` - Block management
+     - `page-blocks-actions.ts` - Block management
 
 5. **Development Server Process Management**
    - **Issue**: Port conflicts and cache issues after builds requiring manual restarts
@@ -2376,7 +2376,7 @@ const handleReorderBlocks = async (reorderedBlocks: Block[]) => {
 - `/src/components/admin/layout/page-builder/NavigationBlock.tsx` - Logo simplification + cards
 - `/src/components/admin/layout/page-builder/FooterBlock.tsx` - Logo simplification + cards
 - `/src/hooks/usePageBuilder.ts` - Block reordering logic
-- `/src/lib/actions/site-blocks-actions.ts` - Server action for reordering
+- `/src/lib/actions/page-blocks-actions.ts` - Server action for reordering
 - `/src/components/frontend/layout/block-renderer.tsx` - Unified block sorting
 - `/src/lib/actions/frontend-actions.ts` - Hero block display_order support
 
@@ -2635,7 +2635,7 @@ const handleDeletePage = async (pageId: string) => {
 ```javascript
 // Clean up page-specific blocks before deleting page
 const { error: blockDeleteError } = await supabaseAdmin
-  .from('site_blocks')
+  .from('page_blocks')
   .delete()
   .eq('site_id', page.site_id)
   .eq('page_slug', page.slug)
@@ -3157,6 +3157,27 @@ const createCallbacks = (updateFn: (field: string, value: any) => void, fields: 
 
 **Total Achievement**: Successfully eliminated prop drilling across the entire block system while maintaining type safety and improving code maintainability. The refactor demonstrates clean architecture principles and sets a consistent pattern for future development.
 
+## Table Naming Consistency Refactor (Aug 14, 2025)
+
+**Issue**: Database table naming was inconsistent and confusing:
+- `pages` table → `site_blocks` table (misleading)
+- `products` table → `product_blocks` table (logical)
+
+**Solution**: Renamed `site_blocks` to `page_blocks` for consistency.
+
+**Changes Made**:
+1. **Migration 026**: `026_rename_site_blocks_to_page_blocks.sql` - Renames table, indexes, triggers, and constraints
+2. **RLS Migration Updated**: `024_add_site_blocks_rls_policies.sql` → `024_add_page_blocks_rls_policies.sql`
+3. **File Renamed**: `site-blocks-actions.ts` → `page-blocks-actions.ts`
+4. **References Updated**: 79+ occurrences across 16 files updated
+5. **Import Fixes**: All component imports updated to new file path
+6. **Bug Fix**: Added missing `trustedByAvatars: []` to hero block default content
+
+**Result**: 
+- Consistent naming: `pages` → `page_blocks`, `products` → `product_blocks`
+- Clear relationship between tables
+- Fixed TypeError in hero block creation
+
 ## Critical Security Vulnerability Fixed (Aug 14, 2025)
 
 ### Issue Discovered
@@ -3167,7 +3188,7 @@ Multiple database tables were created WITHOUT Row Level Security (RLS) policies,
 - `products` - All products exposed
 - `product_blocks` - All product blocks exposed
 - `theme_blocks` - All theme blocks exposed
-- `site_blocks` - All site blocks exposed
+- `page_blocks` - All site blocks exposed
 
 ### Root Cause
 Despite CLAUDE.md explicitly requiring:

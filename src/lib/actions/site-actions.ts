@@ -372,7 +372,7 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
       return { success: false, error: 'Site not found or you do not have permission to delete it' }
     }
     
-    // Delete site (this will cascade delete site_blocks due to foreign key constraints)
+    // Delete site (this will cascade delete page_blocks due to foreign key constraints)
     const { error } = await supabaseAdmin
       .from('sites')
       .delete()

@@ -9,12 +9,12 @@ ALTER TABLE theme_blocks
 ADD CONSTRAINT theme_blocks_block_type_check 
 CHECK (block_type IN ('navigation', 'hero', 'footer', 'rich-text'));
 
--- Update the site_blocks table constraint to include rich-text  
-ALTER TABLE site_blocks 
-DROP CONSTRAINT IF EXISTS site_blocks_block_type_check;
+-- Update the page_blocks table constraint to include rich-text  
+ALTER TABLE page_blocks 
+DROP CONSTRAINT IF EXISTS page_blocks_block_type_check;
 
-ALTER TABLE site_blocks 
-ADD CONSTRAINT site_blocks_block_type_check 
+ALTER TABLE page_blocks 
+ADD CONSTRAINT page_blocks_block_type_check 
 CHECK (block_type IN ('navigation', 'hero', 'footer', 'rich-text'));
 
 -- Note: rich-text blocks are typically added per-page, not as part of theme defaults

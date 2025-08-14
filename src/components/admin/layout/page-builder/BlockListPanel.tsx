@@ -10,7 +10,7 @@ import {
 import { Trash2, GripVertical } from "lucide-react"
 import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
-import type { Block } from "@/lib/actions/site-blocks-actions"
+import type { Block } from "@/lib/actions/page-blocks-actions"
 
 interface CurrentPage {
   slug: string
