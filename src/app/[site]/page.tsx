@@ -1,4 +1,4 @@
-import { BlockRenderer } from "@/components/frontend/layout/block-renderer"
+import { BlockRenderer } from "@/components/frontend/layout/pages/block-renderer"
 import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
 import { notFound } from "next/navigation"
 

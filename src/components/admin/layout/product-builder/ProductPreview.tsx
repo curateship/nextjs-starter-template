@@ -1,6 +1,6 @@
 "use client"
 
-import { ProductBlockRenderer } from "@/components/frontend/layout/product-block-renderer"
+import { ProductBlockRenderer } from "@/components/frontend/layout/products/product-block-renderer"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 

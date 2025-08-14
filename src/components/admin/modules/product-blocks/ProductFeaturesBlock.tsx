@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ImageInput } from "@/components/admin/modules/images/ImageInput"
-import { Plus, Trash2, GripVertical } from "lucide-react"
-import { useState, useRef, useCallback } from "react"
+import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
+import { Plus, Trash2, GripVertical, ImageIcon, X } from "lucide-react"
+import { useState, useRef, useCallback, useEffect } from "react"
+import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import { Reorder } from "motion/react"
 
 interface Feature {
@@ -38,6 +39,58 @@ export function ProductFeaturesBlock({
   blockId,
 }: ProductFeaturesBlockProps) {
   const featuresTimeoutRef = useRef<NodeJS.Timeout>()
+  const [showPicker, setShowPicker] = useState<number | null>(null)
+  const previousFeaturesRef = useRef<Feature[]>(features)
+
+  // Track image usage when features change
+  useEffect(() => {
+    if (!siteId || !blockId) return
+    
+    const trackUsage = async () => {
+      try {
+        const previousFeatures = previousFeaturesRef.current
+
+        // Track changes for each feature position
+        for (let i = 0; i < Math.max(features.length, previousFeatures.length); i++) {
+          const currentFeature = features[i]
+          const previousFeature = previousFeatures[i]
+
+          // If previous feature exists but current doesn't, remove tracking
+          if (previousFeature?.image && !currentFeature) {
+            const { data: imageId } = await getImageByUrlAction(previousFeature.image)
+            if (imageId) {
+              await removeImageUsageAction(imageId, siteId, "product-features", `feature-${i}`)
+            }
+          }
+          // If both exist but URLs changed, remove old and add new
+          else if (previousFeature?.image && currentFeature?.image && previousFeature.image !== currentFeature.image) {
+            const { data: oldImageId } = await getImageByUrlAction(previousFeature.image)
+            if (oldImageId) {
+              await removeImageUsageAction(oldImageId, siteId, "product-features", `feature-${i}`)
+            }
+            const { data: newImageId } = await getImageByUrlAction(currentFeature.image)
+            if (newImageId) {
+              await trackImageUsageAction(newImageId, siteId, "product-features", `feature-${i}`)
+            }
+          }
+          // If only current exists (new feature), add tracking
+          else if (!previousFeature?.image && currentFeature?.image) {
+            const { data: imageId } = await getImageByUrlAction(currentFeature.image)
+            if (imageId) {
+              await trackImageUsageAction(imageId, siteId, "product-features", `feature-${i}`)
+            }
+          }
+        }
+
+        // Update the ref with current features
+        previousFeaturesRef.current = [...features]
+      } catch (error) {
+        console.error('Error tracking feature image usage:', error)
+      }
+    }
+
+    trackUsage()
+  }, [features, siteId, blockId])
 
   const addFeature = () => {
     const newFeature: Feature = {
@@ -70,6 +123,13 @@ export function ProductFeaturesBlock({
       onFeaturesChange(reorderedFeatures)
     }, 300)
   }, [onFeaturesChange])
+
+  const handleSelectImage = (imageUrl: string) => {
+    if (showPicker !== null) {
+      updateFeature(showPicker, 'image', imageUrl)
+      setShowPicker(null)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -140,54 +200,61 @@ export function ProductFeaturesBlock({
                 }}
                 style={{ cursor: "grab" }}
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                        <GripVertical className="w-4 h-4" />
+                <div className="space-y-3">
+                  {/* Feature Title Row */}
+                  <div className="flex items-center gap-3">
+                    <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                    {feature.image ? (
+                      <div className="relative w-8 h-8 rounded overflow-hidden border">
+                        <img 
+                          src={feature.image} 
+                          alt={feature.title}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <span className="text-sm font-medium">Feature {index + 1}</span>
+                    ) : (
+                      <div className="w-8 h-8 rounded border border-dashed border-muted-foreground/25 bg-muted/50 flex items-center justify-center">
+                        <ImageIcon className="w-3 h-3 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div className="w-52">
+                      <Input
+                        value={feature.title}
+                        onChange={(e) => updateFeature(index, 'title', e.target.value)}
+                        placeholder="Feature Title"
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        value={feature.description}
+                        onChange={(e) => updateFeature(index, 'description', e.target.value)}
+                        placeholder="Feature description..."
+                        className="w-full"
+                      />
                     </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      onClick={() => setShowPicker(index)}
+                      className="h-8 w-8 p-0 flex items-center justify-center"
+                      title="Select image"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeFeature(index)}
-                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center justify-center"
+                      title="Remove feature"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </div>
-
-                  <ImageInput
-                    label="Feature Image"
-                    value={feature.image}
-                    onChange={(value) => updateFeature(index, 'image', value)}
-                    placeholder="Enter image URL or select from library"
-                    description="Image for this feature card"
-                    siteId={siteId}
-                    blockType="product-features"
-                    usageContext={`feature-${index}`}
-                  />
-
-                  <div className="space-y-2">
-                    <Label>Feature Title</Label>
-                    <Input
-                      value={feature.title}
-                      onChange={(e) => updateFeature(index, 'title', e.target.value)}
-                      placeholder="Marketing Campaigns"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Feature Description</Label>
-                    <textarea
-                      value={feature.description}
-                      onChange={(e) => updateFeature(index, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md"
-                      placeholder="Effortlessly book and manage your meetings. Stay on top of your schedule."
-                      rows={2}
-                    />
                   </div>
                 </div>
               </Reorder.Item>
@@ -201,6 +268,14 @@ export function ProductFeaturesBlock({
           )}
         </CardContent>
       </Card>
+
+      {/* Image Picker Dialog */}
+      <ImagePicker
+        open={showPicker !== null}
+        onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
+        onSelectImage={handleSelectImage}
+        currentImageUrl={showPicker !== null ? features[showPicker]?.image : undefined}
+      />
     </div>
   )
 }
