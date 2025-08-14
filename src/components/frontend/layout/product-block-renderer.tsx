@@ -1,6 +1,7 @@
 "use client"
 
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
+import { ProductFeaturesBlock } from "@/components/frontend/modules/products/ProductFeaturesBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
@@ -56,6 +57,15 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductHeroBlock
               key={`product-hero-${block.id}`}
+              {...block.content}
+            />
+          )
+        }
+        
+        if (block.type === 'product-features') {
+          return (
+            <ProductFeaturesBlock
+              key={`product-features-${block.id}`}
               {...block.content}
             />
           )
