@@ -111,7 +111,8 @@ export function useProductBuilder({
           backgroundPatternOpacity: 80,
           backgroundPatternColor: '#a3a3a3',
           heroImage: '',
-          showHeroImage: false
+          showHeroImage: false,
+          showTrustedByBadge: true
         }
       default:
         return {}

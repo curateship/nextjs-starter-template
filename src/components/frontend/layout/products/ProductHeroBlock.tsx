@@ -144,6 +144,7 @@ interface ProductHeroBlockProps {
   backgroundPatternColor?: string;
   heroImage?: string;
   showHeroImage?: boolean;
+  showTrustedByBadge?: boolean;
 }
 
 // Main hero content component
@@ -162,14 +163,15 @@ const HeroContent = ({
   trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
-  backgroundColor
-}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
+  backgroundColor,
+  showTrustedByBadge
+}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor' | 'showTrustedByBadge'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
     {showRainbowButton && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
-    <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />
+    {showTrustedByBadge && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
   </div>
 )
 
@@ -196,7 +198,8 @@ const ProductHeroBlock = ({
   backgroundPatternOpacity,
   backgroundPatternColor,
   heroImage,
-  showHeroImage = false
+  showHeroImage = false,
+  showTrustedByBadge = true
 }: ProductHeroBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -233,6 +236,7 @@ const ProductHeroBlock = ({
         trustedByCount={trustedByCount}
         trustedByAvatars={trustedByAvatars}
         backgroundColor={backgroundColor}
+        showTrustedByBadge={showTrustedByBadge}
       />
       <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
     </section>

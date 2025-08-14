@@ -75,6 +75,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               backgroundPatternColor={block.content?.backgroundPatternColor}
               heroImage={block.content?.heroImage}
               showHeroImage={block.content?.showHeroImage}
+              showTrustedByBadge={block.content?.showTrustedByBadge}
             />
           )
         }
