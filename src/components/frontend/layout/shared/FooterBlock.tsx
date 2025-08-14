@@ -111,7 +111,7 @@ export function FooterBlock({ logo, copyright, links, socialLinks, style }: Foot
     const footerLinks = links && links.length > 0 ? links : defaultLinks
     return (
         <footer 
-            className="py-16 md:py-32"
+            className="py-1"
             style={style ? {
                 backgroundColor: style.backgroundColor,
                 color: style.textColor

@@ -10,6 +10,8 @@ import { ProductBuilderHeader } from "@/components/admin/layout/product-builder/
 import { ProductBlockPropertiesPanel } from "@/components/admin/layout/product-builder/ProductBlockPropertiesPanel"
 import { ProductBlockListPanel } from "@/components/admin/layout/product-builder/ProductBlockListPanel"
 import { ProductBlockTypesPanel } from "@/components/admin/layout/product-builder/ProductBlockTypesPanel"
+import { transformAdminBlocksToFrontend } from "@/lib/utils/admin-to-frontend-blocks"
+import { getSiteBlocksAction } from "@/lib/actions/page-blocks-actions"
 
 export default function ProductBuilderPage({ params }: { params: Promise<{ productSlug: string }> }) {
   const { productSlug } = use(params)
@@ -18,6 +20,8 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
   const { products, blocks, productsLoading, productsError, reloadProducts } = useProductData()
   const [localBlocks, setLocalBlocks] = useState(blocks)
   const [selectedProduct, setSelectedProduct] = useState(productSlug)
+  const [siteBlocks, setSiteBlocks] = useState<{ navigation?: any; footer?: any }>({})
+  const [siteBlocksLoading, setSiteBlocksLoading] = useState(false)
   
   // Update local blocks when server blocks change
   useEffect(() => {
@@ -41,6 +45,43 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
       }
     }
   }, [products, productSlug, router])
+
+  // Load site blocks for navigation and footer
+  useEffect(() => {
+    async function loadSiteBlocks() {
+      const currentProduct = products.find(p => p.slug === selectedProduct)
+      if (!currentProduct?.site_id) return
+
+      setSiteBlocksLoading(true)
+      try {
+        const result = await getSiteBlocksAction(currentProduct.site_id)
+        if (result.success && result.blocks) {
+          // Find navigation and footer blocks from all pages
+          const allBlocks = Object.values(result.blocks).flat()
+          const navigationBlock = allBlocks.find(block => block.type === 'navigation')
+          const footerBlock = allBlocks.find(block => block.type === 'footer')
+          
+          // Transform to frontend format
+          const transformedBlocks = transformAdminBlocksToFrontend(
+            [navigationBlock, footerBlock].filter(Boolean)
+          )
+          
+          setSiteBlocks({
+            navigation: transformedBlocks.navigation,
+            footer: transformedBlocks.footer
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load site blocks:', error)
+      } finally {
+        setSiteBlocksLoading(false)
+      }
+    }
+
+    if (products.length > 0) {
+      loadSiteBlocks()
+    }
+  }, [products, selectedProduct])
   
   // Current product data with staged deletions filtered out
   const currentProductData = products.find(p => p.slug === selectedProduct)
@@ -114,6 +155,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
+          onPreviewProduct={() => builderState.setSelectedBlock(null)}
         />
         
         <div className="flex-1 flex">
@@ -121,6 +163,19 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.updateBlockContent}
             siteId={currentProductData?.site_id || ''}
+            currentProduct={{
+              ...currentProduct,
+              id: currentProductData?.id,
+              title: currentProductData?.title,
+              meta_description: currentProductData?.meta_description,
+              site_id: currentProductData?.site_id
+            }}
+            site={{
+              id: currentProductData?.site_id || '',
+              name: 'Product Site',
+              subdomain: 'preview'
+            }}
+            siteBlocks={siteBlocks}
           />
           
           <ProductBlockListPanel

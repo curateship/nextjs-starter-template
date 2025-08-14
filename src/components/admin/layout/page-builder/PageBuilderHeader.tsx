@@ -25,6 +25,7 @@ interface PageBuilderHeaderProps {
   saveMessage: string
   isSaving: boolean
   onSave: () => void
+  onPreviewPage?: () => void
 }
 
 export function PageBuilderHeader({
@@ -36,7 +37,8 @@ export function PageBuilderHeader({
   onPageUpdated,
   saveMessage,
   isSaving,
-  onSave
+  onSave,
+  onPreviewPage
 }: PageBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -84,16 +86,10 @@ export function PageBuilderHeader({
           <Button 
             variant="outline"
             size="sm" 
-            asChild
+            onClick={onPreviewPage}
           >
-            <a 
-              href={`/${site.subdomain}/${selectedPage}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              View Page
-            </a>
+            <Eye className="w-4 h-4 mr-2" />
+            Preview Page
           </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">

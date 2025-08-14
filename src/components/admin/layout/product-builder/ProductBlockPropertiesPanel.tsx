@@ -1,6 +1,7 @@
 import { ProductHeroBlock } from "@/components/admin/modules/product-blocks/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/modules/product-blocks/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/modules/product-blocks/ProductGalleryBlock"
+import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
   id: string
@@ -13,15 +14,36 @@ interface ProductBlockPropertiesPanelProps {
   selectedBlock: ProductBlock | null
   updateBlockContent: (field: string, value: any) => void
   siteId: string
+  currentProduct?: {
+    slug: string
+    name: string
+    blocks: ProductBlock[]
+    id?: string
+    title?: string
+    meta_description?: string
+    site_id?: string
+  }
+  site?: {
+    id: string
+    name: string
+    subdomain: string
+  }
+  siteBlocks?: {
+    navigation?: any
+    footer?: any
+  }
 }
 
 export function ProductBlockPropertiesPanel({
   selectedBlock,
   updateBlockContent,
-  siteId
+  siteId,
+  currentProduct,
+  site,
+  siteBlocks
 }: ProductBlockPropertiesPanelProps) {
   return (
-    <div className="w-[845px] border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
       {selectedBlock ? (
         <div>
           <div className="space-y-4">
@@ -106,8 +128,29 @@ export function ProductBlockPropertiesPanel({
           </div>
         </div>
       ) : (
-        <div className="text-center text-muted-foreground">
-          <p>Select a block to edit its properties</p>
+        <div className="h-full">
+          {currentProduct && currentProduct.blocks.length > 0 ? (
+            <ProductPreview 
+              blocks={currentProduct.blocks} 
+              product={{
+                id: currentProduct.id || 'preview',
+                title: currentProduct.title || currentProduct.name,
+                slug: currentProduct.slug,
+                meta_description: currentProduct.meta_description,
+                site_id: currentProduct.site_id || siteId
+              }}
+              site={site}
+              siteBlocks={siteBlocks}
+              className="h-full"
+            />
+          ) : (
+            <div className="text-center text-muted-foreground h-full flex items-center justify-center">
+              <div>
+                <p className="text-lg font-medium mb-2">No blocks added yet</p>
+                <p className="text-sm">Add blocks to see your product preview</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

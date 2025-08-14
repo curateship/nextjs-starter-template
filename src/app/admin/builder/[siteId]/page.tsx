@@ -196,6 +196,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
+          onPreviewPage={() => builderState.setSelectedBlock(null)}
         />
         
         <div className="flex-1 flex">
@@ -203,6 +204,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.updateBlockContent}
             siteId={siteId}
+            currentPage={currentPage}
+            site={site}
           />
           
           <BlockListPanel
