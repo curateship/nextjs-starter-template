@@ -22,8 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreateGlobalProductForm } from "@/components/admin/modules/products/create-global-product-form"
-import { ProductSettingsModal } from "@/components/admin/modules/products/product-settings-modal"
+import { CreateGlobalProductForm } from "@/components/admin/layout/product-builder/create-global-product-form"
+import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package } from "lucide-react"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
 import { useSiteContext } from "@/contexts/site-context"

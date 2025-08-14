@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { PostBlock } from "@/components/admin/modules/posts/PostBlock"
+import { PostBlock } from "@/components/ui/post-block"
 
 export default function NewPostPage() {
   const [title, setTitle] = useState("")

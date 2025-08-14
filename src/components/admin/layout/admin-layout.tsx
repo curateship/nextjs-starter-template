@@ -2,7 +2,7 @@
 
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/admin-page-header"
 import { AdminCard } from "@/components/admin/layout/dashboard/admin-card"
-import { BasicBlock } from "@/components/admin/modules/products/BasicBlock"
+import { BasicBlock } from "@/components/admin/layout/product-builder/BasicBlock"
 
 interface AdminLayoutProps {
   children: React.ReactNode

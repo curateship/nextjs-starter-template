@@ -1,9 +1,9 @@
-import { ProductHeroBlock } from "@/components/frontend/modules/products/ProductHeroBlock";
-import { ProductFeatureGridBlock } from "@/components/frontend/modules/products/ProductFeatureGridBlock";
-import { ProductBonusBlock } from "@/components/frontend/modules/products/ProductBonusBlock";
-import { ProductHotspotBlock } from "@/components/frontend/modules/products/ProductHotspotBlock";
-import { ProductFeatureCarousel } from "@/components/frontend/modules/products/ProductFeatureCarousel";
-import { ProductPricingBlock } from "@/components/frontend/modules/products/ProductPricingBlock";
+import { ProductHeroBlock } from "@/components/ui/product-hero-block-alt";
+import { ProductFeatureGridBlock } from "@/components/ui/product-feature-grid-block";
+import { ProductBonusBlock } from "@/components/ui/product-bonus-block";
+import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block";
+import { ProductFeatureCarousel } from "@/components/ui/product-feature-carousel";
+import { ProductPricingBlock } from "@/components/ui/product-pricing-block";
 import { FaqBlock } from "@/components/frontend/layout/shared/FaqBlock";
 
 export default function DefaultThemeProductDemoPage() {

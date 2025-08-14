@@ -11,7 +11,7 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/modules/products/product-settings-modal"
+import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {

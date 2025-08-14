@@ -1,7 +1,7 @@
 import { HeroRuixenBlock } from "./HeroRuixenBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
-import { RichTextBlock } from "@/components/admin/modules/shared-blocks/RichTextBlock"
+import { RichTextBlock } from "@/components/shared/RichTextBlock"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 

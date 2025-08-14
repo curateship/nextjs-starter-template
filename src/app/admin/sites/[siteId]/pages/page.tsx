@@ -22,8 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreatePageForm } from "@/components/admin/modules/sites/create-page-form"
-import { PageSettingsModal } from "@/components/admin/modules/sites/page-settings-modal"
+import { CreatePageForm } from "@/components/admin/layout/page-builder/create-page-form"
+import { PageSettingsModal } from "@/components/admin/layout/page-builder/page-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
 import { getSitePagesAction, deletePageAction, duplicatePageAction } from "@/lib/actions/page-actions"
 import type { Page } from "@/lib/actions/page-actions"

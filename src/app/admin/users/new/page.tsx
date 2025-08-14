@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { UserBlock } from "@/components/admin/modules/users/UserBlock"
+import { UserBlock } from "@/components/ui/user-block"
 
 export default function NewUserPage() {
   const [name, setName] = useState("")
