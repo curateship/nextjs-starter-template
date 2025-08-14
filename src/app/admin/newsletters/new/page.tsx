@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { NewsletterBlock } from "@/components/admin/modules/newsletters/NewsletterBlock"
+import { NewsletterBlock } from "@/components/ui/newsletter-block"
 
 export default function NewNewsletterPage() {
   const [title, setTitle] = useState("")

@@ -5,11 +5,11 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { ImagePicker } from "@/components/admin/modules/images/ImagePicker"
+import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, Edit3 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
-import type { Hotspot } from "@/components/frontend/modules/products/ProductHotspotBlock"
+import type { Hotspot } from "@/components/ui/product-hotspot-block"
 
 interface ProductHotspotBlockProps {
   title: string

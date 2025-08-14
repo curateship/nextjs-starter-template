@@ -9,7 +9,7 @@ import { Upload, X, AlertCircle, CheckCircle2 } from "lucide-react"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
-import { FontSelector } from "@/components/admin/modules/sites/font-selector"
+import { FontSelector } from "@/components/admin/layout/page-builder/font-selector"
 
 interface SiteDashboardProps {
   siteName: string

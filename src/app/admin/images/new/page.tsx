@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { ImageBlock } from "@/components/admin/modules/images/ImageBlock"
+import { ImageBlock } from "@/components/admin/layout/image-library/ImageBlock"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 

@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/dialog"
 import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
-import { CreatePageForm } from "@/components/admin/modules/sites/create-page-form"
-import { EditPageForm } from "@/components/admin/modules/sites/edit-page-form"
+import { CreatePageForm } from "@/components/admin/layout/page-builder/create-page-form"
+import { EditPageForm } from "@/components/admin/layout/page-builder/edit-page-form"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 import type { Page } from "@/lib/actions/page-actions"
 

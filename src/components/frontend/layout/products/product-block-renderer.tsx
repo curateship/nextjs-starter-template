@@ -2,7 +2,7 @@
 
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/layout/products/ProductFeaturesBlock"
-import { ProductHotspotBlock } from "@/components/frontend/modules/products/ProductHotspotBlock"
+import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
