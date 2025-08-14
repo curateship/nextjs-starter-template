@@ -37,6 +37,7 @@ interface ProductHeroBlockProps {
   backgroundPatternColor: string
   heroImage: string
   showHeroImage: boolean
+  showTrustedByBadge: boolean
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onPrimaryButtonChange: (value: string) => void
@@ -61,6 +62,7 @@ interface ProductHeroBlockProps {
   onBackgroundPatternColorChange: (value: string) => void
   onHeroImageChange: (value: string) => void
   onShowHeroImageChange: (value: boolean) => void
+  onShowTrustedByBadgeChange: (value: boolean) => void
   siteId: string
   blockId: string
 }
@@ -119,6 +121,7 @@ export function ProductHeroBlock({
   backgroundPatternColor,
   heroImage,
   showHeroImage,
+  showTrustedByBadge,
   onTitleChange,
   onSubtitleChange,
   onPrimaryButtonChange,
@@ -143,6 +146,7 @@ export function ProductHeroBlock({
   onBackgroundPatternColorChange,
   onHeroImageChange,
   onShowHeroImageChange,
+  onShowTrustedByBadgeChange,
   siteId,
   blockId,
 }: ProductHeroBlockProps) {
@@ -368,15 +372,27 @@ export function ProductHeroBlock({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Trusted By Badge</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addAvatar}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addAvatar}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center">
+                <input
+                  id="showTrustedByBadge"
+                  type="checkbox"
+                  checked={showTrustedByBadge}
+                  onChange={(e) => onShowTrustedByBadgeChange(e.target.checked)}
+                  className="mr-2"
+                />
+                <Label htmlFor="showTrustedByBadge" className="text-sm font-normal">Show Badge</Label>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

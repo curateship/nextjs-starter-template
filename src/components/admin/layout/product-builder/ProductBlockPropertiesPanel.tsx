@@ -55,6 +55,7 @@ export function ProductBlockPropertiesPanel({
                 backgroundPatternColor={selectedBlock.content.backgroundPatternColor || '#a3a3a3'}
                 heroImage={selectedBlock.content.heroImage || ''}
                 showHeroImage={selectedBlock.content.showHeroImage || false}
+                showTrustedByBadge={selectedBlock.content.showTrustedByBadge ?? true}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
@@ -79,6 +80,7 @@ export function ProductBlockPropertiesPanel({
                 onBackgroundPatternColorChange={(value) => updateBlockContent('backgroundPatternColor', value)}
                 onHeroImageChange={(value) => updateBlockContent('heroImage', value)}
                 onShowHeroImageChange={(value) => updateBlockContent('showHeroImage', value)}
+                onShowTrustedByBadgeChange={(value) => updateBlockContent('showTrustedByBadge', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
