@@ -3,6 +3,7 @@ import { ProductDetailsBlock } from "@/components/admin/layout/product-builder/P
 import { ProductGalleryBlock } from "@/components/admin/layout/product-builder/ProductGalleryBlock"
 import { ProductFeaturesBlock } from "@/components/admin/layout/product-builder/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/layout/product-builder/ProductHotspotBlock"
+import { ProductFAQBlock } from "@/components/admin/layout/product-builder/ProductFAQBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -155,6 +156,17 @@ export function ProductBlockPropertiesPanel({
                 onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+              />
+            )}
+            
+            {selectedBlock.type === 'faq' && (
+              <ProductFAQBlock
+                title={selectedBlock.content.title || 'Product FAQ'}
+                subtitle={selectedBlock.content.subtitle || 'Get answers to common questions about this product, its features, compatibility, and support options.'}
+                faqItems={selectedBlock.content.faqItems || []}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onFaqItemsChange={(faqItems) => updateBlockContent('faqItems', faqItems)}
               />
             )}
           </div>

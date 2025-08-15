@@ -191,6 +191,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
             onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
             onAddProductFeaturesBlock={builderState.handleAddProductFeaturesBlock}
             onAddProductHotspotBlock={builderState.handleAddProductHotspotBlock}
+            onAddProductFAQBlock={builderState.handleAddProductFAQBlock}
           />
         </div>
       </div>
