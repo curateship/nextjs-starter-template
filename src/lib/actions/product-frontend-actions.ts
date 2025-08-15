@@ -47,7 +47,6 @@ async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
       .from('product_blocks')
       .select('*')
       .eq('product_id', productId)
-      .eq('is_active', true)
       .order('display_order', { ascending: true })
 
     if (error) {
@@ -93,7 +92,6 @@ async function fetchSiteBlocks(siteId: string) {
     .select('*')
     .eq('page_id', homePage.id)
     .in('block_type', ['navigation', 'footer'])
-    .eq('is_active', true)
 
   const navigationBlock = pageBlocks?.find(b => b.block_type === 'navigation')
   const footerBlock = pageBlocks?.find(b => b.block_type === 'footer')
