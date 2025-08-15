@@ -72,7 +72,7 @@ export function PageBuilderHeader({
               ))}
               <div className="border-t pt-1 mt-2">
                 <div 
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-muted-foreground hover:text-foreground"
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground text-muted-foreground"
                   onClick={() => setShowCreateDialog(true)}
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
