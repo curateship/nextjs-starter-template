@@ -90,7 +90,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const currentPage = {
     slug: selectedPage,
     name: currentPageData?.title || selectedPage,
-    blocks: (localBlocks[selectedPage] || []).filter(block => !builderState.deletedBlockIds.has(block.id))
+    blocks: localBlocks[selectedPage] || []
   }
   
   // Handle page change with URL update

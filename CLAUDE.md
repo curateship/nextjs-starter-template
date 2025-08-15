@@ -2,6 +2,48 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 CRITICAL ANTI-OVERCOMPLICATION RULES (NEVER VIOLATE)
+
+**READ THIS FIRST - These rules prevent the disasters documented in JOURNEY.md Phase 12**
+
+### 1. SIMPLICITY IS MANDATORY
+- **If a solution needs more than 20 lines for a simple feature, STOP and reconsider**
+- **Always implement the simplest solution that works** - avoid over-engineering
+- **Direct solutions > Clever architecture** - prefer straightforward code over "smart" solutions
+- **Question every new dependency, hook, or context** - can this be done without it?
+
+### 2. NO FAKE "SAFETY" SYSTEMS  
+- **NEVER create backup/restore systems in application code** - use database transactions
+- **NEVER implement staged deletions** - just delete the fucking data
+- **NEVER create "safety" features that silently fail** - fail fast and honestly
+- **If you need complex error recovery, your primary operation is broken**
+
+### 3. DATABASE OPERATIONS ARE SIMPLE
+- **Load data from database**
+- **Edit data in UI**
+- **Save data to database**
+- **Done - no staging, no caching, no complex state management**
+
+### 4. NO OVERCOMPLICATED STATE MANAGEMENT
+- **NEVER create temporary UI state that doesn't map to database**
+- **NEVER implement complex state synchronization** - load fresh data when needed
+- **NEVER add staged/pending/deleted tracking** - just do the operation
+
+### 5. FAIL FAST PRINCIPLE
+- **If an operation fails, report the error immediately**
+- **NEVER pretend success when operations fail**
+- **NEVER hide errors with complex error handling**
+- **User should know immediately when something doesn't work**
+
+### 6. CODE REVIEW CHECKLIST
+Before implementing ANY feature, ask:
+- **Can this be done with basic CRUD operations?** (Usually yes)
+- **Am I adding complexity to solve a problem I created?** (Usually yes) 
+- **Would a junior developer understand this in 5 minutes?** (If no, simplify)
+- **Does this follow the "Load → Edit → Save" pattern?** (If no, why not?)
+
+**REMEMBER: The user losing data due to "safety" features is worse than any simple bug.**
+
 ## Development Commands
 
 **Start development server:**
