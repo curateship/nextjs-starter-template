@@ -14,7 +14,6 @@ interface UseProductDataReturn {
   products: Product[]
   blocks: Record<string, ProductBlock[]>
   productsLoading: boolean
-  blocksLoading: boolean
   productsError: string
   reloadProducts: () => Promise<void>
 }
@@ -25,7 +24,6 @@ export function useProductData(): UseProductDataReturn {
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
-  const [blocksLoading, setBlocksLoading] = useState(false)
 
   const loadProducts = async () => {
     if (!currentSite?.id) {
@@ -52,9 +50,8 @@ export function useProductData(): UseProductDataReturn {
           try {
             const blocksResult = await getProductBlocksAction(product.id)
             if (blocksResult && blocksResult.success && blocksResult.blocks) {
-              // The blocks action returns blocks keyed by product identifier
-              // We want them keyed by product slug for the UI
-              const productBlocks = Object.values(blocksResult.blocks).flat()
+              // The blocks action now returns blocks keyed by product slug
+              const productBlocks = blocksResult.blocks[product.slug] || []
               allBlocks[product.slug] = productBlocks
             } else {
               // Initialize empty blocks if loading fails
@@ -91,7 +88,6 @@ export function useProductData(): UseProductDataReturn {
     products,
     blocks,
     productsLoading,
-    blocksLoading,
     productsError,
     reloadProducts
   }

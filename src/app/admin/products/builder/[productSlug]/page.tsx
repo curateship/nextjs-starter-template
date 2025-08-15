@@ -95,7 +95,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
   const currentProduct = {
     slug: selectedProduct,
     name: currentProductData?.title || selectedProduct,
-    blocks: (localBlocks[selectedProduct] || []).filter(block => !builderState.deletedBlockIds.has(block.id))
+    blocks: localBlocks[selectedProduct] || []
   }
   
   // Handle product change
