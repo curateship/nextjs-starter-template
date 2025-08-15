@@ -42,6 +42,7 @@ export function ProductBlockListPanel({
 }: ProductBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<ProductBlock | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleDeleteClick = (block: ProductBlock) => {
     setBlockToDelete(block)
@@ -123,6 +124,10 @@ export function ProductBlockListPanel({
                   style={{ 
                     cursor: "grab"
                   }}
+                  onDragStart={() => setIsDragging(true)}
+                  onDragEnd={() => {
+                    setTimeout(() => setIsDragging(false), 100)
+                  }}
                   onPointerDown={(e) => {
                     // Don't start drag if clicking on buttons
                     const target = e.target as HTMLElement
@@ -131,7 +136,11 @@ export function ProductBlockListPanel({
                       e.stopPropagation()
                     }
                   }}
-                  onClick={() => onSelectBlock(block)}
+                  onClick={() => {
+                    if (!isDragging) {
+                      onSelectBlock(block)
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">

@@ -149,11 +149,15 @@ export function usePageBuilder({
       const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
       const reorderableBlocks = validReorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
       
+      // Build final blocks array with updated display_order
       const finalBlocks = [
         ...navigationBlocks,
         ...reorderableBlocks,
         ...footerBlocks
-      ]
+      ].map((block, index) => ({
+        ...block,
+        display_order: index
+      }))
       
       // Update local state immediately for responsive UX
       const updatedBlocks = { ...blocks }

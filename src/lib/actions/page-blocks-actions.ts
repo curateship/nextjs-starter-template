@@ -52,6 +52,7 @@ export interface Block {
   type: string
   title: string
   content: Record<string, any>
+  display_order: number
 }
 
 /**
@@ -101,7 +102,8 @@ export async function getSiteBlocksAction(site_id: string): Promise<{
         id: siteBlock.id,
         type: siteBlock.block_type,
         title: getBlockTitle(siteBlock.block_type),
-        content: siteBlock.content
+        content: siteBlock.content,
+        display_order: siteBlock.display_order
       }
 
       const pageSlug = siteBlock.page_slug === 'global' ? 'home' : siteBlock.page_slug
