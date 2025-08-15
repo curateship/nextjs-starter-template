@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
-import { Plus, Trash2, ImageIcon, Edit3 } from "lucide-react"
+import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import type { Hotspot } from "@/components/ui/product-hotspot-block"
@@ -44,6 +44,7 @@ export function ProductHotspotBlock({
   const [editingHotspot, setEditingHotspot] = useState<string | null>(null)
   const [hotspotForm, setHotspotForm] = useState({ text: "" })
   const [isAddingHotspot, setIsAddingHotspot] = useState(false)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0, showAbove: false })
   const imageRef = useRef<HTMLImageElement>(null)
 
   // Track background image usage on initial load
@@ -98,20 +99,48 @@ export function ProductHotspotBlock({
       id: `hotspot-${Date.now()}-${Math.random()}`,
       x: Math.round(x * 100) / 100,
       y: Math.round(y * 100) / 100,
-      text: "New hotspot"
+      text: "Click to edit this hotspot"
     }
 
     onHotspotsChange([...hotspots, newHotspot])
     setEditingHotspot(newHotspot.id)
-    setHotspotForm({ text: "New hotspot" })
+    setHotspotForm({ text: "Click to edit this hotspot" })
     setIsAddingHotspot(false)
+    
+    // Calculate tooltip position for the new hotspot
+    const imageRect = event.currentTarget.getBoundingClientRect()
+    const hotspotScreenX = imageRect.left + (newHotspot.x / 100) * imageRect.width
+    const hotspotScreenY = imageRect.top + (newHotspot.y / 100) * imageRect.height
+    
+    setTooltipPosition({
+      x: hotspotScreenX,
+      y: hotspotScreenY,
+      showAbove: hotspotScreenY > window.innerHeight / 2
+    })
   }
 
-  const handleEditHotspot = (hotspotId: string) => {
+  const handleEditHotspot = (hotspotId: string, event?: React.MouseEvent) => {
     const hotspot = hotspots.find(h => h.id === hotspotId)
     if (hotspot) {
       setEditingHotspot(hotspotId)
       setHotspotForm({ text: hotspot.text })
+      
+      // Calculate tooltip position
+      if (event && imageRef.current) {
+        const button = event.currentTarget as HTMLElement
+        const buttonRect = button.getBoundingClientRect()
+        const centerX = buttonRect.left + buttonRect.width / 2
+        const centerY = buttonRect.top + buttonRect.height / 2
+        
+        // Determine if tooltip should show above or below
+        const showAbove = centerY > window.innerHeight / 2
+        
+        setTooltipPosition({
+          x: centerX,
+          y: centerY,
+          showAbove
+        })
+      }
     }
   }
 
@@ -247,26 +276,26 @@ export function ProductHotspotBlock({
                 
                 {/* Preview hotspots */}
                 {hotspots.map((hotspot) => (
-                  <button
-                    key={hotspot.id}
-                    className={`absolute z-10 flex h-6 w-6 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                      editingHotspot === hotspot.id 
-                        ? 'bg-orange-500 focus:ring-orange-500' 
-                        : 'bg-blue-500 focus:ring-blue-500'
-                    }`}
-                    style={{
-                      left: `${hotspot.x}%`,
-                      top: `${hotspot.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEditHotspot(hotspot.id)
-                    }}
-                    title={`Edit: ${hotspot.text}`}
-                  >
-                    <div className="h-2 w-2 rounded-full bg-white" />
-                  </button>
+                  <div key={hotspot.id} className="absolute z-10" style={{
+                    left: `${hotspot.x}%`,
+                    top: `${hotspot.y}%`,
+                    transform: 'translate(-50%, -50%)'
+                  }}>
+                    <button
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        editingHotspot === hotspot.id 
+                          ? 'bg-orange-500 focus:ring-orange-500' 
+                          : 'bg-blue-500 focus:ring-blue-500'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditHotspot(hotspot.id, e)
+                      }}
+                      title={`Edit: ${hotspot.text}`}
+                    >
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -283,81 +312,6 @@ export function ProductHotspotBlock({
             </div>
           )}
 
-          {/* Hotspot List */}
-          <div className="space-y-2">
-            {hotspots.map((hotspot, index) => (
-              <div key={hotspot.id} className="border rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">
-                    Hotspot {index + 1}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditHotspot(hotspot.id)}
-                      className="h-8 w-8 p-0"
-                      title="Edit hotspot"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteHotspot(hotspot.id)}
-                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Delete hotspot"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {editingHotspot === hotspot.id ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={hotspotForm.text}
-                      onChange={(e) => setHotspotForm({ ...hotspotForm, text: e.target.value })}
-                      placeholder="Hotspot description"
-                      rows={3}
-                      className="text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleSaveHotspot}
-                        className="h-8"
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingHotspot(null)}
-                        className="h-8"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    <div>{hotspot.text}</div>
-                  </div>
-                )}
-              </div>
-            ))}
-            
-            {hotspots.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-lg">
-                No hotspots added yet. Click "Add Hotspot" to create interactive points on your image.
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 
@@ -372,6 +326,66 @@ export function ProductHotspotBlock({
         }}
         currentImageUrl={backgroundImage}
       />
+
+      {/* Fixed position tooltip for editing hotspots */}
+      {editingHotspot && (
+        <div 
+          className="fixed bg-white border border-gray-200 shadow-2xl rounded-lg p-3 min-w-64 max-w-80 z-[9999]"
+          style={{
+            left: `${tooltipPosition.x}px`,
+            top: tooltipPosition.showAbove ? `${tooltipPosition.y - 120}px` : `${tooltipPosition.y + 20}px`,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <div className="space-y-2">
+            <Textarea
+              value={hotspotForm.text}
+              onChange={(e) => setHotspotForm({ ...hotspotForm, text: e.target.value })}
+              placeholder="Hotspot description"
+              rows={3}
+              className="text-sm"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSaveHotspot}
+                className="h-8"
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingHotspot(null)}
+                className="h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteHotspot(editingHotspot)}
+                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                title="Delete hotspot"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          {/* Tooltip arrow */}
+          <div 
+            className={`absolute left-1/2 transform -translate-x-1/2 ${
+              tooltipPosition.showAbove 
+                ? 'bottom-[-8px] w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white' 
+                : 'top-[-8px] w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white'
+            }`} 
+          />
+        </div>
+      )}
     </div>
   )
 }
