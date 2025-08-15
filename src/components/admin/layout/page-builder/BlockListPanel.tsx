@@ -37,6 +37,7 @@ export function BlockListPanel({
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleDeleteClick = (block: Block) => {
     setBlockToDelete(block)
@@ -117,6 +118,10 @@ export function BlockListPanel({
                   style={{ 
                     cursor: isProtected ? "default" : "grab"
                   }}
+                  onDragStart={() => setIsDragging(true)}
+                  onDragEnd={() => {
+                    setTimeout(() => setIsDragging(false), 100)
+                  }}
                   onPointerDown={(e) => {
                     // Prevent drag for protected blocks
                     if (isProtected) {
@@ -133,7 +138,11 @@ export function BlockListPanel({
                     }
                   }}
                   drag={!isProtected}
-                  onClick={() => onSelectBlock(block)}
+                  onClick={() => {
+                    if (!isDragging) {
+                      onSelectBlock(block)
+                    }
+                  }}
                 >
                   <div 
                     className="flex items-center justify-between"

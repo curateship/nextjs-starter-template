@@ -51,7 +51,7 @@ export function transformAdminBlocksToFrontend(
         trustedByTextColor: block.content.trustedByTextColor || '#6b7280',
         trustedByCount: block.content.trustedByCount || '',
         trustedByAvatars: block.content.trustedByAvatars || [],
-        display_order: 0 // Will be handled by block ordering
+        display_order: block.display_order
       })
     } else if (block.type === 'footer') {
       frontendBlocks.footer = {
@@ -80,7 +80,7 @@ export function transformAdminBlocksToFrontend(
       frontendBlocks.richText.push({
         ...richTextContent,
         id: block.id,
-        display_order: 0 // Will be handled by block ordering
+        display_order: block.display_order
       })
     } else if (block.type === 'faq') {
       if (!frontendBlocks.faq) {
@@ -92,7 +92,7 @@ export function transformAdminBlocksToFrontend(
         title: block.content.title || 'Frequently Asked Questions',
         subtitle: block.content.subtitle || 'Discover quick and comprehensive answers to common questions about our platform, services, and features.',
         faqItems: block.content.faqItems || [],
-        display_order: (block as any).display_order || 0
+        display_order: block.display_order
       })
     }
   })
