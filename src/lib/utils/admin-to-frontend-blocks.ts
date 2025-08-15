@@ -82,6 +82,18 @@ export function transformAdminBlocksToFrontend(
         id: block.id,
         display_order: 0 // Will be handled by block ordering
       })
+    } else if (block.type === 'faq') {
+      if (!frontendBlocks.faq) {
+        frontendBlocks.faq = []
+      }
+      
+      frontendBlocks.faq.push({
+        id: block.id,
+        title: block.content.title || 'Frequently Asked Questions',
+        subtitle: block.content.subtitle || 'Discover quick and comprehensive answers to common questions about our platform, services, and features.',
+        faqItems: block.content.faqItems || [],
+        display_order: (block as any).display_order || 0
+      })
     }
   })
 

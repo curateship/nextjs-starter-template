@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { PageBuilderHeader } from "@/components/admin/layout/page-builder/PageBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/layout/page-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/layout/page-builder/BlockListPanel"
-import { SharedBlockTypesPanel } from "@/components/admin/layout/page-builder/SharedBlockTypesPanel"
+import { BlockTypesPanel } from "@/components/admin/layout/page-builder/BlockTypesPanel"
 import { getSitePagesAction } from "@/lib/actions/page-actions"
 import type { Page } from "@/lib/actions/page-actions"
 
@@ -217,9 +217,10 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             deleting={builderState.deleting}
           />
           
-          <SharedBlockTypesPanel
+          <BlockTypesPanel
             onAddHeroBlock={builderState.handleAddHeroBlock}
             onAddRichTextBlock={builderState.handleAddRichTextBlock}
+            onAddFaqBlock={builderState.handleAddFaqBlock}
           />
         </div>
       </div>

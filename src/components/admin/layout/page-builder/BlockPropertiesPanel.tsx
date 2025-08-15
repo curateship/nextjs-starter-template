@@ -2,6 +2,7 @@ import { PageHeroBlock } from "./PageHeroBlock"
 import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
+import { SharedFaqBlock } from "@/components/admin/layout/page-builder/SharedFaqBlock"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 
@@ -83,6 +84,16 @@ export function BlockPropertiesPanel({
                   updateBlockContent('headerAlign', contentObj.headerAlign)
                   updateBlockContent('content', contentObj.content)
                 }}
+              />
+            )}
+            {selectedBlock.type === 'faq' && (
+              <SharedFaqBlock
+                title={selectedBlock.content.title}
+                subtitle={selectedBlock.content.subtitle}
+                faqItems={selectedBlock.content.faqItems}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onFaqItemsChange={(value) => updateBlockContent('faqItems', value)}
               />
             )}
           </div>

@@ -16,7 +16,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   const { blocks = {} } = site
   
   // Combine all content blocks and sort by display_order
-  const allBlocks: Array<{ type: 'hero' | 'richText'; data: any; display_order: number }> = []
+  const allBlocks: Array<{ type: 'hero' | 'richText' | 'faq'; data: any; display_order: number }> = []
   
   // Add hero blocks
   if (blocks.hero) {
@@ -36,6 +36,17 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         type: 'richText',
         data: richTextBlock,
         display_order: richTextBlock.display_order
+      })
+    })
+  }
+  
+  // Add FAQ blocks
+  if (blocks.faq) {
+    blocks.faq.forEach(faqBlock => {
+      allBlocks.push({
+        type: 'faq',
+        data: faqBlock,
+        display_order: faqBlock.display_order
       })
     })
   }
@@ -60,6 +71,14 @@ export function BlockRenderer({ site }: BlockRendererProps) {
             <RichTextBlock 
               key={`richText-${richTextBlock.id}`}
               content={richTextBlock} 
+            />
+          )
+        } else if (block.type === 'faq') {
+          const faqBlock = block.data
+          return (
+            <FaqBlock 
+              key={`faq-${faqBlock.id}`}
+              content={faqBlock} 
             />
           )
         }
