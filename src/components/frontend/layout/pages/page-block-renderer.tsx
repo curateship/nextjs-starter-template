@@ -2,7 +2,7 @@
 
 import { PageHeroBlock } from "@/components/frontend/layout/pages/PageHeroBlock"
 import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock"
-import { FaqBlock } from "@/components/frontend/layout/shared/FaqBlock"
+import { FaqBlock } from "@/components/frontend/layout/pages/FaqBlock"
 import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/layout/pages/RichTextBlock"
