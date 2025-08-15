@@ -145,7 +145,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       .from('page_blocks')
       .select('*')
       .eq('site_id', site.id)
-      .eq('is_active', true)
       .or(`page_slug.eq.${actualPageSlug},page_slug.eq.global,page_slug.is.null`)
       .order('display_order', { ascending: true })
 

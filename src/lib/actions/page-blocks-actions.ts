@@ -43,7 +43,6 @@ export interface SiteBlock {
   page_slug: 'home' | 'global'
   content: Record<string, any>
   display_order: number
-  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -88,7 +87,6 @@ export async function getSiteBlocksAction(site_id: string): Promise<{
       .from('page_blocks')
       .select('*')
       .eq('site_id', site_id)
-      .eq('is_active', true)
       .order('display_order', { ascending: true })
 
     if (error) {
@@ -404,7 +402,6 @@ export async function reorderSiteBlocksAction(params: {
       .select('id, block_type, display_order')
       .eq('site_id', params.site_id)
       .eq('page_slug', params.page_slug)
-      .eq('is_active', true)
       .order('display_order', { ascending: true })
 
     if (allBlocksError) {
@@ -626,8 +623,7 @@ export async function addSiteBlockAction(params: {
         block_type: params.block_type,
         page_slug: params.page_slug,
         content: defaultContent,
-        display_order: insertOrder,
-        is_active: true
+        display_order: insertOrder
       })
       .select('*')
       .single()

@@ -797,7 +797,6 @@ export async function duplicateProductAction(productId: string, newTitle: string
       .select('*')
       .eq('site_id', originalProduct.site_id)
       .eq('page_slug', `product-${originalProduct.slug}`)
-      .eq('is_active', true)
 
     if (originalBlocks && originalBlocks.length > 0) {
       const duplicatedBlocks = originalBlocks.map(block => ({
@@ -805,8 +804,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
         block_type: block.block_type,
         page_slug: `product-${newSlug}`,
         content: block.content,
-        display_order: block.display_order,
-        is_active: true
+        display_order: block.display_order
       }))
 
       await supabaseAdmin

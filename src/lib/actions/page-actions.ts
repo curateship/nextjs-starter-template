@@ -710,7 +710,6 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       .select('*')
       .eq('site_id', originalPage.site_id)
       .eq('page_slug', originalPage.slug)
-      .eq('is_active', true)
 
     if (originalBlocks && originalBlocks.length > 0) {
       const duplicatedBlocks = originalBlocks.map(block => ({
@@ -718,8 +717,7 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
         block_type: block.block_type,
         page_slug: newSlug,
         content: block.content,
-        display_order: block.display_order,
-        is_active: true
+        display_order: block.display_order
       }))
 
       await supabaseAdmin
