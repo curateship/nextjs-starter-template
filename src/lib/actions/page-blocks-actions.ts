@@ -39,7 +39,7 @@ async function createServerSupabaseClient() {
 export interface SiteBlock {
   id: string
   site_id: string
-  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text'
+  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text' | 'faq'
   page_slug: 'home' | 'global'
   content: Record<string, any>
   display_order: number
@@ -149,6 +149,46 @@ export async function saveSiteBlockAction(params: {
     // Validate content is an object and not too large (prevent DoS)
     if (typeof params.content !== 'object' || JSON.stringify(params.content).length > 50000) {
       return { success: false, error: 'Invalid or oversized content' }
+    }
+
+    // Security: Additional validation for FAQ content
+    if (params.content.faqItems && Array.isArray(params.content.faqItems)) {
+      // Limit number of FAQ items to prevent DoS
+      if (params.content.faqItems.length > 50) {
+        return { success: false, error: 'Too many FAQ items (max 50)' }
+      }
+      
+      // Validate each FAQ item
+      for (const item of params.content.faqItems) {
+        if (typeof item !== 'object' || !item.id || !item.question || !item.answer) {
+          return { success: false, error: 'Invalid FAQ item structure' }
+        }
+        
+        // Sanitize and validate FAQ item content
+        if (typeof item.question !== 'string' || item.question.length > 500) {
+          return { success: false, error: 'FAQ question too long (max 500 chars)' }
+        }
+        
+        if (typeof item.answer !== 'string' || item.answer.length > 2000) {
+          return { success: false, error: 'FAQ answer too long (max 2000 chars)' }
+        }
+        
+        // Check for dangerous content
+        const dangerousPatterns = [
+          /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+          /javascript:/gi,
+          /on\w+\s*=/gi,
+          /<iframe/gi,
+          /<object/gi,
+          /<embed/gi
+        ]
+        
+        for (const pattern of dangerousPatterns) {
+          if (pattern.test(item.question) || pattern.test(item.answer)) {
+            return { success: false, error: 'Potentially dangerous content detected' }
+          }
+        }
+      }
     }
 
     // Verify user is authenticated
@@ -447,7 +487,7 @@ export async function reorderSiteBlocksAction(params: {
 export async function addSiteBlockAction(params: {
   site_id: string
   page_slug: string
-  block_type: 'hero' | 'rich-text'
+  block_type: 'hero' | 'rich-text' | 'faq'
 }): Promise<{
   success: boolean
   block?: Block
@@ -470,9 +510,9 @@ export async function addSiteBlockAction(params: {
       return { success: false, error: 'Invalid page slug format' }
     }
 
-    // Allow hero and rich-text blocks
-    if (params.block_type !== 'hero' && params.block_type !== 'rich-text') {
-      return { success: false, error: 'Only hero and rich-text blocks can be added' }
+    // Allow hero, rich-text, and FAQ blocks
+    if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq') {
+      return { success: false, error: 'Only hero, rich-text, and FAQ blocks can be added' }
     }
 
     // Verify user is authenticated
@@ -551,6 +591,28 @@ export async function addSiteBlockAction(params: {
         subtitle: 'Professional content with rich formatting',
         headerAlign: 'left',
         content: '<p>This is a sample rich text block. You can add <strong>bold text</strong>, <em>italic text</em>, create lists, add links, and format your content with professional typography.</p><ul><li>Create bullet points</li><li>Add numbered lists</li><li>Include links and emphasis</li></ul><p>Perfect for contact pages, about sections, legal documents, and any content that needs professional formatting.</p>'
+      }
+    } else if (params.block_type === 'faq') {
+      defaultContent = {
+        title: 'Frequently Asked Questions',
+        subtitle: 'Discover quick and comprehensive answers to common questions about our platform, services, and features.',
+        faqItems: [
+          {
+            id: 'item-1',
+            question: 'How long does shipping take?',
+            answer: 'Standard shipping takes 3-5 business days, depending on your location. Express shipping options are available at checkout for 1-2 business day delivery.'
+          },
+          {
+            id: 'item-2',
+            question: 'What payment methods do you accept?',
+            answer: 'We accept all major credit cards (Visa, Mastercard, American Express), PayPal, Apple Pay, and Google Pay. For enterprise customers, we also offer invoicing options.'
+          },
+          {
+            id: 'item-3',
+            question: 'Can I change or cancel my order?',
+            answer: 'You can modify or cancel your order within 1 hour of placing it. After this window, please contact our customer support team who will assist you with any changes.'
+          }
+        ]
       }
     } else {
       defaultContent = {}

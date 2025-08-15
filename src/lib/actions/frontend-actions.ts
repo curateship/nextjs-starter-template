@@ -59,6 +59,17 @@ export interface SiteWithBlocks {
       id: string
       display_order: number
     }>
+    faq?: Array<{
+      id: string
+      title: string
+      subtitle: string
+      faqItems: Array<{
+        id: string
+        question: string
+        answer: string
+      }>
+      display_order: number
+    }>
   }
 }
 
@@ -274,6 +285,18 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
         blocks.richText.push({
           ...richTextContent,
           id: block.id,
+          display_order: block.display_order || 0
+        })
+      } else if (block.block_type === 'faq') {
+        if (!blocks.faq) {
+          blocks.faq = []
+        }
+        
+        blocks.faq.push({
+          id: block.id,
+          title: block.content.title || 'Frequently Asked Questions',
+          subtitle: block.content.subtitle || 'Discover quick and comprehensive answers to common questions about our platform, services, and features.',
+          faqItems: block.content.faqItems || [],
           display_order: block.display_order || 0
         })
       }

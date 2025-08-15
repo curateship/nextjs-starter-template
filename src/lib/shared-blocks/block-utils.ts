@@ -13,6 +13,8 @@ export function getBlockTitle(blockType: string): string {
       return 'Hero Section'
     case 'rich-text':
       return 'Rich Text Content'
+    case 'faq':
+      return 'FAQ Section'
     case 'footer':
       return 'Footer'
     default:

@@ -203,3 +203,205 @@ const MobileNav = ({ menuItems }) => (...)
 - **ACTION REQUIRED**: If vulnerabilities are found, they must be immediately fixed before proceeding
 - **DOCUMENTATION**: Security audit results must be documented and any fixes applied must be explained
 - **NO EXCEPTIONS**: This audit is mandatory for every code change, regardless of size or perceived risk level
+
+## 🧱 BLOCK CREATION GUIDE (CRITICAL - FOLLOW EXACTLY)
+
+When adding new block types to the platform, follow this **MANDATORY CHECKLIST** to prevent issues:
+
+### **📋 COMPLETE BLOCK IMPLEMENTATION CHECKLIST:**
+
+#### **1. Database Schema (REQUIRED FIRST)**
+- [ ] **Update database constraint** in migration file:
+  ```sql
+  ALTER TABLE page_blocks DROP CONSTRAINT IF EXISTS site_blocks_block_type_check;
+  ALTER TABLE page_blocks ADD CONSTRAINT site_blocks_block_type_check 
+  CHECK (block_type IN ('navigation', 'hero', 'footer', 'rich-text', 'faq', 'NEW_BLOCK_TYPE'));
+  ```
+- [ ] **Apply migration** manually in Supabase dashboard if CLI not available
+- [ ] **Test block creation** - verify constraint allows new block type
+
+#### **2. Backend Actions (REQUIRED)**
+- [ ] **Add to block type union** in `src/lib/actions/page-blocks-actions.ts`:
+  ```typescript
+  block_type: 'hero' | 'rich-text' | 'faq' | 'NEW_BLOCK_TYPE'
+  ```
+- [ ] **Add to validation check**:
+  ```typescript
+  if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq' && params.block_type !== 'NEW_BLOCK_TYPE') {
+    return { success: false, error: 'Only hero, rich-text, FAQ, and NEW_BLOCK_TYPE blocks can be added' }
+  }
+  ```
+- [ ] **Add default content** in `addSiteBlockAction`:
+  ```typescript
+  } else if (params.block_type === 'NEW_BLOCK_TYPE') {
+    defaultContent = {
+      title: 'Default Title',
+      // ... other default properties
+    }
+  ```
+- [ ] **Add server-side validation** for new block content structure
+- [ ] **Add to block utils** `src/lib/shared-blocks/block-utils.ts`:
+  ```typescript
+  case 'NEW_BLOCK_TYPE':
+    return 'New Block Display Name'
+  ```
+
+#### **3. Frontend Display Component (REQUIRED)**
+- [ ] **Create frontend component** in `src/components/frontend/layout/shared/NewBlockType.tsx`
+- [ ] **Implement proper props interface** with content validation
+- [ ] **Add security measures** - input sanitization, XSS prevention
+- [ ] **NO drag functionality** on frontend (admin only)
+- [ ] **Use React escaping** - never use `dangerouslySetInnerHTML` without DOMPurify
+
+#### **4. Admin Editor Component (REQUIRED)**
+- [ ] **Create admin editor** in `src/components/admin/layout/page-builder/SharedNewBlockType.tsx`
+- [ ] **Implement two-card layout** (settings card + content card)
+- [ ] **Add input validation** with length limits and sanitization
+- [ ] **Add drag & drop** functionality if needed (Framer Motion Reorder)
+- [ ] **Implement proper callbacks** for content updates
+
+#### **5. Admin UI Integration (REQUIRED - ALL THREE PANELS)**
+- [ ] **BlockTypesPanel** (Right Panel) - Add new block option:
+  ```typescript
+  // Import icon
+  import { NewIcon } from "lucide-react"
+  
+  // Add UI block
+  <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+    <div className="flex items-center space-x-2">
+      <NewIcon className="w-4 h-4" />
+      <span className="font-medium">New Block Type</span>
+    </div>
+    {onAddNewBlockType && (
+      <Button onClick={onAddNewBlockType}>
+        <Plus className="w-4 h-4" />
+      </Button>
+    )}
+  </div>
+  ```
+- [ ] **BlockPropertiesPanel** (Left Panel) - Add editing interface:
+  ```typescript
+  {selectedBlock.type === 'NEW_BLOCK_TYPE' && (
+    <SharedNewBlockType
+      title={selectedBlock.content.title}
+      // ... other props
+      onTitleChange={(value) => updateBlockContent('title', value)}
+    />
+  )}
+  ```
+- [ ] **BlockListPanel** (Middle Panel) - Add icon and label:
+  ```typescript
+  // Import icon
+  import { NewIcon } from "lucide-react"
+  
+  // Add to getBlockIcon function
+  case 'NEW_BLOCK_TYPE':
+    return <NewIcon className="w-4 h-4" />
+  
+  // Add to getBlockTypeName function
+  block.type === 'NEW_BLOCK_TYPE' ? 'New Block Display Name' :
+  ```
+
+#### **6. Block Rendering System (REQUIRED)**
+- [ ] **page-block-renderer.tsx** - Add rendering logic:
+  ```typescript
+  // Add to type union
+  const allBlocks: Array<{ type: 'hero' | 'richText' | 'faq' | 'newBlockType'; data: any; display_order: number }> = []
+  
+  // Add block collection
+  if (blocks.newBlockType) {
+    blocks.newBlockType.forEach(block => {
+      allBlocks.push({
+        type: 'newBlockType',
+        data: block,
+        display_order: block.display_order
+      })
+    })
+  }
+  
+  // Add rendering case
+  } else if (block.type === 'newBlockType') {
+    const newBlock = block.data
+    return (
+      <NewBlockType 
+        key={`newBlockType-${newBlock.id}`}
+        content={newBlock} 
+      />
+    )
+  ```
+
+#### **7. Type Definitions (REQUIRED)**
+- [ ] **frontend-actions.ts** - Add to SiteWithBlocks interface:
+  ```typescript
+  newBlockType?: Array<{
+    id: string
+    title: string
+    // ... other properties
+    display_order: number
+  }>
+  ```
+- [ ] **admin-to-frontend-blocks.ts** - Add transformation logic:
+  ```typescript
+  } else if (block.type === 'NEW_BLOCK_TYPE') {
+    if (!frontendBlocks.newBlockType) {
+      frontendBlocks.newBlockType = []
+    }
+    
+    frontendBlocks.newBlockType.push({
+      id: block.id,
+      title: block.content.title || 'Default Title',
+      // ... other properties
+      display_order: (block as any).display_order || 0
+    })
+  ```
+
+#### **8. Hook Integration (REQUIRED)**
+- [ ] **usePageBuilder.ts** - Add handler function:
+  ```typescript
+  // Add to interface
+  handleAddNewBlockType: () => Promise<void>
+  
+  // Add handler implementation
+  const handleAddNewBlockType = async () => {
+    // Implementation similar to other handlers
+  }
+  
+  // Add to return object
+  handleAddNewBlockType,
+  ```
+- [ ] **Wire up in page builder** - Connect handler to UI button
+
+#### **9. Security Implementation (MANDATORY)**
+- [ ] **Input sanitization** on both client and server
+- [ ] **XSS prevention** - remove script tags, javascript:, event handlers
+- [ ] **Length limits** to prevent DoS attacks
+- [ ] **Content validation** - check for dangerous patterns
+- [ ] **Authentication checks** - verify user can edit block
+- [ ] **Authorization checks** - verify user owns the site
+
+#### **10. Testing & Validation (REQUIRED)**
+- [ ] **Test block creation** - can add block via admin interface
+- [ ] **Test block editing** - all fields update correctly
+- [ ] **Test block display** - frontend renders properly
+- [ ] **Test drag & drop** - reordering works in admin (if applicable)
+- [ ] **Test security** - cannot inject malicious content
+- [ ] **Test permissions** - only authorized users can edit
+
+### **❌ COMMON MISTAKES TO AVOID:**
+1. **Forgetting database constraint** → Block creation fails
+2. **Missing admin editor integration** → Edit panel shows blank
+3. **Missing icon in block list** → No visual representation
+4. **Forgetting frontend rendering** → Block doesn't display on site
+5. **Missing type definitions** → TypeScript errors
+6. **Inadequate security** → XSS vulnerabilities
+7. **Missing one of the three panels** → Incomplete admin experience
+
+### **✅ SUCCESS CRITERIA:**
+- Block appears in right panel (BlockTypesPanel) with icon and add button
+- Block appears in middle panel (BlockListPanel) with correct icon when added
+- Block shows editing interface in left panel (BlockPropertiesPanel) when selected
+- Block renders correctly on frontend with all content
+- All security measures implemented and tested
+- No TypeScript errors or console warnings
+
+**⚠️ CRITICAL**: If ANY step is missed, the block will not work properly. Follow this checklist completely for every new block type.

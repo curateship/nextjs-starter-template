@@ -1,11 +1,26 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { BlockContainer } from '@/components/ui/block-container'
 import Link from 'next/link'
 
-const FaqBlock = () => {
-    const faqItems = [
+interface FaqItem {
+    id: string
+    question: string
+    answer: string
+}
+
+interface FaqBlockProps {
+    content?: {
+        title?: string
+        subtitle?: string
+        faqItems?: FaqItem[]
+    }
+}
+
+const FaqBlock = ({ content }: FaqBlockProps) => {
+    const defaultFaqItems = [
         {
             id: 'item-1',
             question: 'How long does shipping take?',
@@ -33,32 +48,44 @@ const FaqBlock = () => {
         },
     ]
 
+    // Use content items if available and not empty, otherwise use defaults
+    const faqItems = (content?.faqItems && content.faqItems.length > 0) 
+        ? content.faqItems 
+        : defaultFaqItems
+
     return (
         <BlockContainer
-            className="white"
             header={{
-                title: "Frequently Asked Questions",
-                subtitle: "Discover quick and comprehensive answers to common questions about our platform, services, and features.",
+                title: content?.title || "Frequently Asked Questions",
+                subtitle: content?.subtitle || "Discover quick and comprehensive answers to common questions about our platform, services, and features.",
                 align: "center"
             }}
         >
             <div className="mt-12">
-                <Accordion
-                    type="single"
-                    collapsible
-                    className="bg-card ring-foreground/5 rounded-(--radius) w-full border border-transparent px-8 py-3 shadow ring-1">
-                    {faqItems.map((item) => (
-                        <AccordionItem
-                            key={item.id}
-                            value={item.id}
-                            className="border-dotted">
-                            <AccordionTrigger className="cursor-pointer text-base hover:no-underline">{item.question}</AccordionTrigger>
-                            <AccordionContent>
-                                <p className="text-base">{item.answer}</p>
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                </Accordion>
+                {!faqItems || faqItems.length === 0 ? (
+                    <div className="text-center py-8">
+                        <p className="text-muted-foreground">No FAQ items found</p>
+                    </div>
+                ) : (
+                    <Accordion
+                        type="single"
+                        collapsible
+                        className="bg-card ring-foreground/5 rounded-(--radius) w-full border border-transparent px-8 py-3 shadow ring-1">
+                        {faqItems.map((item) => (
+                            <AccordionItem
+                                key={item.id}
+                                value={item.id}
+                                className="border-dotted">
+                                <AccordionTrigger className="cursor-pointer text-base hover:no-underline">
+                                    {item.question}
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                    <p className="text-base">{item.answer}</p>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                )}
 
                 <p className="text-muted-foreground mt-6">
                     Can&apos;t find what you&apos;re looking for? Contact our{' '}
