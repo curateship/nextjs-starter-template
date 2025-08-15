@@ -26,6 +26,7 @@ interface UseProductBuilderReturn {
   handleAddProductHeroBlock: () => void
   handleAddProductFeaturesBlock: () => void
   handleAddProductHotspotBlock: () => void
+  handleAddProductFAQBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -131,6 +132,25 @@ export function useProductBuilder({
     })
   }
 
+  const handleAddProductFAQBlock = () => {
+    addBlock('faq', 'FAQ', {
+      title: 'Product FAQ',
+      subtitle: 'Get answers to common questions about this product, its features, compatibility, and support options.',
+      faqItems: [
+        {
+          id: 'item-1',
+          question: 'What are the product specifications?',
+          answer: 'Our product features premium materials and high-quality construction. Detailed specifications are available in the product documentation section.'
+        },
+        {
+          id: 'item-2',
+          question: 'Is this product compatible with other systems?',
+          answer: 'Yes, this product is designed to be compatible with most standard systems. Please check the compatibility chart for specific model requirements.'
+        }
+      ]
+    })
+  }
+
   const handleSaveAllBlocks = async () => {
     if (!productId) {
       setSaveMessage("Error: Product ID required")
@@ -172,6 +192,7 @@ export function useProductBuilder({
     handleAddProductHeroBlock,
     handleAddProductFeaturesBlock,
     handleAddProductHotspotBlock,
+    handleAddProductFAQBlock,
     handleSaveAllBlocks
   }
 }

@@ -1,16 +1,18 @@
 import { Button } from "@/components/ui/button"
-import { Plus, Zap, Package, Image, Star, MapPin, Target } from "lucide-react"
+import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle } from "lucide-react"
 
 interface ProductBlockTypesPanelProps {
   onAddProductHeroBlock: () => void
   onAddProductFeaturesBlock: () => void
   onAddProductHotspotBlock: () => void
+  onAddProductFAQBlock: () => void
 }
 
 export function ProductBlockTypesPanel({ 
   onAddProductHeroBlock,
   onAddProductFeaturesBlock,
-  onAddProductHotspotBlock
+  onAddProductHotspotBlock,
+  onAddProductFAQBlock
 }: ProductBlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
@@ -58,6 +60,21 @@ export function ProductBlockTypesPanel({
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
               onClick={onAddProductHotspotBlock}
               title="Add product hotspot block"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <HelpCircle className="w-4 h-4" />
+              <span className="font-medium">Product FAQ</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+              onClick={onAddProductFAQBlock}
+              title="Add product FAQ block"
             >
               <Plus className="w-4 h-4" />
             </Button>
