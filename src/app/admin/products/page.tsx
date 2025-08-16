@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogPortal,
 } from "@/components/ui/dialog"
 import {
   DropdownMenu,
@@ -24,7 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { CreateGlobalProductForm } from "@/components/admin/layout/product-builder/create-global-product-form"
 import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
-import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package } from "lucide-react"
+import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/product-actions"
@@ -418,21 +420,32 @@ export default function ProductsPage() {
         
         {/* Create Product Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Create New Product</DialogTitle>
-              <DialogDescription>
-                Add a new product to your catalog. You can customize the content after creation.
-              </DialogDescription>
-            </DialogHeader>
-            <CreateGlobalProductForm 
-              onSuccess={(product) => {
-                setProducts(prev => [...prev, product])
-                setShowCreateDialog(false)
-              }}
-              onCancel={() => setShowCreateDialog(false)}
-            />
-          </DialogContent>
+          <DialogPortal>
+            <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
+                 onClick={(e) => e.target === e.currentTarget && setShowCreateDialog(false)}>
+              <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
+                   style={{ width: '840px', maxWidth: '95vw' }}
+                   onClick={(e) => e.stopPropagation()}>
+                <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+                <DialogHeader>
+                  <DialogTitle>Create New Product</DialogTitle>
+                  <DialogDescription>
+                    Add a new product to your catalog. You can customize the content after creation.
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateGlobalProductForm 
+                  onSuccess={(product) => {
+                    setProducts(prev => [...prev, product])
+                    setShowCreateDialog(false)
+                  }}
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </div>
+            </div>
+          </DialogPortal>
         </Dialog>
 
         {/* Product Settings Modal */}
