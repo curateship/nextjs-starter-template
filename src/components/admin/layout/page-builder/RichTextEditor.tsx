@@ -345,7 +345,14 @@ export function RichTextEditor({ content, onContentChange }: RichTextBlockProps)
               </div>
 
               {/* Editor */}
-              <div className={content.hideEditorHeader ? '' : 'border rounded-md'}>
+              <div 
+                className={`cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
+                onClick={() => {
+                  if (editor && !editor.isFocused) {
+                    editor.commands.focus()
+                  }
+                }}
+              >
                 <EditorContent 
                   editor={editor} 
                   className={`prose prose-sm max-w-none min-h-[200px] [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}

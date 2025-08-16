@@ -435,7 +435,7 @@ const HeroImage = ({ heroImage, showHeroImage }: { heroImage?: string; showHeroI
         <div className="-mr-56 overflow-hidden px-2 sm:mr-0 sm:mt-8">
           <div
             aria-hidden
-            className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
+            className="bg-gradient-to-b to-background absolute inset-0 z-10 from-transparent from-70%"
           />
           <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
             <Image
@@ -457,7 +457,7 @@ const HeroImage = ({ heroImage, showHeroImage }: { heroImage?: string; showHeroI
           </div>
         </div>
       </AnimatedGroup>
-      <div className="bg-linear-to-t absolute bottom-0 h-2/3 w-full from-white to-transparent" />
+      <div className="bg-gradient-to-t absolute bottom-0 h-1/3 w-full from-white/60 to-transparent" />
     </div>
   );
 }

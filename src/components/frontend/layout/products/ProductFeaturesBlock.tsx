@@ -51,7 +51,7 @@ const ProductFeaturesBlock = ({
         align: "center"
       }}
     >
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 md:mt-16 md:grid-cols-3">
+      <div className="mt-8 grid gap-6 sm:grid-cols-2 md:mt-16 md:grid-cols-3 md:gap-8">
         {displayFeatures.map((feature, index) => (
           <div key={feature.id} className="space-y-4">
             <Card
