@@ -12,6 +12,7 @@ import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
+import { CreateProductForm } from "@/components/admin/layout/product-builder/create-product-form"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -142,16 +143,28 @@ export function ProductBuilderHeader({
       
       {/* Create Product Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Product</DialogTitle>
             <DialogDescription>
               Add a new product to your catalog. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-4">
-            <p className="text-sm text-muted-foreground">Product creation form will be implemented here.</p>
-          </div>
+          {currentSite?.id && (
+            <CreateProductForm 
+              siteId={currentSite.id}
+              onSuccess={(product) => {
+                // Add the new product to the list if callback exists
+                if (onProductCreated) {
+                  onProductCreated(product)
+                }
+                setShowCreateDialog(false)
+                // Navigate to the new product's builder page
+                onProductChange(product.slug)
+              }}
+              onCancel={() => setShowCreateDialog(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
