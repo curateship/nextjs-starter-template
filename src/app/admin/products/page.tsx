@@ -369,9 +369,16 @@ export default function ProductsPage() {
                                 Edit Product
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem disabled className="flex items-center">
-                              <Eye className="mr-2 h-4 w-4" />
-                              Preview Product (Coming Soon)
+                            <DropdownMenuItem asChild>
+                              <Link 
+                                href={currentSite ? `/${currentSite.subdomain}/products/${product.slug}` : '#'} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center"
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview Product
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
