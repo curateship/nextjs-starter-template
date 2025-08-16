@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
+import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import Link from "next/link"
@@ -130,6 +131,7 @@ export function ProductSettingsModal({
         meta_description: product.meta_description || '',
         meta_keywords: product.meta_keywords || '',
         featured_image: product.featured_image || '',
+        rich_text: product.rich_text || '',
         is_published: product.is_published
       })
       
@@ -369,6 +371,22 @@ export function ProductSettingsModal({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Optional featured image for this product
+                </p>
+              </div>
+
+              {/* Rich Text Content */}
+              <div className="space-y-2">
+                <Label htmlFor="rich_text">Product Description</Label>
+                <RichTextEditor
+                  content={{
+                    content: formData.rich_text || '',
+                    hideHeader: true,
+                    hideEditorHeader: true
+                  }}
+                  onContentChange={(content) => setFormData(prev => ({ ...prev, rich_text: content.content }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Rich text content for the product description
                 </p>
               </div>
                 

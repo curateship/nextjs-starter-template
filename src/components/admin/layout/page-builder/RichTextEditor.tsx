@@ -31,6 +31,8 @@ interface RichTextBlockProps {
     subtitle?: string
     headerAlign?: 'left' | 'center'
     content: string
+    hideHeader?: boolean
+    hideEditorHeader?: boolean
   }
   onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
 }
@@ -123,77 +125,81 @@ export function RichTextEditor({ content, onContentChange }: RichTextBlockProps)
 
   return (
     <div className="space-y-4">
-      {/* Header Settings Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Section Header</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="title">Section Title</Label>
-            <Input
-              id="title"
-              value={content.title || ''}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter section title..."
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="subtitle">Section Subtitle</Label>
-            <Input
-              id="subtitle"
-              value={content.subtitle || ''}
-              onChange={(e) => handleSubtitleChange(e.target.value)}
-              placeholder="Enter section subtitle..."
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="headerAlign">Header Alignment</Label>
-            <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select alignment" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="left">Left</SelectItem>
-                <SelectItem value="center">Center</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Header Settings Card - Only show if hideHeader is not true */}
+      {!content.hideHeader && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Section Header</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="title">Section Title</Label>
+              <Input
+                id="title"
+                value={content.title || ''}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter section title..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subtitle">Section Subtitle</Label>
+              <Input
+                id="subtitle"
+                value={content.subtitle || ''}
+                onChange={(e) => handleSubtitleChange(e.target.value)}
+                placeholder="Enter section subtitle..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="headerAlign">Header Alignment</Label>
+              <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select alignment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Rich Text Editor Card */}
       <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Rich Text Content</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowPreview(!showPreview)}
-              className="text-xs"
-            >
-              {showPreview ? (
-                <>
-                  <EyeOff className="w-4 h-4 mr-1" />
-                  Edit
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4 mr-1" />
-                  Preview
-                </>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
+        {!content.hideEditorHeader && (
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Rich Text Content</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPreview(!showPreview)}
+                className="text-xs"
+              >
+                {showPreview ? (
+                  <>
+                    <EyeOff className="w-4 h-4 mr-1" />
+                    Edit
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-4 h-4 mr-1" />
+                    Preview
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+        )}
         <CardContent className="space-y-4">
           {!showPreview ? (
             <>
               {/* Toolbar */}
-              <div className="flex flex-wrap gap-1 p-2 border rounded-md bg-muted/20">
+              <div className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? '' : 'border rounded-md'}`}>
                 {/* Text formatting */}
                 <Button
                   variant="ghost"
@@ -339,10 +345,10 @@ export function RichTextEditor({ content, onContentChange }: RichTextBlockProps)
               </div>
 
               {/* Editor */}
-              <div className="border rounded-md">
+              <div className={content.hideEditorHeader ? '' : 'border rounded-md'}>
                 <EditorContent 
                   editor={editor} 
-                  className="prose prose-sm max-w-none p-4 min-h-[200px] [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none"
+                  className={`prose prose-sm max-w-none min-h-[200px] [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
                 />
               </div>
             </>

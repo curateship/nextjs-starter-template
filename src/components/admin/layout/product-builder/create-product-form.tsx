@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { createProductAction } from "@/lib/actions/product-actions"
 import type { Product, CreateProductData } from "@/lib/actions/product-actions"
 
@@ -20,6 +21,7 @@ export function CreateProductForm({ siteId, onSuccess, onCancel }: CreateProduct
     slug: '',
     meta_description: '',
     meta_keywords: '',
+    rich_text: '',
     is_published: false
   })
   const [loading, setLoading] = useState(false)
@@ -158,6 +160,22 @@ export function CreateProductForm({ siteId, onSuccess, onCancel }: CreateProduct
               : "Auto-generated from title. You can edit this to customize the URL."}
           </p>
         </div>
+      </div>
+
+      {/* Rich Text Content */}
+      <div>
+        <Label htmlFor="rich_text">Product Description</Label>
+        <RichTextEditor
+          content={{
+            content: formData.rich_text || '',
+            hideHeader: true,
+            hideEditorHeader: true
+          }}
+          onContentChange={(content) => setFormData(prev => ({ ...prev, rich_text: content.content }))}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Rich text content for the product description
+        </p>
       </div>
 
       {/* Meta Description */}

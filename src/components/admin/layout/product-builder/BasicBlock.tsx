@@ -8,16 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Upload, X } from "lucide-react"
+import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 
 interface BasicBlockProps {
   title: string
   description: string
+  richText: string
   status: string
   featured: boolean
   image: File | null
   imagePreview: string | null
   onTitleChange: (value: string) => void
   onDescriptionChange: (value: string) => void
+  onRichTextChange: (value: string) => void
   onStatusChange: (value: string) => void
   onFeaturedChange: (value: boolean) => void
   onImageChange: (file: File | null) => void
@@ -27,12 +30,14 @@ interface BasicBlockProps {
 export function BasicBlock({
   title,
   description,
+  richText,
   status,
   featured,
   image,
   imagePreview,
   onTitleChange,
   onDescriptionChange,
+  onRichTextChange,
   onStatusChange,
   onFeaturedChange,
   onImageChange,
@@ -72,40 +77,16 @@ export function BasicBlock({
           />
         </div>
 
-        {/* Description */}
+        {/* Rich Text Editor */}
         <div className="space-y-2">
-          <div className="border rounded-md">
-            <div className="p-3 border-b bg-muted/50">
-              <div className="flex space-x-2">
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  <strong>B</strong>
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  <em>I</em>
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  <u>U</u>
-                </Button>
-                <Separator orientation="vertical" className="h-6" />
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  H1
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  H2
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
-                  H3
-                </Button>
-              </div>
-            </div>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => onDescriptionChange(e.target.value)}
-              placeholder="Enter product description..."
-              className="w-full p-3 min-h-[200px] resize-none border-0 focus:outline-none focus:ring-0"
-            />
-          </div>
+          <RichTextEditor
+            content={{
+              content: richText || '',
+              hideHeader: true,
+              hideEditorHeader: true
+            }}
+            onContentChange={(content) => onRichTextChange(content.content)}
+          />
         </div>
 
         {/* Status */}
