@@ -11,12 +11,30 @@ interface PagePreviewProps {
     name: string
     subdomain: string
   }
+  allBlocks?: Record<string, Block[]>
   className?: string
 }
 
-export function PagePreview({ blocks, site, className = "" }: PagePreviewProps) {
+export function PagePreview({ blocks, site, allBlocks, className = "" }: PagePreviewProps) {
+  // Combine page blocks with navigation and footer from allBlocks
+  let allPreviewBlocks = [...blocks]
+  
+  if (allBlocks) {
+    // Find navigation and footer blocks from all pages (they're usually on 'home' or 'global')
+    const navigationBlock = Object.values(allBlocks).flat().find(block => block.type === 'navigation')
+    const footerBlock = Object.values(allBlocks).flat().find(block => block.type === 'footer')
+    
+    // Add navigation and footer if they exist and aren't already in the page blocks
+    if (navigationBlock && !blocks.some(b => b.type === 'navigation')) {
+      allPreviewBlocks.unshift(navigationBlock)
+    }
+    if (footerBlock && !blocks.some(b => b.type === 'footer')) {
+      allPreviewBlocks.push(footerBlock)
+    }
+  }
+  
   // Transform admin blocks to frontend format
-  const previewSite = createPreviewSite(blocks, site)
+  const previewSite = createPreviewSite(allPreviewBlocks, site)
   
   return (
     <div className={`overflow-x-hidden ${className}`}>
