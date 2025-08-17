@@ -3721,3 +3721,79 @@ Instead, I built a rocket ship to cross the street.
 **The Power of Good Documentation**: What could have been a complex multi-hour debugging session became a straightforward 30-minute implementation by following the established system.
 
 *This demonstrates that good documentation and systematic processes eliminate the complexity that leads to bugs and frustration.*
+
+---
+
+## Phase 14: Product Default Block Evolution (Dec 2024)
+
+### Initial Implementation: The "Special" Default Block
+Following the successful FAQ block implementation, user requested a default block for products to automatically display core product information (title, description, featured image). Initially implemented this as a "special" non-deletable block with complex visibility toggles.
+
+**Complex Approach Attempted**:
+- Auto-generated default blocks that couldn't be deleted
+- Special UI styling (blue borders, "Core" badges)  
+- Database fields for show/hide toggles
+- Complex save logic to filter default blocks
+- Special handling in drag/drop and delete operations
+
+**User Feedback**: "works good, but we need to be able to remove this block from the block list too. sometimes we dont want to show the default data"
+
+### The Simplification Insight
+
+**User's Key Realization**: "wait, why dont we just make it like every other block? just make it draggable, delete and save state like the rest of the block?"
+
+This was a profound moment of **architectural clarity** - why create special cases when the existing system already handles everything needed?
+
+### The Elegant Solution
+
+**Simplified Implementation**:
+1. **Made default block completely normal** - deletable, draggable, saveable like any other block
+2. **Added to ProductBlockTypesPanel** - "Product Information" button with Info icon
+3. **Pre-populated with product data** - when added, automatically fills with current product title, rich_text, and featured_image
+4. **Removed all special handling** - no special styling, no complex visibility logic
+5. **Standard block persistence** - saved to product_blocks table like other blocks
+
+**Key Technical Changes**:
+- Removed special UI handling in ProductBlockListPanel
+- Updated save logic to treat default blocks normally
+- Added database constraint for 'product-default' block type
+- Fixed DOMPurify SSR issue with dynamic import
+- Added handleAddProductDefaultBlock to useProductBuilder hook
+
+### The Results
+
+**Perfect User Experience**:
+- ✅ **Optional by default** - only appears if user adds it
+- ✅ **Fully deletable** - can be completely removed if not wanted
+- ✅ **Fully draggable** - can be positioned anywhere in layout
+- ✅ **Auto-populated** - comes pre-filled with current product data
+- ✅ **Consistent UX** - behaves exactly like other blocks
+- ✅ **No special cases** - zero complex logic required
+
+### Architectural Lessons
+
+**1. Resist Over-Engineering**: The first instinct was to create special handling, but the simple solution was better
+**2. Leverage Existing Systems**: Why build new patterns when existing ones work perfectly?
+**3. User Clarity Drives Design**: User's simple question revealed the obvious solution
+**4. Consistency is King**: Making everything work the same way reduces cognitive load
+
+### Technical Implementation Quality
+
+**Clean Architecture Achieved**:
+- Default blocks are just regular blocks with specific content
+- No special database tables or complex state management  
+- Leverages existing drag/drop, save/load, edit systems
+- DOMPurify properly handled for SSR compatibility
+- Security maintained with proper sanitization
+
+**Before**: Complex special-case system with 5+ files of special handling
+**After**: Simple block type with standard implementation following existing patterns
+
+### The Pattern Reinforced
+
+This perfectly demonstrates the core principle from CLAUDE.md:
+> **SIMPLICITY IS MANDATORY** - Always implement the simplest solution that works
+
+**User's architectural insight saved hours of unnecessary complexity** and resulted in a better, more maintainable system.
+
+*Sometimes the best solution is the obvious one - treat special things as normal things.*

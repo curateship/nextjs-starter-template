@@ -1,5 +1,6 @@
 "use client"
 
+import { ProductDefaultBlock } from "@/components/frontend/layout/products/ProductDefaultBlock"
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/layout/products/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block"
@@ -17,44 +18,23 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const { blocks: siteBlocks = {} } = site
   const { blocks: productBlocks = [] } = product
   
-  // For testing: Create a mock product-hero block if no blocks exist
-  const mockBlocks = productBlocks.length === 0 ? [{
-    id: 'mock-hero',
-    type: 'product-hero',
-    content: {
-      title: product.title,
-      subtitle: product.meta_description || 'This is a sample product built with the Product Builder',
-      primaryButton: 'Get Started',
-      secondaryButton: 'Learn More',
-      primaryButtonLink: '',
-      secondaryButtonLink: '',
-      backgroundColor: '#ffffff',
-      showRainbowButton: false,
-      rainbowButtonText: 'Get Access to Everything',
-      rainbowButtonIcon: 'github',
-      githubLink: '',
-      showParticles: true,
-      trustedByText: '',
-      trustedByTextColor: '#6b7280',
-      trustedByCount: '',
-      trustedByAvatars: [],
-      backgroundPattern: 'dots',
-      backgroundPatternSize: 'medium',
-      backgroundPatternOpacity: 80,
-      backgroundPatternColor: '#a3a3a3',
-      heroImage: '',
-      showHeroImage: false,
-      showTrustedByBadge: true
-    },
-    display_order: 0
-  }] : productBlocks
-  
   // Sort product blocks by display_order
-  const sortedBlocks = mockBlocks.sort((a, b) => a.display_order - b.display_order)
+  const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
   
   return (
     <SiteLayout navigation={siteBlocks.navigation} footer={siteBlocks.footer}>
       {sortedBlocks.map((block) => {
+        if (block.type === 'product-default') {
+          return (
+            <ProductDefaultBlock
+              key={`product-default-${block.id}`}
+              title={block.content.title}
+              richText={block.content.richText}
+              featuredImage={block.content.featuredImage}
+            />
+          )
+        }
+        
         if (block.type === 'product-hero') {
           return (
             <ProductHeroBlock
@@ -95,19 +75,6 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         
         return null
       })}
-      
-      {/* Fallback: If no blocks, show a simple product hero */}
-      {sortedBlocks.length === 0 && (
-        <ProductHeroBlock
-          title={product.title}
-          subtitle="This product is under construction"
-          primaryButton="Notify Me"
-          secondaryButton="Learn More"
-          backgroundColor="#ffffff"
-          showParticles={true}
-          trustedByAvatars={[]}
-        />
-      )}
     </SiteLayout>
   )
 }

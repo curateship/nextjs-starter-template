@@ -13,6 +13,11 @@ interface UseProductBuilderParams {
   setBlocks: React.Dispatch<React.SetStateAction<Record<string, ProductBlock[]>>>
   selectedProduct: string
   productId?: string
+  currentProduct?: {
+    title?: string
+    rich_text?: string | null
+    featured_image?: string | null
+  }
 }
 
 interface UseProductBuilderReturn {
@@ -23,6 +28,7 @@ interface UseProductBuilderReturn {
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: ProductBlock) => void
   handleReorderBlocks: (blocks: ProductBlock[]) => void
+  handleAddProductDefaultBlock: () => void
   handleAddProductHeroBlock: () => void
   handleAddProductFeaturesBlock: () => void
   handleAddProductHotspotBlock: () => void
@@ -34,7 +40,8 @@ export function useProductBuilder({
   blocks, 
   setBlocks, 
   selectedProduct,
-  productId
+  productId,
+  currentProduct
 }: UseProductBuilderParams): UseProductBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -92,6 +99,14 @@ export function useProductBuilder({
     
     setBlocks(updatedBlocks)
     setSelectedBlock(newBlock)
+  }
+
+  const handleAddProductDefaultBlock = () => {
+    addBlock('product-default', 'Product Information', {
+      title: currentProduct?.title || 'Product Title',
+      richText: currentProduct?.rich_text || 'Add your product description here...',
+      featuredImage: currentProduct?.featured_image || ''
+    })
   }
 
   const handleAddProductHeroBlock = () => {
@@ -189,6 +204,7 @@ export function useProductBuilder({
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
+    handleAddProductDefaultBlock,
     handleAddProductHeroBlock,
     handleAddProductFeaturesBlock,
     handleAddProductHotspotBlock,

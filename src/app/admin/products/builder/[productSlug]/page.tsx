@@ -90,7 +90,8 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
     blocks: localBlocks,
     setBlocks: setLocalBlocks,
     selectedProduct,
-    productId: currentProductData?.id
+    productId: currentProductData?.id,
+    currentProduct: currentProductData
   })
   const currentProduct = {
     slug: selectedProduct,
@@ -188,6 +189,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           />
           
           <ProductBlockTypesPanel
+            onAddProductDefaultBlock={builderState.handleAddProductDefaultBlock}
             onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
             onAddProductFeaturesBlock={builderState.handleAddProductFeaturesBlock}
             onAddProductHotspotBlock={builderState.handleAddProductHotspotBlock}
