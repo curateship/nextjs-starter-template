@@ -16,7 +16,7 @@ import type { SiteWithTheme } from "@/lib/actions/site-actions"
 import type { Page } from "@/lib/actions/page-actions"
 
 interface PageBuilderHeaderProps {
-  site: SiteWithTheme
+  site: SiteWithTheme | null
   pages: Page[]
   selectedPage: string
   onPageChange: (page: string) => void
@@ -26,6 +26,7 @@ interface PageBuilderHeaderProps {
   isSaving: boolean
   onSave: () => void
   onPreviewPage?: () => void
+  pagesLoading?: boolean
 }
 
 export function PageBuilderHeader({
@@ -38,7 +39,8 @@ export function PageBuilderHeader({
   saveMessage,
   isSaving,
   onSave,
-  onPreviewPage
+  onPreviewPage,
+  pagesLoading = false
 }: PageBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -49,13 +51,13 @@ export function PageBuilderHeader({
       <div className="flex h-14 items-center px-6">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/admin/sites/${site.id}/pages`}>
+            <Link href={site ? `/admin/sites/${site.id}/pages` : '/admin/sites'}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Pages
             </Link>
           </Button>
           <div className="h-4 w-px bg-border"></div>
-          <h1 className="text-lg font-semibold">{site.name || 'Page Builder'}</h1>
+          <h1 className="text-lg font-semibold">{site?.name || 'Page Builder'}</h1>
           <div className="h-4 w-px bg-border"></div>
           <Select value={selectedPage} onValueChange={onPageChange}>
             <SelectTrigger className="w-[200px]">
@@ -96,7 +98,7 @@ export function PageBuilderHeader({
             size="sm"
             asChild
           >
-            <Link href={`/${site.subdomain}/${selectedPage === 'home' ? '' : selectedPage}`} target="_blank">
+            <Link href={site ? `/${site.subdomain}/${selectedPage === 'home' ? '' : selectedPage}` : '#'} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
               View Page
             </Link>
@@ -136,14 +138,16 @@ export function PageBuilderHeader({
               Add a new page to your site. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
-          <CreatePageForm 
-            siteId={site.id}
-            onSuccess={(page) => {
-              onPageCreated(page)
-              setShowCreateDialog(false)
-            }}
-            onCancel={() => setShowCreateDialog(false)}
-          />
+          {site && (
+            <CreatePageForm 
+              siteId={site.id}
+              onSuccess={(page) => {
+                onPageCreated(page)
+                setShowCreateDialog(false)
+              }}
+              onCancel={() => setShowCreateDialog(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

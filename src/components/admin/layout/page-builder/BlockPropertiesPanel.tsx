@@ -31,6 +31,7 @@ interface BlockPropertiesPanelProps {
     subdomain: string
   }
   allBlocks?: Record<string, Block[]>
+  blocksLoading?: boolean
 }
 
 export function BlockPropertiesPanel({
@@ -39,7 +40,8 @@ export function BlockPropertiesPanel({
   siteId,
   currentPage,
   site,
-  allBlocks
+  allBlocks,
+  blocksLoading = false
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -108,6 +110,7 @@ export function BlockPropertiesPanel({
               site={site}
               allBlocks={allBlocks}
               className="h-full"
+              blocksLoading={blocksLoading}
             />
           ) : (
             <div className="text-center text-muted-foreground h-full flex items-center justify-center">

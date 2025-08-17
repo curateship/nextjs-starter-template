@@ -168,27 +168,13 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     }
   }
 
-  // Show loading state only when data hasn't loaded yet (initial load)
-  if ((productsLoading && products.length === 0) || (siteLoading || blocksLoading)) {
+  // Only show loading state for critical errors (not during normal loading)
+  if (!site && siteError) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Loading product builder...</p>
-          </div>
-        </div>
-      </AdminLayout>
-    )
-  }
-
-  // Show error state only after site has finished loading
-  if (siteError || productsError || (!site && !siteLoading)) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-red-600 mb-2">{siteError || productsError || 'Site not found'}</p>
+            <p className="text-red-600 mb-2">{siteError}</p>
             <p className="text-sm text-muted-foreground mb-4">
               Site ID: <code>{siteId}</code>
             </p>
@@ -209,6 +195,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     )
   }
 
+
   return (
     <AdminLayout>
       <div className="flex flex-col -m-4 -mt-6 h-full">
@@ -222,6 +209,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
           onPreviewProduct={() => builderState.setSelectedBlock(null)}
+          productsLoading={productsLoading}
         />
         
         <div className="flex-1 flex">
@@ -242,6 +230,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               subdomain: site?.subdomain || 'preview'
             }}
             siteBlocks={siteBlocks}
+            blocksLoading={blocksLoading}
           />
           
           <ProductBlockListPanel
@@ -251,6 +240,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
             deleting={builderState.deleting}
+            blocksLoading={blocksLoading}
           />
           
           <ProductBlockTypesPanel

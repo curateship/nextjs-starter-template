@@ -32,9 +32,10 @@ interface ProductPreviewProps {
     footer?: any
   } | null
   className?: string
+  blocksLoading?: boolean
 }
 
-export function ProductPreview({ blocks, product, site, siteBlocks, className = "" }: ProductPreviewProps) {
+export function ProductPreview({ blocks, product, site, siteBlocks, className = "", blocksLoading = false }: ProductPreviewProps) {
   // Transform admin blocks to frontend format
   const transformedBlocks = blocks.map(block => ({
     id: block.id,
@@ -99,7 +100,29 @@ export function ProductPreview({ blocks, product, site, siteBlocks, className = 
         }}
       >
         <div className="bg-background">
-          {blocks.length === 0 ? (
+          {blocksLoading ? (
+            // Preview skeleton loading state
+            <div className="space-y-6 p-6">
+              {/* Header skeleton */}
+              <div className="space-y-4">
+                <div className="h-8 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2"></div>
+              </div>
+              
+              {/* Content blocks skeleton */}
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border rounded-lg p-6 space-y-4">
+                  <div className="h-6 bg-gray-200 rounded animate-pulse w-1/3"></div>
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-100 rounded animate-pulse w-4/5"></div>
+                    <div className="h-4 bg-gray-100 rounded animate-pulse w-3/5"></div>
+                  </div>
+                  <div className="h-32 bg-gray-100 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          ) : blocks.length === 0 ? (
             <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
               <div className="text-center">
                 <div className="text-lg font-medium mb-2">No blocks added yet</div>
