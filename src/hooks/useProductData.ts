@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
-import { getSiteProductsAction, type Product } from "@/lib/actions/product-actions"
+import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
 import { getAllProductBlocksAction } from "@/lib/actions/product-blocks-actions"
-import { useSiteContext } from "@/contexts/site-context"
 
 interface ProductBlock {
   id: string
@@ -11,68 +10,65 @@ interface ProductBlock {
 }
 
 interface UseProductDataReturn {
-  products: Product[]
+  site: SiteWithTheme | null
   blocks: Record<string, ProductBlock[]>
-  productsLoading: boolean
-  productsError: string
-  reloadProducts: () => Promise<void>
+  siteLoading: boolean
+  blocksLoading: boolean
+  siteError: string
+  reloadBlocks: () => Promise<void>
 }
 
-export function useProductData(): UseProductDataReturn {
-  const { currentSite } = useSiteContext()
-  const [products, setProducts] = useState<Product[]>([])
-  const [productsLoading, setProductsLoading] = useState(true)
-  const [productsError, setProductsError] = useState("")
+export function useProductData(siteId: string): UseProductDataReturn {
+  const [site, setSite] = useState<SiteWithTheme | null>(null)
+  const [siteLoading, setSiteLoading] = useState(true)
+  const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
+  const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadProducts = async () => {
-    if (!currentSite?.id) {
-      setProductsLoading(false)
-      setProducts([])
-      setBlocks({})
-      return
-    }
+  const loadSiteAndBlocks = async () => {
+    setSiteLoading(true)
+    setBlocksLoading(true)
+    setSiteError("")
     
-    setProductsLoading(true)
-    setProductsError("")
-    
-    try {
-      // Load products for the product list (like pages loads site info)
-      const productsResult = await getSiteProductsAction(currentSite.id)
-      if (productsResult && productsResult.data) {
-        setProducts(productsResult.data)
-        
-        // Load product blocks (exactly like pages)
-        const blocksResult = await getAllProductBlocksAction(currentSite.id)
-        if (blocksResult.success && blocksResult.blocks) {
-          setBlocks(blocksResult.blocks)
-        } else {
-          console.error('Failed to load blocks:', blocksResult.error)
-        }
+    // Load site info
+    const siteResult = await getSiteByIdAction(siteId)
+    if (siteResult.data) {
+      setSite(siteResult.data)
+      
+      // Load product blocks
+      const blocksResult = await getAllProductBlocksAction(siteId)
+      if (blocksResult.success && blocksResult.blocks) {
+        setBlocks(blocksResult.blocks)
       } else {
-        setProductsError(productsResult?.error || 'Failed to load products')
+        console.error('Failed to load blocks:', blocksResult.error)
       }
-    } catch (error) {
-      console.error('Error loading products:', error)
-      setProductsError('Failed to load products')
+    } else {
+      setSiteError(siteResult.error || 'Failed to load site')
     }
     
-    setProductsLoading(false)
+    setSiteLoading(false)
+    setBlocksLoading(false)
   }
 
-  const reloadProducts = async () => {
-    await loadProducts()
+  const reloadBlocks = async () => {
+    setBlocksLoading(true)
+    const blocksResult = await getAllProductBlocksAction(siteId)
+    if (blocksResult.success && blocksResult.blocks) {
+      setBlocks(blocksResult.blocks)
+    }
+    setBlocksLoading(false)
   }
 
   useEffect(() => {
-    loadProducts()
-  }, [currentSite?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    loadSiteAndBlocks()
+  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
-    products,
+    site,
     blocks,
-    productsLoading,
-    productsError,
-    reloadProducts
+    siteLoading,
+    blocksLoading,
+    siteError,
+    reloadBlocks
   }
 }

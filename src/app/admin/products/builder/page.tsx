@@ -15,7 +15,7 @@ export default function ProductBuilderRootPage() {
   // Redirect to first product if products are available
   useEffect(() => {
     if (products.length > 0) {
-      router.push(`/admin/products/builder/${products[0].slug}`)
+      router.push(`/admin/products/builder/${products[0].site_id}?product=${products[0].slug}`)
     }
   }, [products, router])
 
