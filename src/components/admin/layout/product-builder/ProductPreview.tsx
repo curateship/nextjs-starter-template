@@ -53,7 +53,54 @@ export function ProductPreview({ blocks, product, site, siteBlocks, className = 
     blocks: transformedBlocks
   }
 
-  // Create site data with actual navigation and footer blocks or fallbacks
+  // Create site data with unified block structure
+  const siteBlocksArray = []
+  
+  // Add navigation block
+  if (siteBlocks?.navigation) {
+    siteBlocksArray.push({
+      id: 'nav-preview',
+      type: 'navigation',
+      content: siteBlocks.navigation,
+      display_order: 1
+    })
+  } else {
+    siteBlocksArray.push({
+      id: 'nav-preview',
+      type: 'navigation',
+      content: {
+        logo: '/images/logo.png',
+        links: [],
+        buttons: [],
+        style: { backgroundColor: '#ffffff', textColor: '#000000' }
+      },
+      display_order: 1
+    })
+  }
+  
+  // Add footer block
+  if (siteBlocks?.footer) {
+    siteBlocksArray.push({
+      id: 'footer-preview',
+      type: 'footer',
+      content: siteBlocks.footer,
+      display_order: 100
+    })
+  } else {
+    siteBlocksArray.push({
+      id: 'footer-preview',
+      type: 'footer',
+      content: {
+        logo: '/images/logo.png',
+        copyright: '© 2024 Your Company. All rights reserved.',
+        links: [],
+        socialLinks: [],
+        style: { backgroundColor: '#1f2937', textColor: '#ffffff' }
+      },
+      display_order: 100
+    })
+  }
+
   const previewSite: SiteWithBlocks = {
     id: site?.id || 'preview',
     name: site?.name || 'Preview Site',
@@ -62,21 +109,7 @@ export function ProductPreview({ blocks, product, site, siteBlocks, className = 
     theme_id: 'default',
     theme_name: 'Default Theme',
     settings: {},
-    blocks: {
-      navigation: siteBlocks?.navigation || {
-        logo: '/images/logo.png',
-        links: [],
-        buttons: [],
-        style: { backgroundColor: '#ffffff', textColor: '#000000' }
-      },
-      footer: siteBlocks?.footer || {
-        logo: '/images/logo.png',
-        copyright: '© 2024 Your Company. All rights reserved.',
-        links: [],
-        socialLinks: [],
-        style: { backgroundColor: '#1f2937', textColor: '#ffffff' }
-      }
-    }
+    blocks: siteBlocksArray
   }
   
   return (

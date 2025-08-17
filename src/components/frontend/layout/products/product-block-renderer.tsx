@@ -15,14 +15,18 @@ interface ProductBlockRendererProps {
 }
 
 export function ProductBlockRenderer({ site, product }: ProductBlockRendererProps) {
-  const { blocks: siteBlocks = {} } = site
+  const { blocks: siteBlocks = [] } = site
   const { blocks: productBlocks = [] } = product
   
   // Sort product blocks by display_order
   const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
   
+  // Find navigation and footer from site blocks
+  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
+  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
+  
   return (
-    <SiteLayout navigation={siteBlocks.navigation} footer={siteBlocks.footer}>
+    <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content}>
       {sortedBlocks.map((block) => {
         if (block.type === 'product-default') {
           return (
