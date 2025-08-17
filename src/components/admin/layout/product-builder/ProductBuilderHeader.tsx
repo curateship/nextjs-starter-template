@@ -25,6 +25,7 @@ interface ProductBuilderHeaderProps {
   isSaving: boolean
   onSave: () => void
   onPreviewProduct?: () => void
+  productsLoading?: boolean
 }
 
 export function ProductBuilderHeader({
@@ -36,7 +37,8 @@ export function ProductBuilderHeader({
   saveMessage,
   isSaving,
   onSave,
-  onPreviewProduct
+  onPreviewProduct,
+  productsLoading = false
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)

@@ -30,6 +30,7 @@ interface ProductBlockListPanelProps {
   onDeleteBlock: (block: ProductBlock) => void
   onReorderBlocks: (blocks: ProductBlock[]) => void
   deleting: string | null
+  blocksLoading?: boolean
 }
 
 export function ProductBlockListPanel({
@@ -38,7 +39,8 @@ export function ProductBlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
-  deleting
+  deleting,
+  blocksLoading = false
 }: ProductBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<ProductBlock | null>(null)
@@ -92,11 +94,33 @@ export function ProductBlockListPanel({
     <>
       <div className="w-[400px] p-6">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl font-semibold mb-6">
-            {currentProduct.name} Product Blocks
-          </h2>
+          {blocksLoading ? (
+            <div className="mb-6">
+              <div className="h-7 bg-gray-200 rounded animate-pulse w-1/2"></div>
+            </div>
+          ) : (
+            <h2 className="text-xl font-semibold mb-6">
+              {currentProduct.name} Product Blocks
+            </h2>
+          )}
           
-          {currentProduct.blocks.length === 0 ? (
+          {blocksLoading ? (
+            // Skeleton loading state
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 bg-gray-100 rounded animate-pulse w-2/3"></div>
+                    </div>
+                    <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : currentProduct.blocks.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
                 <p className="text-lg font-medium">No blocks added yet</p>

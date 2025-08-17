@@ -30,20 +30,27 @@ export function useProductData(siteId: string): UseProductDataReturn {
     setBlocksLoading(true)
     setSiteError("")
     
-    // Load site info
-    const siteResult = await getSiteByIdAction(siteId)
-    if (siteResult.data) {
-      setSite(siteResult.data)
+    try {
+      // Load site and blocks in parallel for speed
+      const [siteResult, blocksResult] = await Promise.all([
+        getSiteByIdAction(siteId),
+        getAllProductBlocksAction(siteId)
+      ])
       
-      // Load product blocks
-      const blocksResult = await getAllProductBlocksAction(siteId)
+      if (siteResult.data) {
+        setSite(siteResult.data)
+      } else {
+        setSiteError(siteResult.error || 'Failed to load site')
+      }
+      
       if (blocksResult.success && blocksResult.blocks) {
         setBlocks(blocksResult.blocks)
       } else {
         console.error('Failed to load blocks:', blocksResult.error)
       }
-    } else {
-      setSiteError(siteResult.error || 'Failed to load site')
+    } catch (error) {
+      setSiteError('Failed to load data')
+      console.error('Error loading site and blocks:', error)
     }
     
     setSiteLoading(false)

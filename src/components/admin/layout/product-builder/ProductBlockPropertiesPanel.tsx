@@ -36,6 +36,7 @@ interface ProductBlockPropertiesPanelProps {
     navigation?: any
     footer?: any
   } | null
+  blocksLoading?: boolean
 }
 
 export function ProductBlockPropertiesPanel({
@@ -44,7 +45,8 @@ export function ProductBlockPropertiesPanel({
   siteId,
   currentProduct,
   site,
-  siteBlocks
+  siteBlocks,
+  blocksLoading = false
 }: ProductBlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -185,28 +187,20 @@ export function ProductBlockPropertiesPanel({
         </div>
       ) : (
         <div className="h-full">
-          {currentProduct && currentProduct.blocks.length > 0 ? (
-            <ProductPreview 
-              blocks={currentProduct.blocks} 
-              product={{
-                id: currentProduct.id || 'preview',
-                title: currentProduct.title || currentProduct.name,
-                slug: currentProduct.slug,
-                meta_description: currentProduct.meta_description,
-                site_id: currentProduct.site_id || siteId
-              }}
-              site={site}
-              siteBlocks={siteBlocks}
-              className="h-full"
-            />
-          ) : (
-            <div className="text-center text-muted-foreground h-full flex items-center justify-center">
-              <div>
-                <p className="text-lg font-medium mb-2">No blocks added yet</p>
-                <p className="text-sm">Add blocks to see your product preview</p>
-              </div>
-            </div>
-          )}
+          <ProductPreview 
+            blocks={currentProduct?.blocks || []} 
+            product={currentProduct ? {
+              id: currentProduct.id || 'preview',
+              title: currentProduct.title || currentProduct.name,
+              slug: currentProduct.slug,
+              meta_description: currentProduct.meta_description,
+              site_id: currentProduct.site_id || siteId
+            } : undefined}
+            site={site}
+            siteBlocks={siteBlocks}
+            className="h-full"
+            blocksLoading={blocksLoading}
+          />
         </div>
       )}
     </div>

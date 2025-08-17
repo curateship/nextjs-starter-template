@@ -142,22 +142,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
-  // Show loading state only when data hasn't loaded yet (initial load)
-  if ((pagesLoading && pages.length === 0) || (siteLoading || blocksLoading)) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Loading page builder...</p>
-          </div>
-        </div>
-      </AdminLayout>
-    )
-  }
-
-  // Show error state only after site has finished loading
-  if (siteError || pagesError || (!site && !siteLoading)) {
+  // Only show error state for critical failures
+  if ((siteError || pagesError) && !site && !siteLoading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -197,6 +183,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
           onPreviewPage={() => builderState.setSelectedBlock(null)}
+          pagesLoading={pagesLoading}
         />
         
         <div className="flex-1 flex">
@@ -207,6 +194,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             currentPage={currentPage}
             site={site}
             allBlocks={localBlocks}
+            blocksLoading={blocksLoading}
           />
           
           <BlockListPanel
@@ -216,6 +204,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
             deleting={builderState.deleting}
+            blocksLoading={blocksLoading}
           />
           
           <BlockTypesPanel
