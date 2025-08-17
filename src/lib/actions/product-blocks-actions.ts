@@ -38,6 +38,66 @@ export interface Block {
   content: Record<string, any>
 }
 
+export async function getAllProductBlocksAction(site_id: string): Promise<{ 
+  success: boolean
+  blocks?: Record<string, Block[]>
+  error?: string 
+}> {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns this site
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Single query to load all product blocks (exactly like pages)
+    const { data, error } = await supabaseAdmin
+      .from('product_blocks')
+      .select('*')
+      .eq('site_id', site_id)
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    const blocks: Record<string, Block[]> = {}
+    
+    // Group blocks by product_slug directly (exactly like pages)
+    data?.forEach((productBlock: any) => {
+      const productSlug = productBlock.product_slug
+      
+      if (!blocks[productSlug]) {
+        blocks[productSlug] = []
+      }
+      
+      blocks[productSlug].push({
+        id: productBlock.id,
+        type: productBlock.block_type,
+        title: getBlockTitle(productBlock.block_type),
+        content: productBlock.content
+      })
+    })
+
+    return { success: true, blocks }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
 export async function getProductBlocksAction(product_id: string): Promise<{ 
   success: boolean
   blocks?: Record<string, Block[]>
@@ -66,6 +126,7 @@ export async function getProductBlocksAction(product_id: string): Promise<{
       .from('product_blocks')
       .select('*')
       .eq('product_id', product_id)
+      .eq('site_id', product.site_id)
       .order('display_order')
 
     if (error) {
@@ -90,6 +151,88 @@ export async function getProductBlocksAction(product_id: string): Promise<{
   }
 }
 
+/**
+ * Save a single product block (like pages save individual blocks)
+ */
+export async function saveProductBlockAction(params: {
+  block_id: string
+  content: Record<string, any>
+}): Promise<{
+  success: boolean
+  error?: string
+}> {
+  try {
+    // Validate input
+    if (!params.block_id || !params.content) {
+      return { success: false, error: 'Invalid parameters' }
+    }
+
+    // Validate block_id is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.block_id)) {
+      return { success: false, error: 'Invalid block ID format' }
+    }
+
+    // Validate content is an object and not too large (prevent DoS)
+    if (typeof params.content !== 'object' || JSON.stringify(params.content).length > 50000) {
+      return { success: false, error: 'Invalid or oversized content' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the block to verify ownership
+    const { data: block, error: blockError } = await supabaseAdmin
+      .from('product_blocks')
+      .select('id, product_id, site_id')
+      .eq('id', params.block_id)
+      .single()
+
+    if (blockError || !block) {
+      return { success: false, error: 'Block not found' }
+    }
+
+    // Verify user owns the site this block belongs to
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', block.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Update the block (exactly like pages)
+    const { error } = await supabaseAdmin
+      .from('product_blocks')
+      .update({
+        content: params.content,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.block_id)
+
+    if (error) {
+      return { success: false, error: `Failed to save block: ${error.message}` }
+    }
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error saving product block:', error)
+    return { success: false, error: 'Failed to save block' }
+  }
+}
+
+/**
+ * Save multiple blocks (kept for backwards compatibility, but should use individual saves)
+ */
 export async function saveProductBlocksAction(
   product_id: string, 
   blocks: Block[]
@@ -102,10 +245,10 @@ export async function saveProductBlocksAction(
       return { success: false, error: 'Authentication required' }
     }
 
-    // Verify ownership
+    // Verify ownership and get site_id and slug
     const { data: product, error: productError } = await supabaseAdmin
       .from('products')
-      .select('id, sites!inner(user_id)')
+      .select('id, site_id, slug, sites!inner(user_id)')
       .eq('id', product_id)
       .eq('sites.user_id', user.id)
       .single()
@@ -138,12 +281,14 @@ export async function saveProductBlocksAction(
       .delete()
       .eq('product_id', product_id)
 
-    // Insert all blocks including default block
+    // Insert all blocks including default block with site_id and product_slug (like pages)
     if (blocks.length > 0) {
       const { error } = await supabaseAdmin
         .from('product_blocks')
         .insert(blocks.map((block, index) => ({
           product_id,
+          site_id: product.site_id,
+          product_slug: product.slug,
           block_type: block.type,
           content: block.content,
           display_order: index

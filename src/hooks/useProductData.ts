@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { getSiteProductsAction, type Product } from "@/lib/actions/product-actions"
-import { getProductBlocksAction } from "@/lib/actions/product-blocks-actions"
+import { getAllProductBlocksAction } from "@/lib/actions/product-blocks-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 interface ProductBlock {
@@ -37,36 +37,20 @@ export function useProductData(): UseProductDataReturn {
     setProductsError("")
     
     try {
-      const result = await getSiteProductsAction(currentSite.id)
-      
-      if (result && result.data) {
-        setProducts(result.data)
+      // Load products for the product list (like pages loads site info)
+      const productsResult = await getSiteProductsAction(currentSite.id)
+      if (productsResult && productsResult.data) {
+        setProducts(productsResult.data)
         
-        // Load blocks for each product
-        const allBlocks: Record<string, ProductBlock[]> = {}
-        
-        // Load blocks for each product
-        for (const product of result.data) {
-          try {
-            const blocksResult = await getProductBlocksAction(product.id)
-            if (blocksResult && blocksResult.success && blocksResult.blocks) {
-              // The blocks action now returns blocks keyed by product slug
-              const productBlocks = blocksResult.blocks[product.slug] || []
-              allBlocks[product.slug] = productBlocks
-            } else {
-              // Initialize empty blocks if loading fails
-              allBlocks[product.slug] = []
-            }
-          } catch (blockError) {
-            console.error(`Error loading blocks for product ${product.id}:`, blockError)
-            // Initialize empty blocks if loading fails
-            allBlocks[product.slug] = []
-          }
+        // Load product blocks (exactly like pages)
+        const blocksResult = await getAllProductBlocksAction(currentSite.id)
+        if (blocksResult.success && blocksResult.blocks) {
+          setBlocks(blocksResult.blocks)
+        } else {
+          console.error('Failed to load blocks:', blocksResult.error)
         }
-        
-        setBlocks(allBlocks)
       } else {
-        setProductsError(result?.error || 'Failed to load products')
+        setProductsError(productsResult?.error || 'Failed to load products')
       }
     } catch (error) {
       console.error('Error loading products:', error)

@@ -16,11 +16,22 @@ const ProductDefaultBlock = ({
 
   useEffect(() => {
     const sanitizeContent = async () => {
-      if (richText && typeof window !== 'undefined') {
-        const DOMPurify = (await import('dompurify')).default
-        setSanitizedContent(DOMPurify.sanitize(richText))
+      if (richText) {
+        if (typeof window !== 'undefined') {
+          // Client-side: use DOMPurify
+          try {
+            const DOMPurify = (await import('dompurify')).default
+            setSanitizedContent(DOMPurify.sanitize(richText))
+          } catch (error) {
+            console.warn('Failed to load DOMPurify, using raw content:', error)
+            setSanitizedContent(richText)
+          }
+        } else {
+          // Server-side: use raw content (will be sanitized on client)
+          setSanitizedContent(richText)
+        }
       } else {
-        setSanitizedContent(richText || '')
+        setSanitizedContent('')
       }
     }
     
