@@ -249,7 +249,7 @@ export default function SitePagesPage({ params }: PageProps) {
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
           title="Pages"
-          subtitle={site ? `Manage pages for ${site.name}` : "Manage your site pages"}
+          subtitle="Manage Pages"
           primaryAction={{
             label: "Create Page",
             onClick: () => setShowCreateDialog(true)
@@ -325,9 +325,35 @@ export default function SitePagesPage({ params }: PageProps) {
           
           <div className="divide-y">
             {loading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading pages...</p>
+              // Skeleton loading state for pages
+              <div className="space-y-0">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="p-6 border-b">
+                    <div className="grid grid-cols-5 gap-4 items-center">
+                      <div className="col-span-2">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-gray-200 rounded animate-pulse"></div>
+                          <div>
+                            <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-32"></div>
+                            <div className="h-3 bg-gray-100 rounded animate-pulse w-24"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="h-6 bg-gray-200 rounded-full animate-pulse w-20"></div>
+                      </div>
+                      <div>
+                        <div className="h-3 bg-gray-100 rounded animate-pulse w-16"></div>
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : error ? (
               <div className="p-8 text-center">
