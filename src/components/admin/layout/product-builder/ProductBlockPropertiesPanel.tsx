@@ -35,7 +35,7 @@ interface ProductBlockPropertiesPanelProps {
   siteBlocks?: {
     navigation?: any
     footer?: any
-  }
+  } | null
 }
 
 export function ProductBlockPropertiesPanel({

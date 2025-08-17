@@ -20,8 +20,7 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
   const { products, blocks, productsLoading, productsError, reloadProducts } = useProductData()
   const [localBlocks, setLocalBlocks] = useState(blocks)
   const [selectedProduct, setSelectedProduct] = useState(productSlug)
-  const [siteBlocks, setSiteBlocks] = useState<{ navigation?: any; footer?: any }>({})
-  const [siteBlocksLoading, setSiteBlocksLoading] = useState(false)
+  const [siteBlocks, setSiteBlocks] = useState<{ navigation?: any; footer?: any } | null>(null)
   
   // Update local blocks when server blocks change
   useEffect(() => {
@@ -52,7 +51,6 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
       const currentProduct = products.find(p => p.slug === selectedProduct)
       if (!currentProduct?.site_id) return
 
-      setSiteBlocksLoading(true)
       try {
         const result = await getSiteBlocksAction(currentProduct.site_id)
         if (result.success && result.blocks) {
@@ -68,8 +66,6 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
         }
       } catch (error) {
         console.error('Failed to load site blocks:', error)
-      } finally {
-        setSiteBlocksLoading(false)
       }
     }
 

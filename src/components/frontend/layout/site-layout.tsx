@@ -24,18 +24,20 @@ interface SiteLayoutProps {
 export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
   return (
     <>
-      {/* Navigation */}
-      <div className="sticky top-0 z-50">
-        <div>
-          <NavBlock {...navigation} />
+      {/* Navigation - only render if navigation data exists */}
+      {navigation && (
+        <div className="sticky top-0 z-50">
+          <div>
+            <NavBlock {...navigation} />
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Main content */}
       {children}
       
-      {/* Footer */}
-      <FooterBlock {...footer} />
+      {/* Footer - only render if footer data exists */}
+      {footer && <FooterBlock {...footer} />}
     </>
   )
 }
