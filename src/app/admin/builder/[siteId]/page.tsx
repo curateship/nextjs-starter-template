@@ -206,6 +206,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             siteId={siteId}
             currentPage={currentPage}
             site={site}
+            allBlocks={localBlocks}
           />
           
           <BlockListPanel

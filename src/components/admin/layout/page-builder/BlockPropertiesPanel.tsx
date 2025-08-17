@@ -30,6 +30,7 @@ interface BlockPropertiesPanelProps {
     name: string
     subdomain: string
   }
+  allBlocks?: Record<string, Block[]>
 }
 
 export function BlockPropertiesPanel({
@@ -37,7 +38,8 @@ export function BlockPropertiesPanel({
   updateBlockContent,
   siteId,
   currentPage,
-  site
+  site,
+  allBlocks
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -100,10 +102,11 @@ export function BlockPropertiesPanel({
         </div>
       ) : (
         <div className="h-full">
-          {currentPage && currentPage.blocks.length > 0 ? (
+          {currentPage ? (
             <PagePreview 
               blocks={currentPage.blocks} 
               site={site}
+              allBlocks={allBlocks}
               className="h-full"
             />
           ) : (
