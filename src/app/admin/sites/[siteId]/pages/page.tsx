@@ -261,9 +261,13 @@ export default function SitePagesPage({ params }: PageProps) {
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold">Pages List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {loading ? 'Loading...' : `${filteredPages.length} page${filteredPages.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`}
-                </p>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {loading ? (
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                  ) : (
+                    `${filteredPages.length} page${filteredPages.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                  )}
+                </div>
               </div>
               <div className="relative" ref={filterRef}>
                 <Button 

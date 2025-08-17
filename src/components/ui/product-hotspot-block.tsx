@@ -42,16 +42,18 @@ const ProductHotspotBlock = ({
     >
       <div className="flex flex-col items-center">
         <div className="relative mt-8 w-full">
-          <img
-            src={backgroundImage}
-            alt={title}
-            className="w-full rounded-lg border shadow-lg transition-opacity duration-300"
-            style={{
-              objectFit: "contain",
-              opacity: imageLoaded ? 1 : 0.8
-            }}
-            onLoad={() => setImageLoaded(true)}
-          />
+          {backgroundImage && (
+            <img
+              src={backgroundImage}
+              alt={title}
+              className="w-full rounded-lg border shadow-lg transition-opacity duration-300"
+              style={{
+                objectFit: "contain",
+                opacity: imageLoaded ? 1 : 0.8
+              }}
+              onLoad={() => setImageLoaded(true)}
+            />
+          )}
           
           {/* Hotspots */}
           {hotspots.map((hotspot) => (

@@ -358,33 +358,60 @@ const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
 )
 
 // Call-to-action buttons component with animation
-const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay: 0.4 }}
-    className="mt-8 flex justify-center gap-4 flex-wrap"
-  >
-    {primaryButtonLink ? (
-      <Link href={primaryButtonLink}>
-        <Button size="lg">{primaryButton || "Get Started"}</Button>
-      </Link>
-    ) : (
-      <Button size="lg">{primaryButton || "Get Started"}</Button>
-    )}
-    {secondaryButtonLink ? (
-      <Link href={secondaryButtonLink}>
+const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string | any; secondaryButton?: string | any; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
+  // Handle legacy button objects with {url, text} structure
+  const getPrimaryButtonText = () => {
+    if (typeof primaryButton === 'string') return primaryButton;
+    if (typeof primaryButton === 'object' && primaryButton?.text) return primaryButton.text;
+    return "Get Started";
+  };
+
+  const getSecondaryButtonText = () => {
+    if (typeof secondaryButton === 'string') return secondaryButton;
+    if (typeof secondaryButton === 'object' && secondaryButton?.text) return secondaryButton.text;
+    return "Browse Components";
+  };
+
+  const getPrimaryButtonLink = () => {
+    if (primaryButtonLink) return primaryButtonLink;
+    if (typeof primaryButton === 'object' && primaryButton?.url) return primaryButton.url;
+    return '';
+  };
+
+  const getSecondaryButtonLink = () => {
+    if (secondaryButtonLink) return secondaryButtonLink;
+    if (typeof secondaryButton === 'object' && secondaryButton?.url) return secondaryButton.url;
+    return '';
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.4 }}
+      className="mt-8 flex justify-center gap-4 flex-wrap"
+    >
+      {getPrimaryButtonLink() ? (
+        <Link href={getPrimaryButtonLink()}>
+          <Button size="lg">{getPrimaryButtonText()}</Button>
+        </Link>
+      ) : (
+        <Button size="lg">{getPrimaryButtonText()}</Button>
+      )}
+      {getSecondaryButtonLink() ? (
+        <Link href={getSecondaryButtonLink()}>
+          <Button size="lg" variant="outline">
+            {getSecondaryButtonText()}
+          </Button>
+        </Link>
+      ) : (
         <Button size="lg" variant="outline">
-          {secondaryButton || "Browse Components"}
+          {getSecondaryButtonText()}
         </Button>
-      </Link>
-    ) : (
-      <Button size="lg" variant="outline">
-        {secondaryButton || "Browse Components"}
-      </Button>
-    )}
-  </motion.div>
-)
+      )}
+    </motion.div>
+  );
+};
 
 // Social proof section component with animation
 const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByTextColor?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
