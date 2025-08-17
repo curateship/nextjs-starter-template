@@ -15,62 +15,12 @@ export interface SiteWithBlocks {
   theme_id: string
   theme_name: string
   settings?: Record<string, any>
-  blocks: {
-    navigation?: {
-      logo: string
-      links: Array<{ text: string; url: string }>
-      buttons: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
-      style: { backgroundColor: string; textColor: string }
-    }
-    hero?: Array<{
-      id: string
-      title: string
-      subtitle: string
-      primaryButton: string
-      secondaryButton: string
-      primaryButtonLink: string
-      secondaryButtonLink: string
-      backgroundColor: string
-      showRainbowButton: boolean
-      rainbowButtonText: string
-      rainbowButtonIcon: string
-      githubLink: string
-      showParticles: boolean
-      trustedByText: string
-      trustedByTextColor: string
-      trustedByCount: string
-      trustedByAvatars: Array<{ src: string; alt: string; fallback: string }>
-      heroImage: string
-      showHeroImage: boolean
-      display_order: number
-    }>
-    footer?: {
-      logo: string
-      copyright: string
-      links: Array<{ text: string; url: string }>
-      socialLinks: Array<{ platform: string; url: string }>
-      style: { backgroundColor: string; textColor: string }
-    }
-    richText?: Array<{
-      title?: string
-      subtitle?: string
-      headerAlign?: 'left' | 'center'
-      content: string
-      id: string
-      display_order: number
-    }>
-    faq?: Array<{
-      id: string
-      title: string
-      subtitle: string
-      faqItems: Array<{
-        id: string
-        question: string
-        answer: string
-      }>
-      display_order: number
-    }>
-  }
+  blocks: Array<{
+    id: string
+    type: string
+    content: Record<string, any>
+    display_order: number
+  }>
 }
 
 /**
@@ -152,154 +102,13 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: `Failed to load site blocks: ${blocksError.message}` }
     }
 
-    // Transform blocks into frontend-friendly format
-    const blocks: SiteWithBlocks['blocks'] = {}
-
-    // Ensure we have site blocks array (could be null or empty)
-    const blocksArray = siteBlocks || []
-
-    blocksArray.forEach((block) => {
-      if (block.block_type === 'navigation') {
-        blocks.navigation = {
-          logo: block.content.logo || '/images/logo.png',
-          links: block.content.links || [],
-          buttons: block.content.buttons || [],
-          style: block.content.style || {
-            backgroundColor: '#ffffff',
-            textColor: '#000000'
-          }
-        }
-      } else if (block.block_type === 'hero') {
-        if (!blocks.hero) {
-          blocks.hero = []
-        }
-        blocks.hero.push({
-          id: block.id,
-          title: block.content.title || 'Welcome to Our Site',
-          subtitle: block.content.subtitle || 'Build something amazing',
-          primaryButton: typeof block.content.primaryButton === 'object' && block.content.primaryButton?.text 
-            ? block.content.primaryButton.text 
-            : (block.content.primaryButton || 'Get Started'),
-          secondaryButton: typeof block.content.secondaryButton === 'object' && block.content.secondaryButton?.text 
-            ? block.content.secondaryButton.text 
-            : (block.content.secondaryButton || 'Learn More'),
-          primaryButtonLink: typeof block.content.primaryButton === 'object' && block.content.primaryButton?.url 
-            ? block.content.primaryButton.url 
-            : (block.content.primaryButtonLink || ''),
-          secondaryButtonLink: typeof block.content.secondaryButton === 'object' && block.content.secondaryButton?.url 
-            ? block.content.secondaryButton.url 
-            : (block.content.secondaryButtonLink || ''),
-          backgroundColor: block.content.backgroundColor || '#ffffff',
-          showRainbowButton: block.content.showRainbowButton || false,
-          rainbowButtonText: block.content.rainbowButtonText || 'Get Access to Everything',
-          rainbowButtonIcon: block.content.rainbowButtonIcon || 'github',
-          githubLink: block.content.githubLink || '',
-          showParticles: block.content.showParticles !== false, // default true
-          trustedByText: block.content.trustedByText || '',
-          trustedByTextColor: block.content.trustedByTextColor || '#6b7280',
-          trustedByCount: block.content.trustedByCount || '',
-          trustedByAvatars: block.content.trustedByAvatars || [
-            { src: "", alt: "User 1", fallback: "U1" },
-            { src: "", alt: "User 2", fallback: "U2" },
-            { src: "", alt: "User 3", fallback: "U3" }
-          ],
-          heroImage: block.content.heroImage || '',
-          showHeroImage: block.content.showHeroImage || false,
-          display_order: block.display_order || 0
-        })
-      } else if (block.block_type === 'footer') {
-        blocks.footer = {
-          logo: block.content.logo || '/images/logo.png',
-          copyright: block.content.copyright || '© 2024 Your Company. All rights reserved.',
-          links: block.content.links || [],
-          socialLinks: block.content.socialLinks || [],
-          style: block.content.style || {
-            backgroundColor: '#1f2937',
-            textColor: '#ffffff'
-          }
-        }
-      } else if (block.block_type === 'rich-text') {
-        if (!blocks.richText) {
-          blocks.richText = []
-        }
-        
-        // Handle both old format (content as string) and new format (content as object)
-        let richTextContent
-        
-        if (typeof block.content === 'string') {
-          // Old format: content is directly a string
-          richTextContent = {
-            title: undefined,
-            subtitle: undefined,
-            headerAlign: 'left',
-            content: block.content
-          }
-        } else if (block.content && typeof block.content === 'object') {
-          // Extract title, subtitle, and headerAlign
-          const title = block.content.title || undefined
-          const subtitle = block.content.subtitle || undefined
-          const headerAlign = block.content.headerAlign || 'left'
-          
-          // Handle malformed content that was converted to array-like object
-          let content = ''
-          
-          if (typeof block.content.content === 'string') {
-            // Normal case: content is a string
-            content = block.content.content
-          } else if (block.content.content && typeof block.content.content === 'object') {
-            // Malformed case: content is an array-like object with indexed characters
-            // Check if it looks like an array-like object (has numeric indices)
-            const contentObj = block.content.content
-            if (typeof contentObj === 'object' && '0' in contentObj) {
-              // Reconstruct string from indexed characters
-              const indices = Object.keys(contentObj)
-                .filter(key => !isNaN(parseInt(key)))
-                .sort((a, b) => parseInt(a) - parseInt(b))
-              content = indices.map(index => contentObj[index]).join('')
-            } else {
-              // Some other object format
-              content = JSON.stringify(contentObj)
-            }
-          } else {
-            // Fallback
-            content = ''
-          }
-          
-          richTextContent = {
-            title,
-            subtitle,
-            headerAlign,
-            content
-          }
-        } else {
-          // Fallback
-          richTextContent = {
-            title: undefined,
-            subtitle: undefined,
-            headerAlign: 'left',
-            content: ''
-          }
-        }
-        
-        blocks.richText.push({
-          ...richTextContent,
-          id: block.id,
-          display_order: block.display_order || 0
-        })
-      } else if (block.block_type === 'faq') {
-        if (!blocks.faq) {
-          blocks.faq = []
-        }
-        
-        blocks.faq.push({
-          id: block.id,
-          title: block.content.title || 'Frequently Asked Questions',
-          subtitle: block.content.subtitle || 'Discover quick and comprehensive answers to common questions about our platform, services, and features.',
-          faqItems: block.content.faqItems || [],
-          display_order: block.display_order || 0
-        })
-      }
-    })
+    // Transform blocks into simple unified format (like products)
+    const blocks = (siteBlocks || []).map((block) => ({
+      id: block.id,
+      type: block.block_type,
+      content: block.content,
+      display_order: block.display_order || 0
+    }))
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,

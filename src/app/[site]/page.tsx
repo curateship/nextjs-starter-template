@@ -48,8 +48,9 @@ export async function generateMetadata({ params }: SitePageProps) {
     }
     
     // Get the home page title from blocks
-    const pageTitle = site.blocks?.hero?.[0]?.title || 'Welcome'
-    const pageDescription = site.blocks?.hero?.[0]?.subtitle || ''
+    const heroBlock = site.blocks?.find(block => block.type === 'hero')
+    const pageTitle = heroBlock?.content?.title || 'Welcome'
+    const pageDescription = heroBlock?.content?.subtitle || ''
     
     return {
       title: `${pageTitle} | ${site.name}`,

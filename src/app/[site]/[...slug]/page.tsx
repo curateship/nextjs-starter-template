@@ -66,8 +66,9 @@ export async function generateMetadata({ params }: SitePageProps) {
     }
     
     // Get the current page title from blocks
-    const pageTitle = site.blocks?.hero?.[0]?.title || 'Untitled Page'
-    const pageDescription = site.blocks?.hero?.[0]?.subtitle || ''
+    const heroBlock = site.blocks?.find(block => block.type === 'hero')
+    const pageTitle = heroBlock?.content?.title || 'Untitled Page'
+    const pageDescription = heroBlock?.content?.subtitle || ''
     
     return {
       title: `${pageTitle} | ${site.name}`,

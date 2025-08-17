@@ -61,14 +61,9 @@ export default function ProductBuilderPage({ params }: { params: Promise<{ produ
           const navigationBlock = allBlocks.find(block => block.type === 'navigation')
           const footerBlock = allBlocks.find(block => block.type === 'footer')
           
-          // Transform to frontend format
-          const transformedBlocks = transformAdminBlocksToFrontend(
-            [navigationBlock, footerBlock].filter(Boolean)
-          )
-          
           setSiteBlocks({
-            navigation: transformedBlocks.navigation,
-            footer: transformedBlocks.footer
+            navigation: navigationBlock?.content,
+            footer: footerBlock?.content
           })
         }
       } catch (error) {
