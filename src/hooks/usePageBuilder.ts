@@ -63,18 +63,20 @@ export function usePageBuilder({
     }
   }
 
-  // Stage a block for deletion (doesn't delete until save)
+  // Delete block from UI immediately, but only delete from database on save (like products)
   const handleDeleteBlock = (block: Block) => {
-    // Add to staged deletions
+    // Remove from UI immediately
+    const updatedBlocks = { ...blocks }
+    updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
+    setBlocks(updatedBlocks)
+    
+    // Add to deletion list for when save is clicked
     setDeletedBlockIds(prev => new Set(prev).add(block.id))
     
     // Clear selection if deleted block was selected
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
-    
-    setSaveMessage("Block marked for deletion. Click Save to apply changes.")
-    setTimeout(() => setSaveMessage(""), 3000)
   }
 
   // Add a new hero block
@@ -137,17 +139,14 @@ export function usePageBuilder({
       // Get current blocks to preserve protected ones that might not be in reorderedBlocks
       const currentBlocks = blocks[selectedPage] || []
       const protectedBlocks = currentBlocks.filter(block => 
-        isBlockTypeProtected(block.type) && !deletedBlockIds.has(block.id)
+        isBlockTypeProtected(block.type)
       )
-      
-      // Filter out any blocks that are marked for deletion
-      const validReorderedBlocks = reorderedBlocks.filter(block => !deletedBlockIds.has(block.id))
       
       // Combine protected blocks with reordered blocks, maintaining proper order
       // Navigation should be first, footer should be last
       const navigationBlocks = protectedBlocks.filter(b => b.type === 'navigation')
       const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
-      const reorderableBlocks = validReorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
+      const reorderableBlocks = reorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
       
       // Build final blocks array with updated display_order
       const finalBlocks = [
@@ -256,36 +255,35 @@ export function usePageBuilder({
     }
   }
 
-  // Save all block customizations
+  // Save all block customizations and process deletions
   const handleSaveAllBlocks = async () => {    
     const hasActiveBlocks = blocks[selectedPage] && blocks[selectedPage].length > 0
     const hasDeletions = deletedBlockIds.size > 0
     
     if (!hasActiveBlocks && !hasDeletions) {
       setSaveMessage("No changes to save")
+      setTimeout(() => setSaveMessage(""), 2000)
       return
     }
 
     setIsSaving(true)
-    setSaveMessage("")
+    setSaveMessage("Saving...")
 
     try {
       const promises: Promise<any>[] = []
       
-      // Save content updates for non-deleted blocks
+      // Save content updates for all current blocks
       if (hasActiveBlocks) {
-        const savePromises = blocks[selectedPage]
-          .filter(block => !deletedBlockIds.has(block.id))
-          .map(async (block) => {
-            return saveSiteBlockAction({
-              block_id: block.id,
-              content: block.content
-            })
+        const savePromises = blocks[selectedPage].map(async (block) => {
+          return saveSiteBlockAction({
+            block_id: block.id,
+            content: block.content
           })
+        })
         promises.push(...savePromises)
       }
       
-      // Process staged deletions
+      // Process deletions
       if (hasDeletions) {
         const deletePromises = Array.from(deletedBlockIds).map(async (blockId) => {
           return deleteSiteBlockAction(blockId)
@@ -299,21 +297,17 @@ export function usePageBuilder({
       if (failedOperations.length > 0) {
         const firstError = failedOperations[0]?.error || 'Unknown error'
         setSaveMessage(`Error: ${firstError}`)
+        setTimeout(() => setSaveMessage(""), 5000)
       } else {
-        // Clear staged deletions and update local state
-        if (hasDeletions) {
-          const updatedBlocks = { ...blocks }
-          updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => !deletedBlockIds.has(b.id))
-          setBlocks(updatedBlocks)
-          setDeletedBlockIds(new Set())
-        }
-        
+        // Clear deletion list on successful save
+        setDeletedBlockIds(new Set())
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)
       }
     } catch (error) {
       console.error('Error saving blocks:', error)
       setSaveMessage("Error saving blocks")
+      setTimeout(() => setSaveMessage(""), 5000)
     } finally {
       setIsSaving(false)
     }
