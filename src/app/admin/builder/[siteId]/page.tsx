@@ -142,8 +142,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
-  // Show loading state
-  if (siteLoading || blocksLoading || pagesLoading) {
+  // Show loading state only when data hasn't loaded yet (initial load)
+  if ((pagesLoading && pages.length === 0) || (siteLoading || blocksLoading)) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -156,8 +156,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     )
   }
 
-  // Show error state
-  if (siteError || pagesError || !site) {
+  // Show error state only after site has finished loading
+  if (siteError || pagesError || (!site && !siteLoading)) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
