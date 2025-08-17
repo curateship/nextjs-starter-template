@@ -73,7 +73,7 @@ export function ProductBuilderHeader({
           <Select value={selectedProduct} onValueChange={onProductChange}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
-                {currentProduct ? currentProduct.title : selectedProduct}
+                {currentProduct ? currentProduct.title : ""}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
