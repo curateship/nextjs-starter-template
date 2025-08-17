@@ -309,7 +309,7 @@ export default function ProductsPage() {
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2">
                         <Link 
-                          href={`/admin/products/builder/${product.slug}`}
+                          href={`/admin/products/builder/${product.site_id}?product=${product.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
                           <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
@@ -364,7 +364,7 @@ export default function ProductsPage() {
                           <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem asChild>
-                              <Link href={`/admin/products/builder/${product.slug}`} className="flex items-center">
+                              <Link href={`/admin/products/builder/${product.site_id}?product=${product.slug}`} className="flex items-center">
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Product
                               </Link>
