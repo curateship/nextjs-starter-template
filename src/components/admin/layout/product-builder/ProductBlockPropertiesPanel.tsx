@@ -1,3 +1,4 @@
+import { ProductDefaultBlock } from "@/components/admin/layout/product-builder/ProductDefaultBlock"
 import { ProductHeroBlock } from "@/components/admin/layout/product-builder/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/layout/product-builder/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/layout/product-builder/ProductGalleryBlock"
@@ -50,6 +51,17 @@ export function ProductBlockPropertiesPanel({
       {selectedBlock ? (
         <div>
           <div className="space-y-4">
+            {selectedBlock.type === 'product-default' && (
+              <ProductDefaultBlock
+                title={selectedBlock.content.title || ''}
+                richText={selectedBlock.content.richText || ''}
+                featuredImage={selectedBlock.content.featuredImage || ''}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onRichTextChange={(value) => updateBlockContent('richText', value)}
+                onFeaturedImageChange={(value) => updateBlockContent('featuredImage', value)}
+              />
+            )}
+            
             {selectedBlock.type === 'product-hero' && (
               <ProductHeroBlock
                 title={selectedBlock.content.title || ''}

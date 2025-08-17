@@ -73,12 +73,16 @@ export async function getProductBlocksAction(product_id: string): Promise<{
     }
 
     const blocks: Record<string, Block[]> = {}
-    blocks[product.slug] = data ? data.map(block => ({
+    
+    // Load all blocks from database (including default block if it exists)
+    const dbBlocks = data ? data.map(block => ({
       id: block.id,
       type: block.block_type,
       title: getBlockTitle(block.block_type),
       content: block.content
     })) : []
+    
+    blocks[product.slug] = dbBlocks
 
     return { success: true, blocks }
   } catch (error) {
@@ -110,13 +114,31 @@ export async function saveProductBlocksAction(
       return { success: false, error: 'Product not found' }
     }
 
+    // Check for default block and extract product data
+    const defaultBlock = blocks.find(block => block.type === 'product-default')
+    if (defaultBlock) {
+      // Update product with default block data
+      const { error: updateError } = await supabaseAdmin
+        .from('products')
+        .update({
+          title: defaultBlock.content.title,
+          rich_text: defaultBlock.content.richText,
+          featured_image: defaultBlock.content.featuredImage
+        })
+        .eq('id', product_id)
+
+      if (updateError) {
+        return { success: false, error: `Failed to update product: ${updateError.message}` }
+      }
+    }
+
     // Delete existing blocks
     await supabaseAdmin
       .from('product_blocks')
       .delete()
       .eq('product_id', product_id)
 
-    // Insert new blocks
+    // Insert all blocks including default block
     if (blocks.length > 0) {
       const { error } = await supabaseAdmin
         .from('product_blocks')
@@ -141,6 +163,8 @@ export async function saveProductBlocksAction(
 // Helper function to get block title
 function getBlockTitle(blockType: string): string {
   switch (blockType) {
+    case 'product-default':
+      return 'Product Information'
     case 'product-hero':
       return 'Product Hero'
     case 'product-details':

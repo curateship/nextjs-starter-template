@@ -53,6 +53,7 @@ export interface Product {
   meta_keywords: string | null
   featured_image: string | null
   rich_text: string | null
+  show_default_block: boolean
   is_homepage: boolean
   is_published: boolean
   display_order: number
