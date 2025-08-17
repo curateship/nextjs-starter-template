@@ -281,7 +281,7 @@ saveProductBlockAction(blockId, content)
 
 ## CRITICAL PERFORMANCE DISCOVERY: React Context vs Direct Parameters
 
-### The Real Culprit (August 2025)
+### The Real Culprit (August 17, 2025)
 After implementing all the database and architectural optimizations above, one final performance issue remained:
 
 **Problem**: Even with identical architectures, product navigation was still slower than page navigation
@@ -324,8 +324,57 @@ After this final fix:
 - **Page navigation**: 30-40ms ✅
 - **Performance parity achieved completely**
 
+### Loading State UX Optimization (August 17, 2025)
+
+**Final UX Issue**: After achieving performance parity, navigation still had poor user experience due to loading state interruptions.
+
+**Problems Identified**:
+1. **Loading Screen Interruptions**: Brief loading screens appeared during navigation between pages/products
+2. **Premature Error Display**: "Site not found" errors shown before data finished loading  
+3. **Partial Interface Loading**: Empty interfaces that suddenly populated with blocks
+
+**Solutions Implemented**:
+
+**1. Eliminated Loading Interruptions**
+```typescript
+// Before: Loading screen on any state change
+if (siteLoading || blocksLoading || pagesLoading) {
+  return <LoadingScreen />
+}
+
+// After: Loading only on true initial load
+if ((pagesLoading && pages.length === 0) || (siteLoading || blocksLoading)) {
+  return <LoadingScreen />
+}
+```
+
+**2. Fixed Premature Error States**
+```typescript
+// Before: Error shown immediately if site is null
+if (siteError || pagesError || !site) {
+  return <ErrorScreen />
+}
+
+// After: Error only after loading completes
+if (siteError || pagesError || (!site && !siteLoading)) {
+  return <ErrorScreen />
+}
+```
+
+**3. Complete Interface Loading**
+- **Before**: Interface appeared before blocks loaded, then suddenly populated
+- **After**: Interface only appears when all data (site, blocks, pages/products) is ready
+
+**UX Results**:
+- **Product switching**: Seamless navigation with no loading interruptions
+- **Page switching**: Seamless navigation with no loading interruptions  
+- **Initial load**: Clean loading screen until complete interface is ready
+- **Error handling**: No false "site not found" errors during normal loading
+
 ### Key Insight
 **React context lookups can add massive overhead** in navigation-heavy interfaces, even when the underlying data loading is optimized. Direct parameter passing is significantly faster than context-based data access.
+
+**Loading state management requires careful orchestration** - showing loading too aggressively creates interruptions, showing it too little creates jarring UX with partial interfaces.
 
 ## Lessons Learned
 

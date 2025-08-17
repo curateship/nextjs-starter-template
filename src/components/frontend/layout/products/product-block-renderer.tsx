@@ -28,6 +28,11 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   return (
     <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content}>
       {sortedBlocks.map((block) => {
+        // Skip navigation and footer blocks as they're handled by SiteLayout
+        if (block.type === 'navigation' || block.type === 'footer') {
+          return null
+        }
+        
         if (block.type === 'product-default') {
           return (
             <ProductDefaultBlock
