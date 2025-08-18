@@ -336,7 +336,7 @@ export default function SitePagesPage({ params }: PageProps) {
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="w-12 h-12 bg-gray-200 rounded animate-pulse"></div>
                           <div>
                             <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-32"></div>
                             <div className="h-3 bg-gray-100 rounded animate-pulse w-24"></div>

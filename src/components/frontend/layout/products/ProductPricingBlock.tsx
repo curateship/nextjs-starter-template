@@ -2,6 +2,27 @@ import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BlockContainer } from "@/components/ui/block-container"
 
+// Security utility functions
+const isValidUrl = (url: string): boolean => {
+  try {
+    const parsedUrl = new URL(url)
+    // Only allow HTTP(S) protocols - block javascript:, data:, file:, etc.
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const sanitizeText = (text: string): string => {
+  // Remove potential XSS vectors while preserving normal text
+  return text
+    .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/data:/gi, '') // Remove data: protocol
+    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
+    .substring(0, 500) // Length limit to prevent DoS
+}
+
 interface PricingTier {
   id: string
   name: string
@@ -9,10 +30,10 @@ interface PricingTier {
   price: string
   interval: string
   buttonText: string
+  buttonUrl: string
   buttonVariant: "default" | "outline" | "secondary" | "destructive" | "ghost" | "link"
   features: string[]
   comparison: string
-  hasPurchaseOption: boolean
   isPopular?: boolean
 }
 
@@ -30,19 +51,29 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
           <div className="bg-card relative rounded-3xl border shadow-2xl shadow-zinc-950/5">
             <div className="grid items-start gap-12 divide-y p-12 md:grid-cols-2 md:divide-x md:divide-y-0">
               <div className="pb-12 md:pb-0 md:pr-12">
-                <h3 className="text-3xl font-semibold text-left">{tier.name}</h3>
-                <p className="mt-6 text-lg text-left">{tier.description}</p>
+                <h3 className="text-3xl font-semibold text-left">{sanitizeText(tier.name)}</h3>
+                <p className="mt-6 text-lg text-left">{sanitizeText(tier.description)}</p>
                 <div className="text-center">
                   <span className="mb-6 mt-12 inline-block text-6xl font-bold">
-                    <span className="text-4xl">$</span>{tier.price}
+                    <span className="text-4xl">$</span>{sanitizeText(tier.price)}
                   </span>
 
                   <div className="flex justify-center">
-                    <Button
-                      variant={tier.buttonVariant}
-                      size="lg">
-                      {tier.buttonText}
-                    </Button>
+                    {tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
+                      <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer">
+                        <Button
+                          variant={tier.buttonVariant}
+                          size="lg">
+                          {sanitizeText(tier.buttonText)}
+                        </Button>
+                      </a>
+                    ) : (
+                      <Button
+                        variant={tier.buttonVariant}
+                        size="lg">
+                        {sanitizeText(tier.buttonText)}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -56,7 +87,7 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
                       key={index}
                       className="flex items-center gap-2">
                       <Check className="size-3" />
-                      <span>{feature}</span>
+                      <span>{sanitizeText(feature)}</span>
                     </li>
                   ))}
                 </ul>
@@ -82,13 +113,13 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
         <div className="flex h-full flex-col">
           {/* Header */}
           <div className="px-8 pt-8 pb-3">
-            <h3 className="text-3xl font-semibold">{tier.name}</h3>
+            <h3 className="text-3xl font-semibold">{sanitizeText(tier.name)}</h3>
           </div>
 
           {/* Description */}
           <div className="px-8 pb-6">
             <p className="line-clamp-2 text-balance text-muted-foreground">
-              {tier.description}
+              {sanitizeText(tier.description)}
             </p>
           </div>
 
@@ -99,11 +130,11 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
                 <div className="text-center">
                   <div className="flex items-start justify-center">
                     <span className="mt-2 text-lg font-semibold">$</span>
-                    <span className="text-6xl font-semibold">{tier.price}</span>
+                    <span className="text-6xl font-semibold">{sanitizeText(tier.price)}</span>
                   </div>
                   {tier.interval && (
                     <p className="mt-2 text-sm text-muted-foreground">
-                      {tier.interval}
+                      {sanitizeText(tier.interval)}
                     </p>
                   )}
                 </div>
@@ -113,21 +144,29 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 
           {/* CTA Button */}
           <div className="mt-auto px-8 pb-8">
-            <Button variant={tier.buttonVariant} className="w-full py-6">
-              {tier.buttonText}
-            </Button>
+            {tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
+              <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <Button variant={tier.buttonVariant} className="w-full py-6">
+                  {sanitizeText(tier.buttonText)}
+                </Button>
+              </a>
+            ) : (
+              <Button variant={tier.buttonVariant} className="w-full py-6">
+                {sanitizeText(tier.buttonText)}
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Features */}
       <div className="grow border-t p-8 text-left">
-        <p className="mb-4 text-lg font-semibold">{tier.comparison}</p>
+        <p className="mb-4 text-lg font-semibold">{sanitizeText(tier.comparison)}</p>
         <ul className="space-y-4">
           {tier.features.map((feature, featureIndex) => (
             <li key={featureIndex} className="flex items-center gap-3">
               <Check className="size-5 text-primary" />
-              <span>{feature}</span>
+              <span>{sanitizeText(feature)}</span>
             </li>
           ))}
         </ul>
@@ -150,10 +189,10 @@ const ProductPricingBlock = ({
       price: "0",
       interval: "Includes 1 user.",
       buttonText: "Get Started",
+      buttonUrl: "",
       buttonVariant: "outline",
       features: ["Live Collaboration", "1 GB Storage", "2 Projects", "Basic Support"],
       comparison: "Features",
-      hasPurchaseOption: false,
     },
     {
       id: "pro",
@@ -162,10 +201,10 @@ const ProductPricingBlock = ({
       price: "29",
       interval: "Per user, per month.",
       buttonText: "Purchase",
+      buttonUrl: "",
       buttonVariant: "default",
       features: ["2 Team Members", "10 GB Storage", "10 Projects", "Priority Support"],
       comparison: "Everything in Free, and:",
-      hasPurchaseOption: true,
     },
     {
       id: "premium",
@@ -174,10 +213,10 @@ const ProductPricingBlock = ({
       price: "59",
       interval: "Per user, per month.",
       buttonText: "Purchase",
+      buttonUrl: "",
       buttonVariant: "outline",
       features: ["5 Team Members", "50 GB Storage", "50 Projects", "Dedicated Support"],
       comparison: "Everything in Pro, and:",
-      hasPurchaseOption: true,
     }
   ]
 

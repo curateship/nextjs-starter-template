@@ -287,9 +287,9 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
   const blurEffect = style?.blurEffect || 'medium'
   const blurClass = {
     'none': '',
-    'light': 'lg:backdrop-blur-sm',
-    'medium': 'lg:backdrop-blur-xl',
-    'heavy': 'lg:backdrop-blur-3xl'
+    'light': 'backdrop-blur-sm',
+    'medium': 'backdrop-blur-xl',
+    'heavy': 'backdrop-blur-3xl'
   }[blurEffect]
 
   // Determine logo URL with smart defaults
@@ -313,7 +313,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
         className={cn(
           'fixed z-20 w-full border-b transition-colors duration-150',
           !style && 'bg-background',
-          scrolled && !style && 'lg:bg-background/50 lg:backdrop-blur-xl',
+          scrolled && !style && 'bg-background/50 backdrop-blur-xl',
           scrolled && style && blurEffect !== 'none' && blurClass
         )}
         style={style ? {
