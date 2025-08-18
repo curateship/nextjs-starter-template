@@ -360,33 +360,57 @@ const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
 )
 
 // Call-to-action buttons component with animation
-const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay: 0.4 }}
-    className="mt-8 flex justify-center gap-4 flex-wrap"
-  >
-    {primaryButtonLink ? (
-      <Link href={primaryButtonLink}>
-        <Button size="lg">{primaryButton || "Get Started"}</Button>
-      </Link>
-    ) : (
-      <Button size="lg">{primaryButton || "Get Started"}</Button>
-    )}
-    {secondaryButtonLink ? (
-      <Link href={secondaryButtonLink}>
-        <Button size="lg" variant="outline">
+const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
+  const handlePrimaryClick = () => {
+    if (primaryButtonLink) return // Let Link handle external links
+    
+    // Scroll to pricing block
+    const pricingElement = document.querySelector('#pricing')
+    if (pricingElement) {
+      pricingElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const handleSecondaryClick = () => {
+    if (secondaryButtonLink) return // Let Link handle external links
+    
+    // Scroll to hotspot block
+    const hotspotElement = document.querySelector('#product-hotspot')
+    if (hotspotElement) {
+      hotspotElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.4 }}
+      className="mt-8 flex justify-center gap-4 flex-wrap"
+    >
+      {primaryButtonLink ? (
+        <Link href={primaryButtonLink}>
+          <Button size="lg">{primaryButton || "Get Started"}</Button>
+        </Link>
+      ) : (
+        <Button size="lg" onClick={handlePrimaryClick} className="cursor-pointer">
+          {primaryButton || "Get Started"}
+        </Button>
+      )}
+      {secondaryButtonLink ? (
+        <Link href={secondaryButtonLink}>
+          <Button size="lg" variant="outline">
+            {secondaryButton || "Browse Components"}
+          </Button>
+        </Link>
+      ) : (
+        <Button size="lg" variant="outline" onClick={handleSecondaryClick} className="cursor-pointer">
           {secondaryButton || "Browse Components"}
         </Button>
-      </Link>
-    ) : (
-      <Button size="lg" variant="outline">
-        {secondaryButton || "Browse Components"}
-      </Button>
-    )}
-  </motion.div>
-)
+      )}
+    </motion.div>
+  )
+}
 
 // Social proof section component with animation
 const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByTextColor?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (

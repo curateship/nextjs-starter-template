@@ -290,7 +290,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-5 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                            <div className="w-12 h-12 bg-gray-200 rounded animate-pulse"></div>
                             <div>
                               <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-32"></div>
                               <div className="h-3 bg-gray-100 rounded animate-pulse w-24"></div>
@@ -342,7 +342,7 @@ export default function ProductsPage() {
                           href={`/admin/products/builder/${product.site_id}?product=${product.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
-                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
                             {product.featured_image ? (
                               <img 
                                 src={product.featured_image} 
