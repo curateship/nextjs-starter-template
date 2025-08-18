@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info } from "lucide-react"
+import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign } from "lucide-react"
 import { Reorder } from "motion/react"
 
 interface ProductBlock {
@@ -66,6 +66,7 @@ export function ProductBlockListPanel({
            block.type === 'product-gallery' ? 'Product Gallery' :
            block.type === 'product-features' ? 'Product Features' :
            block.type === 'product-hotspot' ? 'Product Hotspot' :
+           block.type === 'product-pricing' ? 'Product Pricing' :
            block.type === 'faq' ? 'Product FAQ' : 'Block'
   }
 
@@ -83,6 +84,8 @@ export function ProductBlockListPanel({
         return <Star className="w-4 h-4" />
       case 'product-hotspot':
         return <Target className="w-4 h-4" />
+      case 'product-pricing':
+        return <DollarSign className="w-4 h-4" />
       case 'faq':
         return <HelpCircle className="w-4 h-4" />
       default:

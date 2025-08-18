@@ -32,6 +32,7 @@ interface UseProductBuilderReturn {
   handleAddProductHeroBlock: () => void
   handleAddProductFeaturesBlock: () => void
   handleAddProductHotspotBlock: () => void
+  handleAddProductPricingBlock: () => void
   handleAddProductFAQBlock: () => void
   handleSaveAllBlocks: () => void
 }
@@ -147,6 +148,52 @@ export function useProductBuilder({
     })
   }
 
+  const handleAddProductPricingBlock = () => {
+    addBlock('product-pricing', 'Product Pricing', {
+      title: 'Pricing',
+      subtitle: 'Check out our affordable pricing plans below and choose the one that suits you best.',
+      pricingTiers: [
+        {
+          id: `tier-${Date.now()}-1`,
+          name: 'Free',
+          description: 'For personal use only with limited features and support',
+          price: '0',
+          interval: 'Includes 1 user.',
+          buttonText: 'Get Started',
+          buttonVariant: 'outline',
+          features: ['Live Collaboration', '1 GB Storage', '2 Projects', 'Basic Support'],
+          comparison: 'Features',
+          hasPurchaseOption: false
+        },
+        {
+          id: `tier-${Date.now()}-2`,
+          name: 'Pro',
+          description: 'For small businesses with all the features and support',
+          price: '29',
+          interval: 'Per user, per month.',
+          buttonText: 'Purchase',
+          buttonVariant: 'default',
+          features: ['2 Team Members', '10 GB Storage', '10 Projects', 'Priority Support'],
+          comparison: 'Everything in Free, and:',
+          hasPurchaseOption: true,
+          isPopular: true
+        },
+        {
+          id: `tier-${Date.now()}-3`,
+          name: 'Premium',
+          description: 'For teams and organizations with advanced features and support',
+          price: '59',
+          interval: 'Per user, per month.',
+          buttonText: 'Purchase',
+          buttonVariant: 'outline',
+          features: ['5 Team Members', '50 GB Storage', '50 Projects', 'Dedicated Support'],
+          comparison: 'Everything in Pro, and:',
+          hasPurchaseOption: true
+        }
+      ]
+    })
+  }
+
   const handleAddProductFAQBlock = () => {
     addBlock('faq', 'FAQ', {
       title: 'Product FAQ',
@@ -208,6 +255,7 @@ export function useProductBuilder({
     handleAddProductHeroBlock,
     handleAddProductFeaturesBlock,
     handleAddProductHotspotBlock,
+    handleAddProductPricingBlock,
     handleAddProductFAQBlock,
     handleSaveAllBlocks
   }

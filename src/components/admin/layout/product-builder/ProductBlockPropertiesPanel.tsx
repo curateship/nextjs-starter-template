@@ -4,6 +4,7 @@ import { ProductDetailsBlock } from "@/components/admin/layout/product-builder/P
 import { ProductGalleryBlock } from "@/components/admin/layout/product-builder/ProductGalleryBlock"
 import { ProductFeaturesBlock } from "@/components/admin/layout/product-builder/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/layout/product-builder/ProductHotspotBlock"
+import { ProductPricingBlock } from "@/components/admin/layout/product-builder/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/admin/layout/product-builder/ProductFAQBlock"
 import { ProductPreview } from "./ProductPreview"
 
@@ -170,6 +171,17 @@ export function ProductBlockPropertiesPanel({
                 onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+              />
+            )}
+            
+            {selectedBlock.type === 'product-pricing' && (
+              <ProductPricingBlock
+                title={selectedBlock.content.title || 'Pricing'}
+                subtitle={selectedBlock.content.subtitle || 'Check out our affordable pricing plans below and choose the one that suits you best.'}
+                pricingTiers={selectedBlock.content.pricingTiers || []}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onPricingTiersChange={(tiers) => updateBlockContent('pricingTiers', tiers)}
               />
             )}
             

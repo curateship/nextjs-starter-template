@@ -4201,3 +4201,22 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 **This represents the completion of the performance optimization journey**: Every aspect of the pages/products experience is now genuinely identical, from database to user interface.
 
 *The ultimate lesson: Performance issues can hide at any layer of the stack, and true performance parity requires consistency at every level - including React patterns that seem unrelated to performance.*
+
+---
+
+## Phase 13: ProductPricingBlock & React Hooks Crisis (Dec 2024)
+
+**Implementation Success**: ProductPricingBlock created following CLAUDE.md guide with database constraints, backend validation, admin editor with drag & drop, and adaptive frontend layouts.
+
+**React Hooks Disaster**: Called `useDragControls()` inside map function, violating hooks rules. Tried fixing with `useMemo()` (still violation), removed drag entirely, rewrote file → syntax errors → server crashes.
+
+**Server Management Crisis**: Failed to restart server after changes, ran in background hiding compilation status. User: *"why dont you restart server whenevewr you made edits it claude.md tells you to"*
+
+**Solutions**: 
+- Fixed drag with simple `<Reorder.Item>` (entire card draggable)
+- Updated CLAUDE.md with mandatory server restart protocol
+- Found textarea bug: `.filter()` removing empty lines on Enter keypress
+
+**Security Audit**: All OWASP Top 10 vulnerabilities addressed, defense-in-depth applied.
+
+*Lesson: React hooks rules are absolute, and proper development protocols directly impact debugging effectiveness.*
