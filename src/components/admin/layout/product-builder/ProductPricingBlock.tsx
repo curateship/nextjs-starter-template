@@ -32,6 +32,24 @@ const isValidAdminUrl = (url: string): boolean => {
   }
 }
 
+const isValidPartialUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return true // Empty URLs are allowed
+  
+  // Allow partial URLs while typing (like "http", "https:", "https://ex")
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return true
+  }
+  
+  // Block dangerous protocols immediately
+  if (url.toLowerCase().includes('javascript:') || 
+      url.toLowerCase().includes('data:') || 
+      url.toLowerCase().includes('vbscript:')) {
+    return false
+  }
+  
+  return true // Allow other partial input
+}
+
 // Individual pricing tier component to avoid hook violations
 const PricingTierItem = ({ 
   tier, 
@@ -151,7 +169,7 @@ const PricingTierItem = ({
             value={tier.buttonUrl || ""}
             onChange={(e) => {
               const sanitizedUrl = sanitizeAdminInput(e.target.value)
-              if (isValidAdminUrl(sanitizedUrl) || sanitizedUrl === '') {
+              if (isValidPartialUrl(sanitizedUrl)) {
                 updateTier(tierIndex, 'buttonUrl', sanitizedUrl)
               }
             }}

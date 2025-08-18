@@ -1453,19 +1453,30 @@ className={!isValidAdminUrl(tier.buttonUrl || "") && tier.buttonUrl ? "border-re
 
 ### 📊 ATTACK VECTORS BLOCKED
 
-- ❌ XSS via `javascript:alert('XSS')`
-- ❌ Data URI attacks via `data:text/html,<script>`
-- ❌ HTML injection via `<script>` tags
-- ❌ Protocol injection via malicious schemes
-- ❌ DoS attacks via extremely long inputs
+**Multi-Layer Protection System**:
+- ❌ XSS via `javascript:alert('XSS')` - **BLOCKED** at input level, sanitized, and rejected
+- ❌ Data URI attacks via `data:text/html,<script>` - **BLOCKED** at input level, sanitized, and rejected  
+- ❌ HTML injection via `<script>` tags - **STRIPPED** by content sanitization
+- ❌ VBScript injection via `vbscript:` - **BLOCKED** at input level, sanitized, and rejected
+- ❌ Protocol injection via malicious schemes - **PREVENTED** by HTTP/HTTPS allowlist
+- ❌ DoS attacks via extremely long inputs - **LIMITED** to 500/1000 characters
+
+**Defense-in-Depth Implementation**:
+1. **Layer 1**: Real-time input blocking prevents typing dangerous protocols
+2. **Layer 2**: Content sanitization removes malicious code if bypassed  
+3. **Layer 3**: Final URL validation ensures only HTTP/HTTPS protocols render
 
 ### 🛡️ SECURITY FEATURES ADDED
 
-1. **URL Protocol Allowlist**: Only HTTP/HTTPS permitted
-2. **Content Sanitization**: All user content escaped
-3. **Input Length Limits**: DoS prevention (500/1000 chars)
-4. **Real-time Validation**: Admin UI shows invalid URLs
-5. **Visual Security Feedback**: Red borders for invalid inputs
+1. **Multi-Layer URL Protection**: 
+   - Real-time blocking of dangerous protocols during typing
+   - Content sanitization removes malicious code
+   - Final validation allows only HTTP/HTTPS protocols
+2. **Content Sanitization**: All user content (names, descriptions, features) escaped
+3. **Input Length Limits**: DoS prevention (500 chars frontend, 1000 chars admin)
+4. **Real-time Validation**: Admin UI shows invalid URLs with red borders
+5. **Visual Security Feedback**: Immediate user feedback for security violations
+6. **Protocol Allowlist**: Comprehensive blocking of javascript:, data:, vbscript: schemes
 
 ### 📈 SECURITY IMPACT
 

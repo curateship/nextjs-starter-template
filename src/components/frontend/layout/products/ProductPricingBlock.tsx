@@ -63,7 +63,8 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
                       <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer">
                         <Button
                           variant={tier.buttonVariant}
-                          size="lg">
+                          size="lg"
+                          className="cursor-pointer">
                           {sanitizeText(tier.buttonText)}
                         </Button>
                       </a>
@@ -146,7 +147,7 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
           <div className="mt-auto px-8 pb-8">
             {tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
               <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer" className="block">
-                <Button variant={tier.buttonVariant} className="w-full py-6">
+                <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
                   {sanitizeText(tier.buttonText)}
                 </Button>
               </a>
