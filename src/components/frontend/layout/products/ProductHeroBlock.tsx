@@ -209,9 +209,10 @@ const ProductHeroBlock = ({
   }, []);
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 overflow-hidden">
-      {/* Background pattern with radial mask for visual depth */}
-      <BackgroundPattern 
+    <section className="relative w-full overflow-hidden">
+      <div className="relative max-w-6xl mx-auto flex flex-col items-center justify-center px-6 pt-30">
+        {/* Background pattern with radial mask for visual depth */}
+        <BackgroundPattern 
         pattern={backgroundPattern || 'dots'}
         size={backgroundPatternSize || 'medium'}
         opacity={backgroundPatternOpacity || 80}
@@ -238,7 +239,8 @@ const ProductHeroBlock = ({
         backgroundColor={backgroundColor}
         showTrustedByBadge={showTrustedByBadge}
       />
-      <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
+        <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
+      </div>
     </section>
   );
 };

@@ -209,7 +209,7 @@ const PageHeroBlock = ({
   }, []);
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 overflow-hidden">
+    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
       {/* Background pattern with radial mask for visual depth */}
       <BackgroundPattern 
         pattern={backgroundPattern || 'dots'}
