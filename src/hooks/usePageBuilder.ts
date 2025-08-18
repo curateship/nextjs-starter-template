@@ -23,6 +23,7 @@ interface UsePageBuilderReturn {
   handleAddHeroBlock: () => Promise<void>
   handleAddRichTextBlock: () => Promise<void>
   handleAddFaqBlock: () => Promise<void>
+  handleAddListingViewsBlock: () => Promise<void>
   handleSaveAllBlocks: () => Promise<void>
 }
 
@@ -367,6 +368,60 @@ export function usePageBuilder({
     }
   }
 
+  // Add a new Listing Views block
+  const handleAddListingViewsBlock = async () => {
+    try {
+      const { success, block, error } = await addSiteBlockAction({
+        site_id: siteId,
+        page_slug: selectedPage as 'home' | 'about' | 'contact',
+        block_type: 'listing-views'
+      })
+      
+      if (error) {
+        setSaveMessage(`Error: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+        return
+      }
+      
+      if (success && block) {
+        // Add to local state with proper positioning
+        const updatedBlocks = { ...blocks }
+        const currentBlocks = updatedBlocks[selectedPage] || []
+        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+        
+        if (footerIndex >= 0) {
+          // Insert before footer
+          updatedBlocks[selectedPage] = [
+            ...currentBlocks.slice(0, footerIndex),
+            block,
+            ...currentBlocks.slice(footerIndex)
+          ]
+        } else if (navIndex >= 0) {
+          // Insert after navigation
+          updatedBlocks[selectedPage] = [
+            ...currentBlocks.slice(0, navIndex + 1),
+            block,
+            ...currentBlocks.slice(navIndex + 1)
+          ]
+        } else {
+          // No nav/footer, add at beginning
+          updatedBlocks[selectedPage] = [block, ...currentBlocks]
+        }
+        
+        setBlocks(updatedBlocks)
+        setSelectedBlock(block)
+        
+        setSaveMessage("Listing Views block added!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      }
+    } catch (err) {
+      console.error('Error adding listing views block:', err)
+      setSaveMessage("Error adding listing views block")
+      setTimeout(() => setSaveMessage(""), 5000)
+    }
+  }
+
   return {
     selectedBlock,
     setSelectedBlock,
@@ -380,6 +435,7 @@ export function usePageBuilder({
     handleAddHeroBlock,
     handleAddRichTextBlock,
     handleAddFaqBlock,
+    handleAddListingViewsBlock,
     handleSaveAllBlocks
   }
 }

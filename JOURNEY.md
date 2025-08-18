@@ -4204,6 +4204,50 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 
 ---
 
+## Phase 14: ListingViews Block Implementation - Dynamic Product Display System (August 18, 2025)
+
+**User Request**: Create flexible product listing display for pages (homepages, archives)
+
+**Implementation Overview**:
+- **Database**: Added `listing-views` to page_blocks constraint
+- **Backend**: Created `listing-views-actions.ts` with pagination & sorting  
+- **Frontend**: Built `ListingViewsBlock.tsx` with grid/list modes
+- **Admin**: Developed `SharedListingViewsBlock.tsx` with comprehensive controls
+
+**Key Features**:
+- **Display Modes**: Grid (2-4 columns) or List layout
+- **Content Control**: Toggle image/title/description visibility
+- **Pagination**: Smart toggle between "items to show" vs "items per page"
+- **View All Button**: Configurable with custom text/link
+- **Sorting**: Date, title, or display order (asc/desc)
+
+**UI Consolidation Achievements**:
+- **Header Settings**: Title, subtitle, alignment → single 3-column row
+- **View All Controls**: Text, link, toggle → single 3-column row  
+- **Content Settings**: 5 dropdowns → single 5-column row
+- **Pagination**: Smart single-field + toggle with contextual labeling
+
+**Security Implementation**:
+- ✅ HTML stripping from product descriptions (XSS prevention)
+- ✅ Server-side authentication & site ownership validation
+- ✅ Input validation with min/max limits (DoS prevention)
+- ✅ UUID format validation for all IDs
+- ✅ Debug log cleanup for production readiness
+
+**Technical Patterns**:
+- **Simple CRUD**: Load → Edit → Save (CLAUDE.md compliant)
+- **Fail Fast**: Immediate error reporting, no silent failures
+- **Direct Solutions**: No over-engineering or complex state management
+
+**Files Modified**:
+- `supabase/migrations/038_add_listing_views_block_type.sql`
+- `src/lib/actions/listing-views-actions.ts` 
+- `src/components/frontend/layout/pages/ListingViewsBlock.tsx`
+- `src/components/admin/layout/page-builder/SharedListingViewsBlock.tsx`
+- Updated block registry & rendering system
+
+**Result**: Production-ready dynamic content listing system with intuitive admin controls and secure implementation.
+
 ## Phase 13: ProductPricingBlock & React Hooks Crisis (Dec 2024)
 
 **Implementation Success**: ProductPricingBlock created following CLAUDE.md guide with database constraints, backend validation, admin editor with drag & drop, and adaptive frontend layouts.

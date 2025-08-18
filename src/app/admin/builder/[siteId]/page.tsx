@@ -211,6 +211,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             onAddHeroBlock={builderState.handleAddHeroBlock}
             onAddRichTextBlock={builderState.handleAddRichTextBlock}
             onAddFaqBlock={builderState.handleAddFaqBlock}
+            onAddListingViewsBlock={builderState.handleAddListingViewsBlock}
           />
         </div>
       </div>
