@@ -39,7 +39,7 @@ async function createServerSupabaseClient() {
 export interface SiteBlock {
   id: string
   site_id: string
-  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text' | 'faq'
+  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text' | 'faq' | 'listing-views'
   page_slug: 'home' | 'global'
   content: Record<string, any>
   display_order: number
@@ -486,7 +486,7 @@ export async function reorderSiteBlocksAction(params: {
 export async function addSiteBlockAction(params: {
   site_id: string
   page_slug: string
-  block_type: 'hero' | 'rich-text' | 'faq'
+  block_type: 'hero' | 'rich-text' | 'faq' | 'listing-views'
 }): Promise<{
   success: boolean
   block?: Block
@@ -509,9 +509,9 @@ export async function addSiteBlockAction(params: {
       return { success: false, error: 'Invalid page slug format' }
     }
 
-    // Allow hero, rich-text, and FAQ blocks
-    if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq') {
-      return { success: false, error: 'Only hero, rich-text, and FAQ blocks can be added' }
+    // Allow hero, rich-text, FAQ, and listing-views blocks
+    if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq' && params.block_type !== 'listing-views') {
+      return { success: false, error: 'Only hero, rich-text, FAQ, and listing-views blocks can be added' }
     }
 
     // Verify user is authenticated
@@ -613,6 +613,26 @@ export async function addSiteBlockAction(params: {
           }
         ]
       }
+    } else if (params.block_type === 'listing-views') {
+      defaultContent = {
+        title: 'Latest Products',
+        subtitle: 'Check out our products',
+        headerAlign: 'left',
+        contentType: 'products',
+        displayMode: 'grid',
+        itemsToShow: 6,
+        columns: 3,
+        sortBy: 'date',
+        sortOrder: 'desc',
+        showImage: true,
+        showTitle: true,
+        showDescription: true,
+        isPaginated: false,
+        itemsPerPage: 12,
+        showViewAll: true,
+        viewAllText: 'View all products',
+        viewAllLink: '/products'
+      }
     } else {
       defaultContent = {}
     }
@@ -639,7 +659,8 @@ export async function addSiteBlockAction(params: {
       id: newBlock.id,
       type: newBlock.block_type,
       title: getBlockTitle(newBlock.block_type),
-      content: newBlock.content
+      content: newBlock.content,
+      display_order: newBlock.display_order
     }
 
     return { success: true, block }

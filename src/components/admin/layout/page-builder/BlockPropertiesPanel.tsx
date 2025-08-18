@@ -3,6 +3,7 @@ import { NavigationBlock } from "./NavigationBlock"
 import { FooterBlock } from "./FooterBlock"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { SharedFaqBlock } from "@/components/admin/layout/page-builder/SharedFaqBlock"
+import { SharedListingViewsBlock } from "@/components/admin/layout/page-builder/SharedListingViewsBlock"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 
@@ -98,6 +99,17 @@ export function BlockPropertiesPanel({
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onFaqItemsChange={(value) => updateBlockContent('faqItems', value)}
+              />
+            )}
+            {selectedBlock.type === 'listing-views' && (
+              <SharedListingViewsBlock
+                {...selectedBlock.content}
+                {...createCallbacks(updateBlockContent, [
+                  'title', 'subtitle', 'headerAlign', 'contentType', 'displayMode',
+                  'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
+                  'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
+                  'showViewAll', 'viewAllText', 'viewAllLink'
+                ])}
               />
             )}
           </div>
