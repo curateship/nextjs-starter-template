@@ -28,11 +28,13 @@ interface FooterStyle {
 
 interface FooterBlockProps {
   logo: string
+  logoUrl: string
   copyright: string
   links: FooterLink[]
   socialLinks: SocialLink[]
   style: FooterStyle
   onLogoChange: (value: string) => void
+  onLogoUrlChange: (value: string) => void
   onCopyrightChange: (value: string) => void
   onLinksChange: (links: FooterLink[]) => void
   onSocialLinksChange: (socialLinks: SocialLink[]) => void
@@ -47,11 +49,13 @@ const socialPlatforms = [
 
 export function FooterBlock({
   logo,
+  logoUrl,
   copyright,
   links,
   socialLinks,
   style,
   onLogoChange,
+  onLogoUrlChange,
   onCopyrightChange,
   onLinksChange,
   onSocialLinksChange,
@@ -213,6 +217,22 @@ export function FooterBlock({
             <p className="text-xs text-muted-foreground">
               Recommended: 200x50px or similar ratio
             </p>
+            
+            {/* Logo URL Input */}
+            <div className="space-y-2">
+              <Label htmlFor="footerLogoUrl">Logo Link URL</Label>
+              <input
+                id="footerLogoUrl"
+                type="text"
+                value={logoUrl || ''}
+                onChange={(e) => onLogoUrlChange(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                placeholder="https://example.com (leave empty for site homepage)"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL the logo will link to when clicked. Leave empty to link to this site's homepage.
+              </p>
+            </div>
           </div>
 
           {/* Copyright Text */}

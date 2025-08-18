@@ -31,6 +31,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
     <SiteLayout 
       navigation={navigationBlock?.content} 
       footer={footerBlock?.content}
+      site={site}
     >
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout

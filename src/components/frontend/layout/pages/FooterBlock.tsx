@@ -71,6 +71,12 @@ const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
 
 interface FooterBlockProps {
   logo?: string;
+  logoUrl?: string;
+  site?: {
+    id: string;
+    subdomain: string;
+    name?: string;
+  };
   copyright?: string;
   links?: Array<{ text: string; url: string }>;
   socialLinks?: Array<{ platform: string; url: string }>;
@@ -107,8 +113,22 @@ const defaultLinks = [
     },
 ]
 
-export function FooterBlock({ logo, copyright, links, socialLinks, style }: FooterBlockProps) {
+export function FooterBlock({ logo, logoUrl, site, copyright, links, socialLinks, style }: FooterBlockProps) {
     const footerLinks = links && links.length > 0 ? links : defaultLinks
+    
+    // Determine logo URL with smart defaults
+    const getLogoUrl = () => {
+        // If logoUrl is explicitly set and valid, use it
+        if (logoUrl && isSafeUrl(logoUrl)) {
+            return logoUrl
+        }
+        // If site data is available, use site URL as default
+        if (site?.subdomain) {
+            return `/${site.subdomain}`
+        }
+        // Final fallback to home page
+        return "/"
+    }
     return (
         <footer 
             className="py-1"
@@ -119,7 +139,7 @@ export function FooterBlock({ logo, copyright, links, socialLinks, style }: Foot
         >
             <div className="mx-auto max-w-5xl px-6">
                 <Link
-                    href="/"
+                    href={getLogoUrl()}
                     aria-label="go home"
                     className="mx-auto block size-fit">
                     {logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? (
