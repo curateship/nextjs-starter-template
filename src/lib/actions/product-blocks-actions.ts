@@ -320,6 +320,8 @@ function getBlockTitle(blockType: string): string {
       return 'Product Features'
     case 'product-hotspot':
       return 'Product Hotspot'
+    case 'product-pricing':
+      return 'Product Pricing'
     case 'faq':
       return 'FAQ'
     default:

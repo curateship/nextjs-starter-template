@@ -4,6 +4,7 @@ import { ProductDefaultBlock } from "@/components/frontend/layout/products/Produ
 import { ProductHeroBlock } from "@/components/frontend/layout/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/layout/products/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block"
+import { ProductPricingBlock } from "@/components/frontend/layout/products/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/frontend/layout/products/ProductFAQBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
@@ -67,6 +68,17 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             <ProductHotspotBlock
               key={`product-hotspot-${block.id}`}
               {...block.content}
+            />
+          )
+        }
+        
+        if (block.type === 'product-pricing') {
+          return (
+            <ProductPricingBlock
+              key={`product-pricing-${block.id}`}
+              title={block.content.title}
+              subtitle={block.content.subtitle}
+              pricingTiers={block.content.pricingTiers}
             />
           )
         }

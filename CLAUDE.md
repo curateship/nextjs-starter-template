@@ -78,15 +78,22 @@ npm run dev
 # Or manual command:
 rm -rf .next && lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
 
-# Server restart is required after:
-# - Running 'npm run build' (ALWAYS clear cache first!)
-# - Server action changes (adding/modifying functions in lib/actions/)
-# - Middleware.ts modifications  
-# - Database schema changes
-# - Environment variable updates
+# 🚨 MANDATORY SERVER RESTART PROTOCOL 🚨
 
-# Quick restart command (use this after server action changes):
+# CRITICAL: Claude MUST restart server after EVERY change to these files:
+# - Server action changes (adding/modifying functions in lib/actions/)
+# - Component changes that affect server-side rendering
+# - Database schema changes
+# - Middleware.ts modifications  
+# - Environment variable updates
+# - Running 'npm run build' (ALWAYS clear cache first!)
+# - ANY compilation errors or React errors
+
+# MANDATORY RESTART COMMAND (Claude must run this after every applicable change):
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
+
+# NEVER run server commands with run_in_background flag - always show output
+# If Claude fails to restart server after changes, this violates CLAUDE.md protocol
 ```
 
 ## Architecture Overview
