@@ -78,10 +78,9 @@ export function CreateProductForm({ siteId, onSuccess, onCancel }: CreateProduct
 
       // Track usage for new image
       if (newImageUrl && siteId) {
-        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
-        if (newImageId) {
-          // Track against site during creation (will be updated when product is created)
-          await trackImageUsageAction(newImageId, siteId, "product-draft", "featured-image")
+        const { data: newImageId, error: getImageError } = await getImageByUrlAction(newImageUrl)
+        if (newImageId && !getImageError) {
+          await trackImageUsageAction(newImageId, siteId, "product", "featured-image")
         }
       }
 
