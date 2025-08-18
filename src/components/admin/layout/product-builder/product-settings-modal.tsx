@@ -91,8 +91,8 @@ export function ProductSettingsModal({
 
       // Track usage for new image
       if (newImageUrl && site?.id) {
-        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
-        if (newImageId) {
+        const { data: newImageId, error: getImageError } = await getImageByUrlAction(newImageUrl)
+        if (newImageId && !getImageError) {
           await trackImageUsageAction(newImageId, site.id, "product", "featured-image")
         }
       }

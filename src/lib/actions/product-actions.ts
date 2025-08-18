@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { trackImageUsageAction, getImageByUrlAction, removeImageUsageAction } from './image-actions'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -498,6 +499,14 @@ export async function createProductAction(siteId: string, productData: CreatePro
       return { data: null, error: `Failed to create product: ${error.message}` }
     }
 
+    // Track featured image usage if product has one and is published
+    if (data.featured_image && data.is_published) {
+      const { data: imageId } = await getImageByUrlAction(data.featured_image)
+      if (imageId) {
+        await trackImageUsageAction(imageId, siteId, "product", "featured-image")
+      }
+    }
+
     return { data: data as Product, error: null }
   } catch (error) {
     return { 
@@ -611,6 +620,25 @@ export async function updateProductAction(productId: string, updates: UpdateProd
 
     if (error) {
       return { data: null, error: `Failed to update product: ${error.message}` }
+    }
+
+    // Only track image usage if featured_image was actually updated
+    if (updates.featured_image !== undefined) {
+      // Remove old usage tracking if there was a previous image
+      if (product.featured_image) {
+        const { data: oldImageId } = await getImageByUrlAction(product.featured_image)
+        if (oldImageId) {
+          await removeImageUsageAction(oldImageId, product.site_id, "product", "featured-image")
+        }
+      }
+      
+      // Add new usage tracking if new image exists and product is published
+      if (data.featured_image && data.is_published) {
+        const { data: imageId } = await getImageByUrlAction(data.featured_image)
+        if (imageId) {
+          await trackImageUsageAction(imageId, product.site_id, "product", "featured-image")
+        }
+      }
     }
 
     return { data: data as Product, error: null }
