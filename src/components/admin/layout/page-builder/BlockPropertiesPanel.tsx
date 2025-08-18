@@ -67,7 +67,7 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'navigation' && (
               <NavigationBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, ['logo', 'links', 'buttons', 'style'])}
+                {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style'])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
@@ -75,7 +75,7 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'footer' && (
               <FooterBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, ['logo', 'copyright', 'links', 'socialLinks', 'style'])}
+                {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style'])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />

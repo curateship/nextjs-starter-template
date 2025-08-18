@@ -27,7 +27,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
   
   return (
-    <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content}>
+    <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {

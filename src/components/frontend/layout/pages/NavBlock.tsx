@@ -20,6 +20,12 @@ interface MenuItem {
 // NavBlock props interface
 interface NavBlockProps {
   logo?: string;
+  logoUrl?: string;
+  site?: {
+    id: string;
+    subdomain: string;
+    name?: string;
+  };
   links?: Array<{ text: string; url: string }>;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
   style?: {
@@ -231,7 +237,7 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
+export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBlockProps) {
   // Transform database links to MenuItem format, fallback to defaults
   const menuItems: MenuItem[] = useMemo(() => {
     if (links && links.length > 0) {
@@ -286,6 +292,20 @@ export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
     'heavy': 'lg:backdrop-blur-3xl'
   }[blurEffect]
 
+  // Determine logo URL with smart defaults
+  const getLogoUrl = () => {
+    // If logoUrl is explicitly set and valid, use it
+    if (logoUrl && isSafeUrl(logoUrl)) {
+      return logoUrl
+    }
+    // If site data is available, use site URL as default
+    if (site?.subdomain) {
+      return `/${site.subdomain}`
+    }
+    // Final fallback to home page
+    return "/"
+  }
+
   return (
     <header>
       <nav
@@ -307,7 +327,7 @@ export function NavBlock({ logo, links, buttons, style }: NavBlockProps) {
             {/* Logo and navigation */}
             <div className="flex w-full items-center justify-between gap-26 lg:w-auto">
               <Link
-                href="/"
+                href={getLogoUrl()}
                 aria-label="home"
                 className="flex items-center space-x-2"
               >

@@ -6,14 +6,21 @@ import { type ReactNode } from "react"
 
 interface SiteLayoutProps {
   children: ReactNode
+  site?: {
+    id: string
+    subdomain: string
+    name?: string
+  }
   navigation?: {
     logo?: string
+    logoUrl?: string
     links?: Array<{ text: string; url: string }>
     buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
     style?: { backgroundColor: string; textColor: string }
   }
   footer?: {
     logo?: string
+    logoUrl?: string
     copyright?: string
     links?: Array<{ text: string; url: string }>
     socialLinks?: Array<{ platform: string; url: string }>
@@ -21,14 +28,14 @@ interface SiteLayoutProps {
   }
 }
 
-export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
+export function SiteLayout({ children, site, navigation, footer }: SiteLayoutProps) {
   return (
     <>
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
         <div className="sticky top-0 z-50">
           <div>
-            <NavBlock {...navigation} />
+            <NavBlock {...navigation} site={site} />
           </div>
         </div>
       )}
@@ -37,7 +44,7 @@ export function SiteLayout({ children, navigation, footer }: SiteLayoutProps) {
       {children}
       
       {/* Footer - only render if footer data exists */}
-      {footer && <FooterBlock {...footer} />}
+      {footer && <FooterBlock {...footer} site={site} />}
     </>
   )
 }

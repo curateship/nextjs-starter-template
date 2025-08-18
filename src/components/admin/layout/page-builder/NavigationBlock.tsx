@@ -29,10 +29,12 @@ interface NavigationStyle {
 
 interface NavigationBlockProps {
   logo: string
+  logoUrl: string
   links: NavigationLink[]
   buttons: NavigationButton[]
   style: NavigationStyle
   onLogoChange: (value: string) => void
+  onLogoUrlChange: (value: string) => void
   onLinksChange: (links: NavigationLink[]) => void
   onButtonsChange: (buttons: NavigationButton[]) => void
   onStyleChange: (style: NavigationStyle) => void
@@ -42,10 +44,12 @@ interface NavigationBlockProps {
 
 export function NavigationBlock({
   logo,
+  logoUrl,
   links,
   buttons,
   style,
   onLogoChange,
+  onLogoUrlChange,
   onLinksChange,
   onButtonsChange,
   onStyleChange,
@@ -187,6 +191,22 @@ export function NavigationBlock({
             <p className="text-xs text-muted-foreground">
               Recommended: 200x50px or similar ratio
             </p>
+            
+            {/* Logo URL Input */}
+            <div className="space-y-2">
+              <Label htmlFor="logoUrl">Logo Link URL</Label>
+              <input
+                id="logoUrl"
+                type="text"
+                value={logoUrl || ''}
+                onChange={(e) => onLogoUrlChange(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                placeholder="https://example.com (leave empty for site homepage)"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL the logo will link to when clicked. Leave empty to link to this site's homepage.
+              </p>
+            </div>
           </div>
           
           {/* Image Picker Modal */}
