@@ -28,6 +28,7 @@ interface ListingViewsBlockProps {
     showViewAll?: boolean
     viewAllText?: string
     viewAllLink?: string
+    backgroundColor?: string
   }
   siteId: string
   siteSubdomain: string
@@ -59,7 +60,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     itemsPerPage = 12,
     showViewAll = true,
     viewAllText = 'View all products',
-    viewAllLink = '/products'
+    viewAllLink = '/products',
+    backgroundColor = '#ffffff'
   } = content
 
   useEffect(() => {
@@ -213,10 +215,16 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     )
   }
 
+  // Create inline style for background color
+  const backgroundStyle = backgroundColor && backgroundColor !== '#ffffff' 
+    ? { backgroundColor } 
+    : undefined
+
   if (loading) {
     return (
       <FrontendBlockContainer
-        className="white"
+        className=""
+        style={backgroundStyle}
         header={{
           title,
           subtitle,
@@ -249,7 +257,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
   if (!data || !data.products || data.products.length === 0) {
     return (
       <FrontendBlockContainer
-        className="white"
+        className=""
+        style={backgroundStyle}
         header={{
           title,
           subtitle,
@@ -269,7 +278,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
 
   return (
     <FrontendBlockContainer
-      className="white"
+      className=""
+      style={backgroundStyle}
       header={{
         title,
         subtitle,

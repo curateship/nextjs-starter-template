@@ -4,6 +4,7 @@ interface FrontendBlockContainerProps {
   children: React.ReactNode
   className?: string
   container?: boolean
+  style?: React.CSSProperties
   header?: {
     title?: string
     subtitle?: string
@@ -19,11 +20,12 @@ export function FrontendBlockContainer({
   children, 
   className = "",
   container = true,
+  style,
   header,
   viewAllButton
 }: FrontendBlockContainerProps) {
   return (
-    <section className={`py-16 md:py-18 ${className}`}>
+    <section className={`py-16 md:py-18 ${className}`} style={style}>
       <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
         {(header || viewAllButton) && (
           <div className="mb-12">
@@ -34,7 +36,7 @@ export function FrontendBlockContainer({
                     <h2 className="text-3xl font-bold md:text-5xl">{header.title}</h2>
                   )}
                   {header.subtitle && (
-                    <p className="mt-4 text-lg text-muted-foreground">{header.subtitle}</p>
+                    <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${header.align === 'center' ? 'mx-auto' : ''}`}>{header.subtitle}</p>
                   )}
                 </div>
                 {viewAllButton && (
