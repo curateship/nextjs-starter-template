@@ -25,13 +25,13 @@ interface ProductPricingBlockProps {
 const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
   return (
     <div className="relative">
-      <div className="mx-auto max-w-xl lg:max-w-none px-6">
+      <div className="mx-auto max-w-xl lg:max-w-none">
         <div>
           <div className="bg-card relative rounded-3xl border shadow-2xl shadow-zinc-950/5">
             <div className="grid items-start gap-12 divide-y p-12 md:grid-cols-2 md:divide-x md:divide-y-0">
               <div className="pb-12 md:pb-0 md:pr-12">
                 <h3 className="text-2xl font-semibold text-left">{tier.name}</h3>
-                <p className="mt-2 text-lg text-left">{tier.description}</p>
+                <p className="mt-6 text-lg text-left">{tier.description}</p>
                 <div className="text-center">
                   <span className="mb-6 mt-12 inline-block text-6xl font-bold">
                     <span className="text-4xl">$</span>{tier.price}

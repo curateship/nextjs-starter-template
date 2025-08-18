@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { useState, useRef } from "react"
-import { Reorder } from "motion/react"
+import { Reorder, useDragControls } from "motion/react"
 
 interface PricingTier {
   id: string
@@ -137,34 +137,52 @@ export function ProductPricingBlock({
               onReorder={onPricingTiersChange}
               className="space-y-4"
             >
-              {pricingTiers.map((tier, tierIndex) => (
-                <Reorder.Item
-                  key={tier.id}
-                  value={tier}
-                  className="border rounded-lg p-4 bg-background"
-                  whileDrag={{ scale: 1.02 }}
-                >
-                  <div className="space-y-4">
-                    {/* Tier Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <GripVertical 
-                          className="w-4 h-4 text-muted-foreground cursor-grab" 
-                        />
-                        <span className="font-medium">Tier {tierIndex + 1}</span>
+              {pricingTiers.map((tier, tierIndex) => {
+                const dragControls = useDragControls()
+                
+                return (
+                  <Reorder.Item
+                    key={tier.id}
+                    value={tier}
+                    className="border rounded-lg p-4 bg-background"
+                    whileDrag={{ scale: 1.02 }}
+                    dragListener={false}
+                    dragControls={dragControls}
+                  >
+                    <div className="space-y-4">
+                      {/* Tier Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <GripVertical 
+                              className="w-4 h-4 text-muted-foreground cursor-grab" 
+                              onPointerDown={(e) => dragControls.start(e)}
+                            />
+                            <span className="font-medium">Tier {tierIndex + 1}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`popular-${tierIndex}`}
+                              checked={tier.isPopular || false}
+                              onCheckedChange={(checked) => updateTier(tierIndex, 'isPopular', checked)}
+                            />
+                            <Label htmlFor={`popular-${tierIndex}`} className="text-sm">
+                              Popular
+                            </Label>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => removeTier(tierIndex)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <Button
-                        onClick={() => removeTier(tierIndex)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
 
                     {/* Tier Basic Info */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div>
                         <Label>Plan Name</Label>
                         <Input
@@ -181,9 +199,6 @@ export function ProductPricingBlock({
                           placeholder="29"
                         />
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Interval</Label>
                         <Input
@@ -211,24 +226,13 @@ export function ProductPricingBlock({
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`popular-${tierIndex}`}
-                        checked={tier.isPopular || false}
-                        onCheckedChange={(checked) => updateTier(tierIndex, 'isPopular', checked)}
-                      />
-                      <Label htmlFor={`popular-${tierIndex}`}>
-                        Mark as Popular (adds highlighted border)
-                      </Label>
-                    </div>
 
                     <div>
                       <Label>Description</Label>
-                      <Textarea
+                      <Input
                         value={tier.description}
                         onChange={(e) => updateTier(tierIndex, 'description', e.target.value)}
                         placeholder="Description for this tier"
-                        rows={2}
                       />
                     </div>
 
@@ -267,7 +271,8 @@ export function ProductPricingBlock({
                     </div>
                   </div>
                 </Reorder.Item>
-              ))}
+                )
+              })}
             </Reorder.Group>
           )}
         </CardContent>
