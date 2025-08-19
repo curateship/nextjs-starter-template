@@ -129,7 +129,6 @@ interface PageHeroBlockProps {
   primaryButtonLink?: string;
   secondaryButtonLink?: string;
   backgroundColor?: string;
-  showRainbowButton?: boolean;
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
   githubLink?: string;
@@ -143,8 +142,6 @@ interface PageHeroBlockProps {
   backgroundPatternOpacity?: number;
   backgroundPatternColor?: string;
   heroImage?: string;
-  showHeroImage?: boolean;
-  showTrustedByBadge?: boolean;
 }
 
 // Main hero content component
@@ -163,15 +160,14 @@ const HeroContent = ({
   trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
-  backgroundColor,
-  showTrustedByBadge
-}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor' | 'showTrustedByBadge'>) => (
+  backgroundColor
+}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
-    {showRainbowButton && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
+    {rainbowButtonText && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
-    {showTrustedByBadge && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
+    {trustedByAvatars && trustedByAvatars.length > 0 && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
   </div>
 )
 
@@ -184,7 +180,6 @@ const PageHeroBlock = ({
   primaryButtonLink,
   secondaryButtonLink,
   backgroundColor = '#ffffff',
-  showRainbowButton = false,
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink, 
@@ -197,9 +192,7 @@ const PageHeroBlock = ({
   backgroundPatternSize,
   backgroundPatternOpacity,
   backgroundPatternColor,
-  heroImage,
-  showHeroImage = false,
-  showTrustedByBadge = true
+  heroImage
 }: PageHeroBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -227,7 +220,6 @@ const PageHeroBlock = ({
         secondaryButton={secondaryButton}
         primaryButtonLink={primaryButtonLink}
         secondaryButtonLink={secondaryButtonLink}
-        showRainbowButton={showRainbowButton}
         rainbowButtonText={rainbowButtonText}
         rainbowButtonIcon={rainbowButtonIcon}
         githubLink={githubLink}
@@ -236,9 +228,8 @@ const PageHeroBlock = ({
         trustedByCount={trustedByCount}
         trustedByAvatars={trustedByAvatars}
         backgroundColor={backgroundColor}
-        showTrustedByBadge={showTrustedByBadge}
       />
-      <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
+      <HeroImage heroImage={heroImage} />
     </section>
   );
 };
@@ -384,6 +375,30 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
     return '';
   };
 
+  // Helper function to validate URL
+  const isValidUrl = (url: string): boolean => {
+    if (!url || url.trim() === '') return false;
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      // Also allow relative URLs that start with /
+      return url.startsWith('/');
+    }
+  };
+
+  const primaryLink = getPrimaryButtonLink();
+  const secondaryLink = getSecondaryButtonLink();
+  
+  // Only use links if they're valid URLs
+  const validPrimaryLink = isValidUrl(primaryLink) ? primaryLink : '';
+  const validSecondaryLink = isValidUrl(secondaryLink) ? secondaryLink : '';
+  
+  // Don't render the container if no buttons will be shown
+  if (!validPrimaryLink && !validSecondaryLink) {
+    return null;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -391,23 +406,17 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
       transition={{ duration: 0.6, delay: 0.4 }}
       className="mt-8 flex justify-center gap-4 flex-wrap"
     >
-      {getPrimaryButtonLink() ? (
-        <Link href={getPrimaryButtonLink()}>
+      {validPrimaryLink && (
+        <Link href={validPrimaryLink}>
           <Button size="lg">{getPrimaryButtonText()}</Button>
         </Link>
-      ) : (
-        <Button size="lg">{getPrimaryButtonText()}</Button>
       )}
-      {getSecondaryButtonLink() ? (
-        <Link href={getSecondaryButtonLink()}>
+      {validSecondaryLink && (
+        <Link href={validSecondaryLink}>
           <Button size="lg" variant="outline">
             {getSecondaryButtonText()}
           </Button>
         </Link>
-      ) : (
-        <Button size="lg" variant="outline">
-          {getSecondaryButtonText()}
-        </Button>
       )}
     </motion.div>
   );
@@ -426,8 +435,8 @@ const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, truste
 )
 
 // Hero Image component with animation
-const HeroImage = ({ heroImage, showHeroImage }: { heroImage?: string; showHeroImage?: boolean }) => {
-  if (!showHeroImage || !heroImage) return null;
+const HeroImage = ({ heroImage }: { heroImage?: string }) => {
+  if (!heroImage) return null;
   
   return (
     <div className="max-w-6xl mx-auto">

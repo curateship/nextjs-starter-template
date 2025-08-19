@@ -25,7 +25,6 @@ interface ListingViewsBlockProps {
     showDescription?: boolean
     isPaginated?: boolean
     itemsPerPage?: number
-    showViewAll?: boolean
     viewAllText?: string
     viewAllLink?: string
     backgroundColor?: string
@@ -58,9 +57,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     showDescription = true,
     isPaginated = false,
     itemsPerPage = 12,
-    showViewAll = true,
-    viewAllText = 'View all products',
-    viewAllLink = '/products',
+    viewAllText = '',
+    viewAllLink = '',
     backgroundColor = '#ffffff'
   } = content
 
@@ -230,7 +228,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
           subtitle,
           align: headerAlign
         }}
-        viewAllButton={showViewAll && !isPaginated ? {
+        viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
           text: viewAllText,
           href: `/${siteSubdomain}${viewAllLink}`
         } : undefined}
@@ -264,7 +262,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
           subtitle,
           align: headerAlign
         }}
-        viewAllButton={showViewAll && !isPaginated ? {
+        viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
           text: viewAllText,
           href: `/${siteSubdomain}${viewAllLink}`
         } : undefined}
@@ -285,7 +283,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
         subtitle,
         align: headerAlign
       }}
-      viewAllButton={showViewAll && !isPaginated ? {
+      viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
         text: viewAllText,
         href: `/${siteSubdomain}${viewAllLink}`
       } : undefined}

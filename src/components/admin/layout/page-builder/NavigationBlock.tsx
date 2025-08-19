@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
-import { Plus, Trash2, ImageIcon, X, GripVertical } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { Reorder } from "motion/react"
 
 interface NavigationLink {
@@ -146,11 +146,13 @@ export function NavigationBlock({
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              {/* Logo Preview */}
-              {logo && logo !== '/images/logo.png' ? (
-                <div className="relative group" style={{ padding: '8px' }}>
-                  <div className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                {logo && logo !== '/images/logo.png' ? (
+                  <div 
+                    className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setShowPicker(true)}
+                  >
                     <img
                       src={logo}
                       alt="Logo"
@@ -159,54 +161,39 @@ export function NavigationBlock({
                         e.currentTarget.style.display = 'none'
                       }}
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                      <div className="text-white text-center">
+                        <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                        <p className="text-xs font-medium">Click to change</p>
+                      </div>
+                    </div>
                   </div>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onLogoChange('')}
+                ) : (
+                  <div 
+                    className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                    onClick={() => setShowPicker(true)}
                   >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
-                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
-                </div>
-              )}
+                    <div className="text-center">
+                      <ImageIcon className="mx-auto w-4 h-4 text-muted-foreground/50" />
+                      <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                    </div>
+                  </div>
+                )}
+              </div>
               
-              {/* Image Library Button */}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPicker(true)}
-              >
-                <ImageIcon className="w-4 h-4 mr-2" />
-                Select from Library
-              </Button>
+              <div className="flex-1">
+                <input
+                  id="logoUrl"
+                  type="text"
+                  value={logoUrl || ''}
+                  onChange={(e) => onLogoUrlChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  placeholder="https://example.com (leave empty for site homepage)"
+                />
+              </div>
             </div>
             
-            <p className="text-xs text-muted-foreground">
-              Recommended: 200x50px or similar ratio
-            </p>
-            
-            {/* Logo URL Input */}
-            <div className="space-y-2">
-              <Label htmlFor="logoUrl">Logo Link URL</Label>
-              <input
-                id="logoUrl"
-                type="text"
-                value={logoUrl || ''}
-                onChange={(e) => onLogoUrlChange(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md text-sm"
-                placeholder="https://example.com (leave empty for site homepage)"
-              />
-              <p className="text-xs text-muted-foreground">
-                URL the logo will link to when clicked. Leave empty to link to this site's homepage.
-              </p>
-            </div>
           </div>
           
           {/* Image Picker Modal */}
