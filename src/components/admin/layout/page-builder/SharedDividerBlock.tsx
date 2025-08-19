@@ -127,7 +127,6 @@ export function SharedDividerBlock({
               <Input
                 id="spacingTop"
                 type="number"
-                min="0"
                 max="500"
                 value={spacingTop}
                 onChange={(e) => onSpacingTopChange(parseInt(e.target.value) || 0)}
@@ -140,7 +139,6 @@ export function SharedDividerBlock({
               <Input
                 id="spacingBottom"
                 type="number"
-                min="0"
                 max="500"
                 value={spacingBottom}
                 onChange={(e) => onSpacingBottomChange(parseInt(e.target.value) || 0)}
@@ -195,8 +193,7 @@ export function SharedDividerBlock({
                   <Input
                     id="customWidth"
                     type="number"
-                    min="0"
-                    max="2000"
+                        max="2000"
                     value={containerWidth === 'full' ? 0 : customWidth}
                     onChange={(e) => {
                       const value = parseInt(e.target.value) || 0
