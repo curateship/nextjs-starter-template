@@ -35,7 +35,6 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
-  const [activeTab, setActiveTab] = useState('library')
   
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -114,8 +113,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
     }
     reader.readAsDataURL(file)
     
-    // Switch to upload tab
-    setActiveTab('upload')
+    // File is ready for upload, we'll show upload UI inline
   }
 
   const handleUpload = async () => {
@@ -167,33 +165,100 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
     setUploadFile(null)
     setUploadPreview(null)
     setAltText('')
-    setActiveTab('library')
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="!max-w-[800px] !max-h-[85vh] w-[90vw]">
         <DialogHeader>
           <DialogTitle>Select Image</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="library">Library</TabsTrigger>
-            <TabsTrigger value="upload">Upload</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="library" className="space-y-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Search images by name or alt text..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+        <div className="space-y-4">
+            {/* Search and Upload */}
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search images by name or alt text..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button asChild>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleFileSelect}
+                  />
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload
+                </label>
+              </Button>
             </div>
+
+            {/* Upload Preview (when file selected) */}
+            {uploadFile && (
+              <div className="border border-blue-200 bg-blue-50 rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-blue-900">Upload Preview</h3>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearUpload}
+                    className="text-blue-700 hover:text-blue-900"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex gap-4">
+                  {uploadPreview && (
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white border">
+                      <Image
+                        src={uploadPreview}
+                        alt="Upload preview"
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <p className="font-medium text-blue-900">{uploadFile.name}</p>
+                      <p className="text-sm text-blue-700">
+                        {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="alt-text" className="text-blue-900">Alt Text (Optional)</Label>
+                      <Input
+                        id="alt-text"
+                        placeholder="Describe this image for accessibility..."
+                        value={altText}
+                        onChange={(e) => setAltText(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <Button
+                      onClick={handleUpload}
+                      disabled={isUploading}
+                      className="w-full"
+                    >
+                      {isUploading ? 'Uploading...' : 'Upload & Select'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Image Grid */}
             <div className="border rounded-lg overflow-hidden">
@@ -216,12 +281,20 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                       : "You haven't uploaded any images yet."
                     }
                   </p>
-                  <Button onClick={() => setActiveTab('upload')}>
-                    Upload Your First Image
+                  <Button asChild>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleFileSelect}
+                      />
+                      Upload Your First Image
+                    </label>
                   </Button>
                 </div>
               ) : (
-                <div className="max-h-96 overflow-y-auto p-4">
+                <div className="max-h-[60vh] overflow-y-auto p-4">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {filteredImages.map((image) => (
                       <div
@@ -265,103 +338,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                 </div>
               )}
             </div>
-          </TabsContent>
-
-          <TabsContent value="upload" className="space-y-4">
-            {/* File Upload Area */}
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-              {!uploadFile ? (
-                <div className="text-center">
-                  <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <div className="space-y-2">
-                    <p className="text-lg font-medium">Upload a new image</p>
-                    <p className="text-sm text-muted-foreground">
-                      Choose a file to upload to your image library
-                    </p>
-                    <div className="pt-2">
-                      <Button asChild>
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                            onChange={handleFileSelect}
-                          />
-                          Choose File
-                        </label>
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      JPEG, PNG, GIF, WebP up to 10MB
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Preview */}
-                  {uploadPreview && (
-                    <div className="relative aspect-video max-w-sm mx-auto rounded-lg overflow-hidden bg-muted">
-                      <Image
-                        src={uploadPreview}
-                        alt="Upload preview"
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 400px) 100vw, 400px"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={handleClearUpload}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {/* File info */}
-                  <div className="text-center space-y-2">
-                    <p className="font-medium">{uploadFile.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB
-                    </p>
-                  </div>
-
-                  {/* Alt text input */}
-                  <div className="space-y-2">
-                    <Label htmlFor="alt-text">Alt Text (Optional)</Label>
-                    <Input
-                      id="alt-text"
-                      placeholder="Describe this image for accessibility..."
-                      value={altText}
-                      onChange={(e) => setAltText(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Upload actions */}
-                  <div className="flex gap-2 justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleClearUpload}
-                      disabled={isUploading}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleUpload}
-                      disabled={isUploading}
-                    >
-                      {isUploading ? 'Uploading...' : 'Upload & Select'}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+        </div>
 
         {/* Selected image info */}
         {selectedImage && (
@@ -391,24 +368,22 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
           </div>
         )}
 
-        {activeTab === 'library' && (
-          <DialogFooter>
-            {currentImageUrl && (
-              <Button variant="outline" onClick={handleRemoveImage}>
-                Remove Image
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+        <DialogFooter>
+          {currentImageUrl && (
+            <Button variant="outline" onClick={handleRemoveImage}>
+              Remove Image
             </Button>
-            <Button 
-              onClick={handleSelectImage}
-              disabled={!selectedImage}
-            >
-              Select Image
-            </Button>
-          </DialogFooter>
-        )}
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSelectImage}
+            disabled={!selectedImage}
+          >
+            Select Image
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
