@@ -115,7 +115,7 @@ export function SharedDividerBlock({
         </CardContent>
       </Card>
 
-      {/* Spacing Settings */}
+{/* Spacing Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Spacing Settings</CardTitle>
@@ -124,25 +124,35 @@ export function SharedDividerBlock({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="spacingTop">Top Spacing (px)</Label>
-              <Input
-                id="spacingTop"
-                type="number"
-                max="500"
-                value={spacingTop}
-                onChange={(e) => onSpacingTopChange(parseInt(e.target.value) || 0)}
-                placeholder="64"
+              <input
+                type="text"
+defaultValue={spacingTop.toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 0 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onSpacingTopChange(num)
+                  }
+                }}
+className="border p-2 rounded-md"
+                style={{ width: '100%' }}
               />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="spacingBottom">Bottom Spacing (px)</Label>
-              <Input
-                id="spacingBottom"
-                type="number"
-                max="500"
-                value={spacingBottom}
-                onChange={(e) => onSpacingBottomChange(parseInt(e.target.value) || 0)}
-                placeholder="64"
+              <input
+                type="text"
+defaultValue={spacingBottom.toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 0 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onSpacingBottomChange(num)
+                  }
+                }}
+className="border p-2 rounded-md"
+                style={{ width: '100%' }}
               />
             </div>
           </div>
