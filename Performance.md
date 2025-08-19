@@ -503,7 +503,35 @@ All optimizations maintain existing security measures:
 
 ---
 
-**Document Last Updated**: 2025-08-18  
+## Server Stability Issues (August 19, 2025)
+
+### Development Server Cache Conflicts
+
+**Issue**: Development server crashing with build manifest errors after running production builds.
+
+**Root Cause**: Production `npm run build` creates manifest files that conflict with development mode, causing "ENOENT: no such file or directory" errors.
+
+**Solution**: Always clear `.next` cache after production builds before restarting development server:
+```bash
+rm -rf .next && npm run dev
+```
+
+### ESLint Build Failures
+
+**Issue**: Production builds failing due to ESLint errors from using `<a>` tags instead of Next.js `<Link>` components.
+
+**Root Cause**: Development server with Turbopack is lenient with ESLint errors, but production builds enforce strict rules.
+
+**Fixed Files**:
+- `/admin/images/page.tsx` - Replaced `<a>` with `<Link>`
+- `/admin/sites/page.tsx` - Replaced `<a>` with `<Link>` 
+- `/components/ui/signup-form.tsx` - Replaced `<a>` with `<Link>`
+
+**Impact**: Prevents production build failures and improves navigation performance.
+
+---
+
+**Document Last Updated**: 2025-08-19  
 **Performance Improvements**: 98%+ loading speed increase  
 **Architecture Status**: Unified (pages/products now identical structure)  
 **Reliability**: Server-side operation integration for critical background tasks
