@@ -8,11 +8,10 @@ interface DividerBlockProps {
     spacingBottom?: number
     dividerStyle?: 'none' | 'line' | 'dots' | 'icon'
     lineStyle?: 'solid' | 'dashed' | 'dotted'
-    lineWidth?: string
     lineThickness?: number
     lineColor?: string
     icon?: string
-    containerWidth?: string // 'full' | 'custom' | number (px)
+    containerWidth?: string // 'full' | 'custom'
     customWidth?: number // Custom width in pixels
   }
   className?: string
@@ -24,7 +23,6 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     spacingBottom = 64,
     dividerStyle = 'line',
     lineStyle = 'solid',
-    lineWidth = '50',
     lineThickness = 1,
     lineColor = '#e5e7eb',
     icon = 'dots',
@@ -70,20 +68,10 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
       dotted: 'dotted'
     }
 
-    // For full or custom container width, make line full width regardless of lineWidth setting
-    const actualLineWidth = (containerWidth === 'full' || containerWidth === 'custom') ? 'full' : lineWidth || '50'
-    
-    const widthClass = {
-      'full': 'w-full',
-      '75': 'w-3/4',
-      '50': 'w-1/2',
-      '25': 'w-1/4'
-    }[actualLineWidth] || 'w-1/2'
-
     return (
-      <div className={(containerWidth === 'full' || containerWidth === 'custom') ? '' : 'flex justify-center'}>
+      <div>
         <div 
-          className={cn("border-t", widthClass)}
+          className="border-t w-full"
           style={{
             borderTopStyle: lineStyles[lineStyle || 'solid'],
             borderTopWidth: `${lineThickness}px`,
