@@ -24,6 +24,7 @@ interface UsePageBuilderReturn {
   handleAddRichTextBlock: () => Promise<void>
   handleAddFaqBlock: () => Promise<void>
   handleAddListingViewsBlock: () => Promise<void>
+  handleAddDividerBlock: () => Promise<void>
   handleSaveAllBlocks: () => Promise<void>
 }
 
@@ -422,6 +423,55 @@ export function usePageBuilder({
     }
   }
 
+  const handleAddDividerBlock = async () => {
+    try {
+      const { success, block, error } = await addSiteBlockAction({
+        site_id: siteId,
+        page_slug: selectedPage as 'home' | 'about' | 'contact',
+        block_type: 'divider'
+      })
+      
+      if (error) {
+        setSaveMessage(`Error: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+        return
+      }
+      
+      if (success && block) {
+        // Add to local state with proper positioning
+        const updatedBlocks = { ...blocks }
+        const currentBlocks = updatedBlocks[selectedPage] || []
+        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+        
+        // Position before footer but after navigation
+        let insertIndex = currentBlocks.length
+        if (footerIndex !== -1) {
+          insertIndex = footerIndex
+        } else if (navIndex !== -1) {
+          insertIndex = navIndex + 1
+        }
+        
+        const newBlocks = [...currentBlocks]
+        newBlocks.splice(insertIndex, 0, block)
+        
+        // Update display orders
+        newBlocks.forEach((b, idx) => {
+          b.display_order = idx
+        })
+        
+        updatedBlocks[selectedPage] = newBlocks
+        setBlocks(updatedBlocks)
+        setSelectedBlock(block)
+        setSaveMessage("Divider block added!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      }
+    } catch (error) {
+      setSaveMessage("Failed to add divider block")
+      setTimeout(() => setSaveMessage(""), 5000)
+    }
+  }
+
   return {
     selectedBlock,
     setSelectedBlock,
@@ -436,6 +486,7 @@ export function usePageBuilder({
     handleAddRichTextBlock,
     handleAddFaqBlock,
     handleAddListingViewsBlock,
+    handleAddDividerBlock,
     handleSaveAllBlocks
   }
 }

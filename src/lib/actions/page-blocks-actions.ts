@@ -39,7 +39,7 @@ async function createServerSupabaseClient() {
 export interface SiteBlock {
   id: string
   site_id: string
-  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text' | 'faq' | 'listing-views'
+  block_type: 'navigation' | 'hero' | 'footer' | 'rich-text' | 'faq' | 'listing-views' | 'divider'
   page_slug: 'home' | 'global'
   content: Record<string, any>
   display_order: number
@@ -510,8 +510,8 @@ export async function addSiteBlockAction(params: {
     }
 
     // Allow hero, rich-text, FAQ, and listing-views blocks
-    if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq' && params.block_type !== 'listing-views') {
-      return { success: false, error: 'Only hero, rich-text, FAQ, and listing-views blocks can be added' }
+    if (params.block_type !== 'hero' && params.block_type !== 'rich-text' && params.block_type !== 'faq' && params.block_type !== 'listing-views' && params.block_type !== 'divider') {
+      return { success: false, error: 'Only hero, rich-text, FAQ, listing-views, and divider blocks can be added' }
     }
 
     // Verify user is authenticated
@@ -632,6 +632,19 @@ export async function addSiteBlockAction(params: {
         showViewAll: true,
         viewAllText: 'View all products',
         viewAllLink: '/products'
+      }
+    } else if (params.block_type === 'divider') {
+      defaultContent = {
+        spacingTop: 64,
+        spacingBottom: 64,
+        dividerStyle: 'line',
+        lineStyle: 'solid',
+        lineWidth: '50',
+        lineThickness: 1,
+        lineColor: '#e5e7eb',
+        icon: 'dots',
+        containerWidth: 'full',
+        customWidth: 1200
       }
     } else {
       defaultContent = {}

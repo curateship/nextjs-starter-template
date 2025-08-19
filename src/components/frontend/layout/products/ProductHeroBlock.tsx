@@ -326,31 +326,45 @@ const getButtonIcon = (iconName?: string) => {
 }
 
 // Hero title component with animation
-const HeroTitle = ({ title }: { title?: string }) => (
-  <motion.h1
-    initial={{ opacity: 0, y: 30 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6 }}
-    className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
-  >
-    {title || "Build Exceptional Interfaces with Ease"}
-  </motion.h1>
-)
+const HeroTitle = ({ title }: { title?: string }) => {
+  if (!title || !title.trim()) return null
+  
+  return (
+    <motion.h1
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
+    >
+      {title}
+    </motion.h1>
+  )
+}
 
 // Hero subtitle component with animation
-const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
-  <motion.p
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay: 0.2 }}
-    className="text-lg text-muted-foreground max-w-xl mx-auto"
-  >
-    {subtitle || "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."}
-  </motion.p>
-)
+const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => {
+  if (!subtitle || !subtitle.trim()) return null
+  
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2 }}
+      className="text-lg text-muted-foreground max-w-xl mx-auto"
+    >
+      {subtitle}
+    </motion.p>
+  )
+}
 
 // Call-to-action buttons component with animation
 const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
+  const hasPrimaryButton = primaryButton && primaryButton.trim()
+  const hasSecondaryButton = secondaryButton && secondaryButton.trim()
+  
+  // Don't render if no buttons have content
+  if (!hasPrimaryButton && !hasSecondaryButton) return null
+
   const handlePrimaryClick = () => {
     if (primaryButtonLink) return // Let Link handle external links
     
@@ -378,25 +392,29 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
       transition={{ duration: 0.6, delay: 0.4 }}
       className="mt-8 flex justify-center gap-4 flex-wrap"
     >
-      {primaryButtonLink ? (
-        <Link href={primaryButtonLink}>
-          <Button size="lg">{primaryButton || "Get Started"}</Button>
-        </Link>
-      ) : (
-        <Button size="lg" onClick={handlePrimaryClick} className="cursor-pointer">
-          {primaryButton || "Get Started"}
-        </Button>
-      )}
-      {secondaryButtonLink ? (
-        <Link href={secondaryButtonLink}>
-          <Button size="lg" variant="outline">
-            {secondaryButton || "Browse Components"}
+      {hasPrimaryButton && (
+        primaryButtonLink ? (
+          <Link href={primaryButtonLink}>
+            <Button size="lg">{primaryButton}</Button>
+          </Link>
+        ) : (
+          <Button size="lg" onClick={handlePrimaryClick} className="cursor-pointer">
+            {primaryButton}
           </Button>
-        </Link>
-      ) : (
-        <Button size="lg" variant="outline" onClick={handleSecondaryClick} className="cursor-pointer">
-          {secondaryButton || "Browse Components"}
-        </Button>
+        )
+      )}
+      {hasSecondaryButton && (
+        secondaryButtonLink ? (
+          <Link href={secondaryButtonLink}>
+            <Button size="lg" variant="outline">
+              {secondaryButton}
+            </Button>
+          </Link>
+        ) : (
+          <Button size="lg" variant="outline" onClick={handleSecondaryClick} className="cursor-pointer">
+            {secondaryButton}
+          </Button>
+        )
       )}
     </motion.div>
   )

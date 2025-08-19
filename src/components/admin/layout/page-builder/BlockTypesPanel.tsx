@@ -1,14 +1,15 @@
 import { Button } from "@/components/ui/button"
-import { Plus, Zap, FileText, HelpCircle, LayoutGrid } from "lucide-react"
+import { Plus, Zap, FileText, HelpCircle, LayoutGrid, Minus } from "lucide-react"
 
 interface BlockTypesPanelProps {
   onAddHeroBlock: () => void
   onAddRichTextBlock?: () => void
   onAddFaqBlock?: () => void
   onAddListingViewsBlock?: () => void
+  onAddDividerBlock?: () => void
 }
 
-export function BlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock, onAddFaqBlock, onAddListingViewsBlock }: BlockTypesPanelProps) {
+export function BlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock, onAddFaqBlock, onAddListingViewsBlock, onAddDividerBlock }: BlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
       <div>
@@ -75,6 +76,23 @@ export function BlockTypesPanel({ onAddHeroBlock, onAddRichTextBlock, onAddFaqBl
                 className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
                 onClick={onAddListingViewsBlock}
                 title="Add listing views block"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+          <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Minus className="w-4 h-4" />
+              <span className="font-medium">Divider / Spacer</span>
+            </div>
+            {onAddDividerBlock && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+                onClick={onAddDividerBlock}
+                title="Add divider block"
               >
                 <Plus className="w-4 h-4" />
               </Button>

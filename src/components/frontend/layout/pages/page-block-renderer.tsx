@@ -7,6 +7,7 @@ import { ProductGridBlock } from "@/components/frontend/layout/products/ProductG
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/layout/pages/RichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/layout/pages/ListingViewsBlock"
+import { DividerBlock } from "@/components/frontend/layout/pages/DividerBlock"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 
 interface BlockRendererProps {
@@ -78,6 +79,15 @@ export function BlockRenderer({ site }: BlockRendererProps) {
               content={block.content}
               siteId={site.id}
               siteSubdomain={site.subdomain}
+            />
+          )
+        }
+        
+        if (block.type === 'divider') {
+          return (
+            <DividerBlock 
+              key={`divider-${block.id}`}
+              content={block.content}
             />
           )
         }

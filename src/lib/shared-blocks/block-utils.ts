@@ -17,6 +17,8 @@ export function getBlockTitle(blockType: string): string {
       return 'FAQ Section'
     case 'listing-views':
       return 'Listing Views'
+    case 'divider':
+      return 'Divider / Spacer'
     case 'footer':
       return 'Footer'
     default:

@@ -4,6 +4,7 @@ import { FooterBlock } from "./FooterBlock"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { SharedFaqBlock } from "@/components/admin/layout/page-builder/SharedFaqBlock"
 import { SharedListingViewsBlock } from "@/components/admin/layout/page-builder/SharedListingViewsBlock"
+import { SharedDividerBlock } from "@/components/admin/layout/page-builder/SharedDividerBlock"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/actions/page-blocks-actions"
 
@@ -109,6 +110,16 @@ export function BlockPropertiesPanel({
                   'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
                   'showViewAll', 'viewAllText', 'viewAllLink', 'backgroundColor'
+                ])}
+              />
+            )}
+            
+            {selectedBlock.type === 'divider' && (
+              <SharedDividerBlock
+                {...selectedBlock.content}
+                {...createCallbacks(updateBlockContent, [
+                  'spacingTop', 'spacingBottom', 'dividerStyle',
+                  'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth'
                 ])}
               />
             )}

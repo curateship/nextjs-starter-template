@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid } from "lucide-react"
+import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus } from "lucide-react"
 import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
 import type { Block } from "@/lib/actions/page-blocks-actions"
@@ -60,7 +60,8 @@ export function BlockListPanel({
            block.type === 'footer' ? 'Footer' : 
            block.type === 'rich-text' ? 'Rich Text' :
            block.type === 'faq' ? 'FAQ Section' :
-           block.type === 'listing-views' ? 'Listing Views' : 'Block'
+           block.type === 'listing-views' ? 'Listing Views' :
+           block.type === 'divider' ? 'Divider / Spacer' : 'Block'
   }
 
   const getBlockIcon = (blockType: string) => {
@@ -73,6 +74,8 @@ export function BlockListPanel({
         return <HelpCircle className="w-4 h-4" />
       case 'listing-views':
         return <LayoutGrid className="w-4 h-4" />
+      case 'divider':
+        return <Minus className="w-4 h-4" />
       case 'navigation':
         return <Navigation className="w-4 h-4" />
       case 'footer':
