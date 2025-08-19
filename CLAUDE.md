@@ -454,3 +454,10 @@ When adding new block types to the platform, follow this **MANDATORY CHECKLIST**
 - No TypeScript errors or console warnings
 
 **⚠️ CRITICAL**: If ANY step is missed, the block will not work properly. Follow this checklist completely for every new block type.
+
+**🚫 SANITIZATION HORROR PREVENTION (AUGUST 19, 2025):**
+- **NEVER add `.trim()` to user input sanitization** - it prevents typing spaces and breaks basic text input functionality
+- **NEVER add complex input sanitization** without testing basic typing functionality first
+- **If you add sanitization that breaks spaces, delete it immediately** - coherent text input is more important than overly aggressive "security"
+- **Use plain HTML inputs** instead of ShadCN components when drag-and-drop interferes with text editing
+- **When debugging input issues, check for `.trim()` in sanitization code first** - this was the root cause of the FAQ space typing disaster

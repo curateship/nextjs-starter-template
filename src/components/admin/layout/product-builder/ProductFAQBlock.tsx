@@ -49,21 +49,8 @@ export function ProductFAQBlock({
   }
 
   const updateFaqItem = (index: number, field: keyof FaqItem, value: string) => {
-    // Security: Sanitize and validate input
-    const sanitizedValue = value
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
-      .replace(/javascript:/gi, '') // Remove javascript: protocols
-      .replace(/on\w+\s*=/gi, '') // Remove event handlers
-      .trim()
-    
-    // Security: Enforce length limits to prevent DoS
-    const maxLength = field === 'question' ? 500 : 2000
-    const truncatedValue = sanitizedValue.length > maxLength 
-      ? sanitizedValue.substring(0, maxLength) 
-      : sanitizedValue
-    
     const updatedItems = [...localFaqItems]
-    updatedItems[index] = { ...updatedItems[index], [field]: truncatedValue }
+    updatedItems[index] = { ...updatedItems[index], [field]: value }
     updateFaqItems(updatedItems)
   }
 
@@ -139,21 +126,13 @@ export function ProductFAQBlock({
                 <Reorder.Item
                   key={item.id}
                   value={item}
-                  className="group border rounded-lg p-4 bg-muted/30"
+                  className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
                   whileDrag={{ 
                     scale: 1.02, 
                     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
                     zIndex: 1000
                   }}
                   style={{ cursor: "grab" }}
-                  onPointerDown={(e) => {
-                    const target = e.target as HTMLElement
-                    if (target.closest('input') || target.closest('textarea') || target.closest('button')) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }
-                  }}
-                  drag
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -174,25 +153,21 @@ export function ProductFAQBlock({
                     </div>
                     
                     <div>
-                      <Label htmlFor={`question-${item.id}`} className="text-xs">Question</Label>
-                      <Input
-                        id={`question-${item.id}`}
+                      <input
+                        type="text"
                         value={item.question}
                         onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-                        placeholder="Enter your question here..."
-                        maxLength={500}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Question"
                       />
                     </div>
-                    
                     <div>
-                      <Label htmlFor={`answer-${item.id}`} className="text-xs">Answer</Label>
-                      <Textarea
-                        id={`answer-${item.id}`}
+                      <textarea
                         value={item.answer}
                         onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-                        placeholder="Enter the answer here..."
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        placeholder="Answer"
                         rows={3}
-                        maxLength={2000}
                       />
                     </div>
                   </div>
