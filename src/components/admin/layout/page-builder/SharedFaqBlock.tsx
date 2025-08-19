@@ -2,9 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { Reorder } from "motion/react"
@@ -49,21 +47,8 @@ export function SharedFaqBlock({
   }
 
   const updateFaqItem = (index: number, field: keyof FaqItem, value: string) => {
-    // Security: Sanitize and validate input
-    const sanitizedValue = value
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
-      .replace(/javascript:/gi, '') // Remove javascript: protocols
-      .replace(/on\w+\s*=/gi, '') // Remove event handlers
-      .trim()
-    
-    // Security: Enforce length limits to prevent DoS
-    const maxLength = field === 'question' ? 500 : 2000
-    const truncatedValue = sanitizedValue.length > maxLength 
-      ? sanitizedValue.substring(0, maxLength) 
-      : sanitizedValue
-    
     const updatedItems = [...localFaqItems]
-    updatedItems[index] = { ...updatedItems[index], [field]: truncatedValue }
+    updatedItems[index] = { ...updatedItems[index], [field]: value }
     updateFaqItems(updatedItems)
   }
 
@@ -86,20 +71,23 @@ export function SharedFaqBlock({
         <CardContent className="space-y-4">
           <div>
             <Label htmlFor="faq-title">Title</Label>
-            <Input
+            <input
+              type="text"
               id="faq-title"
               value={title}
               onChange={(e) => onTitleChange?.(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
               placeholder="Frequently Asked Questions"
             />
           </div>
           
           <div>
             <Label htmlFor="faq-subtitle">Subtitle</Label>
-            <Textarea
+            <textarea
               id="faq-subtitle"
               value={subtitle}
               onChange={(e) => onSubtitleChange?.(e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md resize-none"
               placeholder="Discover quick and comprehensive answers to common questions..."
               rows={2}
             />
@@ -136,64 +124,52 @@ export function SharedFaqBlock({
               className="space-y-3"
             >
               {localFaqItems.map((item, index) => (
-                <Reorder.Item
-                  key={item.id}
+                <Reorder.Item 
+                  key={item.id || `faq-${index}`} 
                   value={item}
-                  className="group border rounded-lg p-4 bg-muted/30"
+                  className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
                   whileDrag={{ 
                     scale: 1.02, 
                     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
                     zIndex: 1000
                   }}
                   style={{ cursor: "grab" }}
-                  onPointerDown={(e) => {
-                    const target = e.target as HTMLElement
-                    if (target.closest('input') || target.closest('textarea') || target.closest('button')) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }
-                  }}
-                  drag
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="opacity-60 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
-                          <GripVertical className="w-4 h-4" />
-                        </div>
+                  <div className="flex gap-2 items-start">
+                    <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-2">
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">FAQ Item {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteFaqItem(index)}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => deleteFaqItem(index)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor={`question-${item.id}`} className="text-xs">Question</Label>
-                      <Input
-                        id={`question-${item.id}`}
-                        value={item.question}
-                        onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-                        placeholder="Enter your question here..."
-                        maxLength={500}
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor={`answer-${item.id}`} className="text-xs">Answer</Label>
-                      <Textarea
-                        id={`answer-${item.id}`}
-                        value={item.answer}
-                        onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-                        placeholder="Enter the answer here..."
-                        rows={3}
-                        maxLength={2000}
-                      />
+                      <div>
+                        <input
+                          type="text"
+                          value={item.question}
+                          onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                          placeholder="Question"
+                        />
+                      </div>
+                      <div>
+                        <textarea
+                          value={item.answer}
+                          onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                          placeholder="Answer"
+                          rows={3}
+                        />
+                      </div>
                     </div>
                   </div>
                 </Reorder.Item>
