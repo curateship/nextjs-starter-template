@@ -77,7 +77,7 @@ export function ProductBlockPropertiesPanel({
                 secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
                 backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
                 showRainbowButton={selectedBlock.content.showRainbowButton || false}
-                rainbowButtonText={selectedBlock.content.rainbowButtonText || 'Get Access to Everything'}
+                rainbowButtonText={selectedBlock.content.rainbowButtonText || ''}
                 rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
                 githubLink={selectedBlock.content.githubLink || ''}
                 showParticles={selectedBlock.content.showParticles || false}

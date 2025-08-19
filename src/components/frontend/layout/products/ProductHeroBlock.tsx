@@ -129,7 +129,6 @@ interface ProductHeroBlockProps {
   primaryButtonLink?: string;
   secondaryButtonLink?: string;
   backgroundColor?: string;
-  showRainbowButton?: boolean;
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
   githubLink?: string;
@@ -143,8 +142,6 @@ interface ProductHeroBlockProps {
   backgroundPatternOpacity?: number;
   backgroundPatternColor?: string;
   heroImage?: string;
-  showHeroImage?: boolean;
-  showTrustedByBadge?: boolean;
 }
 
 // Main hero content component
@@ -155,7 +152,6 @@ const HeroContent = ({
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
-  showRainbowButton,
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink,
@@ -163,15 +159,14 @@ const HeroContent = ({
   trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
-  backgroundColor,
-  showTrustedByBadge
-}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'showRainbowButton' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor' | 'showTrustedByBadge'>) => (
+  backgroundColor
+}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
-    {showRainbowButton && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
+    {rainbowButtonText && rainbowButtonText.trim() && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
-    {showTrustedByBadge && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
+    {trustedByAvatars && trustedByAvatars.length > 0 && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
   </div>
 )
 
@@ -184,7 +179,6 @@ const ProductHeroBlock = ({
   primaryButtonLink,
   secondaryButtonLink,
   backgroundColor = '#ffffff',
-  showRainbowButton = false,
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink, 
@@ -197,9 +191,7 @@ const ProductHeroBlock = ({
   backgroundPatternSize,
   backgroundPatternOpacity,
   backgroundPatternColor,
-  heroImage,
-  showHeroImage = false,
-  showTrustedByBadge = true
+  heroImage
 }: ProductHeroBlockProps) => {
   // Track client-side mounting to avoid hydration issues with animations
   const [isMounted, setIsMounted] = useState(false);
@@ -228,7 +220,6 @@ const ProductHeroBlock = ({
         secondaryButton={secondaryButton}
         primaryButtonLink={primaryButtonLink}
         secondaryButtonLink={secondaryButtonLink}
-        showRainbowButton={showRainbowButton}
         rainbowButtonText={rainbowButtonText}
         rainbowButtonIcon={rainbowButtonIcon}
         githubLink={githubLink}
@@ -237,9 +228,8 @@ const ProductHeroBlock = ({
         trustedByCount={trustedByCount}
         trustedByAvatars={trustedByAvatars}
         backgroundColor={backgroundColor}
-        showTrustedByBadge={showTrustedByBadge}
       />
-        <HeroImage heroImage={heroImage} showHeroImage={showHeroImage} />
+        <HeroImage heroImage={heroImage} />
       </div>
     </section>
   );
@@ -425,8 +415,8 @@ const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, truste
 )
 
 // Hero Image component with animation
-const HeroImage = ({ heroImage, showHeroImage }: { heroImage?: string; showHeroImage?: boolean }) => {
-  if (!showHeroImage || !heroImage) return null;
+const HeroImage = ({ heroImage }: { heroImage?: string }) => {
+  if (!heroImage) return null;
   
   return (
     <div className="max-w-6xl mx-auto">

@@ -70,9 +70,34 @@ interface ProductHeroBlockProps {
 // Helper functions
 const validateUrl = (value: string, onChange: (value: string) => void) => {
   const trimmed = value.trim()
-  if (trimmed === '' || trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  
+  // Allow empty URLs
+  if (trimmed === '') {
     onChange(trimmed)
+    return
   }
+  
+  // Allow relative URLs starting with /
+  if (trimmed.startsWith('/')) {
+    onChange(trimmed)
+    return
+  }
+  
+  // Allow full HTTP/HTTPS URLs
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    onChange(trimmed)
+    return
+  }
+  
+  // Block dangerous protocols immediately
+  if (trimmed.toLowerCase().includes('javascript:') || 
+      trimmed.toLowerCase().includes('data:') || 
+      trimmed.toLowerCase().includes('vbscript:')) {
+    return // Don't update - block dangerous input
+  }
+  
+  // Allow partial typing for other cases (like "h", "ht", "htt", etc.)
+  onChange(trimmed)
 }
 
 const validateHexColor = (value: string, onChange: (value: string) => void) => {
@@ -413,27 +438,15 @@ export function ProductHeroBlock({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Trusted By Badge</CardTitle>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addAvatar}
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center">
-                <input
-                  id="showTrustedByBadge"
-                  type="checkbox"
-                  checked={showTrustedByBadge}
-                  onChange={(e) => onShowTrustedByBadgeChange(e.target.checked)}
-                  className="mr-2"
-                />
-                <Label htmlFor="showTrustedByBadge" className="text-sm font-normal">Show Badge</Label>
-              </div>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addAvatar}
+              className="h-8 w-8 p-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -541,228 +554,182 @@ export function ProductHeroBlock({
       {/* Hero Image Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Hero Image</CardTitle>
-            <div className="flex items-center">
-              <input
-                id="showHeroImage"
-                type="checkbox"
-                checked={showHeroImage}
-                onChange={(e) => onShowHeroImageChange(e.target.checked)}
-                className="mr-2"
-              />
-              <Label htmlFor="showHeroImage" className="text-sm font-normal">Show Image</Label>
-            </div>
-          </div>
+          <CardTitle className="text-base">Hero Image</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {showHeroImage && (
-            <div className="space-y-4">
-              <div className="relative">
-                {heroImage ? (
-                  <div 
-                    className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <img 
-                      src={heroImage} 
-                      alt="Hero preview" 
-                      className="w-full h-48 object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                        <p className="text-sm font-medium">Click to change image</p>
-                      </div>
+          <div className="space-y-4">
+            <div className="relative">
+              {heroImage ? (
+                <div 
+                  className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setShowHeroImagePicker(true)}
+                >
+                  <img 
+                    src={heroImage} 
+                    alt="Hero preview" 
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                    <div className="text-white text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                      <p className="text-sm font-medium">Click to change image</p>
                     </div>
                   </div>
-                ) : (
-                  <div 
-                    className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select image</p>
-                    </div>
+                </div>
+              ) : (
+                <div 
+                  className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  onClick={() => setShowHeroImagePicker(true)}
+                >
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                    <p className="mt-2 text-sm text-muted-foreground">Click to select image</p>
                   </div>
-                )}
-              </div>
-              
-              
-              <p className="text-sm text-muted-foreground">
-                Display a hero image below the hero content with animated reveal effect
-              </p>
+                </div>
+              )}
             </div>
-          )}
-          {!showHeroImage && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Enable &ldquo;Show Image&rdquo; to add a hero showcase image
+            
+            <p className="text-sm text-muted-foreground">
+              Display a hero image below the hero content with animated reveal effect
             </p>
-          )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Rainbow Button Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Rainbow Button</CardTitle>
-            <div className="flex items-center">
-              <input
-                id="showRainbowButton"
-                type="checkbox"
-                checked={showRainbowButton}
-                onChange={(e) => onShowRainbowButtonChange(e.target.checked)}
-                className="mr-2"
-              />
-              <Label htmlFor="showRainbowButton" className="text-sm font-normal">Show Button</Label>
-            </div>
-          </div>
+          <CardTitle className="text-base">Rainbow Button</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Rainbow Button Settings (conditional) */}
-          {showRainbowButton && (
-            <div className="space-y-2">
-              <Label>Rainbow Button Settings</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  value={rainbowButtonText}
-                  onChange={(e) => onRainbowButtonTextChange(e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button text"
-                />
-                <Select
-                  value={rainbowButtonIcon}
-                  onValueChange={onRainbowButtonIconChange}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Icon</SelectItem>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="arrow-right">Arrow Right</SelectItem>
-                    <SelectItem value="download">Download</SelectItem>
-                    <SelectItem value="external-link">External Link</SelectItem>
-                    <SelectItem value="star">Star</SelectItem>
-                    <SelectItem value="rocket">Rocket</SelectItem>
-                    <SelectItem value="zap">Zap</SelectItem>
-                  </SelectContent>
-                </Select>
-                <input
-                  type="url"
-                  value={githubLink}
-                  onChange={(e) => validateUrl(e.target.value, onGithubLinkChange)}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button link URL"
-                />
-              </div>
+          <div className="space-y-2">
+            <Label>Rainbow Button Settings</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={rainbowButtonText}
+                onChange={(e) => onRainbowButtonTextChange(e.target.value)}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="Button text"
+              />
+              <Select
+                value={rainbowButtonIcon}
+                onValueChange={onRainbowButtonIconChange}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Icon</SelectItem>
+                  <SelectItem value="github">GitHub</SelectItem>
+                  <SelectItem value="arrow-right">Arrow Right</SelectItem>
+                  <SelectItem value="download">Download</SelectItem>
+                  <SelectItem value="external-link">External Link</SelectItem>
+                  <SelectItem value="star">Star</SelectItem>
+                  <SelectItem value="rocket">Rocket</SelectItem>
+                  <SelectItem value="zap">Zap</SelectItem>
+                </SelectContent>
+              </Select>
+              <input
+                type="url"
+                value={githubLink}
+                onChange={(e) => validateUrl(e.target.value, onGithubLinkChange)}
+                className="px-3 py-2 border rounded-md text-sm"
+                placeholder="Button link URL"
+              />
             </div>
-          )}
-          {!showRainbowButton && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Enable &ldquo;Show Button&rdquo; to add a rainbow call-to-action button
-            </p>
-          )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Add text to display a rainbow call-to-action button
+          </p>
         </CardContent>
       </Card>
 
       {/* Background Pattern Card */}
       <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Background Pattern</CardTitle>
-            <div className="flex items-center">
-              <input
-                id="showBackgroundPattern"
-                type="checkbox"
-                checked={backgroundPattern !== 'none'}
-                onChange={(e) => onBackgroundPatternChange(e.target.checked ? 'dots' : 'none')}
-                className="mr-2"
-              />
-              <Label htmlFor="showBackgroundPattern" className="text-sm font-normal">Show Background</Label>
-            </div>
-          </div>
+          <CardTitle className="text-base">Background Pattern</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {backgroundPattern !== 'none' && (
-            <div className="grid grid-cols-4 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs">Pattern Type</Label>
-                <Select
-                  value={backgroundPattern || 'dots'}
-                  onValueChange={onBackgroundPatternChange}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dots">Dots</SelectItem>
-                    <SelectItem value="grid">Grid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Size</Label>
-                <Select
-                  value={backgroundPatternSize || 'medium'}
-                  onValueChange={onBackgroundPatternSizeChange}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="small">Small</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="large">Large</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Opacity</Label>
-                <div className="flex items-center space-x-1 h-9">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={backgroundPatternOpacity || 80}
-                    onChange={(e) => onBackgroundPatternOpacityChange(parseInt(e.target.value))}
-                    className="flex-1 h-2"
-                  />
-                  <span className="text-xs text-muted-foreground w-8 text-right">
-                    {backgroundPatternOpacity || 80}%
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Color</Label>
-                <div className="flex items-center space-x-1">
-                  <input
-                    type="color"
-                    value={backgroundPatternColor || '#a3a3a3'}
-                    onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                    className="w-9 h-9 rounded border cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={backgroundPatternColor || '#a3a3a3'}
-                    onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                    className="px-2 py-1 border rounded text-xs flex-1"
-                    placeholder="#a3a3a3"
-                  />
-                </div>
-              </div>
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Pattern Type</Label>
+              <Select
+                value={backgroundPattern || 'none'}
+                onValueChange={onBackgroundPatternChange}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Background</SelectItem>
+                  <SelectItem value="dots">Dots</SelectItem>
+                  <SelectItem value="grid">Grid</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
+
+            {backgroundPattern !== 'none' && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-xs">Size</Label>
+                  <Select
+                    value={backgroundPatternSize || 'medium'}
+                    onValueChange={onBackgroundPatternSizeChange}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Opacity</Label>
+                  <div className="flex items-center space-x-1 h-9">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={backgroundPatternOpacity || 80}
+                      onChange={(e) => onBackgroundPatternOpacityChange(parseInt(e.target.value))}
+                      className="flex-1 h-2"
+                    />
+                    <span className="text-xs text-muted-foreground w-8 text-right">
+                      {backgroundPatternOpacity || 80}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Color</Label>
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="color"
+                      value={backgroundPatternColor || '#a3a3a3'}
+                      onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
+                      className="w-9 h-9 rounded border cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={backgroundPatternColor || '#a3a3a3'}
+                      onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
+                      className="px-2 py-1 border rounded text-xs flex-1"
+                      placeholder="#a3a3a3"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           
           <p className="text-sm text-muted-foreground">
-            Customize the background pattern that appears behind the hero content
+            Choose a background pattern or select "No Background" for a clean look
           </p>
         </CardContent>
       </Card>

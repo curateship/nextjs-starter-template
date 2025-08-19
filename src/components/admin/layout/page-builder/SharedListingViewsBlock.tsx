@@ -19,7 +19,6 @@ interface SharedListingViewsBlockProps {
   showDescription?: boolean
   isPaginated?: boolean
   itemsPerPage?: number
-  showViewAll?: boolean
   viewAllText?: string
   viewAllLink?: string
   backgroundColor?: string
@@ -37,7 +36,6 @@ interface SharedListingViewsBlockProps {
   onShowDescriptionChange: (value: boolean) => void
   onIsPaginatedChange: (value: boolean) => void
   onItemsPerPageChange: (value: number) => void
-  onShowViewAllChange: (value: boolean) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
   onBackgroundColorChange: (value: string) => void
@@ -58,9 +56,8 @@ export function SharedListingViewsBlock({
   showDescription = true,
   isPaginated = false,
   itemsPerPage = 12,
-  showViewAll = true,
-  viewAllText = 'View all products',
-  viewAllLink = '/products',
+  viewAllText = '',
+  viewAllLink = '',
   backgroundColor = '#ffffff',
   onTitleChange,
   onSubtitleChange,
@@ -76,7 +73,6 @@ export function SharedListingViewsBlock({
   onShowDescriptionChange,
   onIsPaginatedChange,
   onItemsPerPageChange,
-  onShowViewAllChange,
   onViewAllTextChange,
   onViewAllLinkChange,
   onBackgroundColorChange,
@@ -144,40 +140,31 @@ export function SharedListingViewsBlock({
             </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="viewAllText">Button Text</Label>
+              <Label htmlFor="viewAllText">View All Button Text</Label>
               <Input
                 id="viewAllText"
                 value={viewAllText}
                 onChange={(e) => onViewAllTextChange(e.target.value)}
                 placeholder="View all products"
-                disabled={!showViewAll}
-                className={!showViewAll ? 'opacity-50' : ''}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="viewAllLink">Button Link</Label>
+              <Label htmlFor="viewAllLink">View All Button Link</Label>
               <Input
                 id="viewAllLink"
                 value={viewAllLink}
                 onChange={(e) => onViewAllLinkChange(e.target.value)}
                 placeholder="/products"
-                disabled={!showViewAll}
-                className={!showViewAll ? 'opacity-50' : ''}
-              />
-            </div>
-            
-            <div className="flex items-center justify-end">
-              <Label htmlFor="showViewAll" className="mr-2">Show View All Button</Label>
-              <Switch
-                id="showViewAll"
-                checked={showViewAll}
-                onCheckedChange={onShowViewAllChange}
               />
             </div>
           </div>
+          
+          <p className="text-sm text-muted-foreground">
+            Add text and link to display a "View All" button (only shown when not paginated)
+          </p>
         </CardContent>
       </Card>
 
