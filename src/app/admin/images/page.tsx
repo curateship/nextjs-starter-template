@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, MoreHorizontal } from "lucide-react"
 import { getImagesAction, deleteImageAction, updateImageAction } from "@/lib/actions/image-actions"
 import type { ImageData } from "@/lib/actions/image-actions"
@@ -231,7 +232,7 @@ export default function ImagesPage() {
               </p>
               {filter === 'all' && (
                 <Button asChild>
-                  <a href="/admin/images/new">Upload Your First Image</a>
+                  <Link href="/admin/images/new">Upload Your First Image</Link>
                 </Button>
               )}
             </div>

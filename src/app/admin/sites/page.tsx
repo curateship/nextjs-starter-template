@@ -230,7 +230,7 @@ export default function SitesPage() {
                   {filter === 'all' ? 'No sites found' : `No ${filter} sites found`}
                 </p>
                 <Button asChild variant="outline">
-                  <a href="/admin/sites/new">Create Your First Site</a>
+                  <Link href="/admin/sites/new">Create Your First Site</Link>
                 </Button>
               </div>
             ) : (
