@@ -165,9 +165,9 @@ export function SharedFaqBlock({
                         <textarea
                           value={item.answer}
                           onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-                          className="w-full px-3 py-2 border rounded-md text-sm"
+                          className="w-full px-3 py-1.5 border rounded-md text-sm"
                           placeholder="Answer"
-                          rows={3}
+                          rows={1}
                         />
                       </div>
                     </div>

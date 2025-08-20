@@ -134,10 +134,10 @@ export function ProductFAQBlock({
                   }}
                   style={{ cursor: "grab" }}
                 >
-                  <div className="space-y-3">
+                  <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <div className="opacity-60 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
+                        <div className="grip-handle opacity-60 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
                           <GripVertical className="w-4 h-4" />
                         </div>
                         <span className="text-sm font-medium">FAQ Item {index + 1}</span>
@@ -165,9 +165,9 @@ export function ProductFAQBlock({
                       <textarea
                         value={item.answer}
                         onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        className="w-full px-3 py-1.5 border rounded-md text-sm"
                         placeholder="Answer"
-                        rows={3}
+                        rows={1}
                       />
                     </div>
                   </div>
