@@ -106,8 +106,8 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     <section 
       className={cn("w-full", className)}
       style={{
-        marginTop: `${spacingTop}px`,
-        marginBottom: `${spacingBottom}px`
+        paddingTop: `${Math.max(0, spacingTop)}px`,
+        paddingBottom: `${Math.max(0, spacingBottom)}px`
       }}
     >
       <div className={getContainerClass()} style={getContainerStyle()}>
