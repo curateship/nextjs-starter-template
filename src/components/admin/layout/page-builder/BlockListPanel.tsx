@@ -22,7 +22,7 @@ interface BlockListPanelProps {
   currentPage: CurrentPage
   selectedBlock: Block | null
   onSelectBlock: (block: Block) => void
-  onDeleteBlock: (block: Block) => void
+  onDeleteBlock: (block: Block) => Promise<void>
   onReorderBlocks: (blocks: Block[]) => void
   deleting: string | null
   blocksLoading?: boolean
@@ -46,9 +46,9 @@ export function BlockListPanel({
     setDeleteConfirmOpen(true)
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (blockToDelete) {
-      onDeleteBlock(blockToDelete)
+      await onDeleteBlock(blockToDelete)
     }
     setDeleteConfirmOpen(false)
     setBlockToDelete(null)

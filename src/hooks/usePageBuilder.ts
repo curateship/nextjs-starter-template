@@ -13,12 +13,11 @@ interface UsePageBuilderParams {
 interface UsePageBuilderReturn {
   selectedBlock: Block | null
   setSelectedBlock: React.Dispatch<React.SetStateAction<Block | null>>
-  deletedBlockIds: Set<string>
   isSaving: boolean
   saveMessage: string
   deleting: string | null
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: Block) => void
+  handleDeleteBlock: (block: Block) => Promise<void>
   handleReorderBlocks: (blocks: Block[]) => void
   handleAddHeroBlock: () => Promise<void>
   handleAddRichTextBlock: () => Promise<void>
@@ -36,7 +35,6 @@ export function usePageBuilder({
   reloadBlocks
 }: UsePageBuilderParams): UsePageBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
-  const [deletedBlockIds, setDeletedBlockIds] = useState<Set<string>>(new Set())
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -65,19 +63,46 @@ export function usePageBuilder({
     }
   }
 
-  // Delete block from UI immediately, but only delete from database on save (like products)
-  const handleDeleteBlock = (block: Block) => {
-    // Remove from UI immediately
-    const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
-    setBlocks(updatedBlocks)
+  // Delete block immediately from database (no staging)
+  const handleDeleteBlock = async (block: Block) => {
+    // Prevent deletion of protected blocks
+    if (isBlockTypeProtected(block.type)) {
+      setSaveMessage(`${block.type === 'navigation' ? 'Navigation' : 'Footer'} blocks cannot be deleted`)
+      setTimeout(() => setSaveMessage(""), 3000)
+      return
+    }
+
+    setDeleting(block.id)
     
-    // Add to deletion list for when save is clicked
-    setDeletedBlockIds(prev => new Set(prev).add(block.id))
-    
-    // Clear selection if deleted block was selected
-    if (selectedBlock?.id === block.id) {
-      setSelectedBlock(null)
+    try {
+      const { success, error } = await deleteSiteBlockAction(block.id)
+      
+      if (error) {
+        setSaveMessage(`Error deleting block: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+        return
+      }
+      
+      if (success) {
+        // Remove from UI immediately
+        const updatedBlocks = { ...blocks }
+        updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
+        setBlocks(updatedBlocks)
+        
+        // Clear selection if deleted block was selected
+        if (selectedBlock?.id === block.id) {
+          setSelectedBlock(null)
+        }
+        
+        setSaveMessage("Block deleted!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      }
+    } catch (err) {
+      console.error('Error deleting block:', err)
+      setSaveMessage("Error deleting block")
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -257,12 +282,11 @@ export function usePageBuilder({
     }
   }
 
-  // Save all block customizations and process deletions
+  // Save all block customizations (deletions are now immediate)
   const handleSaveAllBlocks = async () => {    
     const hasActiveBlocks = blocks[selectedPage] && blocks[selectedPage].length > 0
-    const hasDeletions = deletedBlockIds.size > 0
     
-    if (!hasActiveBlocks && !hasDeletions) {
+    if (!hasActiveBlocks) {
       setSaveMessage("No changes to save")
       setTimeout(() => setSaveMessage(""), 2000)
       return
@@ -272,28 +296,15 @@ export function usePageBuilder({
     setSaveMessage("Saving...")
 
     try {
-      const promises: Promise<any>[] = []
-      
       // Save content updates for all current blocks
-      if (hasActiveBlocks) {
-        const savePromises = blocks[selectedPage].map(async (block) => {
-          return saveSiteBlockAction({
-            block_id: block.id,
-            content: block.content
-          })
+      const savePromises = blocks[selectedPage].map(async (block) => {
+        return saveSiteBlockAction({
+          block_id: block.id,
+          content: block.content
         })
-        promises.push(...savePromises)
-      }
-      
-      // Process deletions
-      if (hasDeletions) {
-        const deletePromises = Array.from(deletedBlockIds).map(async (blockId) => {
-          return deleteSiteBlockAction(blockId)
-        })
-        promises.push(...deletePromises)
-      }
+      })
 
-      const results = await Promise.all(promises)
+      const results = await Promise.all(savePromises)
       
       const failedOperations = results.filter(r => !r.success)
       if (failedOperations.length > 0) {
@@ -301,8 +312,6 @@ export function usePageBuilder({
         setSaveMessage(`Error: ${firstError}`)
         setTimeout(() => setSaveMessage(""), 5000)
       } else {
-        // Clear deletion list on successful save
-        setDeletedBlockIds(new Set())
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)
       }
@@ -475,7 +484,6 @@ export function usePageBuilder({
   return {
     selectedBlock,
     setSelectedBlock,
-    deletedBlockIds,
     isSaving,
     saveMessage,
     deleting,
