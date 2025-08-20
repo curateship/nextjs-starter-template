@@ -11,6 +11,7 @@ import {
   Wrench,
   FileText,
   Package,
+  BookOpen,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
@@ -89,6 +90,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Products",
       url: "/admin/products",
       icon: Package,
+      isActive: false,
+    },
+    {
+      title: "Posts",
+      url: "/admin/posts",
+      icon: BookOpen,
       isActive: false,
     },
   ]
