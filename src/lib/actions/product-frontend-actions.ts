@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { convertContentBlocksToArray, type ProductBlock as UtilProductBlock } from '@/lib/utils/product-block-utils'
 
 // Create admin client for frontend data access
 const supabaseAdmin = createClient(
@@ -14,12 +15,7 @@ const supabaseAdmin = createClient(
   }
 )
 
-export interface ProductBlock {
-  id: string
-  type: string
-  content: Record<string, any>
-  display_order: number
-}
+export interface ProductBlock extends UtilProductBlock {}
 
 export interface ProductWithBlocks {
   id: string
@@ -39,30 +35,23 @@ export interface GetProductResult {
 }
 
 /**
- * Helper function to fetch product blocks
+ * Helper function to fetch product blocks from JSON content_blocks
  */
 async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
   try {
-    const { data: blocks, error } = await supabaseAdmin
-      .from('product_blocks')
-      .select('*')
-      .eq('product_id', productId)
-      .order('display_order', { ascending: true })
+    const { data: product, error } = await supabaseAdmin
+      .from('products')
+      .select('content_blocks')
+      .eq('id', productId)
+      .single()
 
-    if (error) {
-      // Silently handle table not existing (migration not applied)
-      if (!error.message.includes('relation') || !error.message.includes('does not exist')) {
-        console.warn('Failed to load product blocks:', error.message)
-      }
+    if (error || !product) {
+      console.warn('Failed to load product for blocks:', error?.message)
       return []
     }
 
-    return blocks?.map(block => ({
-      id: block.id,
-      type: block.block_type,
-      content: block.content,
-      display_order: block.display_order
-    })) || []
+    // Convert JSON content_blocks to ProductBlock array format using shared utility
+    return convertContentBlocksToArray(product.content_blocks || {}, productId)
   } catch (error) {
     console.warn('Error loading product blocks:', error)
     return []

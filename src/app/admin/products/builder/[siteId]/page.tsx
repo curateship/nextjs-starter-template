@@ -239,7 +239,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            deleting={builderState.deleting}
             blocksLoading={blocksLoading}
           />
           

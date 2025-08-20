@@ -58,6 +58,7 @@ export interface Product {
   is_homepage: boolean
   is_published: boolean
   display_order: number
+  content_blocks: Record<string, any>
   created_at: string
   updated_at: string
 }
@@ -66,7 +67,6 @@ export interface ProductWithDetails extends Product {
   site_name: string
   subdomain: string
   user_id: string
-  block_count: number
 }
 
 export interface CreateProductData {
@@ -175,9 +175,13 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
               slug: 'new-product',
               meta_description: 'A sample product to get you started',
               meta_keywords: null,
+              featured_image: null,
+              rich_text: null,
+              show_default_block: true,
               is_homepage: false,
               is_published: true,
               display_order: 1,
+              content_blocks: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             }
@@ -235,9 +239,13 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
             slug: 'sample-product',
             meta_description: 'This is a sample product',
             meta_keywords: '',
+            featured_image: null,
+            rich_text: null,
+            show_default_block: true,
             is_homepage: false,
             is_published: true,
             display_order: 1,
+            content_blocks: {},
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -375,7 +383,8 @@ export async function createGlobalProductAction(productData: CreateProductData):
         rich_text: productData.rich_text?.trim() || null,
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: {}
       }])
       .select()
       .single()
@@ -490,7 +499,8 @@ export async function createProductAction(siteId: string, productData: CreatePro
         rich_text: productData.rich_text?.trim() || null,
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: {}
       }])
       .select()
       .single()
@@ -817,7 +827,8 @@ export async function duplicateProductAction(productId: string, newTitle: string
         rich_text: originalProduct.rich_text,
         is_homepage: false, // Products are never homepage
         is_published: originalProduct.is_published,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: originalProduct.content_blocks || {}
       }])
       .select()
       .single()
@@ -826,26 +837,8 @@ export async function duplicateProductAction(productId: string, newTitle: string
       return { data: null, error: `Failed to duplicate product: ${error.message}` }
     }
 
-    // Copy all blocks from the original product to the new product
-    const { data: originalBlocks } = await supabaseAdmin
-      .from('page_blocks')
-      .select('*')
-      .eq('site_id', originalProduct.site_id)
-      .eq('page_slug', `product-${originalProduct.slug}`)
-
-    if (originalBlocks && originalBlocks.length > 0) {
-      const duplicatedBlocks = originalBlocks.map(block => ({
-        site_id: block.site_id,
-        block_type: block.block_type,
-        page_slug: `product-${newSlug}`,
-        content: block.content,
-        display_order: block.display_order
-      }))
-
-      await supabaseAdmin
-        .from('page_blocks')
-        .insert(duplicatedBlocks)
-    }
+    // Content blocks are already copied in the product creation above via content_blocks field
+    // No additional block copying needed since we now use JSON storage
 
     return { data: newProduct as Product, error: null }
   } catch (error) {
@@ -853,5 +846,124 @@ export async function duplicateProductAction(productId: string, newTitle: string
       data: null, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
     }
+  }
+}
+
+/**
+ * Update product content blocks (replaces the old product_blocks system)
+ */
+export async function updateProductBlocksAction(productId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Validate product ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(productId)) {
+      return { success: false, error: 'Invalid product ID format' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the product to verify ownership
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('id, site_id')
+      .eq('id', productId)
+      .single()
+
+    if (productError || !product) {
+      return { success: false, error: 'Product not found' }
+    }
+
+    // Verify user owns the site this product belongs to
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', product.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // SECURITY: Validate content blocks structure and size
+    if (typeof contentBlocks !== 'object' || contentBlocks === null) {
+      return { success: false, error: 'Invalid content blocks format' }
+    }
+
+    // Prevent DoS: Limit JSON size (50KB max)
+    const jsonSize = JSON.stringify(contentBlocks).length
+    if (jsonSize > 50000) {
+      return { success: false, error: 'Content blocks too large' }
+    }
+
+    // SECURITY: Validate allowed block types
+    const allowedBlockTypes = ['product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-pricing', 'faq']
+    for (const blockType of Object.keys(contentBlocks)) {
+      if (!allowedBlockTypes.includes(blockType)) {
+        return { success: false, error: `Invalid block type: ${blockType}` }
+      }
+      
+      // Validate block data structure
+      const blockData = contentBlocks[blockType]
+      if (typeof blockData !== 'object' || blockData === null) {
+        return { success: false, error: `Invalid data for block type: ${blockType}` }
+      }
+    }
+
+    // Update the product content_blocks
+    const { error } = await supabaseAdmin
+      .from('products')
+      .update({
+        content_blocks: contentBlocks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', productId)
+
+    if (error) {
+      return { success: false, error: `Failed to update product blocks: ${error.message}` }
+    }
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error updating product blocks:', error)
+    return { success: false, error: 'Failed to update product blocks' }
+  }
+}
+
+/**
+ * Get product content blocks by block type
+ */
+export async function getProductBlockAction(productId: string, blockType: string): Promise<{ success: boolean; block?: any; error?: string }> {
+  try {
+    // Validate product ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(productId)) {
+      return { success: false, error: 'Invalid product ID format' }
+    }
+
+    // Get the product
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('content_blocks')
+      .eq('id', productId)
+      .single()
+
+    if (productError || !product) {
+      return { success: false, error: 'Product not found' }
+    }
+
+    const block = product.content_blocks?.[blockType] || null
+    return { success: true, block }
+
+  } catch (error) {
+    console.error('Error getting product block:', error)
+    return { success: false, error: 'Failed to get product block' }
   }
 }
