@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { saveProductBlocksAction } from "@/lib/actions/product-blocks-actions"
+import { updateProductBlocksAction } from "@/lib/actions/product-actions"
 
 interface ProductBlock {
   id: string
@@ -222,11 +222,20 @@ export function useProductBuilder({
 
     const currentBlocks = blocks[selectedProduct] || []
     
+    // Convert blocks array to JSON object format
+    const contentBlocks: Record<string, any> = {}
+    currentBlocks.forEach((block, index) => {
+      contentBlocks[block.type] = {
+        ...block.content,
+        display_order: index
+      }
+    })
+    
     setIsSaving(true)
     setSaveMessage("Saving...")
 
     try {
-      const result = await saveProductBlocksAction(productId, currentBlocks)
+      const result = await updateProductBlocksAction(productId, contentBlocks)
       
       if (result.success) {
         setSaveMessage("Saved!")

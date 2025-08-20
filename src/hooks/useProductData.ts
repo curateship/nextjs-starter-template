@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
-import { getAllProductBlocksAction } from "@/lib/actions/product-blocks-actions"
+import { getSiteProductsAction } from "@/lib/actions/product-actions"
+import { convertContentBlocksToArray, getProductBlockTitle } from "@/lib/utils/product-block-utils"
 
 interface ProductBlock {
   id: string
@@ -31,10 +32,10 @@ export function useProductData(siteId: string): UseProductDataReturn {
     setSiteError("")
     
     try {
-      // Load site and blocks in parallel for speed
-      const [siteResult, blocksResult] = await Promise.all([
+      // Load site and products in parallel for speed
+      const [siteResult, productsResult] = await Promise.all([
         getSiteByIdAction(siteId),
-        getAllProductBlocksAction(siteId)
+        getSiteProductsAction(siteId)
       ])
       
       if (siteResult.data) {
@@ -43,14 +44,31 @@ export function useProductData(siteId: string): UseProductDataReturn {
         setSiteError(siteResult.error || 'Failed to load site')
       }
       
-      if (blocksResult.success && blocksResult.blocks) {
-        setBlocks(blocksResult.blocks)
+      if (productsResult.data) {
+        // Convert products with JSON content_blocks to the block format the UI expects
+        const convertedBlocks: Record<string, ProductBlock[]> = {}
+        
+        productsResult.data.forEach((product) => {
+          // Convert JSON content_blocks to block array format
+          const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
+          
+          // Add titles to blocks
+          const blocksWithTitles = productBlocks.map(block => ({
+            ...block,
+            title: getProductBlockTitle(block.type)
+          }))
+          
+          convertedBlocks[product.slug] = blocksWithTitles
+        })
+        
+        setBlocks(convertedBlocks)
       } else {
-        console.error('Failed to load blocks:', blocksResult.error)
+        console.error('Failed to load products:', productsResult.error)
+        setBlocks({})
       }
     } catch (error) {
       setSiteError('Failed to load data')
-      console.error('Error loading site and blocks:', error)
+      console.error('Error loading site and products:', error)
     }
     
     setSiteLoading(false)
@@ -59,12 +77,33 @@ export function useProductData(siteId: string): UseProductDataReturn {
 
   const reloadBlocks = async () => {
     setBlocksLoading(true)
-    const blocksResult = await getAllProductBlocksAction(siteId)
-    if (blocksResult.success && blocksResult.blocks) {
-      setBlocks(blocksResult.blocks)
+    const productsResult = await getSiteProductsAction(siteId)
+    
+    if (productsResult.data) {
+      // Convert products with JSON content_blocks to the block format the UI expects
+      const convertedBlocks: Record<string, ProductBlock[]> = {}
+      
+      productsResult.data.forEach((product) => {
+        // Convert JSON content_blocks to block array format
+        const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
+        
+        // Add titles to blocks
+        const blocksWithTitles = productBlocks.map(block => ({
+          ...block,
+          title: getProductBlockTitle(block.type)
+        }))
+        
+        convertedBlocks[product.slug] = blocksWithTitles
+      })
+      
+      setBlocks(convertedBlocks)
+    } else {
+      setBlocks({})
     }
+    
     setBlocksLoading(false)
   }
+
 
   useEffect(() => {
     loadSiteAndBlocks()
