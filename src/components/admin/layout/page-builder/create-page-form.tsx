@@ -20,7 +20,6 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
     title: '',
     slug: '',
     meta_description: '',
-    meta_keywords: '',
     is_homepage: false,
     is_published: false
   })
@@ -192,19 +191,6 @@ export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormPr
         </p>
       </div>
 
-      {/* Meta Keywords */}
-      <div>
-        <Label htmlFor="meta_keywords">Meta Keywords</Label>
-        <Input
-          id="meta_keywords"
-          value={formData.meta_keywords}
-          onChange={(e) => setFormData(prev => ({ ...prev, meta_keywords: e.target.value }))}
-          placeholder="keyword1, keyword2, keyword3"
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Separate keywords with commas
-        </p>
-      </div>
 
       {/* Form Actions */}
       <div className="flex items-center justify-between">

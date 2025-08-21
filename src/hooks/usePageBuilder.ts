@@ -1,24 +1,26 @@
 import { useState, useEffect } from "react"
-import { saveSiteBlockAction, deleteSiteBlockAction, addSiteBlockAction, reorderSiteBlocksAction, type Block } from "@/lib/actions/page-blocks-actions"
+import { updatePageBlocksAction, type Page } from "@/lib/actions/page-actions"
+import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
 import { isBlockTypeProtected } from "@/lib/shared-blocks/block-utils"
 
 interface UsePageBuilderParams {
   siteId: string
-  blocks: Record<string, Block[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, Block[]>>>
+  pages: Page[]
+  blocks: Record<string, any[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, any[]>>>
   selectedPage: string
   reloadBlocks?: () => Promise<void>
 }
 
 interface UsePageBuilderReturn {
-  selectedBlock: Block | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<Block | null>>
+  selectedBlock: any | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<any | null>>
   isSaving: boolean
   saveMessage: string
   deleting: string | null
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: Block) => Promise<void>
-  handleReorderBlocks: (blocks: Block[]) => void
+  handleDeleteBlock: (block: any) => Promise<void>
+  handleReorderBlocks: (blocks: any[]) => void
   handleAddHeroBlock: () => Promise<void>
   handleAddRichTextBlock: () => Promise<void>
   handleAddFaqBlock: () => Promise<void>
@@ -29,12 +31,13 @@ interface UsePageBuilderReturn {
 
 export function usePageBuilder({ 
   siteId, 
+  pages,
   blocks, 
   setBlocks, 
   selectedPage,
   reloadBlocks
 }: UsePageBuilderParams): UsePageBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
+  const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -64,7 +67,7 @@ export function usePageBuilder({
   }
 
   // Delete block immediately from database (no staging)
-  const handleDeleteBlock = async (block: Block) => {
+  const handleDeleteBlock = async (block: any) => {
     // Prevent deletion of protected blocks
     if (isBlockTypeProtected(block.type)) {
       setSaveMessage(`${block.type === 'navigation' ? 'Navigation' : 'Footer'} blocks cannot be deleted`)
@@ -75,28 +78,25 @@ export function usePageBuilder({
     setDeleting(block.id)
     
     try {
-      const { success, error } = await deleteSiteBlockAction(block.id)
+      // Remove from UI immediately
+      const updatedBlocks = { ...blocks }
+      updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
+      setBlocks(updatedBlocks)
       
-      if (error) {
-        setSaveMessage(`Error deleting block: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      // Clear selection if deleted block was selected
+      if (selectedBlock?.id === block.id) {
+        setSelectedBlock(null)
       }
       
-      if (success) {
-        // Remove from UI immediately
-        const updatedBlocks = { ...blocks }
-        updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
-        setBlocks(updatedBlocks)
-        
-        // Clear selection if deleted block was selected
-        if (selectedBlock?.id === block.id) {
-          setSelectedBlock(null)
-        }
-        
-        setSaveMessage("Block deleted!")
-        setTimeout(() => setSaveMessage(""), 3000)
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
       }
+      
+      setSaveMessage("Block deleted!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error deleting block:', err)
       setSaveMessage("Error deleting block")
@@ -109,50 +109,59 @@ export function usePageBuilder({
   // Add a new hero block
   const handleAddHeroBlock = async () => {
     try {
-      const { success, block, error } = await addSiteBlockAction({
-        site_id: siteId,
-        page_slug: selectedPage as 'home' | 'about' | 'contact',
-        block_type: 'hero'
-      })
-      
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      // Create new block locally
+      const newBlock = {
+        id: generatePageBlockId(),
+        type: 'hero',
+        content: {
+          title: 'Welcome to Our Site',
+          subtitle: 'Your subtitle here',
+          buttonText: 'Get Started',
+          buttonUrl: '#',
+          backgroundImage: ''
+        },
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
       
-      if (success && block) {
-        // Add to local state with proper positioning
-        const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage] || []
-        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-        
-        if (footerIndex >= 0) {
-          // Insert before footer
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, footerIndex),
-            block,
-            ...currentBlocks.slice(footerIndex)
-          ]
-        } else if (navIndex >= 0) {
-          // Insert after navigation
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, navIndex + 1),
-            block,
-            ...currentBlocks.slice(navIndex + 1)
-          ]
-        } else {
-          // No nav/footer, add at beginning
-          updatedBlocks[selectedPage] = [block, ...currentBlocks]
-        }
-        
-        setBlocks(updatedBlocks)
-        setSelectedBlock(block)
-        
-        setSaveMessage("Hero block added!")
-        setTimeout(() => setSaveMessage(""), 3000)
+      // Add to local state with proper positioning
+      const updatedBlocks = { ...blocks }
+      const currentBlocks = updatedBlocks[selectedPage] || []
+      const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+      const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+      
+      if (footerIndex >= 0) {
+        // Insert before footer
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, footerIndex),
+          newBlock,
+          ...currentBlocks.slice(footerIndex)
+        ]
+      } else if (navIndex >= 0) {
+        // Insert after navigation
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, navIndex + 1),
+          newBlock,
+          ...currentBlocks.slice(navIndex + 1)
+        ]
+      } else {
+        // No nav/footer, add at beginning
+        updatedBlocks[selectedPage] = [newBlock, ...currentBlocks]
       }
+      
+      setBlocks(updatedBlocks)
+      setSelectedBlock(newBlock)
+      
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      }
+      
+      setSaveMessage("Hero block added!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error adding hero block:', err)
       setSaveMessage("Error adding hero block")
@@ -161,7 +170,7 @@ export function usePageBuilder({
   }
 
   // Handle block reordering
-  const handleReorderBlocks = async (reorderedBlocks: Block[]) => {
+  const handleReorderBlocks = async (reorderedBlocks: any[]) => {
     try {
       // Get current blocks to preserve protected ones that might not be in reorderedBlocks
       const currentBlocks = blocks[selectedPage] || []
@@ -190,33 +199,20 @@ export function usePageBuilder({
       updatedBlocks[selectedPage] = finalBlocks
       setBlocks(updatedBlocks)
 
-      // Send reorder request to server only for reorderable blocks (not protected ones)
-      const reorderableBlockIds = reorderableBlocks.map(block => block.id)
-      
-      // Only send reorder request if there are reorderable blocks
-      if (reorderableBlockIds.length === 0) {
-        setSaveMessage("No reorderable blocks")
-        setTimeout(() => setSaveMessage(""), 2000)
-        return
-      }
-      
-      const { success, error } = await reorderSiteBlocksAction({
-        site_id: siteId,
-        page_slug: selectedPage,
-        block_ids: reorderableBlockIds
-      })
-
-      if (error) {
-        // Rollback on error
-        const originalBlocks = { ...blocks }
-        setBlocks(originalBlocks)
-        setSaveMessage(`Error reordering blocks: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
-      }
-
-      if (success) {
-        // Success - no message needed, visual feedback is sufficient
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(finalBlocks)
+        const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+        
+        if (error) {
+          // Rollback on error
+          const originalBlocks = { ...blocks }
+          setBlocks(originalBlocks)
+          setSaveMessage(`Error reordering blocks: ${error}`)
+          setTimeout(() => setSaveMessage(""), 5000)
+          return
+        }
       }
     } catch (err) {
       console.error('Error reordering blocks:', err)
@@ -231,50 +227,55 @@ export function usePageBuilder({
   // Add a new rich text block
   const handleAddRichTextBlock = async () => {
     try {
-      const { success, block, error } = await addSiteBlockAction({
-        site_id: siteId,
-        page_slug: selectedPage as 'home' | 'about' | 'contact',
-        block_type: 'rich-text'
-      })
-      
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      // Create new block locally
+      const newBlock = {
+        id: generatePageBlockId(),
+        type: 'rich-text',
+        content: {
+          content: '<p>Add your content here...</p>'
+        },
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
       
-      if (success && block) {
-        // Add to local state with proper positioning
-        const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage] || []
-        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-        
-        if (footerIndex >= 0) {
-          // Insert before footer
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, footerIndex),
-            block,
-            ...currentBlocks.slice(footerIndex)
-          ]
-        } else if (navIndex >= 0) {
-          // Insert after navigation
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, navIndex + 1),
-            block,
-            ...currentBlocks.slice(navIndex + 1)
-          ]
-        } else {
-          // No nav/footer, add at beginning
-          updatedBlocks[selectedPage] = [block, ...currentBlocks]
-        }
-        
-        setBlocks(updatedBlocks)
-        setSelectedBlock(block)
-        
-        setSaveMessage("Rich text block added!")
-        setTimeout(() => setSaveMessage(""), 3000)
+      // Add to local state with proper positioning
+      const updatedBlocks = { ...blocks }
+      const currentBlocks = updatedBlocks[selectedPage] || []
+      const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+      const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+      
+      if (footerIndex >= 0) {
+        // Insert before footer
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, footerIndex),
+          newBlock,
+          ...currentBlocks.slice(footerIndex)
+        ]
+      } else if (navIndex >= 0) {
+        // Insert after navigation
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, navIndex + 1),
+          newBlock,
+          ...currentBlocks.slice(navIndex + 1)
+        ]
+      } else {
+        // No nav/footer, add at beginning
+        updatedBlocks[selectedPage] = [newBlock, ...currentBlocks]
       }
+      
+      setBlocks(updatedBlocks)
+      setSelectedBlock(newBlock)
+      
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      }
+      
+      setSaveMessage("Rich text block added!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error adding rich text block:', err)
       setSaveMessage("Error adding rich text block")
@@ -282,7 +283,7 @@ export function usePageBuilder({
     }
   }
 
-  // Save all block customizations (deletions are now immediate)
+  // Save all block customizations
   const handleSaveAllBlocks = async () => {    
     const hasActiveBlocks = blocks[selectedPage] && blocks[selectedPage].length > 0
     
@@ -296,20 +297,20 @@ export function usePageBuilder({
     setSaveMessage("Saving...")
 
     try {
-      // Save content updates for all current blocks
-      const savePromises = blocks[selectedPage].map(async (block) => {
-        return saveSiteBlockAction({
-          block_id: block.id,
-          content: block.content
-        })
-      })
-
-      const results = await Promise.all(savePromises)
+      // Find the current page
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (!currentPage) {
+        setSaveMessage("Error: Page not found")
+        setTimeout(() => setSaveMessage(""), 5000)
+        return
+      }
       
-      const failedOperations = results.filter(r => !r.success)
-      if (failedOperations.length > 0) {
-        const firstError = failedOperations[0]?.error || 'Unknown error'
-        setSaveMessage(`Error: ${firstError}`)
+      // Convert blocks to JSON and save
+      const jsonBlocks = convertPageBlocksToJson(blocks[selectedPage])
+      const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      
+      if (error) {
+        setSaveMessage(`Error: ${error}`)
         setTimeout(() => setSaveMessage(""), 5000)
       } else {
         setSaveMessage("Saved!")
@@ -327,50 +328,58 @@ export function usePageBuilder({
   // Add a new FAQ block
   const handleAddFaqBlock = async () => {
     try {
-      const { success, block, error } = await addSiteBlockAction({
-        site_id: siteId,
-        page_slug: selectedPage as 'home' | 'about' | 'contact',
-        block_type: 'faq'
-      })
-      
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      // Create new block locally
+      const newBlock = {
+        id: generatePageBlockId(),
+        type: 'faq',
+        content: {
+          faqs: [{
+            question: 'Sample Question',
+            answer: 'Sample answer goes here...'
+          }]
+        },
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
       
-      if (success && block) {
-        // Add to local state with proper positioning
-        const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage] || []
-        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-        
-        if (footerIndex >= 0) {
-          // Insert before footer
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, footerIndex),
-            block,
-            ...currentBlocks.slice(footerIndex)
-          ]
-        } else if (navIndex >= 0) {
-          // Insert after navigation
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, navIndex + 1),
-            block,
-            ...currentBlocks.slice(navIndex + 1)
-          ]
-        } else {
-          // No nav/footer, add at beginning
-          updatedBlocks[selectedPage] = [block, ...currentBlocks]
-        }
-        
-        setBlocks(updatedBlocks)
-        setSelectedBlock(block)
-        
-        setSaveMessage("FAQ block added!")
-        setTimeout(() => setSaveMessage(""), 3000)
+      // Add to local state with proper positioning
+      const updatedBlocks = { ...blocks }
+      const currentBlocks = updatedBlocks[selectedPage] || []
+      const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+      const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+      
+      if (footerIndex >= 0) {
+        // Insert before footer
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, footerIndex),
+          newBlock,
+          ...currentBlocks.slice(footerIndex)
+        ]
+      } else if (navIndex >= 0) {
+        // Insert after navigation
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, navIndex + 1),
+          newBlock,
+          ...currentBlocks.slice(navIndex + 1)
+        ]
+      } else {
+        // No nav/footer, add at beginning
+        updatedBlocks[selectedPage] = [newBlock, ...currentBlocks]
       }
+      
+      setBlocks(updatedBlocks)
+      setSelectedBlock(newBlock)
+      
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      }
+      
+      setSaveMessage("FAQ block added!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error adding FAQ block:', err)
       setSaveMessage("Error adding FAQ block")
@@ -381,50 +390,56 @@ export function usePageBuilder({
   // Add a new Listing Views block
   const handleAddListingViewsBlock = async () => {
     try {
-      const { success, block, error } = await addSiteBlockAction({
-        site_id: siteId,
-        page_slug: selectedPage as 'home' | 'about' | 'contact',
-        block_type: 'listing-views'
-      })
-      
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      // Create new block locally
+      const newBlock = {
+        id: generatePageBlockId(),
+        type: 'listing-views',
+        content: {
+          title: 'Product Listings',
+          viewType: 'grid'
+        },
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
       
-      if (success && block) {
-        // Add to local state with proper positioning
-        const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage] || []
-        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-        
-        if (footerIndex >= 0) {
-          // Insert before footer
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, footerIndex),
-            block,
-            ...currentBlocks.slice(footerIndex)
-          ]
-        } else if (navIndex >= 0) {
-          // Insert after navigation
-          updatedBlocks[selectedPage] = [
-            ...currentBlocks.slice(0, navIndex + 1),
-            block,
-            ...currentBlocks.slice(navIndex + 1)
-          ]
-        } else {
-          // No nav/footer, add at beginning
-          updatedBlocks[selectedPage] = [block, ...currentBlocks]
-        }
-        
-        setBlocks(updatedBlocks)
-        setSelectedBlock(block)
-        
-        setSaveMessage("Listing Views block added!")
-        setTimeout(() => setSaveMessage(""), 3000)
+      // Add to local state with proper positioning
+      const updatedBlocks = { ...blocks }
+      const currentBlocks = updatedBlocks[selectedPage] || []
+      const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+      const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+      
+      if (footerIndex >= 0) {
+        // Insert before footer
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, footerIndex),
+          newBlock,
+          ...currentBlocks.slice(footerIndex)
+        ]
+      } else if (navIndex >= 0) {
+        // Insert after navigation
+        updatedBlocks[selectedPage] = [
+          ...currentBlocks.slice(0, navIndex + 1),
+          newBlock,
+          ...currentBlocks.slice(navIndex + 1)
+        ]
+      } else {
+        // No nav/footer, add at beginning
+        updatedBlocks[selectedPage] = [newBlock, ...currentBlocks]
       }
+      
+      setBlocks(updatedBlocks)
+      setSelectedBlock(newBlock)
+      
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      }
+      
+      setSaveMessage("Listing Views block added!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
       console.error('Error adding listing views block:', err)
       setSaveMessage("Error adding listing views block")
@@ -434,47 +449,55 @@ export function usePageBuilder({
 
   const handleAddDividerBlock = async () => {
     try {
-      const { success, block, error } = await addSiteBlockAction({
-        site_id: siteId,
-        page_slug: selectedPage as 'home' | 'about' | 'contact',
-        block_type: 'divider'
+      // Create new block locally
+      const newBlock = {
+        id: generatePageBlockId(),
+        type: 'divider',
+        content: {
+          style: 'solid',
+          width: 'full',
+          color: '#e5e7eb'
+        },
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      // Add to local state with proper positioning
+      const updatedBlocks = { ...blocks }
+      const currentBlocks = updatedBlocks[selectedPage] || []
+      const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+      const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+      
+      // Position before footer but after navigation
+      let insertIndex = currentBlocks.length
+      if (footerIndex !== -1) {
+        insertIndex = footerIndex
+      } else if (navIndex !== -1) {
+        insertIndex = navIndex + 1
+      }
+      
+      const newBlocks = [...currentBlocks]
+      newBlocks.splice(insertIndex, 0, newBlock)
+      
+      // Update display orders
+      newBlocks.forEach((b, idx) => {
+        b.display_order = idx
       })
       
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
+      updatedBlocks[selectedPage] = newBlocks
+      setBlocks(updatedBlocks)
+      setSelectedBlock(newBlock)
+      
+      // Save to database
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (currentPage) {
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        await updatePageBlocksAction(currentPage.id, jsonBlocks)
       }
       
-      if (success && block) {
-        // Add to local state with proper positioning
-        const updatedBlocks = { ...blocks }
-        const currentBlocks = updatedBlocks[selectedPage] || []
-        const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-        const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-        
-        // Position before footer but after navigation
-        let insertIndex = currentBlocks.length
-        if (footerIndex !== -1) {
-          insertIndex = footerIndex
-        } else if (navIndex !== -1) {
-          insertIndex = navIndex + 1
-        }
-        
-        const newBlocks = [...currentBlocks]
-        newBlocks.splice(insertIndex, 0, block)
-        
-        // Update display orders
-        newBlocks.forEach((b, idx) => {
-          b.display_order = idx
-        })
-        
-        updatedBlocks[selectedPage] = newBlocks
-        setBlocks(updatedBlocks)
-        setSelectedBlock(block)
-        setSaveMessage("Divider block added!")
-        setTimeout(() => setSaveMessage(""), 3000)
-      }
+      setSaveMessage("Divider block added!")
+      setTimeout(() => setSaveMessage(""), 3000)
     } catch (error) {
       setSaveMessage("Failed to add divider block")
       setTimeout(() => setSaveMessage(""), 5000)
