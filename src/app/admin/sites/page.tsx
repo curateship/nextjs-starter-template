@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { getSiteUrl } from "@/lib/utils/site-url"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 
@@ -299,7 +300,7 @@ export default function SitesPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <a 
-                                href="/" 
+                                href={getSiteUrl(site)} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

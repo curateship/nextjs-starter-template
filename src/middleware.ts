@@ -94,7 +94,7 @@ export async function middleware(request: NextRequest) {
   
   // Check if this is a custom domain (not localhost and not a subdomain of our main domain)
   const isLocalhost = hostname === 'localhost'
-  const isCustomDomain = !isLocalhost && !hostname.includes('.yourdomain.com') // Replace with your actual domain
+  const isCustomDomain = !isLocalhost && !hostname.includes('.localhost') && !hostname.includes('.yourdomain.com')
   
   let siteIdentifier = ''
   
@@ -104,7 +104,7 @@ export async function middleware(request: NextRequest) {
   } else if (!isLocalhost) {
     // Subdomain - extract subdomain
     const parts = hostname.split('.')
-    if (parts.length > 2) {
+    if (parts.length > 1) { // Allow .localhost subdomains
       siteIdentifier = parts[0] // First part is the subdomain
     }
   } else {

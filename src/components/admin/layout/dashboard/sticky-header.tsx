@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Search, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url"
 
 interface StickyHeaderProps {
   className?: string
@@ -38,7 +39,7 @@ export function StickyHeader({
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm" className="h-8 px-3">
             <Link 
-              href="/"
+              href={currentSite ? getSiteUrl(currentSite) : "/"}
               target="_blank" 
               rel="noopener noreferrer"
             >
