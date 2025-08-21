@@ -9,7 +9,6 @@ import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import { createPostAction } from "@/lib/actions/post-actions"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post, CreatePostData } from "@/lib/actions/post-actions"
 

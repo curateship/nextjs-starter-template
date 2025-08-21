@@ -10,7 +10,6 @@ import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Reorder } from "motion/react"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 
 interface ProductHeroBlockProps {
   title: string

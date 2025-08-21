@@ -27,10 +27,9 @@ import { Label } from "@/components/ui/label"
 
 export default function ImagesPage() {
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery')
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [images, setImages] = useState<ImageData[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'used' | 'unused'>('all')
+  // Removed usage-based filtering
   const [editingImage, setEditingImage] = useState<ImageData | null>(null)
   const [editAltText, setEditAltText] = useState('')
 
@@ -56,11 +55,6 @@ export default function ImagesPage() {
   }
 
   const handleDeleteImage = async (image: ImageData) => {
-    if (image.usage_count > 0) {
-      toast.error('Cannot delete image that is currently being used in sites')
-      return
-    }
-
     if (!confirm(`Are you sure you want to delete "${image.original_name}"? This action cannot be undone.`)) {
       return
     }
@@ -104,16 +98,7 @@ export default function ImagesPage() {
     }
   }
 
-  const filteredImages = images.filter(image => {
-    switch (filter) {
-      case 'used':
-        return image.usage_count > 0
-      case 'unused':
-        return image.usage_count === 0
-      default:
-        return true
-    }
-  })
+  const filteredImages = images
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -159,56 +144,6 @@ export default function ImagesPage() {
                     <Grid className="w-4 h-4" />
                   </Button>
                 </div>
-                
-                {/* Filter Toggle */}
-                <div className="relative">
-                  <Button 
-                    variant="outline"
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                    className="flex items-center space-x-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    <span>Filter</span>
-                    <svg className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </Button>
-                  {isFilterOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
-                      <div className="py-1">
-                        <button 
-                          onClick={() => {
-                            setFilter('all')
-                            setIsFilterOpen(false)
-                          }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${filter === 'all' ? 'bg-muted' : ''}`}
-                        >
-                          All Images ({images.length})
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setFilter('used')
-                            setIsFilterOpen(false)
-                          }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${filter === 'used' ? 'bg-muted' : ''}`}
-                        >
-                          Used Images ({images.filter(img => img.usage_count > 0).length})
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setFilter('unused')
-                            setIsFilterOpen(false)
-                          }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${filter === 'unused' ? 'bg-muted' : ''}`}
-                        >
-                          Unused Images ({images.filter(img => img.usage_count === 0).length})
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -225,16 +160,11 @@ export default function ImagesPage() {
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium mb-2">No images found</p>
               <p className="text-muted-foreground mb-4">
-                {filter === 'all' 
-                  ? "You haven't uploaded any images yet."
-                  : `No ${filter} images found.`
-                }
+                You haven't uploaded any images yet.
               </p>
-              {filter === 'all' && (
-                <Button asChild>
-                  <Link href="/admin/images/new">Upload Your First Image</Link>
-                </Button>
-              )}
+              <Button asChild>
+                <Link href="/admin/images/new">Upload Your First Image</Link>
+              </Button>
             </div>
           ) : viewMode === 'gallery' ? (
             // Gallery View
@@ -252,12 +182,7 @@ export default function ImagesPage() {
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="text-white text-center text-sm p-2">
                         <p className="font-medium truncate">{image.original_name}</p>
-                        <p className="text-xs">
-                          {image.usage_count > 0 
-                            ? `Used in ${image.sites_using} site${image.sites_using !== 1 ? 's' : ''}`
-                            : 'Unused'
-                          }
-                        </p>
+                        <p className="text-xs">Image</p>
                         <div className="flex justify-center space-x-2 mt-2">
                           <Button
                             size="sm"
@@ -270,23 +195,11 @@ export default function ImagesPage() {
                             size="sm"
                             variant="destructive"
                             onClick={() => handleDeleteImage(image)}
-                            disabled={image.usage_count > 0}
                           >
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
                       </div>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <span 
-                        className={`px-2 py-1 text-xs rounded-full ${
-                          image.usage_count > 0 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {image.usage_count > 0 ? 'Used' : 'Unused'}
-                      </span>
                     </div>
                     <div className="absolute top-2 left-2">
                       <DropdownMenu>
@@ -306,7 +219,6 @@ export default function ImagesPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             onClick={() => handleDeleteImage(image)}
-                            disabled={image.usage_count > 0}
                             className="text-destructive"
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
@@ -342,21 +254,6 @@ export default function ImagesPage() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
-                    <span className="text-sm text-muted-foreground">
-                      {image.usage_count > 0 
-                        ? `Used in ${image.sites_using} site${image.sites_using !== 1 ? 's' : ''}`
-                        : 'Not used'
-                      }
-                    </span>
-                    <span 
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        image.usage_count > 0 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {image.usage_count > 0 ? 'Used' : 'Unused'}
-                    </span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
@@ -370,7 +267,6 @@ export default function ImagesPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleDeleteImage(image)}
-                          disabled={image.usage_count > 0}
                           className="text-destructive"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />

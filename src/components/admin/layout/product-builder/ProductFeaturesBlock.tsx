@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, GripVertical, ImageIcon, X } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import { Reorder } from "motion/react"
 
 interface Feature {
