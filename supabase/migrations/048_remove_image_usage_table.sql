@@ -11,14 +11,6 @@ DROP INDEX IF EXISTS idx_image_usage_site_id;
 -- Drop the image_usage table completely
 DROP TABLE IF EXISTS image_usage CASCADE;
 
--- Recreate image_details view without usage tracking
-CREATE OR REPLACE VIEW image_details WITH (security_invoker = true) AS
-SELECT 
-  i.*
-FROM images i;
-
--- Grant SELECT permissions to authenticated users on the view
-GRANT SELECT ON image_details TO authenticated;
-
--- Note: Images now only track their own metadata without complex usage tracking
--- This simplifies the system and follows the "simplicity first" principle
+-- Note: Completely eliminated image_details view as it was just a pointless 
+-- wrapper around the images table. Direct table access is simpler and clearer.
+-- This follows the "simplicity first" principle - no unnecessary indirection.
