@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,46 +66,13 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
     }
   }
 
-  // Handle featured image changes with usage tracking
+  // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
-    try {
-      // Remove tracking for old image
-      if (formData.featured_image && currentSite?.id) {
-        const { data: oldImageId } = await getImageByUrlAction(formData.featured_image)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, currentSite.id, "post", "featured-image")
-        }
-      }
-
-      // Track usage for new image
-      if (newImageUrl && currentSite?.id) {
-        const { data: newImageId, error: getImageError } = await getImageByUrlAction(newImageUrl)
-        if (newImageId && !getImageError) {
-          await trackImageUsageAction(newImageId, currentSite.id, "post", "featured-image")
-        }
-      }
-
-      // Update the form data
-      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
-    } catch (error) {
-      console.error('Error tracking image usage:', error)
-      // Still update the image even if tracking fails
-      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
-    }
+    setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
   }
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
-    if (formData.featured_image && currentSite?.id) {
-      try {
-        const { data: imageId } = await getImageByUrlAction(formData.featured_image)
-        if (imageId) {
-          await removeImageUsageAction(imageId, currentSite.id, "post", "featured-image")
-        }
-      } catch (error) {
-        console.error('Error removing image usage tracking:', error)
-      }
-    }
     setFormData(prev => ({ ...prev, featured_image: '' }))
   }
 

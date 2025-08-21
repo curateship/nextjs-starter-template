@@ -65,21 +65,6 @@ export function CreateProductForm({ siteId, onSuccess, onCancel }: CreateProduct
   // Handle featured image changes with usage tracking
   const handleImageChange = async (newImageUrl: string) => {
     try {
-      // Remove tracking for old image
-      if (featuredImage && siteId) {
-        const { data: oldImageId } = await getImageByUrlAction(featuredImage)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, siteId, "product", "featured-image")
-        }
-      }
-
-      // Track usage for new image
-      if (newImageUrl && siteId) {
-        const { data: newImageId, error: getImageError } = await getImageByUrlAction(newImageUrl)
-        if (newImageId && !getImageError) {
-          await trackImageUsageAction(newImageId, siteId, "product", "featured-image")
-        }
-      }
 
       // Update the image state
       setFeaturedImage(newImageUrl)
@@ -92,16 +77,6 @@ export function CreateProductForm({ siteId, onSuccess, onCancel }: CreateProduct
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
-    if (featuredImage && siteId) {
-      try {
-        const { data: imageId } = await getImageByUrlAction(featuredImage)
-        if (imageId) {
-          await removeImageUsageAction(imageId, siteId, "product", "featured-image")
-        }
-      } catch (error) {
-        console.error('Error removing image usage tracking:', error)
-      }
-    }
     setFeaturedImage('')
   }
 

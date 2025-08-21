@@ -470,7 +470,6 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
     if (data.featured_image && data.is_published) {
       const { data: imageId } = await getImageByUrlAction(data.featured_image)
       if (imageId) {
-        await trackImageUsageAction(imageId, siteId, "post", "featured-image")
       }
     }
 
@@ -595,7 +594,6 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       if (post.featured_image) {
         const { data: oldImageId } = await getImageByUrlAction(post.featured_image)
         if (oldImageId) {
-          await removeImageUsageAction(oldImageId, post.site_id, "post", "featured-image")
         }
       }
       
@@ -603,7 +601,6 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       if (data.featured_image && data.is_published) {
         const { data: imageId } = await getImageByUrlAction(data.featured_image)
         if (imageId) {
-          await trackImageUsageAction(imageId, post.site_id, "post", "featured-image")
         }
       }
     }
@@ -675,7 +672,6 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
     if (post.featured_image) {
       const { data: imageId } = await getImageByUrlAction(post.featured_image)
       if (imageId) {
-        await removeImageUsageAction(imageId, post.site_id, "post", "featured-image")
       }
     }
 
@@ -827,7 +823,6 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
     if (newPost.featured_image && newPost.is_published) {
       const { data: imageId } = await getImageByUrlAction(newPost.featured_image)
       if (imageId) {
-        await trackImageUsageAction(imageId, originalPost.site_id, "post", "featured-image")
       }
     }
 

@@ -79,46 +79,13 @@ export function ProductSettingsModal({
     }
   }
 
-  // Handle featured image changes with usage tracking
+  // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
-    try {
-      // Remove tracking for old image
-      if (featuredImage && site?.id) {
-        const { data: oldImageId } = await getImageByUrlAction(featuredImage)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, site.id, "product", "featured-image")
-        }
-      }
-
-      // Track usage for new image
-      if (newImageUrl && site?.id) {
-        const { data: newImageId, error: getImageError } = await getImageByUrlAction(newImageUrl)
-        if (newImageId && !getImageError) {
-          await trackImageUsageAction(newImageId, site.id, "product", "featured-image")
-        }
-      }
-
-      // Update the image state
-      setFeaturedImage(newImageUrl)
-    } catch (error) {
-      console.error('Error tracking image usage:', error)
-      // Still update the image even if tracking fails
-      setFeaturedImage(newImageUrl)
-    }
+    setFeaturedImage(newImageUrl)
   }
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
-    if (featuredImage && site?.id) {
-      try {
-        const { data: imageId } = await getImageByUrlAction(featuredImage)
-        if (imageId) {
-          await removeImageUsageAction(imageId, site.id, "product", "featured-image")
-        }
-      } catch (error) {
-        console.error('Error removing image usage tracking:', error)
-      }
-    }
     setFeaturedImage('')
   }
 
@@ -148,20 +115,6 @@ export function ProductSettingsModal({
     }
   }, [product])
 
-  // Track initial featured image usage
-  useEffect(() => {
-    const trackInitialImage = async () => {
-      const productDefaultBlock = product?.content_blocks?.['product-default']
-      const initialFeaturedImage = productDefaultBlock?.featuredImage
-      if (initialFeaturedImage && site?.id) {
-        const { data: imageId } = await getImageByUrlAction(initialFeaturedImage)
-        if (imageId) {
-          await trackImageUsageAction(imageId, site.id, "product", "featured-image")
-        }
-      }
-    }
-    trackInitialImage()
-  }, []) // Only run on mount
 
   // Handle saving as draft
   const handleSaveDraft = async () => {

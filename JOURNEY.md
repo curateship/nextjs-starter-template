@@ -4598,15 +4598,33 @@ NEW: products table with JSON content_blocks column
 
 **Lesson**: ALWAYS read project history first. Stop adding "helpful" automation that breaks things.
 
-## 🧹 Phase 18: Database Cleanup - Removing Unused Columns (August 21, 2025)
+## 🧹 Phase 18: Database Cleanup & Image Tracking System Elimination (August 21, 2025)
 
-**Problem**: Database bloated with unused columns (`preview_image`, `template_path`) that serve no purpose
+**Problem**: Database bloated with unused columns and massively overcomplicated image tracking system
 
-**Actions Taken**:
+**Database Cleanup**:
 - ✅ Removed `preview_image` column from themes table (unused upload functionality)
 - ✅ Removed `template_path` column from themes table (stored static paths unnecessarily)
 - ✅ Cleaned all image upload UI from admin forms (SiteDashboard, ThemeDashboard, theme pages)
 - ✅ Updated TypeScript interfaces and database queries throughout codebase
 - ✅ Eliminated non-functional preview links and template path inputs
 
-**Result**: Cleaner database schema and simpler admin interface following "simplicity first" principle.
+**Image Tracking System Elimination**:
+- ✅ Removed 500+ lines of complex tracking logic across 8+ files
+- ✅ Eliminated `trackImageUsageAction` and `removeImageUsageAction` dead code
+- ✅ Simplified image handlers to basic state updates (Load → Edit → Save pattern)
+- ✅ Removed async/await chains and complex state synchronization
+- ✅ Cleaned up useEffect hooks managing tracking state
+- ✅ Removed database calls on every image change
+
+**Files Cleaned**:
+- `create-global-post-form.tsx` - simplified image handlers
+- `create-global-product-form.tsx` - simplified image handlers
+- `ProductHotspotBlock.tsx` - removed tracking useEffect and simplified handlers
+- `post-settings-modal.tsx` - simplified image handlers
+- `product-settings-modal.tsx` - simplified image handlers
+- `ProductHeroBlock.tsx` - removed complex tracking logic for hero images and avatars
+- `ProductFeaturesBlock.tsx` - simplified image handling
+- `post-actions.ts` - removed all tracking function calls
+
+**Result**: Eliminated "fake safety" anti-pattern. Followed CLAUDE.md simplicity principles - the database already knows which images are in use through direct queries. Classic example of how removing complex code is often the best solution.
