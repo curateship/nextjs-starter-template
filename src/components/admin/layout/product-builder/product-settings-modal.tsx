@@ -96,7 +96,6 @@ export function ProductSettingsModal({
       setFormData({
         title: product.title,
         slug: product.slug,
-        meta_description: product.meta_description || '',
         is_published: product.is_published
       })
       
@@ -421,7 +420,7 @@ export function ProductSettingsModal({
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a 
-                    href={site ? `/${site.subdomain}/products/${product.slug}` : '#'} 
+                    href={site ? `/products/${product.slug}` : '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
                   >

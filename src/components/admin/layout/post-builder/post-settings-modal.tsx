@@ -436,7 +436,7 @@ export function PostSettingsModal({
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a 
-                    href={site ? `/${site.subdomain}/posts/${post.slug}` : '#'} 
+                    href={site ? `/posts/${post.slug}` : '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
                   >

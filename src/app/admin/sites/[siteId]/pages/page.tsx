@@ -443,7 +443,7 @@ export default function SitePagesPage({ params }: PageProps) {
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <a 
-                              href={site ? `/${site.subdomain}/${page.slug}` : `#`} 
+                              href={site ? `/${page.slug}` : `#`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="flex items-center"

@@ -299,7 +299,7 @@ export default function SitesPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <a 
-                                href={`/${site.subdomain}`} 
+                                href="/" 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

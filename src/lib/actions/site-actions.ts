@@ -327,6 +327,11 @@ export async function updateSiteAction(
       finalUpdates.subdomain = subdomain
     }
     
+    // Convert empty strings to null for database constraints
+    if (finalUpdates.hasOwnProperty('custom_domain') && (finalUpdates.custom_domain === '' || finalUpdates.custom_domain === undefined)) {
+      finalUpdates.custom_domain = null
+    }
+    
     const { data, error } = await supabaseAdmin
       .from('sites')
       .update({

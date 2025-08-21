@@ -352,7 +352,7 @@ export function PageSettingsModal({
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a 
-                    href={site ? `/${site.subdomain}/${page.slug}` : '#'} 
+                    href={site ? `/${page.slug}` : '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
                   >

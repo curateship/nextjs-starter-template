@@ -81,7 +81,7 @@ export function SiteSwitcherMenu() {
                   {currentSite ? currentSite.name : "Select Site"}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {currentSite ? `${currentSite.subdomain}.domain.com` : "Choose a site"}
+                  {currentSite ? (currentSite.custom_domain || `${currentSite.subdomain}.domain.com`) : "Choose a site"}
                 </span>
               </div>
             </SidebarMenuButton>
@@ -116,7 +116,7 @@ export function SiteSwitcherMenu() {
                   <div className="flex-1">
                     <div className="font-medium">{site.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {site.subdomain}.domain.com
+                      {site.custom_domain || `${site.subdomain}.domain.com`}
                     </div>
                   </div>
                   {index < 9 && (
