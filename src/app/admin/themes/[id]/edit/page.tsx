@@ -21,8 +21,6 @@ export default function EditThemePage() {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState("active")
-  const [templatePath, setTemplatePath] = useState("")
-  const [previewImage, setPreviewImage] = useState("")
 
   useEffect(() => {
     loadTheme()
@@ -51,8 +49,6 @@ export default function EditThemePage() {
       setTitle(foundTheme.name)
       setDescription(foundTheme.description || "")
       setStatus(foundTheme.status)
-      setTemplatePath(foundTheme.template_path)
-      setPreviewImage(foundTheme.preview_image || "")
       
     } catch (err) {
       console.error('Error loading theme:', err)
@@ -78,8 +74,6 @@ export default function EditThemePage() {
         name: title,
         description: description || undefined,
         status: status as 'active' | 'inactive' | 'development',
-        template_path: templatePath,
-        preview_image: previewImage || undefined
       })
       
       if (error) {
@@ -158,17 +152,11 @@ export default function EditThemePage() {
             status={status}
             primaryFont="inter"
             secondaryFont="roboto"
-            logo={null}
-            logoPreview={previewImage}
             onTitleChange={setTitle}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onPrimaryFontChange={() => {}}
             onSecondaryFontChange={() => {}}
-            onLogoChange={() => {}}
-            onLogoPreviewChange={(preview) => setPreviewImage(preview || '')}
-            templatePath={templatePath}
-            onTemplatePathChange={setTemplatePath}
           />
         </form>
       </div>

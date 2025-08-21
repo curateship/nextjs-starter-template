@@ -38,8 +38,16 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
 
     // Get site with theme information
     const { data: site, error: siteError } = await supabaseAdmin
-      .from('site_details')
-      .select('*')
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
       .eq('subdomain', subdomain)
       .single()
 

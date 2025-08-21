@@ -23,8 +23,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
-  const [logo, setLogo] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -178,8 +176,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
-            logo={logo}
-            logoPreview={logoPreview}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
@@ -187,8 +183,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
-            onLogoChange={setLogo}
-            onLogoPreviewChange={setLogoPreview}
           />
         </form>
       </div>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, X, AlertCircle, CheckCircle2 } from "lucide-react"
+import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
@@ -15,8 +15,6 @@ interface SiteDashboardProps {
   siteName: string
   status: string
   themeId: string
-  logo: File | null
-  logoPreview: string | null
   description?: string
   isEditMode?: boolean
   fontFamily?: string
@@ -24,8 +22,6 @@ interface SiteDashboardProps {
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
-  onLogoChange: (file: File | null) => void
-  onLogoPreviewChange: (preview: string | null) => void
   onDescriptionChange?: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
@@ -35,8 +31,6 @@ export function SiteDashboard({
   siteName,
   status,
   themeId,
-  logo,
-  logoPreview,
   description = "",
   isEditMode = false,
   fontFamily = "playfair-display",
@@ -44,8 +38,6 @@ export function SiteDashboard({
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
-  onLogoChange,
-  onLogoPreviewChange,
   onDescriptionChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
@@ -116,23 +108,6 @@ export function SiteDashboard({
       setSubdomainStatus({ checking: false, available: null })
     }
   }
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      onLogoChange(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        onLogoPreviewChange(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const removeLogo = () => {
-    onLogoChange(null)
-    onLogoPreviewChange(null)
-  }
-
 
   const getSubdomainFromName = (name: string) => {
     return name.toLowerCase()
@@ -239,22 +214,6 @@ export function SiteDashboard({
                   return selectedTheme ? (
                     <div className="flex items-center justify-between">
                       <span>Selected: {selectedTheme.name}</span>
-                      {selectedTheme.template_path && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          asChild
-                        >
-                          <a 
-                            href={selectedTheme.template_path} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                          >
-                            Preview
-                          </a>
-                        </Button>
-                      )}
                     </div>
                   ) : null
                 })()}
@@ -301,47 +260,6 @@ export function SiteDashboard({
           </Select>
         </div>
 
-        {/* Site Logo */}
-        <div className="space-y-2">
-          {!logoPreview ? (
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-              <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
-              <label htmlFor="logo-upload" className="cursor-pointer">
-                <span className="text-sm text-muted-foreground">
-                  Click to upload or drag and drop
-                </span>
-                <br />
-                <span className="text-xs text-muted-foreground">
-                  PNG, JPG, SVG up to 2MB (recommended: 200x200px)
-                </span>
-              </label>
-              <Input
-                id="logo-upload"
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-              />
-            </div>
-          ) : (
-            <div className="relative">
-              <img
-                src={logoPreview}
-                alt="Site logo preview"
-                className="w-32 h-32 object-cover rounded-lg border"
-              />
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={removeLogo}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   )
