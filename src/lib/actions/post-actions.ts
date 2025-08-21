@@ -50,7 +50,6 @@ export interface Post {
   title: string
   slug: string
   meta_description: string | null
-  meta_keywords: string | null
   featured_image: string | null
   excerpt: string | null
   content: string | null
@@ -71,7 +70,6 @@ export interface CreatePostData {
   title: string
   slug?: string
   meta_description?: string
-  meta_keywords?: string
   featured_image?: string
   excerpt?: string
   content?: string
@@ -82,7 +80,6 @@ export interface UpdatePostData {
   title?: string
   slug?: string
   meta_description?: string
-  meta_keywords?: string
   featured_image?: string
   excerpt?: string
   content?: string
@@ -337,7 +334,6 @@ export async function createGlobalPostAction(postData: CreatePostData): Promise<
         title: postData.title.trim(),
         slug,
         meta_description: postData.meta_description?.trim() || null,
-        meta_keywords: postData.meta_keywords?.trim() || null,
         featured_image: postData.featured_image?.trim() || null,
         excerpt: postData.excerpt?.trim() || null,
         content: postData.content?.trim() || null,
@@ -452,7 +448,6 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
         title: postData.title.trim(),
         slug,
         meta_description: postData.meta_description?.trim() || null,
-        meta_keywords: postData.meta_keywords?.trim() || null,
         featured_image: postData.featured_image?.trim() || null,
         excerpt: postData.excerpt?.trim() || null,
         content: postData.content?.trim() || null,
@@ -565,7 +560,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     const finalUpdates: any = {}
     Object.entries(processedUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'meta_keywords' || key === 'featured_image' || key === 'excerpt' || key === 'content') {
+        if (key === 'title' || key === 'meta_description' || key === 'featured_image' || key === 'excerpt' || key === 'content') {
           finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
         } else {
           finalUpdates[key] = value
@@ -784,7 +779,6 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
         title: newTitle.trim(),
         slug: newSlug,
         meta_description: originalPost.meta_description,
-        meta_keywords: originalPost.meta_keywords,
         featured_image: originalPost.featured_image,
         excerpt: originalPost.excerpt,
         content: originalPost.content,

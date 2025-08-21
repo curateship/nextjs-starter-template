@@ -95,7 +95,6 @@ export function PostSettingsModal({
         title: post.title,
         slug: post.slug,
         meta_description: post.meta_description || '',
-        meta_keywords: post.meta_keywords || '',
         featured_image: post.featured_image || '',
         excerpt: post.excerpt || '',
         content: post.content || '',
@@ -403,19 +402,6 @@ export function PostSettingsModal({
                 </p>
               </div>
 
-              {/* Meta Keywords */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-meta_keywords">Meta Keywords</Label>
-                <Input
-                  id="modal-meta_keywords"
-                  value={formData.meta_keywords || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, meta_keywords: e.target.value }))}
-                  placeholder="keyword1, keyword2, keyword3"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Separate keywords with commas
-                </p>
-              </div>
             </CardContent>
           </Card>
 
