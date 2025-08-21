@@ -401,7 +401,7 @@ export default function ProductsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link 
-                                href={currentSite ? `/${currentSite.subdomain}/products/${product.slug}` : '#'} 
+                                href={`/products/${product.slug}`}
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

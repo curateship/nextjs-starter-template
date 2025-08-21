@@ -51,8 +51,8 @@ export function ProductBuilderHeader({
       return '#'
     }
     
-    // Use site-specific routing: /[site]/products/[slug]
-    const url = `http://localhost:3000/${currentSite.subdomain}/products/${currentProduct.slug}`
+    // Use clean routing: /products/[slug]
+    const url = `http://localhost:3000/products/${currentProduct.slug}`
     console.log('Generated product URL:', url)
     return url
   }
@@ -111,7 +111,7 @@ export function ProductBuilderHeader({
             asChild
             disabled={!currentProduct || !currentSite?.subdomain}
           >
-            <Link href={currentProduct && currentSite?.subdomain ? `/${currentSite.subdomain}/products/${selectedProduct}` : '#'} target="_blank">
+            <Link href={currentProduct ? `/products/${selectedProduct}` : '#'} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
               View Product
             </Link>

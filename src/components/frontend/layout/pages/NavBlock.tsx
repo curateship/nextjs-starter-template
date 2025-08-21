@@ -298,9 +298,9 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
     if (logoUrl && isSafeUrl(logoUrl)) {
       return logoUrl
     }
-    // If site data is available, use site URL as default
+    // If site data is available, use root as default
     if (site?.subdomain) {
-      return `/${site.subdomain}`
+      return "/"
     }
     // Final fallback to home page
     return "/"

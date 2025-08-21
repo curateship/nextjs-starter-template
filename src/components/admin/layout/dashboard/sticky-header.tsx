@@ -38,7 +38,7 @@ export function StickyHeader({
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm" className="h-8 px-3">
             <Link 
-              href={currentSite ? `/${currentSite.subdomain}` : "/"} 
+              href="/"
               target="_blank" 
               rel="noopener noreferrer"
             >

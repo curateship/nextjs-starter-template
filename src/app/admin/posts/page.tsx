@@ -401,7 +401,7 @@ export default function PostsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link 
-                                href={currentSite ? `/${currentSite.subdomain}/posts/${post.slug}` : '#'} 
+                                href={`/posts/${post.slug}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

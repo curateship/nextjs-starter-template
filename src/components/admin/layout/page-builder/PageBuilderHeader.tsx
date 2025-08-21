@@ -98,7 +98,7 @@ export function PageBuilderHeader({
             size="sm"
             asChild
           >
-            <Link href={site ? `/${site.subdomain}/${selectedPage === 'home' ? '' : selectedPage}` : '#'} target="_blank">
+            <Link href={site ? `/${selectedPage === 'home' ? '' : selectedPage}` : '#'} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
               View Page
             </Link>
