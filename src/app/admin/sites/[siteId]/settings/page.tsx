@@ -19,6 +19,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteName, setSiteName] = useState("")
   const [description, setDescription] = useState("")
+  const [customDomain, setCustomDomain] = useState("")
   const [status, setStatus] = useState("draft")
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
@@ -43,6 +44,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSite(data)
         setSiteName(data.name)
         setDescription(data.description || "")
+        setCustomDomain(data.custom_domain || "")
         setStatus(data.status)
         setThemeId(data.theme_id)
         setFontFamily(data.settings?.font_family || "playfair-display")
@@ -84,6 +86,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
         description: description.trim() || undefined,
+        custom_domain: customDomain.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
@@ -172,6 +175,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           <SiteDashboard
             siteName={siteName}
             description={description}
+            customDomain={customDomain}
             status={status}
             themeId={themeId}
             fontFamily={fontFamily}
@@ -179,6 +183,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
+            onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}

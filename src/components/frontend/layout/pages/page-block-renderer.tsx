@@ -78,7 +78,6 @@ export function BlockRenderer({ site }: BlockRendererProps) {
               key={`listing-views-${block.id}`}
               content={block.content}
               siteId={site.id}
-              siteSubdomain={site.subdomain}
             />
           )
         }

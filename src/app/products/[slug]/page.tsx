@@ -1,20 +1,19 @@
 import { ProductBlockRenderer } from "@/components/frontend/layout/products/product-block-renderer"
-import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
+import { getSiteFromHeaders } from "@/lib/utils/site-headers"
 import { getProductBySlug } from "@/lib/actions/product-frontend-actions"
 import { notFound } from "next/navigation"
 
-interface SiteProductPageProps {
+interface ProductPageProps {
   params: Promise<{ 
-    site: string
     slug: string
   }>
 }
 
-export default async function SiteProductPage({ params }: SiteProductPageProps) {
-  const { site: siteSubdomain, slug } = await params
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { slug } = await params
   
-  // Get site data
-  const { success: siteSuccess, site } = await getSiteBySubdomain(siteSubdomain, 'home')
+  // Get site data from headers set by middleware
+  const { success: siteSuccess, site } = await getSiteFromHeaders('home')
   
   if (!siteSuccess || !site) {
     notFound()
@@ -35,11 +34,11 @@ export default async function SiteProductPage({ params }: SiteProductPageProps) 
   )
 }
 
-export async function generateMetadata({ params }: SiteProductPageProps) {
-  const { site: siteSubdomain, slug } = await params
+export async function generateMetadata({ params }: ProductPageProps) {
+  const { slug } = await params
   
   try {
-    const { success: siteSuccess, site } = await getSiteBySubdomain(siteSubdomain, 'home')
+    const { success: siteSuccess, site } = await getSiteFromHeaders('home')
     
     if (!siteSuccess || !site) {
       return {

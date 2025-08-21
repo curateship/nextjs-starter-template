@@ -115,12 +115,31 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       })).sort((a, b) => a.display_order - b.display_order)
     } else {
       // Fallback: try to get blocks from old page_blocks table if page doesn't have content_blocks
-      const { data: siteBlocks, error: blocksError } = await supabaseAdmin
-        .from('page_blocks')
-        .select('*')
-        .eq('site_id', site.id)
-        .or(`page_slug.eq.${actualPageSlug},page_slug.eq.global,page_slug.is.null`)
-        .order('display_order', { ascending: true })
+      // Use multiple queries to avoid SQL injection from string interpolation
+      const queries = [
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .eq('page_slug', actualPageSlug)
+          .order('display_order', { ascending: true }),
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .eq('page_slug', 'global')
+          .order('display_order', { ascending: true }),
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .is('page_slug', null)
+          .order('display_order', { ascending: true })
+      ]
+      
+      const results = await Promise.all(queries)
+      const siteBlocks = results.flatMap(result => result.data || [])
+      const blocksError = results.find(result => result.error)?.error
 
       if (!blocksError && siteBlocks) {
         blocks = siteBlocks.map((block) => ({
@@ -228,5 +247,151 @@ export async function getSitePages(subdomain: string): Promise<{
 
   } catch (error) {
     return { success: false, error: 'Failed to load pages' }
+  }
+}
+
+/**
+ * Get site data by custom domain for subdomain routing
+ */
+export async function getSiteByDomain(domain: string, pageSlug?: string): Promise<{
+  success: boolean
+  site?: SiteWithBlocks
+  error?: string
+}> {
+  try {
+    if (!domain) {
+      return { success: false, error: 'Domain is required' }
+    }
+
+    // Get site with theme information by custom domain
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
+      .eq('custom_domain', domain)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found' }
+    }
+
+    // Check if site is viewable (allow draft for development)
+    if (site.status !== 'active' && site.status !== 'draft') {
+      return { success: false, error: 'Site is not available for viewing' }
+    }
+
+    // If no page slug provided, find the homepage
+    let actualPageSlug = pageSlug
+    if (!pageSlug) {
+      const { data: homePage, error: homePageError } = await supabaseAdmin
+        .from('pages')
+        .select('slug')
+        .eq('site_id', site.id)
+        .eq('is_homepage', true)
+        .eq('is_published', true)
+        .single()
+      
+      if (!homePageError && homePage) {
+        actualPageSlug = homePage.slug
+      } else {
+        // Fallback to 'home' if no homepage is set
+        actualPageSlug = 'home'
+      }
+    }
+
+    // Check if the requested page exists and is published
+    const { data: page, error: pageError } = await supabaseAdmin
+      .from('pages')
+      .select('*')
+      .eq('site_id', site.id)
+      .eq('slug', actualPageSlug)
+      .eq('is_published', true)
+      .single()
+
+    // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
+    if (pageError || !page) {
+      // Only continue if pages table doesn't exist or this is the home page
+      if (pageError?.code === 'PGRST204' && actualPageSlug !== 'home') {
+        return { success: false, error: 'Page not found' }
+      }
+      // For sites without pages system or home page, continue with old behavior
+    }
+
+    // Get blocks from page's content_blocks JSON column
+    let blocks: Array<{
+      id: string
+      type: string
+      content: Record<string, any>
+      display_order: number
+    }> = []
+
+    if (page && page.content_blocks) {
+      // Convert JSON content_blocks to array format
+      blocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
+        id,
+        type: block.type,
+        content: block.content,
+        display_order: block.display_order || 0
+      })).sort((a, b) => a.display_order - b.display_order)
+    } else {
+      // Fallback: try to get blocks from old page_blocks table if page doesn't have content_blocks
+      // Use multiple queries to avoid SQL injection from string interpolation
+      const queries = [
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .eq('page_slug', actualPageSlug)
+          .order('display_order', { ascending: true }),
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .eq('page_slug', 'global')
+          .order('display_order', { ascending: true }),
+        supabaseAdmin
+          .from('page_blocks')
+          .select('*')
+          .eq('site_id', site.id)
+          .is('page_slug', null)
+          .order('display_order', { ascending: true })
+      ]
+      
+      const results = await Promise.all(queries)
+      const siteBlocks = results.flatMap(result => result.data || [])
+      const blocksError = results.find(result => result.error)?.error
+
+      if (!blocksError && siteBlocks) {
+        blocks = siteBlocks.map((block) => ({
+          id: block.id,
+          type: block.block_type,
+          content: block.content,
+          display_order: block.display_order || 0
+        }))
+      }
+    }
+
+    const siteWithBlocks: SiteWithBlocks = {
+      id: site.id,
+      name: site.name,
+      subdomain: site.subdomain,
+      custom_domain: site.custom_domain,
+      theme_id: site.theme_id,
+      theme_name: site.theme_name,
+      settings: site.settings,
+      blocks
+    }
+
+    return { success: true, site: siteWithBlocks }
+
+  } catch (error) {
+    return { success: false, error: 'Failed to load site' }
   }
 }

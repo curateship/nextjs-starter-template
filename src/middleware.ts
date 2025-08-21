@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -6,6 +7,19 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
+  // Create admin client for site lookups (with service role key)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  )
+
+  // Create regular client for auth checks
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -54,6 +68,116 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
+
+    return response
+  }
+
+  // Skip site lookup for static files, API routes, admin routes, and other Next.js internals
+  if (
+    request.nextUrl.pathname.startsWith('/_next/') ||
+    request.nextUrl.pathname.startsWith('/api/') ||
+    request.nextUrl.pathname.startsWith('/favicon.ico') ||
+    request.nextUrl.pathname.startsWith('/manifest.json') ||
+    request.nextUrl.pathname.startsWith('/robots.txt') ||
+    request.nextUrl.pathname.startsWith('/sitemap.xml') ||
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/themes/') ||
+    request.nextUrl.pathname.startsWith('/admin')  // Skip site lookup for admin routes
+  ) {
+    return response
+  }
+
+  // Extract subdomain and custom domain info
+  const host = request.headers.get('host') || 'localhost:3000'
+  const hostname = host.split(':')[0] // Remove port for subdomain extraction
+  
+  // Check if this is a custom domain (not localhost and not a subdomain of our main domain)
+  const isLocalhost = hostname === 'localhost'
+  const isCustomDomain = !isLocalhost && !hostname.includes('.yourdomain.com') // Replace with your actual domain
+  
+  let siteIdentifier = ''
+  
+  if (isCustomDomain) {
+    // Custom domain - look up by domain
+    siteIdentifier = host
+  } else if (!isLocalhost) {
+    // Subdomain - extract subdomain
+    const parts = hostname.split('.')
+    if (parts.length > 2) {
+      siteIdentifier = parts[0] // First part is the subdomain
+    }
+  } else {
+    // Localhost - always use the full host with port for localhost
+    siteIdentifier = host // Use the full host including port
+  }
+
+  // Validate and sanitize site identifier before database lookup
+  if (siteIdentifier) {
+    // Input validation: only allow safe characters for domain/subdomain
+    const safeDomainRegex = /^[a-zA-Z0-9.-]+(?::[0-9]{1,5})?$/
+    if (!safeDomainRegex.test(siteIdentifier)) {
+      console.warn('Invalid site identifier format:', siteIdentifier)
+      return NextResponse.rewrite(new URL('/404', request.url))
+    }
+    
+    // Length validation to prevent DoS
+    if (siteIdentifier.length > 255) {
+      console.warn('Site identifier too long:', siteIdentifier.length)
+      return NextResponse.rewrite(new URL('/404', request.url))
+    }
+    try {
+      // Query the database for site info using the admin client
+      // Use separate queries to avoid SQL injection from string interpolation
+      let site = null
+      let error = null
+      
+      // Try subdomain match first
+      const subdomainResult = await supabaseAdmin
+        .from('sites')
+        .select('id, subdomain, custom_domain, status')
+        .eq('subdomain', siteIdentifier)
+        .maybeSingle()
+      
+      if (subdomainResult.data) {
+        site = subdomainResult.data
+        error = subdomainResult.error
+      } else {
+        // Try custom domain match if subdomain didn't match
+        const domainResult = await supabaseAdmin
+          .from('sites')
+          .select('id, subdomain, custom_domain, status')
+          .eq('custom_domain', siteIdentifier)
+          .maybeSingle()
+        
+        site = domainResult.data
+        error = domainResult.error
+      }
+
+      if (error) {
+        console.error('Middleware - Error looking up site:', error)
+      }
+
+      if (site && (site.status === 'active' || site.status === 'draft')) {
+        // Add site info to request headers for components to access
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-site-id', site.id)
+        requestHeaders.set('x-site-subdomain', site.subdomain)
+        requestHeaders.set('x-site-domain', site.custom_domain || '')
+
+        response = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+      } else {
+        // Site not found or not active - show 404
+        return NextResponse.rewrite(new URL('/404', request.url))
+      }
+    } catch (error) {
+      console.error('Error looking up site:', error)
+      // Continue with normal routing on database errors
+    }
   }
 
   return response
@@ -61,7 +185,13 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/admin/:path*',
-    '/admin',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
