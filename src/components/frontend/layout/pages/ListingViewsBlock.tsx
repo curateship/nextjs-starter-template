@@ -30,10 +30,9 @@ interface ListingViewsBlockProps {
     backgroundColor?: string
   }
   siteId: string
-  siteSubdomain: string
 }
 
-export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingViewsBlockProps) {
+export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
@@ -145,7 +144,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     return (
       <Link 
         key={product.id}
-        href={`/${siteSubdomain}/products/${product.slug}`}
+        href={`/products/${product.slug}`}
         className="block hover:opacity-75 transition-opacity"
       >
         {productContent}

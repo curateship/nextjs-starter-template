@@ -4628,3 +4628,170 @@ NEW: products table with JSON content_blocks column
 - `post-actions.ts` - removed all tracking function calls
 
 **Result**: Eliminated "fake safety" anti-pattern. Followed CLAUDE.md simplicity principles - the database already knows which images are in use through direct queries. Classic example of how removing complex code is often the best solution.
+
+
+## 🏗️ Phase 19: Major Architectural Refactor - Custom Domain & Route Simplification (August 21, 2025)
+
+**Context**: User requested connecting one site to the root domain (`http://localhost:3000/`) using environment configuration. This triggered a complete architectural overhaul from path-based routing to true subdomain architecture.
+
+### Initial Problem: Root Domain Connection
+
+**User Request**: "we need to connect one of the site to be a root site http://localhost:3000/ using .env"
+
+**Initial Approach**: Created `HUB_SITE_ID` environment variable and modified root page to use `getHubSiteById` function. User immediately rejected this as "fucking complicated shit" - demanded simple solution.
+
+### The Pivot: Custom Domain Discovery
+
+**Key Insight**: User asked "what if I input something like localhost for custom domain? wouldnt that act as a domain?" 
+
+This led to discovering we should use existing custom domain feature instead of inventing new hub site concepts.
+
+**Decision**: Pivoted from environment variable approach to custom domain approach using existing database fields.
+
+### Major Architectural Changes
+
+#### 1. True Subdomain Architecture Implementation
+
+**Problem**: Path-based routing (`/[site]/content`) wasn't production-ready for Vercel custom domains.
+
+**Solution**: Complete refactor to subdomain-based routing with middleware handling site resolution.
+
+**Files Refactored**:
+- `/src/middleware.ts` - Complete rewrite for subdomain extraction and site lookup
+- `/src/lib/actions/frontend-actions.ts` - Added `getSiteByDomain` function
+- `/src/lib/utils/site-headers.ts` - Created utility to extract site from request headers
+- `/src/app/(main)/page.tsx` - Changed from static to dynamic site rendering
+
+#### 2. Custom Domain Database Configuration
+
+**Database Changes**:
+- Created migration `003_fix_custom_domain_constraint.sql`
+- Updated domain constraint to allow `localhost:3000` for development
+- Added support for port numbers in custom domains
+
+**Admin UI Enhancement**:
+- Added custom domain input field to `SiteDashboard.tsx`
+- Users can now set `localhost:3000` as custom domain via admin interface
+
+#### 3. Middleware Architecture Overhaul
+
+**Previous**: Simple auth checks for `/admin` routes
+**New**: Complete site resolution system
+
+```typescript
+// Extract subdomain/custom domain from request
+const host = request.headers.get('host') || 'localhost:3000'
+const isCustomDomain = !hostname.includes('.yourdomain.com')
+
+// Database lookup using service role key
+const { data: site } = await supabaseAdmin
+  .from('sites')
+  .select('id, subdomain, custom_domain, status')
+  .or(`subdomain.eq.${siteIdentifier},custom_domain.eq.${siteIdentifier}`)
+  .single()
+
+// Inject site headers for components
+requestHeaders.set('x-site-id', site.id)
+requestHeaders.set('x-site-subdomain', site.subdomain)  
+requestHeaders.set('x-site-domain', site.custom_domain || '')
+```
+
+### Critical Bug Fixes During Refactor
+
+#### 1. Route Conflicts (404 Errors)
+
+**Problem**: Persistent 404s on product pages despite middleware returning 200s
+**Root Cause**: Conflicting route structure - `/app/[site].backup/` routes interfering with new `/app/(main)/` routes
+**Solution**: Completely removed old `[site].backup` directory structure
+
+#### 2. Middleware Permission Errors
+
+**Problem**: "permission denied for table sites" errors
+**Root Cause**: Using anonymous key instead of service role key for site lookups
+**Solution**: Used `SUPABASE_SERVICE_ROLE_KEY` for admin database operations
+
+#### 3. Navigation Overlap Issue
+
+**Problem**: Two navigation bars rendering on top of each other
+**Root Cause**: 
+- Static `<Navbar />` from `(main)/layout.tsx` (with "tailark" branding)
+- Dynamic navigation from site database content (with "System Everything" branding)
+**Solution**: Removed static navigation components - now only site's navigation displays
+
+#### 4. Route Structure Simplification
+
+**Problem**: Redundant `(main)` route group serving no purpose after removing layout components
+**Major Decision**: Eliminated entire `(main)` route group structure
+
+**Before**:
+```
+/src/app/
+├── (main)/
+│   ├── layout.tsx (just renders children)
+│   ├── page.tsx
+│   ├── products/[slug]/
+│   ├── login/
+│   └── [...slug]/
+└── admin/
+```
+
+**After**:
+```
+/src/app/
+├── page.tsx
+├── products/[slug]/
+├── login/
+├── [...slug]/
+└── admin/
+```
+
+### Technical Implementation Details
+
+#### Site Resolution Flow
+1. **Middleware intercepts request** → extracts domain/subdomain
+2. **Database lookup** → finds site by custom_domain or subdomain  
+3. **Header injection** → passes site data to components via request headers
+4. **Component rendering** → uses `getSiteFromHeaders()` to access site data
+
+#### Security Enhancements
+- ✅ Service role key isolation for admin operations
+- ✅ Site ownership validation through middleware
+- ✅ Proper authentication checks maintained
+- ✅ XSS prevention in dynamic content rendering
+
+#### Production Readiness
+- ✅ Real subdomain support for Vercel deployment  
+- ✅ Custom domain mapping through database
+- ✅ Development environment compatibility (`localhost:3000`)
+- ✅ Clean URL structure without site identifiers
+
+### Results & Impact
+
+**Performance**: Eliminated redundant route nesting and unnecessary layout wrappers
+
+**Maintainability**: 
+- Flatter route structure easier to navigate
+- Site-specific branding and navigation
+- Eliminated static components that didn't match multi-tenant architecture
+
+**User Experience**:
+- Clean URLs: `/products/slug` instead of `/site-name/products/slug`
+- Site-specific navigation and branding  
+- Single navigation bar (no more overlaps)
+- Production-ready custom domain support
+
+**Architecture Cleanliness**:
+- True multi-tenant system with per-site customization
+- Middleware-based site resolution (industry standard)
+- Eliminated unnecessary route grouping
+- Database-driven content delivery
+
+### Testing Verification
+- ✅ Root domain (`/`) returns HTTP 200 with site content
+- ✅ Product pages (`/products/slug`) return HTTP 200  
+- ✅ Admin routes (`/admin`) properly redirect to login
+- ✅ Custom domain configuration working via admin UI
+- ✅ Single navigation rendering correctly
+- ✅ Site-specific branding and content display
+
+**Lesson Learned**: Major architectural decisions should be made holistically. The user's simple request exposed fundamental architectural limitations that required comprehensive refactoring. Sometimes "simple" solutions require complex implementation changes, but the end result is actually much simpler and more maintainable.

@@ -1,21 +1,15 @@
 import { BlockRenderer } from "@/components/frontend/layout/pages/page-block-renderer"
-import { getSiteBySubdomain } from "@/lib/actions/frontend-actions"
+import { getSiteFromHeaders } from "@/lib/utils/site-headers"
 import { notFound } from "next/navigation"
 
-interface SitePageProps {
+interface PageProps {
   params: Promise<{ 
-    site: string
     slug: string[]
   }>
 }
 
-export default async function SitePage({ params }: SitePageProps) {
-  const { site: siteSubdomain, slug } = await params
-  
-  // Sanitize site subdomain to prevent injection attacks
-  if (!siteSubdomain || siteSubdomain.includes('..') || siteSubdomain.includes('/')) {
-    notFound()
-  }
+export default async function DynamicPage({ params }: PageProps) {
+  const { slug } = await params
   
   // Sanitize slug array to prevent path traversal attacks
   const sanitizedSlug = slug.filter(segment => 
@@ -27,7 +21,7 @@ export default async function SitePage({ params }: SitePageProps) {
   const pagePath = sanitizedSlug.join('/')
   
   // Get site data with the specific page
-  const { success, site } = await getSiteBySubdomain(siteSubdomain, pagePath)
+  const { success, site } = await getSiteFromHeaders(pagePath)
   
   if (!success || !site) {
     notFound()
@@ -36,16 +30,9 @@ export default async function SitePage({ params }: SitePageProps) {
   return <BlockRenderer site={site} />
 }
 
-export async function generateMetadata({ params }: SitePageProps) {
-  const { site: siteSubdomain, slug } = await params
+export async function generateMetadata({ params }: PageProps) {
+  const { slug } = await params
   
-  // Sanitize site subdomain to prevent injection attacks
-  if (!siteSubdomain || siteSubdomain.includes('..') || siteSubdomain.includes('/')) {
-    return {
-      title: 'Invalid Site',
-      description: 'Invalid site request.',
-    }
-  }
   // Sanitize slug array to prevent path traversal attacks
   const sanitizedSlug = slug.filter(segment => 
     segment && 
@@ -56,7 +43,7 @@ export async function generateMetadata({ params }: SitePageProps) {
   const pagePath = sanitizedSlug.join('/')
   
   try {
-    const { success, site } = await getSiteBySubdomain(siteSubdomain, pagePath)
+    const { success, site } = await getSiteFromHeaders(pagePath)
     
     if (!success || !site) {
       return {

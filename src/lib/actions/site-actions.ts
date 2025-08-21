@@ -67,6 +67,7 @@ export interface SiteWithTheme extends Site {
 export interface CreateSiteData {
   name: string
   description?: string
+  custom_domain?: string
   theme_id: string
   status?: 'active' | 'inactive' | 'draft'
   settings?: Record<string, any>

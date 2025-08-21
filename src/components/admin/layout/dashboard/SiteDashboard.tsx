@@ -16,6 +16,7 @@ interface SiteDashboardProps {
   status: string
   themeId: string
   description?: string
+  customDomain?: string
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
@@ -23,6 +24,7 @@ interface SiteDashboardProps {
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
   onDescriptionChange?: (value: string) => void
+  onCustomDomainChange?: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
 }
@@ -32,6 +34,7 @@ export function SiteDashboard({
   status,
   themeId,
   description = "",
+  customDomain = "",
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
@@ -39,6 +42,7 @@ export function SiteDashboard({
   onStatusChange,
   onThemeIdChange,
   onDescriptionChange,
+  onCustomDomainChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
 }: SiteDashboardProps) {
@@ -177,6 +181,29 @@ export function SiteDashboard({
               onChange={(e) => onDescriptionChange(e.target.value)}
               placeholder="Brief description of your site"
             />
+          </div>
+        )}
+
+        {/* Custom Domain */}
+        {onCustomDomainChange && (
+          <div className="space-y-2">
+            <label htmlFor="customDomain" className="text-sm font-medium text-gray-700">
+              Custom Domain
+            </label>
+            <Input
+              id="customDomain"
+              value={customDomain}
+              onChange={(e) => onCustomDomainChange(e.target.value)}
+              placeholder="example.com or localhost:3000"
+            />
+            <div className="text-xs text-muted-foreground">
+              <p>Enter a custom domain to serve this site from (e.g., localhost:3000 for local development)</p>
+              {customDomain && (
+                <p className="text-blue-600 mt-1">
+                  Site will be accessible at: <strong>{customDomain}</strong>
+                </p>
+              )}
+            </div>
           </div>
         )}
 
