@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Multi-Tenant Site Builder Platform
+
+This platform allows creating and managing multiple sites with subdomain routing. Each site is accessible via:
+- **Local Development**: `subdomain.localhost:3000`
+- **Production**: `subdomain.yourapp.vercel.app` (or custom domains)
+
+### Subdomain Routing
+
+The platform automatically routes requests based on subdomains:
+- Admin interface: `localhost:3000/admin`
+- Individual sites: `[site-subdomain].localhost:3000`
+
+**Example**: A site with subdomain "system-everything" is accessible at `system-everything.localhost:3000`
+
 ## Getting Started
 
 First, run the development server:
