@@ -127,13 +127,13 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
           {showTitle && (
             <h3 className="text-xl tracking-tight">{product.title}</h3>
           )}
-          {showDescription && product.rich_text && (
+          {showDescription && product.richText && (
             <p className="text-muted-foreground text-base">
               {(() => {
-                // Strip HTML tags from rich_text
-                const plainText = product.rich_text.replace(/<[^>]*>/g, '')
+                // Strip HTML tags from rich text for preview
+                const plainText = product.richText.replace(/<[^>]*>/g, '').trim()
                 return plainText.length > 150 
-                  ? plainText.substring(0, 150) + '...' 
+                  ? plainText.substring(0, 150) + '...'
                   : plainText
               })()}
             </p>

@@ -13,8 +13,7 @@ export interface ListingViewsData {
     title: string
     slug: string
     featured_image: string | null
-    meta_description: string | null
-    rich_text: string | null
+    richText: string | null
     created_at: string
     display_order: number
   }>
@@ -72,7 +71,7 @@ export async function getListingViewsData(params: {
     // Get products with pagination
     const { data: products, error } = await supabaseAdmin
       .from('products')
-      .select('id, title, slug, featured_image, meta_description, rich_text, created_at, display_order')
+      .select('id, title, slug, created_at, display_order, content_blocks')
       .eq('site_id', site_id)
       .eq('is_published', true)
       .order(orderColumn, { ascending: sortOrder === 'asc' })
@@ -86,10 +85,17 @@ export async function getListingViewsData(params: {
     const totalPages = Math.ceil(totalCount / limit)
     const currentPage = Math.floor(offset / limit) + 1
 
+    // Transform products to extract featured_image and richText from content_blocks
+    const transformedProducts = (products || []).map(product => ({
+      ...product,
+      featured_image: product.content_blocks?.['product-default']?.featuredImage || null,
+      richText: product.content_blocks?.['product-default']?.richText || null
+    }))
+
     return {
       success: true,
       data: {
-        products: products || [],
+        products: transformedProducts,
         totalCount,
         currentPage,
         totalPages
