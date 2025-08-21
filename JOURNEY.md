@@ -4546,3 +4546,37 @@ NEW: products table with JSON content_blocks column
 **Files Modified**: 12 files across actions, hooks, components, and migrations
 
 *Completed unification to JSON content architecture for both products and pages.*
+
+---
+
+## Phase 16: Image Usage Tracking System Removal
+
+**Date**: August 21, 2025
+**User Request**: "we need to completely remove the image_usage table. it has gotten out of hand"
+
+### Implementation
+
+**Complete elimination of overcomplicated tracking system**:
+- Removed `trackImageUsageAction()` and `removeImageUsageAction()` functions
+- Simplified `ImageData` interface (removed `usage_count`, `sites_using`)
+- Cleaned image deletion (no more usage validation blocking deletion)
+- Removed usage-based filtering from admin UI
+- Created migration to drop `image_usage` table completely
+
+**Architecture Simplification**:
+- **Before**: Complex tracking with fake "safety" preventing deletion
+- **After**: Simple CRUD operations - load, edit, save, delete
+- **Performance**: Eliminated unnecessary joins and usage counting queries
+- **UX**: No more confusing "used/unused" distinctions
+
+**Files Cleaned**: 15+ components, actions, and UI files
+**Database**: `image_usage` table, indexes, RLS policies all removed
+
+**Results**:
+- ✅ Follows CLAUDE.md "simplicity first" principle  
+- ✅ Eliminates fake safety systems that silently fail
+- ✅ Server running without errors
+- ✅ Clean image management interface
+- ✅ No more overcomplicated state tracking
+
+*Lesson: Sometimes the best feature is the one you remove. The "safety" system was actually making things worse by preventing legitimate deletions and adding unnecessary complexity.*

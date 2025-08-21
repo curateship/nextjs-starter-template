@@ -50,8 +50,6 @@ export interface ImageData {
   height: number | null
   storage_path: string
   public_url: string
-  usage_count: number
-  sites_using: number
   created_at: string
   updated_at: string
 }
@@ -153,11 +151,7 @@ export async function uploadImageAction(
         storage_path: storagePath,
         public_url: urlData.publicUrl
       })
-      .select(`
-        *,
-        usage_count:image_usage(count),
-        sites_using:image_usage(site_id)
-      `)
+      .select('*')
       .single()
 
     if (dbError) {
@@ -169,12 +163,8 @@ export async function uploadImageAction(
       return { data: null, error: `Database error: ${dbError.message}` }
     }
 
-    // Transform the data to match ImageData interface
-    const transformedData: ImageData = {
-      ...imageData,
-      usage_count: 0,
-      sites_using: 0
-    }
+    // Return the image data
+    const transformedData: ImageData = imageData
 
     revalidatePath('/admin/images')
     return { data: transformedData, error: null }
@@ -199,7 +189,7 @@ export async function getImagesAction(): Promise<{ data: ImageData[] | null; err
     }
 
     const { data: images, error } = await supabaseAdmin
-      .from('image_details')
+      .from('images')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -247,17 +237,8 @@ export async function updateImageAction(
       return { data: null, error: `Failed to update image: ${error.message}` }
     }
 
-    // Get usage statistics
-    const { data: usageData } = await supabaseAdmin
-      .from('image_usage')
-      .select('site_id')
-      .eq('image_id', imageId)
-
-    const transformedData: ImageData = {
-      ...imageData,
-      usage_count: usageData?.length || 0,
-      sites_using: new Set(usageData?.map(u => u.site_id)).size || 0
-    }
+    // Return the updated image data
+    const transformedData: ImageData = imageData
 
     revalidatePath('/admin/images')
     return { data: transformedData, error: null }
@@ -284,7 +265,7 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
     // Get image data first
     const { data: image, error: fetchError } = await supabaseAdmin
       .from('images')
-      .select('storage_path, usage_count:image_usage(count)')
+      .select('storage_path')
       .eq('id', imageId)
       .eq('user_id', user.id)
       .single()
@@ -293,17 +274,7 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
       return { success: false, error: 'Image not found or access denied' }
     }
 
-    // Check if image is being used
-    const { count: usageCount } = await supabaseAdmin
-      .from('image_usage')
-      .select('*', { count: 'exact', head: true })
-      .eq('image_id', imageId)
-
-    if (usageCount && usageCount > 0) {
-      return { success: false, error: 'Cannot delete image that is currently being used in sites' }
-    }
-
-    // Delete from database first (this will cascade delete usage records)
+    // Delete from database
     const { error: dbError } = await supabaseAdmin
       .from('images')
       .delete()
@@ -335,47 +306,6 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
   }
 }
 
-/**
- * Track image usage in a site block
- */
-export async function trackImageUsageAction(
-  imageId: string,
-  siteId: string,
-  blockType: string,
-  usageContext: string
-): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Insert or update usage record using admin client (internal operation)
-    const usageRecord = {
-      image_id: imageId,
-      site_id: siteId,
-      block_type: blockType,
-      usage_context: usageContext
-    }
-    
-    const { error } = await supabaseAdmin
-      .from('image_usage')
-      .upsert(usageRecord)
-
-    if (error) {
-      return { success: false, error: `Failed to track usage: ${error.message}` }
-    }
-
-    return { success: true, error: null }
-
-  } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
-}
 
 /**
  * Get image ID by public URL
@@ -413,40 +343,3 @@ export async function getImageByUrlAction(publicUrl: string): Promise<{ data: st
   }
 }
 
-/**
- * Remove image usage tracking
- */
-export async function removeImageUsageAction(
-  imageId: string,
-  siteId: string,
-  blockType: string,
-  usageContext: string
-): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    const { error } = await supabaseAdmin
-      .from('image_usage')
-      .delete()
-      .eq('image_id', imageId)
-      .eq('site_id', siteId)
-      .eq('block_type', blockType)
-      .eq('usage_context', usageContext)
-
-    if (error) {
-      return { success: false, error: `Failed to remove usage: ${error.message}` }
-    }
-
-    return { success: true, error: null }
-
-  } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
-}

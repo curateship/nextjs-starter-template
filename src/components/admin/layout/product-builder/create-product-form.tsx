@@ -9,7 +9,6 @@ import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextE
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction } from "@/lib/actions/product-actions"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import type { Product, CreateProductData } from "@/lib/actions/product-actions"
 
 interface CreateProductFormProps {

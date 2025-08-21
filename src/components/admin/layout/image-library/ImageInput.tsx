@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { ImagePicker } from "./ImagePicker"
 import { ImageIcon, X } from "lucide-react"
 import Image from "next/image"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import { toast } from "sonner"
 
 interface ImageInputProps {
@@ -34,42 +33,7 @@ export function ImageInput({
   const [showPicker, setShowPicker] = useState(false)
   const [previousImageUrl, setPreviousImageUrl] = useState(value)
 
-  // Track/untrack image usage when value changes
-  useEffect(() => {
-    if (!siteId || !blockType || !usageContext) return
-    
-    const trackUsage = async () => {
-      try {
-        // Remove old usage if there was a previous image
-        if (previousImageUrl && previousImageUrl !== value) {
-          const { data: oldImageId } = await getImageByUrlAction(previousImageUrl)
-          if (oldImageId) {
-            await removeImageUsageAction(oldImageId, siteId, blockType, usageContext)
-          }
-        }
-
-        // Track new usage if there's a new image  
-        if (value && value !== previousImageUrl) {
-          const { data: newImageId, error } = await getImageByUrlAction(value)
-          if (newImageId) {
-            const result = await trackImageUsageAction(newImageId, siteId, blockType, usageContext)
-            if (result.error) {
-              console.warn('Failed to track image usage:', result.error)
-            }
-          } else if (error && !error.includes('Image not found')) {
-            // Only log errors that aren't "image not found" (which is normal for external URLs)
-            console.warn('Failed to find image for tracking:', error)
-          }
-        }
-        
-        setPreviousImageUrl(value)
-      } catch (error) {
-        console.error('Error updating image usage:', error)
-      }
-    }
-
-    trackUsage()
-  }, [value, siteId, blockType, usageContext, previousImageUrl])
+  // Removed image usage tracking system
 
   const handleSelectImage = (imageUrl: string, altText?: string) => {
     onChange(imageUrl)

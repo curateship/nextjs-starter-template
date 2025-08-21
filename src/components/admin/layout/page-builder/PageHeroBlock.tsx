@@ -10,7 +10,6 @@ import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Reorder } from "motion/react"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 
 interface PageHeroBlockProps {
   title?: string
@@ -177,21 +176,8 @@ export function PageHeroBlock({
 }: PageHeroBlockProps) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
   const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
-  const previousAvatarsRef = useRef<Array<{ src: string; alt: string; fallback: string; id?: string }>>(trustedByAvatars)
 
   // Ensure all avatars have unique IDs
-  // Track hero image usage on initial load
-  useEffect(() => {
-    const trackInitialHeroImage = async () => {
-      if (heroImage && siteId) {
-        const { data: imageId } = await getImageByUrlAction(heroImage)
-        if (imageId) {
-          await trackImageUsageAction(imageId, siteId, "hero-page", "hero-image")
-        }
-      }
-    }
-    trackInitialHeroImage()
-  }, []) // Only run on mount
 
   useEffect(() => {
     const avatarsNeedIds = trustedByAvatars.some(avatar => !avatar.id)
@@ -204,76 +190,6 @@ export function PageHeroBlock({
     }
   }, [trustedByAvatars, onTrustedByAvatarsChange])
 
-  // Track avatar usage when avatars change
-  useEffect(() => {
-    const trackAvatarUsage = async () => {
-      if (!siteId) return
-
-      const previousAvatars = previousAvatarsRef.current
-
-      try {
-
-        // Track changes for each avatar position
-        for (let i = 0; i < Math.max(trustedByAvatars.length, previousAvatars.length); i++) {
-          const currentAvatar = trustedByAvatars[i]
-          const previousAvatar = previousAvatars[i]
-
-          // If previous avatar exists but current doesn't, remove tracking
-          if (previousAvatar?.src && !currentAvatar) {
-            const { data: imageId } = await getImageByUrlAction(previousAvatar.src)
-            if (imageId) {
-              const result = await removeImageUsageAction(imageId, siteId, "hero-page", `avatar-${i}`)
-            }
-          }
-          // If both exist but URLs changed, remove old and add new
-          else if (previousAvatar?.src && currentAvatar?.src && previousAvatar.src !== currentAvatar.src) {
-            const { data: oldImageId } = await getImageByUrlAction(previousAvatar.src)
-            if (oldImageId) {
-              await removeImageUsageAction(oldImageId, siteId, "hero-page", `avatar-${i}`)
-            }
-            const { data: newImageId } = await getImageByUrlAction(currentAvatar.src)
-            if (newImageId) {
-              const result = await trackImageUsageAction(newImageId, siteId, "hero-page", `avatar-${i}`)
-              // Force refresh image library data
-              if (typeof window !== 'undefined') {
-                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
-              }
-            }
-          }
-          // If only current exists (new avatar), add tracking
-          else if (!previousAvatar?.src && currentAvatar?.src) {
-            const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
-            if (imageId) {
-              const result = await trackImageUsageAction(imageId, siteId, "hero-page", `avatar-${i}`)
-              // Force refresh image library data
-              if (typeof window !== 'undefined') {
-                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
-              }
-            } else {
-            }
-          }
-          // If current has a src and previous didn't have one OR it's the initial load with existing avatars
-          else if (currentAvatar?.src && (!previousAvatar || !previousAvatar.src)) {
-            const { data: imageId } = await getImageByUrlAction(currentAvatar.src)
-            if (imageId) {
-              const result = await trackImageUsageAction(imageId, siteId, "hero-page", `avatar-${i}`)
-              // Force refresh image library data
-              if (typeof window !== 'undefined') {
-                fetch('/admin/images', { method: 'POST', body: '' }).catch(() => {})
-              }
-            }
-          }
-        }
-
-        // Update the ref with current avatars
-        previousAvatarsRef.current = [...trustedByAvatars]
-      } catch (error) {
-        console.error('Error tracking avatar usage:', error)
-      }
-    }
-
-    trackAvatarUsage()
-  }, [trustedByAvatars, siteId])
 
   const addAvatar = () => {
     const newAvatars = [...trustedByAvatars, { 
@@ -319,32 +235,9 @@ export function PageHeroBlock({
     }, 300)
   }, [onTrustedByAvatarsChange])
 
-  // Handle hero image changes with usage tracking
-  const handleHeroImageChange = async (newImageUrl: string) => {
-    try {
-      // Remove tracking for old hero image
-      if (heroImage) {
-        const { data: oldImageId } = await getImageByUrlAction(heroImage)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, siteId, "hero-page", "hero-image")
-        }
-      }
-
-      // Track usage for new hero image
-      if (newImageUrl) {
-        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
-        if (newImageId) {
-          await trackImageUsageAction(newImageId, siteId, "hero-page", "hero-image")
-        }
-      }
-
-      // Update the actual hero image value
-      onHeroImageChange(newImageUrl)
-    } catch (error) {
-      console.error('Error tracking hero image usage:', error)
-      // Still update the image even if tracking fails
-      onHeroImageChange(newImageUrl)
-    }
+  // Handle hero image changes
+  const handleHeroImageChange = (newImageUrl: string) => {
+    onHeroImageChange(newImageUrl)
   }
 
 

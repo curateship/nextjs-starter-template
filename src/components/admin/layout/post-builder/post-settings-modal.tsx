@@ -21,7 +21,6 @@ import { ImageIcon, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import Link from "next/link"
 import { updatePostAction } from "@/lib/actions/post-actions"
-import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import type { Post, UpdatePostData } from "@/lib/actions/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 
