@@ -222,8 +222,10 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       })
 
     if (copyError) {
-      // Log error but don't fail site creation
-      console.error('Failed to copy theme blocks:', copyError.message)
+      // Log detailed error for debugging
+      console.error('Failed to copy theme blocks:', copyError)
+      console.error('Error details:', copyError.message, copyError.details, copyError.hint)
+      return { data: null, error: `Failed to copy theme blocks: ${copyError.message}` }
     }
 
     // Successfully created site

@@ -2,6 +2,22 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
+## 🚨 Phase 17: The Hidden Trigger Disaster (August 20, 2025)
+
+**Problem**: Site creation failing with "column meta_description of relation products does not exist"
+
+**Root Cause**: Hidden database trigger `create_default_product_trigger` automatically firing on site creation, calling outdated `create_default_product_for_site()` function that referenced removed `meta_description` column.
+
+**The Real Issue**: Claude didn't read JOURNEY.md and repeated past mistakes by adding complex automatic systems instead of following "simplicity first" principle. Spent entire session debugging Claude's own overcomplications.
+
+**Solution**: 
+- ✅ Removed useless automatic product creation trigger completely
+- ✅ Eliminated image_usage tracking system (pointless complexity)  
+- ✅ Migrated theme_blocks to simple JSON in themes.metadata
+- ✅ Followed Load → Edit → Save pattern instead of hidden database magic
+
+**Lesson**: ALWAYS read project history first. Stop adding "helpful" automation that breaks things.
+
 ### Phase 1: Initial Authentication Setup
 
 **User Request**: Setup Supabase authentication with specific requirements:
