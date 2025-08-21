@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
-import { Plus, Trash2, GripVertical, ImageIcon, X } from "lucide-react"
+import { Plus, Trash2, GripVertical, ImageIcon } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Reorder } from "motion/react"
 
@@ -54,31 +54,7 @@ export function ProductFeaturesBlock({
           const currentFeature = features[i]
           const previousFeature = previousFeatures[i]
 
-          // If previous feature exists but current doesn't, remove tracking
-          if (previousFeature?.image && !currentFeature) {
-            const { data: imageId } = await getImageByUrlAction(previousFeature.image)
-            if (imageId) {
-              await removeImageUsageAction(imageId, siteId, "product-features", `feature-${i}`)
-            }
-          }
-          // If both exist but URLs changed, remove old and add new
-          else if (previousFeature?.image && currentFeature?.image && previousFeature.image !== currentFeature.image) {
-            const { data: oldImageId } = await getImageByUrlAction(previousFeature.image)
-            if (oldImageId) {
-              await removeImageUsageAction(oldImageId, siteId, "product-features", `feature-${i}`)
-            }
-            const { data: newImageId } = await getImageByUrlAction(currentFeature.image)
-            if (newImageId) {
-              await trackImageUsageAction(newImageId, siteId, "product-features", `feature-${i}`)
-            }
-          }
-          // If only current exists (new feature), add tracking
-          else if (!previousFeature?.image && currentFeature?.image) {
-            const { data: imageId } = await getImageByUrlAction(currentFeature.image)
-            if (imageId) {
-              await trackImageUsageAction(imageId, siteId, "product-features", `feature-${i}`)
-            }
-          }
+          // Image tracking removed - features will be saved without usage tracking
         }
 
         // Update the ref with current features

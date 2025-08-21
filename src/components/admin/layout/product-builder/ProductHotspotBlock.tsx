@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/ui/product-hotspot-block"
 
 interface ProductHotspotBlockProps {
@@ -46,45 +46,10 @@ export function ProductHotspotBlock({
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0, showAbove: false })
   const imageRef = useRef<HTMLImageElement>(null)
 
-  // Track background image usage on initial load
-  useEffect(() => {
-    const trackInitialImage = async () => {
-      if (backgroundImage && siteId) {
-        const { data: imageId } = await getImageByUrlAction(backgroundImage)
-        if (imageId) {
-          await trackImageUsageAction(imageId, siteId, "product-hotspot", "background-image")
-        }
-      }
-    }
-    trackInitialImage()
-  }, []) // Only run on mount
 
-  // Handle background image changes with usage tracking
+  // Handle background image changes
   const handleBackgroundImageChange = async (newImageUrl: string) => {
-    try {
-      // Remove tracking for old image
-      if (backgroundImage) {
-        const { data: oldImageId } = await getImageByUrlAction(backgroundImage)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, siteId, "product-hotspot", "background-image")
-        }
-      }
-
-      // Track usage for new image
-      if (newImageUrl) {
-        const { data: newImageId } = await getImageByUrlAction(newImageUrl)
-        if (newImageId) {
-          await trackImageUsageAction(newImageId, siteId, "product-hotspot", "background-image")
-        }
-      }
-
-      // Update the actual image value
-      onBackgroundImageChange(newImageUrl)
-    } catch (error) {
-      console.error('Error tracking background image usage:', error)
-      // Still update the image even if tracking fails
-      onBackgroundImageChange(newImageUrl)
-    }
+    onBackgroundImageChange(newImageUrl)
   }
 
   const handleImageClick = (event: React.MouseEvent<HTMLImageElement>) => {
