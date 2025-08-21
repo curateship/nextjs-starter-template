@@ -78,7 +78,6 @@ export function PageSettingsModal({
         title: page.title,
         slug: page.slug,
         meta_description: page.meta_description || '',
-        meta_keywords: page.meta_keywords || '',
         is_homepage: page.is_homepage,
         is_published: page.is_published
       })
@@ -333,19 +332,6 @@ export function PageSettingsModal({
                 </p>
               </div>
 
-              {/* Meta Keywords */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-meta_keywords">Meta Keywords</Label>
-                <Input
-                  id="modal-meta_keywords"
-                  value={formData.meta_keywords || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, meta_keywords: e.target.value }))}
-                  placeholder="keyword1, keyword2, keyword3"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Separate keywords with commas
-                </p>
-              </div>
             </CardContent>
           </Card>
 

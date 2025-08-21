@@ -10,7 +10,16 @@ import {
 import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus } from "lucide-react"
 import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
-import type { Block } from "@/lib/actions/page-blocks-actions"
+// import type { Block } from "@/lib/actions/page-blocks-actions"
+
+interface Block {
+  id: string
+  type: string
+  content: Record<string, any>
+  display_order: number
+  created_at?: string
+  updated_at?: string
+}
 
 interface CurrentPage {
   slug: string
@@ -187,7 +196,7 @@ export function BlockListPanel({
                       </div>
                       <div className="flex items-center space-x-2">
                         {getBlockIcon(block.type)}
-                        <h3 className="font-medium">{block.title}</h3>
+                        <h3 className="font-medium">{getBlockTypeName(block)}</h3>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">

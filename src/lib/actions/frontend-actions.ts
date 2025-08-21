@@ -89,26 +89,40 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       // For sites without pages system or home page, continue with old behavior
     }
 
-    // Get site blocks for this specific page and global blocks
-    // Also include blocks with null page_slug for legacy compatibility
-    const { data: siteBlocks, error: blocksError } = await supabaseAdmin
-      .from('page_blocks')
-      .select('*')
-      .eq('site_id', site.id)
-      .or(`page_slug.eq.${actualPageSlug},page_slug.eq.global,page_slug.is.null`)
-      .order('display_order', { ascending: true })
+    // Get blocks from page's content_blocks JSON column
+    let blocks: Array<{
+      id: string
+      type: string
+      content: Record<string, any>
+      display_order: number
+    }> = []
 
-    if (blocksError) {
-      return { success: false, error: `Failed to load site blocks: ${blocksError.message}` }
+    if (page && page.content_blocks) {
+      // Convert JSON content_blocks to array format
+      blocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
+        id,
+        type: block.type,
+        content: block.content,
+        display_order: block.display_order || 0
+      })).sort((a, b) => a.display_order - b.display_order)
+    } else {
+      // Fallback: try to get blocks from old page_blocks table if page doesn't have content_blocks
+      const { data: siteBlocks, error: blocksError } = await supabaseAdmin
+        .from('page_blocks')
+        .select('*')
+        .eq('site_id', site.id)
+        .or(`page_slug.eq.${actualPageSlug},page_slug.eq.global,page_slug.is.null`)
+        .order('display_order', { ascending: true })
+
+      if (!blocksError && siteBlocks) {
+        blocks = siteBlocks.map((block) => ({
+          id: block.id,
+          type: block.block_type,
+          content: block.content,
+          display_order: block.display_order || 0
+        }))
+      }
     }
-
-    // Transform blocks into simple unified format (like products)
-    const blocks = (siteBlocks || []).map((block) => ({
-      id: block.id,
-      type: block.block_type,
-      content: block.content,
-      display_order: block.display_order || 0
-    }))
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,

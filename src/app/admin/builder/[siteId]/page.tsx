@@ -69,7 +69,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }, [siteId, initialPage, router])
   
   // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
+  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change
@@ -77,8 +77,16 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     setLocalBlocks(blocks)
   }, [blocks])
   
+  // Update pages from hook data when available
+  useEffect(() => {
+    if (dataPages && dataPages.length > 0 && !pagesLoading) {
+      setPages(dataPages)
+    }
+  }, [dataPages, pagesLoading])
+  
   const builderState = usePageBuilder({ 
     siteId, 
+    pages: pages.length > 0 ? pages : dataPages || [],
     blocks: localBlocks, 
     setBlocks: setLocalBlocks, 
     selectedPage,

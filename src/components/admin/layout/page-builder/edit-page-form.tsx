@@ -59,7 +59,6 @@ export function EditPageForm({ page, onSuccess, onCancel }: EditPageFormProps) {
         title: page.title,
         slug: page.slug,
         meta_description: page.meta_description || '',
-        meta_keywords: page.meta_keywords || '',
         is_homepage: page.is_homepage,
         is_published: page.is_published
       })
@@ -214,19 +213,6 @@ export function EditPageForm({ page, onSuccess, onCancel }: EditPageFormProps) {
             </p>
           </div>
 
-          {/* Meta Keywords */}
-          <div className="space-y-2">
-            <Label htmlFor="meta_keywords">Meta Keywords</Label>
-            <Input
-              id="meta_keywords"
-              value={formData.meta_keywords || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, meta_keywords: e.target.value }))}
-              placeholder="keyword1, keyword2, keyword3"
-            />
-            <p className="text-xs text-muted-foreground">
-              Separate keywords with commas
-            </p>
-          </div>
         </CardContent>
       </Card>
 

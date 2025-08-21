@@ -50,10 +50,10 @@ export interface Page {
   title: string
   slug: string
   meta_description: string | null
-  meta_keywords: string | null
   is_homepage: boolean
   is_published: boolean
   display_order: number
+  content_blocks: Record<string, any>
   created_at: string
   updated_at: string
 }
@@ -69,16 +69,15 @@ export interface CreatePageData {
   title: string
   slug?: string
   meta_description?: string
-  meta_keywords?: string
   is_homepage?: boolean
   is_published?: boolean
+  content_blocks?: Record<string, any>
 }
 
 export interface UpdatePageData {
   title?: string
   slug?: string
   meta_description?: string
-  meta_keywords?: string
   is_homepage?: boolean
   is_published?: boolean
 }
@@ -132,7 +131,6 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'Home',
               slug: 'home',
               meta_description: 'Welcome to our website',
-              meta_keywords: null,
               template: 'default' as const,
               is_homepage: true,
               is_published: true,
@@ -146,7 +144,6 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'About',
               slug: 'about',
               meta_description: 'Learn more about us',
-              meta_keywords: null,
               template: 'default' as const,
               is_homepage: false,
               is_published: true,
@@ -160,7 +157,6 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'Contact',
               slug: 'contact',
               meta_description: 'Get in touch with us',
-              meta_keywords: null,
               template: 'default' as const,
               is_homepage: false,
               is_published: true,
@@ -221,7 +217,6 @@ export async function getPageByIdAction(pageId: string): Promise<{ data: Page | 
             title: 'Sample Page',
             slug: 'sample-page',
             meta_description: 'This is a sample page',
-            meta_keywords: '',
             template: 'default' as const,
             is_homepage: false,
             is_published: true,
@@ -375,7 +370,6 @@ export async function createPageAction(siteId: string, pageData: CreatePageData)
         title: pageData.title.trim(),
         slug,
         meta_description: pageData.meta_description?.trim() || null,
-        meta_keywords: pageData.meta_keywords?.trim() || null,
         is_homepage: pageData.is_homepage || false,
         is_published: pageData.is_published !== false,
         display_order: nextOrder
@@ -489,7 +483,7 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
     const finalUpdates: any = {}
     Object.entries(processedUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'meta_keywords') {
+        if (key === 'title' || key === 'meta_description') {
           finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
         } else {
           finalUpdates[key] = value
@@ -692,7 +686,6 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
         title: newTitle.trim(),
         slug: newSlug,
         meta_description: originalPage.meta_description,
-        meta_keywords: originalPage.meta_keywords,
         is_homepage: false, // Never duplicate as homepage
         is_published: originalPage.is_published,
         display_order: nextOrder
@@ -731,5 +724,110 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       data: null, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
     }
+  }
+}
+
+/**
+ * Update page content blocks (replaces the old page_blocks system)
+ */
+export async function updatePageBlocksAction(pageId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Validate page ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(pageId)) {
+      return { success: false, error: 'Invalid page ID format' }
+    }
+
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the page to verify ownership
+    const { data: page, error: pageError } = await supabaseAdmin
+      .from('pages')
+      .select('id, site_id')
+      .eq('id', pageId)
+      .single()
+
+    if (pageError || !page) {
+      return { success: false, error: 'Page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', page.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // SECURITY: Validate content blocks structure and size
+    if (typeof contentBlocks !== 'object' || contentBlocks === null) {
+      return { success: false, error: 'Invalid content blocks format' }
+    }
+
+    // Prevent DoS: Limit JSON size (50KB max)
+    const jsonSize = JSON.stringify(contentBlocks).length
+    if (jsonSize > 50000) {
+      return { success: false, error: 'Content blocks too large' }
+    }
+
+    // Update the page content_blocks
+    const { error } = await supabaseAdmin
+      .from('pages')
+      .update({
+        content_blocks: contentBlocks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', pageId)
+
+    if (error) {
+      return { success: false, error: `Failed to update page blocks: ${error.message}` }
+    }
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error updating page blocks:', error)
+    return { success: false, error: 'Failed to update page blocks' }
+  }
+}
+
+/**
+ * Get page content blocks by block type
+ */
+export async function getPageBlockAction(pageId: string, blockType: string): Promise<{ success: boolean; block?: any; error?: string }> {
+  try {
+    // Validate page ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(pageId)) {
+      return { success: false, error: 'Invalid page ID format' }
+    }
+
+    // Get the page
+    const { data: page, error: pageError } = await supabaseAdmin
+      .from('pages')
+      .select('content_blocks')
+      .eq('id', pageId)
+      .single()
+
+    if (pageError || !page) {
+      return { success: false, error: 'Page not found' }
+    }
+
+    const block = page.content_blocks?.[blockType] || null
+    return { success: true, block }
+
+  } catch (error) {
+    console.error('Error getting page block:', error)
+    return { success: false, error: 'Failed to get page block' }
   }
 }

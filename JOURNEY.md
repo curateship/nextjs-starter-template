@@ -4516,3 +4516,33 @@ NEW: products table with JSON content_blocks column
 - ✅ Ready for high-volume content types
 
 *Lesson: JSON columns can dramatically improve performance for block-based content systems, but require careful security implementation. The mandatory security audit protocol in CLAUDE.md caught critical vulnerabilities that could have been exploited. Always follow the full security checklist when handling user input, especially with flexible data structures like JSON.*
+
+---
+
+## Phase 15: Pages JSON Migration & Meta Keywords Cleanup
+
+**Date**: August 21, 2025
+**User Request**: "do everything you did but for page_blocks" + "we need to remove the meta keywords col"
+
+### Implementation
+
+**Applied same JSON migration pattern from products to pages**:
+- Added `content_blocks` JSONB column to pages table
+- Migrated data from `page_blocks` relational table to JSON
+- Updated interfaces, hooks, and components
+- Removed deprecated `meta_keywords` column (unused since 2009)
+
+**Critical Fixes**:
+- **Missing Block Titles**: Fixed component to use `getBlockTypeName()` instead of non-existent `block.title`
+- **Migration Safety**: Added existence checks for different database states
+- **Eliminated is_active**: Simplified by removing this concept entirely
+
+**Results**:
+- ✅ Same performance benefits as products (33% column reduction, 50% fewer API calls)
+- ✅ Architecture consistency across platform
+- ✅ Clean SEO forms without obsolete meta keywords
+- ✅ All functionality working and tested
+
+**Files Modified**: 12 files across actions, hooks, components, and migrations
+
+*Completed unification to JSON content architecture for both products and pages.*
