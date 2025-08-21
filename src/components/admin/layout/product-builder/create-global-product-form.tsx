@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
-import { createProductAction } from "@/lib/actions/product-actions"
+import { createProductAction, updateProductBlocksAction } from "@/lib/actions/product-actions"
 import { trackImageUsageAction, removeImageUsageAction, getImageByUrlAction } from "@/lib/actions/image-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/product-actions"
@@ -23,12 +23,10 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',
     slug: '',
-    meta_description: '',
-    meta_keywords: '',
-    featured_image: '',
-    rich_text: '',
     is_published: false
   })
+  const [richTextContent, setRichTextContent] = useState('')
+  const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
@@ -70,8 +68,8 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
   const handleImageChange = async (newImageUrl: string) => {
     try {
       // Remove tracking for old image
-      if (formData.featured_image && currentSite?.id) {
-        const { data: oldImageId } = await getImageByUrlAction(formData.featured_image)
+      if (featuredImage && currentSite?.id) {
+        const { data: oldImageId } = await getImageByUrlAction(featuredImage)
         if (oldImageId) {
           await removeImageUsageAction(oldImageId, currentSite.id, "product", "featured-image")
         }
@@ -85,20 +83,20 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         }
       }
 
-      // Update the form data
-      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
+      // Update the image state
+      setFeaturedImage(newImageUrl)
     } catch (error) {
       console.error('Error tracking image usage:', error)
       // Still update the image even if tracking fails
-      setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
+      setFeaturedImage(newImageUrl)
     }
   }
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
-    if (formData.featured_image && currentSite?.id) {
+    if (featuredImage && currentSite?.id) {
       try {
-        const { data: imageId } = await getImageByUrlAction(formData.featured_image)
+        const { data: imageId } = await getImageByUrlAction(featuredImage)
         if (imageId) {
           await removeImageUsageAction(imageId, currentSite.id, "product", "featured-image")
         }
@@ -106,7 +104,7 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         console.error('Error removing image usage tracking:', error)
       }
     }
-    setFormData(prev => ({ ...prev, featured_image: '' }))
+    setFeaturedImage('')
   }
 
   // Handle saving as draft
@@ -125,7 +123,17 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       setLoading(true)
       setError(null)
       
-      const draftData = { ...formData, is_published: false }
+      // Create product with default block containing all core content
+      const contentBlocks = {
+        'product-default': {
+          title: formData.title,
+          richText: richTextContent || 'Add your product description here...',
+          featuredImage: featuredImage || '',
+          display_order: 0
+        }
+      }
+      
+      const draftData = { ...formData, is_published: false, content_blocks: contentBlocks }
       const { data, error: actionError } = await createProductAction(currentSite.id, draftData)
       
       if (actionError) {
@@ -137,7 +145,8 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         onSuccess(data)
       }
     } catch (err) {
-      setError('Failed to save product as draft')
+      console.error('Error saving product as draft:', err)
+      setError(`Failed to save product as draft: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -159,7 +168,17 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       setLoading(true)
       setError(null)
       
-      const publishData = { ...formData, is_published: true }
+      // Create product with default block containing all core content
+      const contentBlocks = {
+        'product-default': {
+          title: formData.title,
+          richText: richTextContent || 'Add your product description here...',
+          featuredImage: featuredImage || '',
+          display_order: 0
+        }
+      }
+      
+      const publishData = { ...formData, is_published: true, content_blocks: contentBlocks }
       const { data, error: actionError } = await createProductAction(currentSite.id, publishData)
       
       if (actionError) {
@@ -171,7 +190,8 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         onSuccess(data)
       }
     } catch (err) {
-      setError('Failed to publish product')
+      console.error('Error publishing product:', err)
+      setError(`Failed to publish product: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -225,10 +245,10 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       <div>
         <Label htmlFor="featured_image">Featured Image</Label>
         <div className="mt-2">
-          {formData.featured_image ? (
+          {featuredImage ? (
             <div className="relative rounded-lg overflow-hidden bg-muted">
               <img 
-                src={formData.featured_image} 
+                src={featuredImage} 
                 alt="Featured image preview" 
                 className="w-full h-48 object-cover"
               />
@@ -271,45 +291,18 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         <Label htmlFor="rich_text">Product Description</Label>
         <RichTextEditor
           content={{
-            content: formData.rich_text || '',
+            content: richTextContent,
             hideHeader: true,
             hideEditorHeader: true
           }}
-          onContentChange={(content) => setFormData(prev => ({ ...prev, rich_text: content.content }))}
+          onContentChange={(content) => setRichTextContent(content.content)}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Rich text content for the product description
+          Rich text content for the product description (will be saved as a product block)
         </p>
       </div>
 
-      {/* Meta Description */}
-      <div>
-        <Label htmlFor="meta_description">Meta Description</Label>
-        <Textarea
-          id="meta_description"
-          value={formData.meta_description}
-          onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-          placeholder="A brief description of this product for search engines"
-          rows={3}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Recommended length: 150-160 characters
-        </p>
-      </div>
 
-      {/* Meta Keywords */}
-      <div>
-        <Label htmlFor="meta_keywords">Meta Keywords</Label>
-        <Input
-          id="meta_keywords"
-          value={formData.meta_keywords}
-          onChange={(e) => setFormData(prev => ({ ...prev, meta_keywords: e.target.value }))}
-          placeholder="keyword1, keyword2, keyword3"
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Separate keywords with commas
-        </p>
-      </div>
 
       {/* Form Actions */}
       <div className="flex items-center justify-between">
@@ -342,7 +335,7 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
           handleImageChange(imageUrl)
           setShowImagePicker(false)
         }}
-        currentImageUrl={formData.featured_image || ''}
+        currentImageUrl={featuredImage || ''}
       />
     </form>
   )

@@ -50,11 +50,6 @@ export interface Product {
   site_id: string
   title: string
   slug: string
-  meta_description: string | null
-  meta_keywords: string | null
-  featured_image: string | null
-  rich_text: string | null
-  show_default_block: boolean
   is_homepage: boolean
   is_published: boolean
   display_order: number
@@ -72,20 +67,13 @@ export interface ProductWithDetails extends Product {
 export interface CreateProductData {
   title: string
   slug?: string
-  meta_description?: string
-  meta_keywords?: string
-  featured_image?: string
-  rich_text?: string
   is_published?: boolean
+  content_blocks?: Record<string, any>
 }
 
 export interface UpdateProductData {
   title?: string
   slug?: string
-  meta_description?: string
-  meta_keywords?: string
-  featured_image?: string
-  rich_text?: string
   is_published?: boolean
 }
 
@@ -173,15 +161,10 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
               site_id: siteId,
               title: 'New Product',
               slug: 'new-product',
-              meta_description: 'A sample product to get you started',
-              meta_keywords: null,
-              featured_image: null,
-              rich_text: null,
-              show_default_block: true,
               is_homepage: false,
               is_published: true,
               display_order: 1,
-              content_blocks: {},
+              content_blocks: productData.content_blocks || {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             }
@@ -237,15 +220,10 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
             site_id: 'mock-site-id',
             title: 'Sample Product',
             slug: 'sample-product',
-            meta_description: 'This is a sample product',
-            meta_keywords: '',
-            featured_image: null,
-            rich_text: null,
-            show_default_block: true,
             is_homepage: false,
             is_published: true,
             display_order: 1,
-            content_blocks: {},
+            content_blocks: productData.content_blocks || {},
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -378,13 +356,10 @@ export async function createGlobalProductAction(productData: CreateProductData):
         site_id: siteId, // Use the user's first site
         title: productData.title.trim(),
         slug,
-        meta_description: productData.meta_description?.trim() || null,
-        meta_keywords: productData.meta_keywords?.trim() || null,
-        rich_text: productData.rich_text?.trim() || null,
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder,
-        content_blocks: {}
+        content_blocks: productData.content_blocks || {}
       }])
       .select()
       .single()
@@ -493,14 +468,10 @@ export async function createProductAction(siteId: string, productData: CreatePro
         site_id: siteId,
         title: productData.title.trim(),
         slug,
-        meta_description: productData.meta_description?.trim() || null,
-        meta_keywords: productData.meta_keywords?.trim() || null,
-        featured_image: productData.featured_image?.trim() || null,
-        rich_text: productData.rich_text?.trim() || null,
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder,
-        content_blocks: {}
+        content_blocks: productData.content_blocks || {}
       }])
       .select()
       .single()
@@ -509,13 +480,7 @@ export async function createProductAction(siteId: string, productData: CreatePro
       return { data: null, error: `Failed to create product: ${error.message}` }
     }
 
-    // Track featured image usage if product has one and is published
-    if (data.featured_image && data.is_published) {
-      const { data: imageId } = await getImageByUrlAction(data.featured_image)
-      if (imageId) {
-        await trackImageUsageAction(imageId, siteId, "product", "featured-image")
-      }
-    }
+    // Featured image usage tracking is now handled in the content_blocks JSON
 
     return { data: data as Product, error: null }
   } catch (error) {
@@ -609,7 +574,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     const finalUpdates: any = {}
     Object.entries(processedUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'meta_keywords' || key === 'featured_image' || key === 'rich_text') {
+        if (key === 'title') {
           finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
         } else {
           finalUpdates[key] = value
@@ -632,24 +597,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: `Failed to update product: ${error.message}` }
     }
 
-    // Only track image usage if featured_image was actually updated
-    if (updates.featured_image !== undefined) {
-      // Remove old usage tracking if there was a previous image
-      if (product.featured_image) {
-        const { data: oldImageId } = await getImageByUrlAction(product.featured_image)
-        if (oldImageId) {
-          await removeImageUsageAction(oldImageId, product.site_id, "product", "featured-image")
-        }
-      }
-      
-      // Add new usage tracking if new image exists and product is published
-      if (data.featured_image && data.is_published) {
-        const { data: imageId } = await getImageByUrlAction(data.featured_image)
-        if (imageId) {
-          await trackImageUsageAction(imageId, product.site_id, "product", "featured-image")
-        }
-      }
-    }
+    // Featured image usage tracking is now handled in the content_blocks JSON
 
     return { data: data as Product, error: null }
   } catch (error) {
@@ -822,9 +770,6 @@ export async function duplicateProductAction(productId: string, newTitle: string
         site_id: originalProduct.site_id,
         title: newTitle.trim(),
         slug: newSlug,
-        meta_description: originalProduct.meta_description,
-        meta_keywords: originalProduct.meta_keywords,
-        rich_text: originalProduct.rich_text,
         is_homepage: false, // Products are never homepage
         is_published: originalProduct.is_published,
         display_order: nextOrder,
