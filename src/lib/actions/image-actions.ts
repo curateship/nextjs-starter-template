@@ -45,9 +45,6 @@ export interface ImageData {
   original_name: string
   alt_text: string | null
   file_size: number
-  mime_type: string
-  width: number | null
-  height: number | null
   storage_path: string
   public_url: string
   created_at: string
@@ -116,25 +113,6 @@ export async function uploadImageAction(
       .from('site-images')
       .getPublicUrl(storagePath)
 
-    // Get image dimensions (for supported formats)
-    let width: number | null = null
-    let height: number | null = null
-    
-    if (['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
-      try {
-        // Create image element to get dimensions
-        const imageDataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onload = (e) => resolve(e.target?.result as string)
-          reader.readAsDataURL(file)
-        })
-        
-        // This would work in browser context, but for server we'll skip dimensions for now
-        // In production, you might use a library like 'sharp' to get dimensions
-      } catch (e) {
-        // Ignore dimension errors
-      }
-    }
 
     // Save metadata to database
     const { data: imageData, error: dbError } = await supabaseAdmin
@@ -145,9 +123,6 @@ export async function uploadImageAction(
         original_name: file.name,
         alt_text: alt_text || null,
         file_size: file.size,
-        mime_type: file.type,
-        width,
-        height,
         storage_path: storagePath,
         public_url: urlData.publicUrl
       })
