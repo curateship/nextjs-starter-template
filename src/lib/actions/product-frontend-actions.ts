@@ -155,8 +155,16 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
 
     // Get the site data
     const { data: site, error: siteError } = await supabaseAdmin
-      .from('site_details')
-      .select('*')
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
       .eq('id', product.site_id)
       .single()
 

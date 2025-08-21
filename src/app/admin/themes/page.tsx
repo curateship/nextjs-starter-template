@@ -301,15 +301,6 @@ export default function ThemesPage() {
                       {openDropdown === theme.id && (
                         <div className="absolute right-0 mt-1 w-48 bg-card border rounded-md shadow-lg z-10">
                           <div className="py-1">
-                            <a 
-                              href={theme.template_path} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center px-4 py-2 text-sm hover:bg-muted"
-                            >
-                              <ExternalLink className="h-4 w-4 mr-2" />
-                              Preview Theme
-                            </a>
                             {theme.status !== 'inactive' && (
                               <button 
                                 onClick={() => {

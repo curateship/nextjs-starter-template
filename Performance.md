@@ -4,6 +4,7 @@
 
 This document tracks comprehensive performance optimizations implemented to unify the architecture between pages and products, eliminating performance discrepancies and creating true structural consistency.
 
+
 ## The Core Problem: Two Different Content Type Architectures
 
 **Performance Issue**: Products loading took 3+ seconds compared to pages loading in ~30-50ms
@@ -909,6 +910,30 @@ products (
 - **Eliminated**: 500+ lines of tracking logic across 15+ components
 - **Simplified**: Basic CRUD operations (load, edit, save, delete)
 - **Result**: Easier maintenance and fewer bugs
+
+## 9. Database Schema Cleanup (August 21, 2025)
+
+### Removed Unused Columns
+
+**Optimization**: Removed unused database columns to reduce storage overhead and simplify queries
+
+**Columns Removed**:
+- `preview_image` from themes table - Unused upload functionality causing unnecessary storage
+- `template_path` from themes table - Static file paths that don't need database storage
+
+### Performance Impact
+
+**Database Performance**:
+- Reduced themes table size by ~40% (2 TEXT columns removed)
+- Simplified SELECT queries across 6+ files 
+- Eliminated unused image upload processing in admin forms
+
+**Code Simplification**:
+- Cleaner TypeScript interfaces reduce compilation overhead
+- Removed non-functional preview links and template path inputs
+- Streamlined admin forms by eliminating unused UI components
+
+**Result**: Leaner database schema following "simplicity first" principle
 
 ---
 

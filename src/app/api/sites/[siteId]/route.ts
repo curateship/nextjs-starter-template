@@ -62,10 +62,18 @@ export async function GET(
       )
     }
 
-    // Get the site using the same view as the original action
+    // Get the site with theme information
     const { data: site, error: siteError } = await supabaseAdmin
-      .from('site_details')
-      .select('*')
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
       .eq('id', siteId)
       .single()
 

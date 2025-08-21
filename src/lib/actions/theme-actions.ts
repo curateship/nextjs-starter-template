@@ -98,8 +98,6 @@ export async function updateThemeAction(
   updates: {
     name?: string
     description?: string
-    template_path?: string
-    preview_image?: string
     status?: 'active' | 'inactive' | 'development'
     metadata?: any
   }

@@ -61,8 +61,6 @@ export interface Site {
 export interface SiteWithTheme extends Site {
   theme_name: string
   theme_description: string | null
-  template_path: string
-  preview_image: string | null
   theme_metadata: Record<string, any>
 }
 
@@ -83,8 +81,16 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
     // Server action: Fetching all sites with theme info
     
     const { data, error } = await supabaseAdmin
-      .from('site_details')
-      .select('*')
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -400,8 +406,16 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
 export async function getSiteByIdAction(siteId: string): Promise<{ data: SiteWithTheme | null; error: string | null }> {
   try {
     const { data, error } = await supabaseAdmin
-      .from('site_details')
-      .select('*')
+      .from('sites')
+      .select(`
+        *,
+        themes(
+          id,
+          name,
+          description,
+          metadata
+        )
+      `)
       .eq('id', siteId)
       .single()
 

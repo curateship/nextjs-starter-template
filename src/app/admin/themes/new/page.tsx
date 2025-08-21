@@ -10,8 +10,6 @@ export default function NewThemePage() {
   const [status, setStatus] = useState("active")
   const [primaryFont, setPrimaryFont] = useState("inter")
   const [secondaryFont, setSecondaryFont] = useState("roboto")
-  const [logo, setLogo] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,15 +45,11 @@ export default function NewThemePage() {
             status={status}
             primaryFont={primaryFont}
             secondaryFont={secondaryFont}
-            logo={logo}
-            logoPreview={logoPreview}
             onTitleChange={setTitle}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onPrimaryFontChange={setPrimaryFont}
             onSecondaryFontChange={setSecondaryFont}
-            onLogoChange={setLogo}
-            onLogoPreviewChange={setLogoPreview}
           />
         </form>
       </div>

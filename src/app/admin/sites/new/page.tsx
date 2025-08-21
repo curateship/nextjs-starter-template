@@ -16,8 +16,6 @@ export default function NewSitePage() {
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
-  const [logo, setLogo] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -110,16 +108,12 @@ export default function NewSitePage() {
             themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
-            logo={logo}
-            logoPreview={logoPreview}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
-            onLogoChange={setLogo}
-            onLogoPreviewChange={setLogoPreview}
           />
         </form>
       </div>

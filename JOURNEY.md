@@ -2,21 +2,6 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
-## 🚨 Phase 17: The Hidden Trigger Disaster (August 20, 2025)
-
-**Problem**: Site creation failing with "column meta_description of relation products does not exist"
-
-**Root Cause**: Hidden database trigger `create_default_product_trigger` automatically firing on site creation, calling outdated `create_default_product_for_site()` function that referenced removed `meta_description` column.
-
-**The Real Issue**: Claude didn't read JOURNEY.md and repeated past mistakes by adding complex automatic systems instead of following "simplicity first" principle. Spent entire session debugging Claude's own overcomplications.
-
-**Solution**: 
-- ✅ Removed useless automatic product creation trigger completely
-- ✅ Eliminated image_usage tracking system (pointless complexity)  
-- ✅ Migrated theme_blocks to simple JSON in themes.metadata
-- ✅ Followed Load → Edit → Save pattern instead of hidden database magic
-
-**Lesson**: ALWAYS read project history first. Stop adding "helpful" automation that breaks things.
 
 ### Phase 1: Initial Authentication Setup
 
@@ -4596,3 +4581,32 @@ NEW: products table with JSON content_blocks column
 - ✅ No more overcomplicated state tracking
 
 *Lesson: Sometimes the best feature is the one you remove. The "safety" system was actually making things worse by preventing legitimate deletions and adding unnecessary complexity.*
+
+## 🚨 Phase 17: The Hidden Trigger Disaster (August 20, 2025)
+
+**Problem**: Site creation failing with "column meta_description of relation products does not exist"
+
+**Root Cause**: Hidden database trigger `create_default_product_trigger` automatically firing on site creation, calling outdated `create_default_product_for_site()` function that referenced removed `meta_description` column.
+
+**The Real Issue**: Claude didn't read JOURNEY.md and repeated past mistakes by adding complex automatic systems instead of following "simplicity first" principle. Spent entire session debugging Claude's own overcomplications.
+
+**Solution**: 
+- ✅ Removed useless automatic product creation trigger completely
+- ✅ Eliminated image_usage tracking system (pointless complexity)  
+- ✅ Migrated theme_blocks to simple JSON in themes.metadata
+- ✅ Followed Load → Edit → Save pattern instead of hidden database magic
+
+**Lesson**: ALWAYS read project history first. Stop adding "helpful" automation that breaks things.
+
+## 🧹 Phase 18: Database Cleanup - Removing Unused Columns (August 21, 2025)
+
+**Problem**: Database bloated with unused columns (`preview_image`, `template_path`) that serve no purpose
+
+**Actions Taken**:
+- ✅ Removed `preview_image` column from themes table (unused upload functionality)
+- ✅ Removed `template_path` column from themes table (stored static paths unnecessarily)
+- ✅ Cleaned all image upload UI from admin forms (SiteDashboard, ThemeDashboard, theme pages)
+- ✅ Updated TypeScript interfaces and database queries throughout codebase
+- ✅ Eliminated non-functional preview links and template path inputs
+
+**Result**: Cleaner database schema and simpler admin interface following "simplicity first" principle.

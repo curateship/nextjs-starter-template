@@ -5,8 +5,6 @@ export interface Theme {
   name: string
   description: string | null
   status: 'active' | 'inactive' | 'development'
-  template_path: string
-  preview_image: string | null
   metadata: any
   created_at: string
   updated_at: string
@@ -15,8 +13,6 @@ export interface Theme {
 export interface CreateThemeData {
   name: string
   description?: string
-  template_path: string
-  preview_image?: string
   status?: 'active' | 'inactive' | 'development'
   metadata?: any
 }
@@ -24,8 +20,6 @@ export interface CreateThemeData {
 export interface UpdateThemeData {
   name?: string
   description?: string
-  template_path?: string
-  preview_image?: string
   status?: 'active' | 'inactive' | 'development'
   metadata?: any
 }
@@ -90,8 +84,6 @@ export class ThemeService {
         .insert([{
           name: themeData.name,
           description: themeData.description || null,
-          template_path: themeData.template_path,
-          preview_image: themeData.preview_image || null,
           status: themeData.status || 'development',
           metadata: themeData.metadata || {}
         }])
