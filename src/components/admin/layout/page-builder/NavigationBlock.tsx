@@ -219,9 +219,9 @@ function SortableLinkItem({
 export function NavigationBlock({
   logo,
   logoUrl,
-  links,
-  buttons,
-  style,
+  links = [],
+  buttons = [],
+  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none' },
   onLogoChange,
   onLogoUrlChange,
   onLinksChange,
@@ -243,9 +243,10 @@ export function NavigationBlock({
 
   // Ensure all links and buttons have unique IDs
   useEffect(() => {
+    if (!links || !Array.isArray(links)) return
     const linksNeedIds = links.some(link => !link.id)
     if (linksNeedIds) {
-      const linksWithIds = links.map((link, index) => ({
+      const linksWithIds = (links || []).map((link, index) => ({
         ...link,
         id: link.id || `link-${Date.now()}-${index}-${Math.random()}`
       }))
@@ -254,9 +255,10 @@ export function NavigationBlock({
   }, [links, onLinksChange])
 
   useEffect(() => {
+    if (!buttons || !Array.isArray(buttons)) return
     const buttonsNeedIds = buttons.some(button => !button.id)
     if (buttonsNeedIds) {
-      const buttonsWithIds = buttons.map((button, index) => ({
+      const buttonsWithIds = (buttons || []).map((button, index) => ({
         ...button,
         id: button.id || `button-${Date.now()}-${index}-${Math.random()}`
       }))
@@ -265,12 +267,13 @@ export function NavigationBlock({
   }, [buttons, onButtonsChange])
   
   const addLink = () => {
-    const newLinks = [...links, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }]
+    const currentLinks = links || []
+    const newLinks = [...currentLinks, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }]
     onLinksChange(newLinks)
   }
 
   const removeLink = (index: number) => {
-    const newLinks = links.filter((_, i) => i !== index)
+    const newLinks = (links || []).filter((_, i) => i !== index)
     onLinksChange(newLinks)
   }
 
@@ -303,7 +306,7 @@ export function NavigationBlock({
   }
 
   const removeButton = (index: number) => {
-    const newButtons = buttons.filter((_, i) => i !== index)
+    const newButtons = (buttons || []).filter((_, i) => i !== index)
     onButtonsChange(newButtons)
   }
 
@@ -421,11 +424,11 @@ export function NavigationBlock({
             onDragEnd={handleLinkDragEnd}
           >
             <SortableContext
-              items={links.map(l => l.id || '')}
+              items={(links || []).map(l => l.id || '')}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {links.map((link, index) => (
+                {(links || []).map((link, index) => (
                   <SortableLinkItem
                     key={link.id || `nav-link-${index}`}
                     link={link}
@@ -469,11 +472,11 @@ export function NavigationBlock({
             onDragEnd={handleButtonDragEnd}
           >
             <SortableContext
-              items={buttons.map(b => b.id || '')}
+              items={(buttons || []).map(b => b.id || '')}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {buttons.map((button, index) => (
+                {(buttons || []).map((button, index) => (
                   <SortableButtonItem
                     key={button.id || `nav-button-${index}`}
                     button={button}

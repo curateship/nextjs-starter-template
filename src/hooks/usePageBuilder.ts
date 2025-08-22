@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { updatePageBlocksAction, type Page } from "@/lib/actions/page-actions"
+import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/site-actions"
 import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
 import { isBlockTypeProtected } from "@/lib/shared-blocks/block-utils"
 
@@ -305,12 +306,37 @@ export function usePageBuilder({
         return
       }
       
-      // Convert blocks to JSON and save
-      const jsonBlocks = convertPageBlocksToJson(blocks[selectedPage])
-      const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      // Separate navigation/footer blocks from page blocks
+      const pageBlocks = blocks[selectedPage].filter(block => 
+        block.type !== 'navigation' && block.type !== 'footer'
+      )
+      const navigationBlock = blocks[selectedPage].find(block => block.type === 'navigation')
+      const footerBlock = blocks[selectedPage].find(block => block.type === 'footer')
       
-      if (error) {
-        setSaveMessage(`Error: ${error}`)
+      // Save navigation and footer to sites table
+      const savePromises = []
+      
+      if (navigationBlock) {
+        savePromises.push(updateSiteNavigationAction(siteId, navigationBlock.content))
+      }
+      
+      if (footerBlock) {
+        savePromises.push(updateSiteFooterAction(siteId, footerBlock.content))
+      }
+      
+      // Save page blocks to pages table
+      if (pageBlocks.length > 0) {
+        const jsonBlocks = convertPageBlocksToJson(pageBlocks)
+        savePromises.push(updatePageBlocksAction(currentPage.id, jsonBlocks))
+      }
+      
+      // Execute all saves in parallel
+      const results = await Promise.all(savePromises)
+      
+      // Check for any errors
+      const errors = results.filter(result => result.error)
+      if (errors.length > 0) {
+        setSaveMessage(`Error: ${errors[0].error}`)
         setTimeout(() => setSaveMessage(""), 5000)
       } else {
         setSaveMessage("Saved!")

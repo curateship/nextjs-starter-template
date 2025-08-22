@@ -97,7 +97,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       // For sites without pages system or home page, continue with old behavior
     }
 
-    // Get blocks from page's content_blocks JSON column
+    // Get blocks from page's content_blocks JSON column and site navigation/footer
     let blocks: Array<{
       id: string
       type: string
@@ -105,15 +105,39 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       display_order: number
     }> = []
 
+    // Add site-level navigation and footer blocks
+    if (site.settings?.navigation) {
+      blocks.push({
+        id: 'site-navigation',
+        type: 'navigation',
+        content: site.settings?.navigation,
+        display_order: -1
+      })
+    }
+
+    if (site.settings?.footer) {
+      blocks.push({
+        id: 'site-footer',
+        type: 'footer',
+        content: site.settings?.footer,
+        display_order: 999
+      })
+    }
+
+    // Add page-specific blocks
     if (page && page.content_blocks) {
       // Convert JSON content_blocks to array format
-      blocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
+      const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
         id,
         type: block.type,
         content: block.content,
         display_order: block.display_order || 0
-      })).sort((a, b) => a.display_order - b.display_order)
+      }))
+      blocks.push(...pageBlocks)
     }
+
+    // Sort all blocks by display_order
+    blocks.sort((a, b) => a.display_order - b.display_order)
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
@@ -288,7 +312,7 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       // For sites without pages system or home page, continue with old behavior
     }
 
-    // Get blocks from page's content_blocks JSON column
+    // Get blocks from page's content_blocks JSON column and site navigation/footer
     let blocks: Array<{
       id: string
       type: string
@@ -296,15 +320,39 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       display_order: number
     }> = []
 
+    // Add site-level navigation and footer blocks
+    if (site.settings?.navigation) {
+      blocks.push({
+        id: 'site-navigation',
+        type: 'navigation',
+        content: site.settings?.navigation,
+        display_order: -1
+      })
+    }
+
+    if (site.settings?.footer) {
+      blocks.push({
+        id: 'site-footer',
+        type: 'footer',
+        content: site.settings?.footer,
+        display_order: 999
+      })
+    }
+
+    // Add page-specific blocks
     if (page && page.content_blocks) {
       // Convert JSON content_blocks to array format
-      blocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
+      const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
         id,
         type: block.type,
         content: block.content,
         display_order: block.display_order || 0
-      })).sort((a, b) => a.display_order - b.display_order)
+      }))
+      blocks.push(...pageBlocks)
     }
+
+    // Sort all blocks by display_order
+    blocks.sort((a, b) => a.display_order - b.display_order)
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,

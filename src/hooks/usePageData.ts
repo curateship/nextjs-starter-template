@@ -50,7 +50,33 @@ export function usePageData(siteId: string): UsePageDataReturn {
         const blocksData: Record<string, any[]> = {}
         pagesResult.data.forEach(page => {
           const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
-          blocksData[page.slug] = pageBlocks
+          
+          // Add navigation and footer from site data to each page
+          // This maintains the UI illusion that nav/footer are page blocks
+          const siteBlocks = []
+          if (siteResult.data?.settings?.navigation) {
+            siteBlocks.push({
+              id: 'site-navigation',
+              type: 'navigation',
+              title: 'Navigation',
+              content: siteResult.data.settings.navigation,
+              display_order: -1 // Show at top
+            })
+          }
+          if (siteResult.data?.settings?.footer) {
+            siteBlocks.push({
+              id: 'site-footer',
+              type: 'footer', 
+              title: 'Footer',
+              content: siteResult.data.settings.footer,
+              display_order: 999 // Show at bottom
+            })
+          }
+          
+          // Combine and sort all blocks by display_order
+          const allBlocks = [...siteBlocks, ...pageBlocks]
+          allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          blocksData[page.slug] = allBlocks
         })
         setBlocks(blocksData)
       } else {
@@ -67,7 +93,17 @@ export function usePageData(siteId: string): UsePageDataReturn {
 
   const reloadBlocks = async () => {
     setBlocksLoading(true)
-    const pagesResult = await getSitePagesAction(siteId)
+    
+    // Need to reload both site and pages data to get updated navigation/footer
+    const [siteResult, pagesResult] = await Promise.all([
+      getSiteByIdAction(siteId),
+      getSitePagesAction(siteId)
+    ])
+    
+    if (siteResult.data) {
+      setSite(siteResult.data)
+    }
+    
     if (pagesResult.data) {
       setPages(pagesResult.data)
       
@@ -75,7 +111,32 @@ export function usePageData(siteId: string): UsePageDataReturn {
       const blocksData: Record<string, any[]> = {}
       pagesResult.data.forEach(page => {
         const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
-        blocksData[page.slug] = pageBlocks
+        
+        // Add navigation and footer from site data to each page
+        const siteBlocks = []
+        if (siteResult.data?.settings?.navigation) {
+          siteBlocks.push({
+            id: 'site-navigation',
+            type: 'navigation',
+            title: 'Navigation',
+            content: siteResult.data.settings.navigation,
+            display_order: -1
+          })
+        }
+        if (siteResult.data?.settings?.footer) {
+          siteBlocks.push({
+            id: 'site-footer',
+            type: 'footer',
+            title: 'Footer', 
+            content: siteResult.data.settings.footer,
+            display_order: 999
+          })
+        }
+        
+        // Combine and sort all blocks by display_order
+        const allBlocks = [...siteBlocks, ...pageBlocks]
+        allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        blocksData[page.slug] = allBlocks
       })
       setBlocks(blocksData)
     }

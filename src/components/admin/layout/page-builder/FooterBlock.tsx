@@ -219,9 +219,9 @@ export function FooterBlock({
   logo,
   logoUrl,
   copyright,
-  links,
-  socialLinks,
-  style,
+  links = [],
+  socialLinks = [],
+  style = { backgroundColor: '#ffffff', textColor: '#000000' },
   onLogoChange,
   onLogoUrlChange,
   onCopyrightChange,
@@ -246,7 +246,7 @@ export function FooterBlock({
   useEffect(() => {
     const linksNeedIds = links.some(link => !link.id)
     if (linksNeedIds) {
-      const linksWithIds = links.map((link, index) => ({
+      const linksWithIds = (links || []).map((link, index) => ({
         ...link,
         id: link.id || `footer-link-${Date.now()}-${index}-${Math.random()}`
       }))
@@ -258,7 +258,7 @@ export function FooterBlock({
   useEffect(() => {
     const socialLinksNeedIds = socialLinks.some(link => !link.id)
     if (socialLinksNeedIds) {
-      const socialLinksWithIds = socialLinks.map((link, index) => ({
+      const socialLinksWithIds = (socialLinks || []).map((link, index) => ({
         ...link,
         id: link.id || `social-link-${Date.now()}-${index}-${Math.random()}`
       }))
@@ -267,17 +267,19 @@ export function FooterBlock({
   }, [socialLinks, onSocialLinksChange])
   
   const addLink = () => {
-    const newLinks = [...links, { text: "", url: "", id: `footer-link-${Date.now()}-${Math.random()}` }]
+    const currentLinks = links || []
+    const newLinks = [...currentLinks, { text: "", url: "", id: `footer-link-${Date.now()}-${Math.random()}` }]
     onLinksChange(newLinks)
   }
 
   const removeLink = (index: number) => {
-    const newLinks = links.filter((_, i) => i !== index)
+    const newLinks = (links || []).filter((_, i) => i !== index)
     onLinksChange(newLinks)
   }
 
   const updateLink = (index: number, field: 'text' | 'url', value: string) => {
-    const newLinks = [...links]
+    const currentLinks = links || []
+    const newLinks = [...currentLinks]
     newLinks[index] = { ...newLinks[index], [field]: value }
     onLinksChange(newLinks)
   }
@@ -296,17 +298,19 @@ export function FooterBlock({
   }
 
   const addSocialLink = () => {
-    const newSocialLinks = [...socialLinks, { platform: "twitter", url: "", id: `social-link-${Date.now()}-${Math.random()}` }]
+    const currentSocialLinks = socialLinks || []
+    const newSocialLinks = [...currentSocialLinks, { platform: "twitter", url: "", id: `social-link-${Date.now()}-${Math.random()}` }]
     onSocialLinksChange(newSocialLinks)
   }
 
   const removeSocialLink = (index: number) => {
-    const newSocialLinks = socialLinks.filter((_, i) => i !== index)
+    const newSocialLinks = (socialLinks || []).filter((_, i) => i !== index)
     onSocialLinksChange(newSocialLinks)
   }
 
   const updateSocialLink = (index: number, field: 'platform' | 'url', value: string) => {
-    const newSocialLinks = [...socialLinks]
+    const currentSocialLinks = socialLinks || []
+    const newSocialLinks = [...currentSocialLinks]
     newSocialLinks[index] = { ...newSocialLinks[index], [field]: value }
     onSocialLinksChange(newSocialLinks)
   }
@@ -437,11 +441,11 @@ export function FooterBlock({
             onDragEnd={handleLinkDragEnd}
           >
             <SortableContext
-              items={links.map(l => l.id || '')}
+              items={(links || []).map(l => l.id || '')}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {links.map((link, index) => (
+                {(links || []).map((link, index) => (
                   <SortableFooterLinkItem
                     key={link.id || `footer-link-${index}`}
                     link={link}
@@ -485,11 +489,11 @@ export function FooterBlock({
             onDragEnd={handleSocialLinkDragEnd}
           >
             <SortableContext
-              items={socialLinks.map(l => l.id || '')}
+              items={(socialLinks || []).map(l => l.id || '')}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
-                {socialLinks.map((socialLink, index) => (
+                {(socialLinks || []).map((socialLink, index) => (
                   <SortableSocialLinkItem
                     key={socialLink.id || `social-link-${index}`}
                     socialLink={socialLink}

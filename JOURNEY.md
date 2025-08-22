@@ -5049,3 +5049,28 @@ The platform now features reliable, accessible, and consistent drag and drop fun
 - Archived page-blocks-actions.ts file
 
 **Impact**: Product previews now show complete site structure. Eliminated technical debt from old database architecture.
+
+---
+
+## Phase 26: Navigation/Footer Architecture Refactor (August 22, 2025)
+
+### **Problem**: 
+Navigation and footer blocks stored in `pages.content_blocks` (home page only) - conceptually wrong for site-wide elements.
+
+### **Solution**:
+Migrated navigation/footer to `sites.settings.navigation` and `sites.settings.footer` while preserving identical UI experience.
+
+### **Implementation**:
+- **Migration Script**: Created SQL to move navigation/footer from pages to sites.settings
+- **Data Loading**: Updated usePageData/useProductData to inject virtual navigation/footer blocks from site settings
+- **Save Operations**: Modified page builder to save navigation/footer to sites table instead of pages
+- **Component Safety**: Added default values and safety checks to NavigationBlock/FooterBlock components
+- **Frontend Rendering**: Updated frontend-actions.ts to load navigation/footer from site settings
+- **Block Sorting**: Fixed display_order sorting to show footer at bottom of block list
+
+### **Architecture Improvement**:
+- **Before**: Site-wide elements stored as page content (risk of loss, conceptually wrong)
+- **After**: Site-wide elements stored at site level (logical, consistent, safe)
+- **UI Experience**: Completely identical - users edit navigation/footer exactly the same way
+
+**Impact**: Cleaner architecture with site-wide elements properly stored at site level. Zero disruption to user experience.
