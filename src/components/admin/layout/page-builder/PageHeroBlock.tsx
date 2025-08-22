@@ -368,54 +368,58 @@ export function PageHeroBlock({
               onChange={(e) => onSubtitleChange(e.target.value)}
               className="w-full px-3 py-2 border rounded-md"
               placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
-              rows={3}
+              rows={2}
               required
             />
           </div>
 
-          {/* Primary Button */}
+          {/* Primary and Secondary Buttons */}
           <div className="space-y-2">
-            <Label>Primary Button</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="text"
-                value={primaryButton}
-                onChange={(e) => onPrimaryButtonChange(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="Get Started"
-                required
-              />
-              <input
-                type="url"
-                value={primaryButtonLink}
-                onChange={(e) => validateUrl(e.target.value, onPrimaryButtonLinkChange)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="https://example.com or /page"
-              />
-              <ButtonStyleSelect value={primaryButtonStyle} onChange={onPrimaryButtonStyleChange} />
+            <div className="flex gap-6">
+              <div className="flex-1">
+                <Label>Primary Button</Label>
+              </div>
+              <div className="flex-1">
+                <Label>Secondary Button</Label>
+              </div>
             </div>
-          </div>
-          
-          {/* Secondary Button */}
-          <div className="space-y-2">
-            <Label>Secondary Button</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="text"
-                value={secondaryButton}
-                onChange={(e) => onSecondaryButtonChange(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="Browse Components"
-                required
-              />
-              <input
-                type="url"
-                value={secondaryButtonLink}
-                onChange={(e) => validateUrl(e.target.value, onSecondaryButtonLinkChange)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="https://example.com or /page"
-              />
-              <ButtonStyleSelect value={secondaryButtonStyle} onChange={onSecondaryButtonStyleChange} />
+            <div className="flex gap-6">
+              <div className="flex-1 grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={primaryButton}
+                  onChange={(e) => onPrimaryButtonChange(e.target.value)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Get Started"
+                  required
+                />
+                <input
+                  type="url"
+                  value={primaryButtonLink}
+                  onChange={(e) => validateUrl(e.target.value, onPrimaryButtonLinkChange)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="https://example.com or /page"
+                />
+                <ButtonStyleSelect value={primaryButtonStyle} onChange={onPrimaryButtonStyleChange} />
+              </div>
+              <div className="flex-1 grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={secondaryButton}
+                  onChange={(e) => onSecondaryButtonChange(e.target.value)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Browse Components"
+                  required
+                />
+                <input
+                  type="url"
+                  value={secondaryButtonLink}
+                  onChange={(e) => validateUrl(e.target.value, onSecondaryButtonLinkChange)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="https://example.com or /page"
+                />
+                <ButtonStyleSelect value={secondaryButtonStyle} onChange={onSecondaryButtonStyleChange} />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -507,100 +511,99 @@ export function PageHeroBlock({
         </CardContent>
       </Card>
 
-      {/* Hero Image Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Hero Image</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-4">
-            <div className="relative">
-              {heroImage ? (
-                <div 
-                  className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setShowHeroImagePicker(true)}
-                >
-                  <img 
-                    src={heroImage} 
-                    alt="Hero preview" 
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                    <div className="text-white text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm font-medium">Click to change image</p>
+      {/* Hero Image & Rainbow Button Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Hero Image Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Hero Image</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="relative">
+                {heroImage ? (
+                  <div 
+                    className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setShowHeroImagePicker(true)}
+                  >
+                    <img 
+                      src={heroImage} 
+                      alt="Hero preview" 
+                      className="w-full h-32 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                      <div className="text-white text-center">
+                        <ImageIcon className="mx-auto h-6 w-6 mb-1" />
+                        <p className="text-xs font-medium">Click to change image</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div 
-                  className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                  onClick={() => setShowHeroImagePicker(true)}
-                >
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-2 text-sm text-muted-foreground">Click to select image</p>
+                ) : (
+                  <div 
+                    className="flex items-center justify-center h-32 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                    onClick={() => setShowHeroImagePicker(true)}
+                  >
+                    <div className="text-center">
+                      <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                      <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-            
-            <p className="text-sm text-muted-foreground">
-              Display a hero image below the hero content with animated reveal effect
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Rainbow Button Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Rainbow Button</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Rainbow Button Settings</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <input
-                type="text"
-                value={rainbowButtonText}
-                onChange={(e) => onRainbowButtonTextChange(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="Button text"
-              />
-              <Select
-                value={rainbowButtonIcon}
-                onValueChange={onRainbowButtonIconChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Icon</SelectItem>
-                  <SelectItem value="github">GitHub</SelectItem>
-                  <SelectItem value="arrow-right">Arrow Right</SelectItem>
-                  <SelectItem value="download">Download</SelectItem>
-                  <SelectItem value="external-link">External Link</SelectItem>
-                  <SelectItem value="star">Star</SelectItem>
-                  <SelectItem value="rocket">Rocket</SelectItem>
-                  <SelectItem value="zap">Zap</SelectItem>
-                </SelectContent>
-              </Select>
-              <input
-                type="url"
-                value={githubLink}
-                onChange={(e) => validateUrl(e.target.value, onGithubLinkChange)}
-                className="px-3 py-2 border rounded-md text-sm"
-                placeholder="Button link URL"
-              />
+        {/* Rainbow Button Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Rainbow Button</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Rainbow Button Settings</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  value={rainbowButtonText}
+                  onChange={(e) => onRainbowButtonTextChange(e.target.value)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Button text"
+                />
+                <Select
+                  value={rainbowButtonIcon}
+                  onValueChange={onRainbowButtonIconChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Icon</SelectItem>
+                    <SelectItem value="github">GitHub</SelectItem>
+                    <SelectItem value="arrow-right">Arrow Right</SelectItem>
+                    <SelectItem value="download">Download</SelectItem>
+                    <SelectItem value="external-link">External Link</SelectItem>
+                    <SelectItem value="star">Star</SelectItem>
+                    <SelectItem value="rocket">Rocket</SelectItem>
+                    <SelectItem value="zap">Zap</SelectItem>
+                  </SelectContent>
+                </Select>
+                <input
+                  type="url"
+                  value={githubLink}
+                  onChange={(e) => validateUrl(e.target.value, onGithubLinkChange)}
+                  className="px-3 py-2 border rounded-md text-sm"
+                  placeholder="Button link URL"
+                />
+              </div>
             </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Add text to display a rainbow call-to-action button
-          </p>
-        </CardContent>
-      </Card>
+            <p className="text-sm text-muted-foreground">
+              Add text to display a rainbow call-to-action button
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Background Pattern Card */}
       <Card className="shadow-sm">
