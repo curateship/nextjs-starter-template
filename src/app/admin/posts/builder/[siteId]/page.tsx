@@ -249,9 +249,13 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             site={{
               id: siteId,
               name: site?.name || 'Post Site',
-              subdomain: site?.subdomain || 'preview'
+              subdomain: site?.subdomain || 'preview',
+              settings: site?.settings
             }}
-            siteBlocks={siteBlocks}
+            siteBlocks={{
+              navigation: site?.settings?.navigation || siteBlocks?.navigation,
+              footer: site?.settings?.footer || siteBlocks?.footer
+            }}
             blocksLoading={blocksLoading}
           />
           
