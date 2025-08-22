@@ -11,48 +11,48 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
-import { CreateProductForm } from "@/components/admin/layout/product-builder/create-product-form"
-import type { Product } from "@/lib/actions/product-actions"
+import { PostSettingsModal } from "@/components/admin/layout/post-builder/PostSettingsModal"
+import { CreatePostForm } from "@/components/admin/layout/post-builder/CreatePostForm"
+import type { Post } from "@/lib/actions/post-actions"
 
-interface ProductBuilderHeaderProps {
-  products: Product[]
-  selectedProduct: string
-  onProductChange: (product: string) => void
-  onProductCreated?: (product: Product) => void
-  onProductUpdated?: (product: Product) => void
+interface PostBuilderHeaderProps {
+  posts: Post[]
+  selectedPost: string
+  onPostChange: (post: string) => void
+  onPostCreated?: (post: Post) => void
+  onPostUpdated?: (post: Post) => void
   saveMessage: string
   isSaving: boolean
   onSave: () => void
-  onPreviewProduct?: () => void
-  productsLoading?: boolean
+  onPreviewPost?: () => void
+  postsLoading?: boolean
 }
 
-export function ProductBuilderHeader({
-  products,
-  selectedProduct,
-  onProductChange,
-  onProductCreated,
-  onProductUpdated,
+export function PostBuilderHeader({
+  posts,
+  selectedPost,
+  onPostChange,
+  onPostCreated,
+  onPostUpdated,
   saveMessage,
   isSaving,
   onSave,
-  onPreviewProduct,
-  productsLoading = false
-}: ProductBuilderHeaderProps) {
+  onPreviewPost,
+  postsLoading = false
+}: PostBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const { currentSite } = useSiteContext()
-  const currentProduct = products.find(p => p.slug === selectedProduct)
+  const currentPost = posts.find(p => p.slug === selectedPost)
   
-  // Generate product URL for frontend viewing
-  const getProductUrl = () => {
-    if (!currentProduct || !currentSite?.subdomain) {
+  // Generate post URL for frontend viewing
+  const getPostUrl = () => {
+    if (!currentPost || !currentSite?.subdomain) {
       return '#'
     }
     
-    // Use clean routing: /products/[slug]
-    const url = `http://localhost:3000/products/${currentProduct.slug}`
+    // Use clean routing: /posts/[slug]
+    const url = `http://localhost:3000/posts/${currentPost.slug}`
     return url
   }
   
@@ -61,25 +61,25 @@ export function ProductBuilderHeader({
       <div className="flex h-14 items-center px-6">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/products">
+            <Link href="/admin/posts">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Products
+              Back to Posts
             </Link>
           </Button>
           <div className="h-4 w-px bg-border"></div>
-          <h1 className="text-lg font-semibold">Product Builder</h1>
+          <h1 className="text-lg font-semibold">Post Builder</h1>
           <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedProduct} onValueChange={onProductChange}>
+          <Select value={selectedPost} onValueChange={onPostChange}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
-                {currentProduct ? currentProduct.title : ""}
+                {currentPost ? currentPost.title : ""}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {products.map((product) => (
-                <SelectItem key={product.id} value={product.slug}>
-                  {product.title}
-                  {!product.is_published && " (Draft)"}
+              {posts.map((post) => (
+                <SelectItem key={post.id} value={post.slug}>
+                  {post.title}
+                  {!post.is_published && " (Draft)"}
                 </SelectItem>
               ))}
               <div className="border-t pt-1 mt-2">
@@ -90,7 +90,7 @@ export function ProductBuilderHeader({
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Plus className="h-4 w-4" />
                   </span>
-                  Create Product
+                  Create Post
                 </div>
               </div>
             </SelectContent>
@@ -98,21 +98,21 @@ export function ProductBuilderHeader({
           <Button 
             variant="outline"
             size="sm" 
-            onClick={onPreviewProduct}
-            disabled={!currentProduct}
+            onClick={onPreviewPost}
+            disabled={!currentPost}
           >
             <Eye className="w-4 h-4 mr-2" />
-            Preview Product
+            Preview Post
           </Button>
           <Button
             variant="outline"
             size="sm"
             asChild
-            disabled={!currentProduct || !currentSite?.subdomain}
+            disabled={!currentPost || !currentSite?.subdomain}
           >
-            <Link href={currentProduct ? `/products/${selectedProduct}` : '#'} target="_blank">
+            <Link href={currentPost ? `/posts/${selectedPost}` : '#'} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
-              View Product
+              View Post
             </Link>
           </Button>
         </div>
@@ -126,7 +126,7 @@ export function ProductBuilderHeader({
             variant="outline"
             size="sm" 
             onClick={() => setShowEditDialog(true)}
-            disabled={!currentProduct}
+            disabled={!currentPost}
           >
             <Settings className="w-4 h-4 mr-2" />
             Edit Settings
@@ -142,26 +142,26 @@ export function ProductBuilderHeader({
         </div>
       </div>
       
-      {/* Create Product Dialog */}
+      {/* Create Post Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create New Product</DialogTitle>
+            <DialogTitle>Create New Post</DialogTitle>
             <DialogDescription>
-              Add a new product to your catalog. You can customize the content after creation.
+              Add a new post to your blog. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
           {currentSite?.id && (
-            <CreateProductForm 
+            <CreatePostForm 
               siteId={currentSite.id}
-              onSuccess={(product) => {
-                // Add the new product to the list if callback exists
-                if (onProductCreated) {
-                  onProductCreated(product)
+              onSuccess={(post) => {
+                // Add the new post to the list if callback exists
+                if (onPostCreated) {
+                  onPostCreated(post)
                 }
                 setShowCreateDialog(false)
-                // Navigate to the new product's builder page
-                onProductChange(product.slug)
+                // Navigate to the new post's builder page
+                onPostChange(post.slug)
               }}
               onCancel={() => setShowCreateDialog(false)}
             />
@@ -169,16 +169,16 @@ export function ProductBuilderHeader({
         </DialogContent>
       </Dialog>
 
-      {/* Edit Product Settings Modal */}
-      <ProductSettingsModal
+      {/* Edit Post Settings Modal */}
+      <PostSettingsModal
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
-        product={currentProduct || null}
+        post={currentPost || null}
         site={currentSite}
-        onSuccess={(updatedProduct) => {
-          // Update the product in the list
-          if (onProductUpdated) {
-            onProductUpdated(updatedProduct)
+        onSuccess={(updatedPost) => {
+          // Update the post in the list
+          if (onPostUpdated) {
+            onPostUpdated(updatedPost)
           }
         }}
       />
