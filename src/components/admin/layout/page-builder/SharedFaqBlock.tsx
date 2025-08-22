@@ -75,48 +75,60 @@ function SortableFaqItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-4 bg-background hover:border-muted-foreground/50 transition-colors"
+      className="border rounded-lg p-3 transition-colors hover:border-muted-foreground bg-background"
     >
-      <div className="flex gap-3">
-        <div
-          {...attributes}
-          {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 pt-1"
-        >
-          <GripVertical className="w-4 h-4" />
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div
+              {...attributes}
+              {...listeners}
+              className="grip-handle opacity-60 hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+            <span className="font-medium">FAQ Item {index + 1}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => deleteFaqItem(index)}
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
         </div>
-        <div className="flex-1 space-y-3">
+        
+        <div className="px-2 pt-2 space-y-3">
           <div>
-            <Label htmlFor={`question-${index}`}>Question</Label>
+            <Label className="font-medium">Question:</Label>
             <input
               type="text"
               id={`question-${index}`}
               value={item.question}
               onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md mt-1"
               placeholder="Enter question..."
             />
           </div>
           <div>
-            <Label htmlFor={`answer-${index}`}>Answer</Label>
+            <Label className="font-medium">Answer:</Label>
             <textarea
               id={`answer-${index}`}
               value={item.answer}
-              onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md min-h-[80px]"
+              onChange={(e) => {
+                updateFaqItem(index, 'answer', e.target.value)
+                // Auto-resize the textarea
+                const target = e.target as HTMLTextAreaElement
+                target.style.height = 'auto'
+                target.style.height = `${target.scrollHeight}px`
+              }}
+              className="w-full px-3 py-2 border rounded-md min-h-[2.5rem] resize-none overflow-hidden mt-1"
               placeholder="Enter answer..."
+              style={{ height: 'auto' }}
             />
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => deleteFaqItem(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   )

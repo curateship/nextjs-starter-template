@@ -100,23 +100,33 @@ function SortableFaqItem({
           </Button>
         </div>
         
-        <div>
-          <input
-            type="text"
-            value={item.question}
-            onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
-            placeholder="Question"
-          />
-        </div>
-        <div>
-          <textarea
-            value={item.answer}
-            onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-            className="w-full px-3 py-1.5 border rounded-md text-sm"
-            placeholder="Answer"
-            rows={1}
-          />
+        <div className="px-2 pt-2 space-y-3">
+          <div>
+            <Label className="font-medium">Question:</Label>
+            <input
+              type="text"
+              value={item.question}
+              onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
+              className="w-full px-3 py-2 border rounded-md mt-1"
+              placeholder="Enter question..."
+            />
+          </div>
+          <div>
+            <Label className="font-medium">Answer:</Label>
+            <textarea
+              value={item.answer}
+              onChange={(e) => {
+                updateFaqItem(index, 'answer', e.target.value)
+                // Auto-resize the textarea
+                const target = e.target as HTMLTextAreaElement
+                target.style.height = 'auto'
+                target.style.height = `${target.scrollHeight}px`
+              }}
+              className="w-full px-3 py-2 border rounded-md min-h-[2.5rem] resize-none overflow-hidden mt-1"
+              placeholder="Enter answer..."
+              style={{ height: 'auto' }}
+            />
+          </div>
         </div>
       </div>
     </div>

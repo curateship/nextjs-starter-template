@@ -203,9 +203,16 @@ function SortablePricingTierItem({
           <Textarea
             id={`tier-features-${tierIndex}`}
             value={tier.features.join('\n')}
-            onChange={(e) => updateFeatures(tierIndex, e.target.value)}
-            placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
-            rows={4}
+            onChange={(e) => {
+              updateFeatures(tierIndex, e.target.value)
+              // Auto-resize the textarea
+              const target = e.target as HTMLTextAreaElement
+              target.style.height = 'auto'
+              target.style.height = `${target.scrollHeight}px`
+            }}
+            placeholder="Add features on every new line"
+            className="min-h-[2.5rem] py-2 resize-none overflow-hidden"
+            style={{ height: 'auto' }}
           />
         </div>
 
@@ -295,7 +302,7 @@ export function ProductPricingBlock({
       price: "$0",
       period: "per month",
       description: "Perfect for getting started",
-      features: ["Feature 1", "Feature 2", "Feature 3"],
+      features: [],
       buttonText: "Get Started",
       buttonUrl: "",
       highlighted: false,
@@ -317,7 +324,7 @@ export function ProductPricingBlock({
   }
 
   const updateFeatures = (tierIndex: number, featuresText: string) => {
-    const features = featuresText.split('\n').filter(f => f.trim() !== '')
+    const features = featuresText.split('\n')
     updateTier(tierIndex, 'features', features)
   }
 
