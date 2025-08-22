@@ -10,7 +10,6 @@ import {
 import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus } from "lucide-react"
 import { Reorder } from "motion/react"
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
-// import type { Block } from "@/lib/actions/page-blocks-actions"
 
 interface Block {
   id: string
@@ -93,6 +92,7 @@ export function BlockListPanel({
         return <div className="w-4 h-4" />
     }
   }
+
   return (
     <>
       <div className="w-[400px] p-6">
