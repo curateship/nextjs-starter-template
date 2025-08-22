@@ -22,7 +22,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
   useSortable,
@@ -87,13 +87,6 @@ function SortableAvatarItem({
             </div>
           )}
         </div>
-        <input
-          type="text"
-          value={avatar.src}
-          onChange={(e) => updateAvatar(index, e.target.value)}
-          className="flex-1 px-3 py-2 border rounded-md text-sm"
-          placeholder="Image URL"
-        />
         <Button
           type="button"
           variant="ghost"
@@ -455,9 +448,9 @@ export function PageHeroBlock({
           >
             <SortableContext
               items={trustedByAvatars.map(a => a.id || '')}
-              strategy={verticalListSortingStrategy}
+              strategy={horizontalListSortingStrategy}
             >
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {trustedByAvatars.map((avatar, index) => (
                   <SortableAvatarItem
                     key={avatar.id || `avatar-${index}`}

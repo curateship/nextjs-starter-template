@@ -22,7 +22,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
   useSortable,
@@ -127,27 +127,21 @@ function SortableAvatarItem({
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={avatar.src} alt={avatar.alt} />
-          <AvatarFallback>{avatar.fallback}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <Input
-            value={avatar.src}
-            onChange={(e) => updateAvatar(index, e.target.value)}
-            placeholder={`Avatar ${index + 1} URL`}
-            className="w-full"
-          />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+        <div
+          className="cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setShowPicker(index)}
-          className="h-8 w-8 p-0 flex items-center justify-center"
         >
-          <ImageIcon className="h-4 w-4" />
-        </Button>
+          {avatar.src ? (
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={avatar.src} alt={avatar.alt} />
+              <AvatarFallback>{avatar.fallback}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <div className="h-8 w-8 rounded-full border-2 border-dashed border-muted-foreground/25 flex items-center justify-center hover:bg-muted/70 hover:border-muted-foreground/40 transition-all">
+              <ImageIcon className="w-3 h-3 text-muted-foreground/50" />
+            </div>
+          )}
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -459,9 +453,9 @@ export function ProductHeroBlock({
           >
             <SortableContext
               items={trustedByAvatars.map(avatar => avatar.id || '')}
-              strategy={verticalListSortingStrategy}
+              strategy={horizontalListSortingStrategy}
             >
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {trustedByAvatars.map((avatar, index) => (
                   <SortableAvatarItem
                     key={avatar.id || `avatar-${index}`}
