@@ -5032,3 +5032,20 @@ const sensors = useSensors(
 
 **System Status**: ✅ **PROFESSIONAL-GRADE DRAG & DROP SYSTEM**
 The platform now features reliable, accessible, and consistent drag and drop functionality across all admin interfaces.
+
+---
+
+## Phase 25: Product Preview Navigation Fix & page_blocks Table Removal (August 22, 2025)
+
+### **Fixed Product Preview Navigation/Footer**:
+- Added navigation and footer blocks to product preview panel
+- Modified `useProductData` hook to also load pages data
+- Aligned ProductPreview architecture with PagePreview for consistency
+
+### **Removed Obsolete page_blocks Table References**:
+- Cleaned up all references to deprecated `page_blocks` table across 6 files
+- Migrated fully to JSON-based `content_blocks` field approach
+- Created shared Block types in `/lib/types/blocks.ts`
+- Archived page-blocks-actions.ts file
+
+**Impact**: Product previews now show complete site structure. Eliminated technical debt from old database architecture.

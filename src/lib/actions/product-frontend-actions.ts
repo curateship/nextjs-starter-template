@@ -75,19 +75,21 @@ async function fetchSiteBlocks(siteId: string) {
     return { navigation: null, footer: null }
   }
 
-  // Get navigation and footer blocks
-  const { data: pageBlocks } = await supabaseAdmin
-    .from('page_blocks')
-    .select('*')
-    .eq('page_id', homePage.id)
-    .in('block_type', ['navigation', 'footer'])
-
-  const navigationBlock = pageBlocks?.find(b => b.block_type === 'navigation')
-  const footerBlock = pageBlocks?.find(b => b.block_type === 'footer')
+  // Get navigation and footer from home page's content_blocks JSON
+  if (homePage.content_blocks) {
+    const blocks = Object.values(homePage.content_blocks).flat() as any[]
+    const navigationBlock = blocks.find(b => b.type === 'navigation')
+    const footerBlock = blocks.find(b => b.type === 'footer')
+    
+    return {
+      navigation: navigationBlock?.content || null,
+      footer: footerBlock?.content || null
+    }
+  }
 
   return {
-    navigation: navigationBlock?.content || null,
-    footer: footerBlock?.content || null
+    navigation: null,
+    footer: null
   }
 }
 

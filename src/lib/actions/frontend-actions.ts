@@ -113,43 +113,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
         content: block.content,
         display_order: block.display_order || 0
       })).sort((a, b) => a.display_order - b.display_order)
-    } else {
-      // Fallback: try to get blocks from old page_blocks table if page doesn't have content_blocks
-      // Use multiple queries to avoid SQL injection from string interpolation
-      const queries = [
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .eq('page_slug', actualPageSlug)
-          .order('display_order', { ascending: true }),
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .eq('page_slug', 'global')
-          .order('display_order', { ascending: true }),
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .is('page_slug', null)
-          .order('display_order', { ascending: true })
-      ]
-      
-      const results = await Promise.all(queries)
-      const siteBlocks = results.flatMap(result => result.data || [])
-      const blocksError = results.find(result => result.error)?.error
-
-      if (!blocksError && siteBlocks) {
-        blocks = siteBlocks.map((block) => ({
-          id: block.id,
-          type: block.block_type,
-          content: block.content,
-          display_order: block.display_order || 0
-        }))
-      }
     }
+    // No fallback needed - all pages should use content_blocks JSON field now
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
@@ -340,43 +305,8 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
         content: block.content,
         display_order: block.display_order || 0
       })).sort((a, b) => a.display_order - b.display_order)
-    } else {
-      // Fallback: try to get blocks from old page_blocks table if page doesn't have content_blocks
-      // Use multiple queries to avoid SQL injection from string interpolation
-      const queries = [
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .eq('page_slug', actualPageSlug)
-          .order('display_order', { ascending: true }),
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .eq('page_slug', 'global')
-          .order('display_order', { ascending: true }),
-        supabaseAdmin
-          .from('page_blocks')
-          .select('*')
-          .eq('site_id', site.id)
-          .is('page_slug', null)
-          .order('display_order', { ascending: true })
-      ]
-      
-      const results = await Promise.all(queries)
-      const siteBlocks = results.flatMap(result => result.data || [])
-      const blocksError = results.find(result => result.error)?.error
-
-      if (!blocksError && siteBlocks) {
-        blocks = siteBlocks.map((block) => ({
-          id: block.id,
-          type: block.block_type,
-          content: block.content,
-          display_order: block.display_order || 0
-        }))
-      }
     }
+    // No fallback needed - all pages should use content_blocks JSON field now
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,

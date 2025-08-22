@@ -654,17 +654,7 @@ export async function deleteProductAction(productId: string): Promise<{ success:
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // Delete associated blocks first (cleanup orphaned blocks)
-    const { error: blockDeleteError } = await supabaseAdmin
-      .from('page_blocks')
-      .delete()
-      .eq('site_id', product.site_id)
-      .eq('page_slug', `product-${product.slug}`)
-
-    if (blockDeleteError) {
-      console.warn('Failed to delete associated blocks:', blockDeleteError.message)
-      // Continue with product deletion even if block cleanup fails
-    }
+    // No need to delete blocks - products use content_blocks JSON field now
 
     // Delete the product
     const { error } = await supabaseAdmin

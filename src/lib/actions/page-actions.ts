@@ -565,17 +565,7 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
       }
     }
 
-    // Delete associated blocks first (cleanup orphaned blocks)
-    const { error: blockDeleteError } = await supabaseAdmin
-      .from('page_blocks')
-      .delete()
-      .eq('site_id', page.site_id)
-      .eq('page_slug', page.slug)
-
-    if (blockDeleteError) {
-      console.warn('Failed to delete associated blocks:', blockDeleteError.message)
-      // Continue with page deletion even if block cleanup fails
-    }
+    // No need to delete blocks - pages use content_blocks JSON field now
 
     // Delete the page
     const { error } = await supabaseAdmin
@@ -697,26 +687,8 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       return { data: null, error: `Failed to duplicate page: ${error.message}` }
     }
 
-    // Copy all blocks from the original page to the new page
-    const { data: originalBlocks } = await supabaseAdmin
-      .from('page_blocks')
-      .select('*')
-      .eq('site_id', originalPage.site_id)
-      .eq('page_slug', originalPage.slug)
-
-    if (originalBlocks && originalBlocks.length > 0) {
-      const duplicatedBlocks = originalBlocks.map(block => ({
-        site_id: block.site_id,
-        block_type: block.block_type,
-        page_slug: newSlug,
-        content: block.content,
-        display_order: block.display_order
-      }))
-
-      await supabaseAdmin
-        .from('page_blocks')
-        .insert(duplicatedBlocks)
-    }
+    // No need to copy blocks - pages use content_blocks JSON field now
+    // The content_blocks field is already copied in the INSERT above
 
     return { data: newPage as Page, error: null }
   } catch (error) {
