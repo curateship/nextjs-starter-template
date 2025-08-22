@@ -6,8 +6,26 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, GripVertical, ImageIcon } from "lucide-react"
-import { useState, useRef, useCallback, useEffect } from "react"
-import { Reorder } from "motion/react"
+import { useState, useEffect } from "react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Feature {
   id: string
@@ -27,6 +45,113 @@ interface ProductFeaturesBlockProps {
   blockId: string
 }
 
+// Sortable feature item component
+function SortableFeatureItem({
+  feature,
+  index,
+  updateFeature,
+  removeFeature,
+  onOpenImagePicker
+}: {
+  feature: Feature
+  index: number
+  updateFeature: (index: number, field: keyof Feature, value: string) => void
+  removeFeature: (index: number) => void
+  onOpenImagePicker: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: feature.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-4 bg-background hover:border-muted-foreground/50 transition-colors"
+    >
+      <div className="flex gap-3">
+        <div
+          {...attributes}
+          {...listeners}
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 pt-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center gap-3">
+            <div
+              className="cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => onOpenImagePicker(index)}
+            >
+              {feature.image ? (
+                <img
+                  src={feature.image}
+                  alt={feature.title}
+                  className="w-12 h-12 object-cover rounded-lg border"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center hover:bg-muted/70 hover:border-muted-foreground/40 transition-all">
+                  <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <Input
+                value={feature.title}
+                onChange={(e) => updateFeature(index, 'title', e.target.value)}
+                placeholder="Feature title"
+                className="font-medium"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor={`feature-desc-${index}`}>Description</Label>
+            <textarea
+              id={`feature-desc-${index}`}
+              value={feature.description}
+              onChange={(e) => updateFeature(index, 'description', e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md min-h-[80px] text-sm"
+              placeholder="Describe this feature and its benefits..."
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor={`feature-img-${index}`}>Image URL</Label>
+            <Input
+              id={`feature-img-${index}`}
+              value={feature.image}
+              onChange={(e) => updateFeature(index, 'image', e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="mt-1"
+            />
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeFeature(index)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function ProductFeaturesBlock({
   headerTitle,
   headerSubtitle,
@@ -37,35 +162,18 @@ export function ProductFeaturesBlock({
   siteId,
   blockId,
 }: ProductFeaturesBlockProps) {
-  const featuresTimeoutRef = useRef<NodeJS.Timeout>()
   const [showPicker, setShowPicker] = useState<number | null>(null)
-  const previousFeaturesRef = useRef<Feature[]>(features)
 
-  // Track image usage when features change
-  useEffect(() => {
-    if (!siteId || !blockId) return
-    
-    const trackUsage = async () => {
-      try {
-        const previousFeatures = previousFeaturesRef.current
-
-        // Track changes for each feature position
-        for (let i = 0; i < Math.max(features.length, previousFeatures.length); i++) {
-          const currentFeature = features[i]
-          const previousFeature = previousFeatures[i]
-
-          // Image tracking removed - features will be saved without usage tracking
-        }
-
-        // Update the ref with current features
-        previousFeaturesRef.current = [...features]
-      } catch (error) {
-        console.error('Error tracking feature image usage:', error)
-      }
-    }
-
-    trackUsage()
-  }, [features, siteId, blockId])
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const addFeature = () => {
     const newFeature: Feature = {
@@ -89,59 +197,55 @@ export function ProductFeaturesBlock({
     onFeaturesChange(newFeatures)
   }
 
-  const handleReorderFeatures = useCallback((reorderedFeatures: Feature[]) => {
-    if (featuresTimeoutRef.current) {
-      clearTimeout(featuresTimeoutRef.current)
-    }
-    
-    featuresTimeoutRef.current = setTimeout(() => {
-      onFeaturesChange(reorderedFeatures)
-    }, 300)
-  }, [onFeaturesChange])
+  const handleFeatureDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
 
-  const handleSelectImage = (imageUrl: string) => {
-    if (showPicker !== null) {
-      updateFeature(showPicker, 'image', imageUrl)
-      setShowPicker(null)
+    if (over && active.id !== over.id) {
+      const oldIndex = features.findIndex((feature) => feature.id === active.id)
+      const newIndex = features.findIndex((feature) => feature.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onFeaturesChange(arrayMove(features, oldIndex, newIndex))
+      }
     }
   }
 
+  const handleSelectImage = (imageUrl: string, index: number) => {
+    updateFeature(index, 'image', imageUrl)
+    setShowPicker(null)
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Header Content Card */}
-      <Card className="shadow-sm">
+    <div className="space-y-6">
+      {/* Header Settings Card */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-base">Header Content</CardTitle>
+          <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="headerTitle">Header Title</Label>
+          <div>
+            <Label htmlFor="features-title">Title</Label>
             <Input
-              id="headerTitle"
+              id="features-title"
               value={headerTitle}
               onChange={(e) => onHeaderTitleChange(e.target.value)}
-              placeholder="Effortless Task Management"
-              required
+              placeholder="Features"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="headerSubtitle">Header Subtitle</Label>
-            <textarea
-              id="headerSubtitle"
+          <div>
+            <Label htmlFor="features-subtitle">Subtitle</Label>
+            <Input
+              id="features-subtitle"
               value={headerSubtitle}
               onChange={(e) => onHeaderSubtitleChange(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more."
-              rows={3}
-              required
+              placeholder="Discover what makes our product special"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Features Card */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Features</CardTitle>
@@ -150,105 +254,50 @@ export function ProductFeaturesBlock({
               variant="outline"
               size="sm"
               onClick={addFeature}
-              className="h-8 w-8 p-0"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="w-4 h-4 mr-1" />
+              Add Feature
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Reorder.Group 
-            axis="y" 
-            values={features} 
-            onReorder={handleReorderFeatures}
-            className="space-y-4"
+        <CardContent>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleFeatureDragEnd}
           >
-            {features.map((feature, index) => (
-              <Reorder.Item 
-                key={feature.id}
-                value={feature}
-                className="border rounded-lg p-4 transition-colors hover:border-muted-foreground cursor-pointer"
-                whileDrag={{ 
-                  scale: 1.02, 
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  zIndex: 1000
-                }}
-                style={{ cursor: "grab" }}
-              >
-                <div className="space-y-3">
-                  {/* Feature Title Row */}
-                  <div className="flex items-center gap-3">
-                    <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                      <GripVertical className="w-4 h-4" />
-                    </div>
-                    {feature.image ? (
-                      <div className="relative w-8 h-8 rounded overflow-hidden border">
-                        <img 
-                          src={feature.image} 
-                          alt={feature.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded border border-dashed border-muted-foreground/25 bg-muted/50 flex items-center justify-center">
-                        <ImageIcon className="w-3 h-3 text-muted-foreground/50" />
-                      </div>
-                    )}
-                    <div className="w-52">
-                      <Input
-                        value={feature.title}
-                        onChange={(e) => updateFeature(index, 'title', e.target.value)}
-                        placeholder="Feature Title"
-                        className="w-full"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Input
-                        value={feature.description}
-                        onChange={(e) => updateFeature(index, 'description', e.target.value)}
-                        placeholder="Feature description..."
-                        className="w-full"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowPicker(index)}
-                      className="h-8 w-8 p-0 flex items-center justify-center"
-                      title="Select image"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFeature(index)}
-                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center justify-center"
-                      title="Remove feature"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
-          
+            <SortableContext
+              items={features.map(f => f.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {features.map((feature, index) => (
+                  <SortableFeatureItem
+                    key={feature.id}
+                    feature={feature}
+                    index={index}
+                    updateFeature={updateFeature}
+                    removeFeature={removeFeature}
+                    onOpenImagePicker={setShowPicker}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
           {features.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-lg">
-              No features added yet. Click + to add your first feature.
+            <div className="text-center py-8 text-muted-foreground">
+              No features yet. Click "Add Feature" to create one.
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Image Picker Dialog */}
+      {/* Image Picker Modal */}
       <ImagePicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
-        onSelectImage={handleSelectImage}
+        onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
         currentImageUrl={showPicker !== null ? features[showPicker]?.image : undefined}
       />
     </div>

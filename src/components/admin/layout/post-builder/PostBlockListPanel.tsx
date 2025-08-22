@@ -8,7 +8,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Trash2, GripVertical, FileText } from "lucide-react"
-import { Reorder } from "motion/react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface PostBlock {
   id: string
@@ -33,6 +51,86 @@ interface PostBlockListPanelProps {
   blocksLoading?: boolean
 }
 
+// Sortable post block item component
+function SortablePostBlockItem({
+  block,
+  selectedBlock,
+  onSelectBlock,
+  deleting,
+  getBlockIcon,
+  handleDeleteClick
+}: {
+  block: PostBlock
+  selectedBlock: PostBlock | null
+  onSelectBlock: (block: PostBlock) => void
+  deleting: string | null
+  getBlockIcon: (blockType: string) => JSX.Element
+  handleDeleteClick: (block: PostBlock) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border rounded-lg p-4 transition-colors cursor-pointer ${
+        selectedBlock?.id === block.id
+          ? 'border-gray-300 bg-gray-50 shadow-sm'
+          : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
+      }`}
+      onClick={() => onSelectBlock(block)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div
+            {...attributes}
+            {...listeners}
+            className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+          <div className="flex items-center space-x-2">
+            {getBlockIcon(block.type)}
+            <h3 className="font-medium">{block.title}</h3>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeleteClick(block)
+            }}
+            disabled={deleting === block.id}
+            title="Delete block"
+          >
+            {deleting === block.id ? (
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function PostBlockListPanel({
   currentPost,
   selectedBlock,
@@ -44,7 +142,30 @@ export function PostBlockListPanel({
 }: PostBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = currentPost.blocks.findIndex((block) => block.id === active.id)
+      const newIndex = currentPost.blocks.findIndex((block) => block.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorderBlocks(arrayMove(currentPost.blocks, oldIndex, newIndex))
+      }
+    }
+  }
 
   const handleDeleteClick = (block: PostBlock) => {
     setBlockToDelete(block)
@@ -110,80 +231,30 @@ export function PostBlockListPanel({
               </div>
             </div>
           ) : (
-            <Reorder.Group 
-              axis="y" 
-              values={currentPost.blocks} 
-              onReorder={onReorderBlocks}
-              className="space-y-4"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              {currentPost.blocks.map((block) => (
-                <Reorder.Item 
-                  key={block.id} 
-                  value={block}
-                  className={`border rounded-lg p-4 transition-colors cursor-pointer ${
-                    selectedBlock?.id === block.id
-                      ? 'border-gray-300 bg-gray-50 shadow-sm'
-                      : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
-                  }`}
-                  whileDrag={{ 
-                    scale: 1.01, 
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                    zIndex: 1000
-                  }}
-                  style={{ 
-                    cursor: "grab"
-                  }}
-                  onDragStart={() => setIsDragging(true)}
-                  onDragEnd={() => {
-                    setTimeout(() => setIsDragging(false), 100)
-                  }}
-                  onPointerDown={(e) => {
-                    // Don't start drag if clicking on buttons
-                    const target = e.target as HTMLElement
-                    if (target.closest('button')) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }
-                  }}
-                  onClick={() => {
-                    if (!isDragging) {
-                      onSelectBlock(block)
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {getBlockIcon(block.type)}
-                        <h3 className="font-medium">{block.title}</h3>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteClick(block)
-                        }}
-                        disabled={deleting === block.id}
-                        title="Delete block"
-                      >
-                        {deleting === block.id ? (
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
+              <SortableContext
+                items={currentPost.blocks.map(block => block.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-4">
+                  {currentPost.blocks.map((block) => (
+                    <SortablePostBlockItem
+                      key={block.id}
+                      block={block}
+                      selectedBlock={selectedBlock}
+                      onSelectBlock={onSelectBlock}
+                      deleting={deleting}
+                      getBlockIcon={getBlockIcon}
+                      handleDeleteClick={handleDeleteClick}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>

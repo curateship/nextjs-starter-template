@@ -13,7 +13,10 @@ const isValidUrl = (url: string): boolean => {
   }
 }
 
-const sanitizeText = (text: string): string => {
+const sanitizeText = (text: string | undefined | null): string => {
+  // Handle undefined/null values
+  if (!text) return ''
+  
   // Remove potential XSS vectors while preserving normal text
   return text
     .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
