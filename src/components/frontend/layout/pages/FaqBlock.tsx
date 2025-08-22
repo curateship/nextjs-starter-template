@@ -57,9 +57,9 @@ const FaqBlock = ({ content }: FaqBlockProps) => {
     return (
         <BlockContainer
             header={{
-                title: content?.title || "Frequently Asked Questions",
-                subtitle: content?.subtitle || "Discover quick and comprehensive answers to common questions about our platform, services, and features.",
-                align: content?.headerAlign || "center"
+                title: content?.title ?? '',
+                subtitle: content?.subtitle ?? '',
+                align: content?.headerAlign ?? "center"
             }}
         >
             <div className="mt-12">

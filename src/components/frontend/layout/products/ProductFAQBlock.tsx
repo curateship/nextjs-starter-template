@@ -57,9 +57,9 @@ const ProductFAQBlock = ({ content }: ProductFAQBlockProps) => {
     return (
         <BlockContainer
             header={{
-                title: content?.title || "Product FAQ",
-                subtitle: content?.subtitle || "Get answers to common questions about this product, its features, compatibility, and support options.",
-                align: content?.headerAlign || "center"
+                title: content?.title ?? '',
+                subtitle: content?.subtitle ?? '',
+                align: content?.headerAlign ?? "center"
             }}
         >
             <div className="mt-12">

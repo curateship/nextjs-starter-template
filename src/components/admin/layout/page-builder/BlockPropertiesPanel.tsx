@@ -94,9 +94,9 @@ export function BlockPropertiesPanel({
             )}
             {selectedBlock.type === 'faq' && (
               <SharedFaqBlock
-                title={selectedBlock.content.title}
-                subtitle={selectedBlock.content.subtitle}
-                headerAlign={selectedBlock.content.headerAlign || 'left'}
+                title={selectedBlock.content.title ?? ''}
+                subtitle={selectedBlock.content.subtitle ?? ''}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 faqItems={selectedBlock.content.faqItems}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}

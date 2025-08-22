@@ -17,8 +17,8 @@ interface ProductFeaturesBlockProps {
 }
 
 const ProductFeaturesBlock = ({
-  headerTitle = "Effortless Task Management",
-  headerSubtitle = "Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more. AI-powered scheduling helps you stay on track and adapt to changing priorities.",
+  headerTitle = '',
+  headerSubtitle = '',
   headerAlign = "center",
   features = []
 }: ProductFeaturesBlockProps) => {

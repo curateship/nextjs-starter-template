@@ -98,7 +98,7 @@ function SortableProductBlockItem({
           <div
             {...attributes}
             {...listeners}
-            className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+            className="flex items-center justify-center w-8 h-8 rounded text-muted-foreground hover:text-foreground hover:bg-gray-100 cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-4 h-4" />
           </div>

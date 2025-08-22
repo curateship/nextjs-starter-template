@@ -83,8 +83,8 @@ interface PricingTier {
 }
 
 interface ProductPricingBlockProps {
-  headerTitle: string
-  headerSubtitle: string
+  headerTitle?: string
+  headerSubtitle?: string
   headerAlign?: 'left' | 'center'
   tiers: PricingTier[]
   onHeaderTitleChange: (value: string) => void
@@ -151,7 +151,7 @@ function SortablePricingTierItem({
       </div>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 0.3fr 1.7fr 1fr 1fr' }}>
           <div>
             <Label htmlFor={`tier-name-${tierIndex}`}>Plan Name</Label>
             <Input
@@ -179,9 +179,6 @@ function SortablePricingTierItem({
               placeholder="Perfect for individuals getting started"
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor={`tier-period-${tierIndex}`}>Billing Period</Label>
             <Input
@@ -271,8 +268,8 @@ function SortablePricingTierItem({
 }
 
 export function ProductPricingBlock({
-  headerTitle,
-  headerSubtitle,
+  headerTitle = '',
+  headerSubtitle = '',
   headerAlign = 'left',
   tiers,
   onHeaderTitleChange,

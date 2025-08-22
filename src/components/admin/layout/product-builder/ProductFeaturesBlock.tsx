@@ -36,8 +36,8 @@ interface Feature {
 }
 
 interface ProductFeaturesBlockProps {
-  headerTitle: string
-  headerSubtitle: string
+  headerTitle?: string
+  headerSubtitle?: string
   headerAlign?: 'left' | 'center'
   features: Feature[]
   onHeaderTitleChange: (value: string) => void
@@ -145,8 +145,8 @@ function SortableFeatureItem({
 }
 
 export function ProductFeaturesBlock({
-  headerTitle,
-  headerSubtitle,
+  headerTitle = '',
+  headerSubtitle = '',
   headerAlign = 'left',
   features,
   onHeaderTitleChange,

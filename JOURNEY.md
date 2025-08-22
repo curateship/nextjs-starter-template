@@ -2,7 +2,7 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
-**Last Updated**: August 21, 2025
+**Last Updated**: August 22, 2025
 
 
 ### Phase 1: Initial Authentication Setup
@@ -2247,6 +2247,28 @@ This enhancement elevates the platform's design capabilities to match profession
 - **User Experience**: Eliminates confusion about what the builder actually does
 
 **Security Audit Results**: ✅ **ALL SECURE**
+
+---
+
+## Phase 24: Input Validation Consistency Fix
+*August 22, 2025*
+
+**Problem**: Users couldn't delete all text from title/subtitle fields - they would auto-revert to default text instead of staying blank.
+
+**Root Cause**: Inconsistent empty value handling across 4 different patterns:
+1. Hardcoded defaults in component props: `title = "Default Text"`
+2. `||` fallbacks treating empty strings as falsy: `title || "Default"`  
+3. `??` nullish coalescing (correct): `title ?? ''`
+4. Conditional rendering (correct): `{title && <h2>{title}</h2>}`
+
+**Technical Solution**:
+- **Admin Components**: Changed validation from `||` to `??` operators to preserve empty strings
+- **Frontend Components**: Removed hardcoded defaults, replaced with empty string defaults
+- **Consistent Pattern**: `title = '', title ?? '', {title && ...}` across all blocks
+
+**Files Updated**: 8 components (ProductFeatures, FAQ, Pricing, Hotspot blocks + page equivalents)
+
+**Result**: Empty title/subtitle fields now properly hide headers on frontend instead of showing default text.
 - Refactoring involved only file/component renaming
 - No changes to authentication, authorization, or data handling
 - All existing security controls preserved unchanged
