@@ -8,7 +8,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus } from "lucide-react"
-import { Reorder } from "motion/react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
 
 interface Block {
@@ -36,6 +54,108 @@ interface BlockListPanelProps {
   blocksLoading?: boolean
 }
 
+// Sortable block item component
+function SortableBlockItem({
+  block,
+  selectedBlock,
+  onSelectBlock,
+  onDeleteBlock,
+  deleting,
+  getBlockTypeName,
+  getBlockIcon,
+  handleDeleteClick
+}: {
+  block: Block
+  selectedBlock: Block | null
+  onSelectBlock: (block: Block) => void
+  onDeleteBlock: (block: Block) => Promise<void>
+  deleting: string | null
+  getBlockTypeName: (block: Block) => string
+  getBlockIcon: (blockType: string) => JSX.Element
+  handleDeleteClick: (block: Block) => void
+}) {
+  const isProtected = isBlockTypeProtected(block.type)
+  
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: block.id,
+    disabled: isProtected
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border rounded-lg p-4 transition-colors cursor-pointer ${
+        selectedBlock?.id === block.id
+          ? 'border-gray-300 bg-gray-50 shadow-sm'
+          : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
+      }`}
+      onClick={() => onSelectBlock(block)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div
+            {...attributes}
+            {...listeners}
+            className={`${
+              isProtected 
+                ? 'text-gray-400 cursor-not-allowed' 
+                : 'text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing'
+            }`}
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+          <div className="flex items-center space-x-2">
+            {getBlockIcon(block.type)}
+            <h3 className="font-medium">{getBlockTypeName(block)}</h3>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {isBlockTypeProtected(block.type) ? (
+            <div 
+              className="p-1 text-gray-400 cursor-not-allowed" 
+              title={getBlockProtectionReason(block.type)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteClick(block)
+              }}
+              disabled={deleting === block.id}
+              title="Delete block"
+            >
+              {deleting === block.id ? (
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function BlockListPanel({
   currentPage,
   selectedBlock,
@@ -47,7 +167,30 @@ export function BlockListPanel({
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = currentPage.blocks.findIndex((block) => block.id === active.id)
+      const newIndex = currentPage.blocks.findIndex((block) => block.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorderBlocks(arrayMove(currentPage.blocks, oldIndex, newIndex))
+      }
+    }
+  }
 
   const handleDeleteClick = (block: Block) => {
     setBlockToDelete(block)
@@ -131,107 +274,32 @@ export function BlockListPanel({
               </div>
             </div>
           ) : (
-            <Reorder.Group 
-              axis="y" 
-              values={currentPage.blocks} 
-              onReorder={onReorderBlocks}
-              className="space-y-4"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              {currentPage.blocks.map((block) => {
-                const isProtected = isBlockTypeProtected(block.type)
-                
-                return (
-                <Reorder.Item 
-                  key={block.id} 
-                  value={block}
-                  className={`border rounded-lg p-4 transition-colors cursor-pointer ${
-                    selectedBlock?.id === block.id
-                      ? 'border-gray-300 bg-gray-50 shadow-sm'
-                      : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
-                  }`}
-                  whileDrag={!isProtected ? { 
-                    scale: 1.01, 
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                    zIndex: 1000
-                  } : undefined}
-                  style={{ 
-                    cursor: isProtected ? "default" : "grab"
-                  }}
-                  onDragStart={() => setIsDragging(true)}
-                  onDragEnd={() => {
-                    setTimeout(() => setIsDragging(false), 100)
-                  }}
-                  onPointerDown={(e) => {
-                    // Prevent drag for protected blocks
-                    if (isProtected) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      return
-                    }
-                    
-                    // Don't start drag if clicking on buttons
-                    const target = e.target as HTMLElement
-                    if (target.closest('button')) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                    }
-                  }}
-                  drag={!isProtected}
-                  onClick={() => {
-                    if (!isDragging) {
-                      onSelectBlock(block)
-                    }
-                  }}
-                >
-                  <div 
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`${
-                        isProtected 
-                          ? 'text-gray-400 cursor-not-allowed' 
-                          : 'text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing'
-                      }`}>
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {getBlockIcon(block.type)}
-                        <h3 className="font-medium">{getBlockTypeName(block)}</h3>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {isBlockTypeProtected(block.type) ? (
-                        <div 
-                          className="p-1 text-gray-400 cursor-not-allowed" 
-                          title={getBlockProtectionReason(block.type)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </div>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteClick(block)
-                          }}
-                          disabled={deleting === block.id}
-                          title="Delete block"
-                        >
-                          {deleting === block.id ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Reorder.Item>
-                )
-              })}
-            </Reorder.Group>
+              <SortableContext
+                items={currentPage.blocks.map(block => block.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-4">
+                  {currentPage.blocks.map((block) => (
+                    <SortableBlockItem
+                      key={block.id}
+                      block={block}
+                      selectedBlock={selectedBlock}
+                      onSelectBlock={onSelectBlock}
+                      onDeleteBlock={onDeleteBlock}
+                      deleting={deleting}
+                      getBlockTypeName={getBlockTypeName}
+                      getBlockIcon={getBlockIcon}
+                      handleDeleteClick={handleDeleteClick}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>

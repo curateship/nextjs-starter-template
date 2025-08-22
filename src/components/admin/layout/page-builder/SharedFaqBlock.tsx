@@ -5,7 +5,25 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
-import { Reorder } from "motion/react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface FaqItem {
   id: string
@@ -22,6 +40,84 @@ interface SharedFaqBlockProps {
   onFaqItemsChange?: (value: FaqItem[]) => void
 }
 
+// Sortable FAQ item component
+function SortableFaqItem({
+  item,
+  index,
+  updateFaqItem,
+  deleteFaqItem
+}: {
+  item: FaqItem
+  index: number
+  updateFaqItem: (index: number, field: keyof FaqItem, value: string) => void
+  deleteFaqItem: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-4 bg-background hover:border-muted-foreground/50 transition-colors"
+    >
+      <div className="flex gap-3">
+        <div
+          {...attributes}
+          {...listeners}
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 pt-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="flex-1 space-y-3">
+          <div>
+            <Label htmlFor={`question-${index}`}>Question</Label>
+            <input
+              type="text"
+              id={`question-${index}`}
+              value={item.question}
+              onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
+              placeholder="Enter question..."
+            />
+          </div>
+          <div>
+            <Label htmlFor={`answer-${index}`}>Answer</Label>
+            <textarea
+              id={`answer-${index}`}
+              value={item.answer}
+              onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
+              className="w-full mt-1 px-3 py-2 border rounded-md min-h-[80px]"
+              placeholder="Enter answer..."
+            />
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => deleteFaqItem(index)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function SharedFaqBlock({
   title = '',
   subtitle = '',
@@ -31,6 +127,17 @@ export function SharedFaqBlock({
   onFaqItemsChange
 }: SharedFaqBlockProps) {
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const updateFaqItems = (newItems: FaqItem[]) => {
     setLocalFaqItems(newItems)
@@ -57,8 +164,17 @@ export function SharedFaqBlock({
     updateFaqItems(updatedItems)
   }
 
-  const handleReorder = (newItems: FaqItem[]) => {
-    updateFaqItems(newItems)
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = localFaqItems.findIndex((item) => item.id === active.id)
+      const newIndex = localFaqItems.findIndex((item) => item.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        updateFaqItems(arrayMove(localFaqItems, oldIndex, newIndex))
+      }
+    }
   }
 
   return (
@@ -80,16 +196,15 @@ export function SharedFaqBlock({
               placeholder="Frequently Asked Questions"
             />
           </div>
-          
           <div>
             <Label htmlFor="faq-subtitle">Subtitle</Label>
-            <textarea
+            <input
+              type="text"
               id="faq-subtitle"
               value={subtitle}
               onChange={(e) => onSubtitleChange?.(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md resize-none"
-              placeholder="Discover quick and comprehensive answers to common questions..."
-              rows={2}
+              className="w-full mt-1 px-3 py-2 border rounded-md"
+              placeholder="Find answers to common questions"
             />
           </div>
         </CardContent>
@@ -101,80 +216,44 @@ export function SharedFaqBlock({
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">FAQ Items</CardTitle>
             <Button
-              onClick={addNewFaqItem}
+              type="button"
+              variant="outline"
               size="sm"
-              className="h-8"
+              onClick={addNewFaqItem}
             >
               <Plus className="w-4 h-4 mr-1" />
-              Add FAQ
+              Add Item
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-
-          {localFaqItems.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No FAQ items yet. Click "Add FAQ" to create your first item.</p>
-            </div>
-          ) : (
-            <Reorder.Group
-              axis="y"
-              values={localFaqItems}
-              onReorder={handleReorder}
-              className="space-y-3"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={localFaqItems.map(item => item.id)}
+              strategy={verticalListSortingStrategy}
             >
-              {localFaqItems.map((item, index) => (
-                <Reorder.Item 
-                  key={item.id || `faq-${index}`} 
-                  value={item}
-                  className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
-                  whileDrag={{ 
-                    scale: 1.02, 
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                    zIndex: 1000
-                  }}
-                  style={{ cursor: "grab" }}
-                >
-                  <div className="flex gap-2 items-start">
-                    <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing mt-2">
-                      <GripVertical className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">FAQ Item {index + 1}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteFaqItem(index)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div>
-                        <input
-                          type="text"
-                          value={item.question}
-                          onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                          placeholder="Question"
-                        />
-                      </div>
-                      <div>
-                        <textarea
-                          value={item.answer}
-                          onChange={(e) => updateFaqItem(index, 'answer', e.target.value)}
-                          className="w-full px-3 py-1.5 border rounded-md text-sm"
-                          placeholder="Answer"
-                          rows={1}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </Reorder.Item>
-              ))}
-            </Reorder.Group>
+              <div className="space-y-3">
+                {localFaqItems.map((item, index) => (
+                  <SortableFaqItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    updateFaqItem={updateFaqItem}
+                    deleteFaqItem={deleteFaqItem}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {localFaqItems.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No FAQ items yet. Click "Add Item" to create one.
+            </div>
           )}
         </CardContent>
       </Card>

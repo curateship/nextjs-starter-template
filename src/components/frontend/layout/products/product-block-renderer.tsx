@@ -75,12 +75,29 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         }
         
         if (block.type === 'product-pricing') {
+          const tiers = block.content.tiers || block.content.pricingTiers || []
+          
+          // Transform admin tier structure to frontend tier structure
+          const transformedTiers = tiers.map((tier: any) => ({
+            id: tier.id,
+            name: tier.name || '',
+            description: tier.description || '',
+            price: tier.price || '0',
+            interval: tier.period || tier.interval || 'month',
+            buttonText: tier.buttonText || 'Get Started',
+            buttonUrl: tier.buttonUrl || '',
+            buttonVariant: 'default' as const,
+            features: tier.features || [],
+            comparison: '', // Not used in admin
+            isPopular: tier.highlighted || tier.isPopular || false
+          }))
+          
           return (
             <ProductPricingBlock
               key={`product-pricing-${block.id}`}
-              title={block.content.title}
-              subtitle={block.content.subtitle}
-              pricingTiers={block.content.pricingTiers}
+              title={block.content.headerTitle || block.content.title}
+              subtitle={block.content.headerSubtitle || block.content.subtitle}
+              pricingTiers={transformedTiers}
             />
           )
         }

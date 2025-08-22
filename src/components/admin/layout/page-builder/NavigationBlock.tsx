@@ -1,13 +1,31 @@
 "use client"
 
-import { useState, useCallback, useRef, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
-import { Reorder } from "motion/react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface NavigationLink {
   text: string
@@ -19,6 +37,7 @@ interface NavigationButton {
   text: string
   url: string
   style: 'primary' | 'outline' | 'ghost'
+  id?: string
 }
 
 interface NavigationStyle {
@@ -42,6 +61,161 @@ interface NavigationBlockProps {
   blockId: string
 }
 
+// Sortable button item component
+function SortableButtonItem({
+  button,
+  index,
+  updateButton,
+  removeButton
+}: {
+  button: NavigationButton
+  index: number
+  updateButton: (index: number, field: keyof NavigationButton, value: string) => void
+  removeButton: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: button.id || `button-${index}` })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+    >
+      <div className="flex gap-2 items-center">
+        <div
+          {...attributes}
+          {...listeners}
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="grid grid-cols-3 gap-2 flex-1 min-w-0">
+          <input
+            type="text"
+            value={button.text}
+            onChange={(e) => updateButton(index, 'text', e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm"
+            placeholder="Button Text"
+          />
+          <input
+            type="text"
+            value={button.url}
+            onChange={(e) => updateButton(index, 'url', e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm"
+            placeholder="URL"
+          />
+          <Select
+            value={button.style}
+            onValueChange={(value) => updateButton(index, 'style', value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="primary">Primary</SelectItem>
+              <SelectItem value="outline">Outline</SelectItem>
+              <SelectItem value="ghost">Ghost</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeButton(index)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// Sortable link item component
+function SortableLinkItem({
+  link,
+  index,
+  updateLink,
+  removeLink
+}: {
+  link: NavigationLink
+  index: number
+  updateLink: (index: number, field: 'text' | 'url', value: string) => void
+  removeLink: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: link.id || `link-${index}` })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+    >
+      <div className="flex gap-2 items-center">
+        <div
+          {...attributes}
+          {...listeners}
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
+          <input
+            type="text"
+            value={link.text}
+            onChange={(e) => updateLink(index, 'text', e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm"
+            placeholder="Link Text"
+          />
+          <input
+            type="text"
+            value={link.url}
+            onChange={(e) => updateLink(index, 'url', e.target.value)}
+            className="w-full px-3 py-2 border rounded-md text-sm"
+            placeholder="URL"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeLink(index)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function NavigationBlock({
   logo,
   logoUrl,
@@ -53,12 +227,21 @@ export function NavigationBlock({
   onLinksChange,
   onButtonsChange,
   onStyleChange,
-  siteId,
-  blockId,
 }: NavigationBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
-  // Ensure all links have unique IDs
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Ensure all links and buttons have unique IDs
   useEffect(() => {
     const linksNeedIds = links.some(link => !link.id)
     if (linksNeedIds) {
@@ -69,6 +252,17 @@ export function NavigationBlock({
       onLinksChange(linksWithIds)
     }
   }, [links, onLinksChange])
+
+  useEffect(() => {
+    const buttonsNeedIds = buttons.some(button => !button.id)
+    if (buttonsNeedIds) {
+      const buttonsWithIds = buttons.map((button, index) => ({
+        ...button,
+        id: button.id || `button-${Date.now()}-${index}-${Math.random()}`
+      }))
+      onButtonsChange(buttonsWithIds)
+    }
+  }, [buttons, onButtonsChange])
   
   const addLink = () => {
     const newLinks = [...links, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }]
@@ -90,26 +284,21 @@ export function NavigationBlock({
     onStyleChange({ ...style, [field]: value })
   }
 
-  const linksTimeoutRef = useRef<NodeJS.Timeout>()
-  const handleReorderLinks = useCallback((reorderedLinks: NavigationLink[]) => {
-    // Clear previous timeout
-    if (linksTimeoutRef.current) {
-      clearTimeout(linksTimeoutRef.current)
+  const handleLinkDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = links.findIndex((link) => link.id === active.id)
+      const newIndex = links.findIndex((link) => link.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onLinksChange(arrayMove(links, oldIndex, newIndex))
+      }
     }
-    
-    // Set new timeout to debounce the save
-    linksTimeoutRef.current = setTimeout(() => {
-      // Ensure IDs are preserved in reordered links
-      const reorderedWithIds = reorderedLinks.map(link => ({
-        ...link,
-        id: link.id || `link-${Date.now()}-${Math.random()}`
-      }))
-      onLinksChange(reorderedWithIds)
-    }, 300)
-  }, [onLinksChange])
+  }
 
   const addButton = () => {
-    const newButtons = [...buttons, { text: "", url: "", style: "primary" as const }]
+    const newButtons = [...buttons, { text: "", url: "", style: "primary" as const, id: `button-${Date.now()}-${Math.random()}` }]
     onButtonsChange(newButtons)
   }
 
@@ -124,18 +313,18 @@ export function NavigationBlock({
     onButtonsChange(newButtons)
   }
 
-  const buttonsTimeoutRef = useRef<NodeJS.Timeout>()
-  const handleReorderButtons = useCallback((reorderedButtons: NavigationButton[]) => {
-    // Clear previous timeout
-    if (buttonsTimeoutRef.current) {
-      clearTimeout(buttonsTimeoutRef.current)
+  const handleButtonDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = buttons.findIndex((button) => button.id === active.id)
+      const newIndex = buttons.findIndex((button) => button.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onButtonsChange(arrayMove(buttons, oldIndex, newIndex))
+      }
     }
-    
-    // Set new timeout to debounce the save
-    buttonsTimeoutRef.current = setTimeout(() => {
-      onButtonsChange(reorderedButtons)
-    }, 300)
-  }, [onButtonsChange])
+  }
 
   return (
     <div className="space-y-4">
@@ -226,61 +415,28 @@ export function NavigationBlock({
           </div>
         </CardHeader>
         <CardContent>
-          <Reorder.Group 
-            axis="y" 
-            values={links} 
-            onReorder={handleReorderLinks}
-            className="space-y-3"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleLinkDragEnd}
           >
-            {links.map((link, index) => (
-              <Reorder.Item 
-                key={link.id || `nav-link-${index}`}
-                value={link}
-                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
-                whileDrag={{ 
-                  scale: 1.02, 
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  zIndex: 1000
-                }}
-                style={{ cursor: "grab" }}
-              >
-                <div className="flex gap-2 items-center">
-                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                    <GripVertical className="w-4 h-4" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 flex-1">
-                    <div>
-                      <input
-                        type="text"
-                        value={link.text}
-                        onChange={(e) => updateLink(index, 'text', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        placeholder="Link Text"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={link.url}
-                        onChange={(e) => updateLink(index, 'url', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        placeholder="URL"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeLink(index)}
-                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
+            <SortableContext
+              items={links.map(l => l.id || '')}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {links.map((link, index) => (
+                  <SortableLinkItem
+                    key={link.id || `nav-link-${index}`}
+                    link={link}
+                    index={index}
+                    updateLink={updateLink}
+                    removeLink={removeLink}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {links.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4">
@@ -307,76 +463,28 @@ export function NavigationBlock({
           </div>
         </CardHeader>
         <CardContent>
-          <Reorder.Group 
-            axis="y" 
-            values={buttons} 
-            onReorder={handleReorderButtons}
-            className="space-y-3"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleButtonDragEnd}
           >
-            {buttons.map((button, index) => (
-              <Reorder.Item 
-                key={`nav-button-${index}`} 
-                value={button}
-                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
-                whileDrag={{ 
-                  scale: 1.02, 
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  zIndex: 1000
-                }}
-                style={{ cursor: "grab" }}
-              >
-                <div className="flex gap-2 items-center">
-                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                    <GripVertical className="w-4 h-4" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 flex-1">
-                    <div>
-                      <input
-                        type="text"
-                        value={button.text}
-                        onChange={(e) => updateButton(index, 'text', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        placeholder="Button Text"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={button.url}
-                        onChange={(e) => updateButton(index, 'url', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        placeholder="URL"
-                      />
-                    </div>
-                    <div>
-                      <Select
-                        value={button.style}
-                        onValueChange={(value) => updateButton(index, 'style', value)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="primary">Primary</SelectItem>
-                          <SelectItem value="outline">Outline</SelectItem>
-                          <SelectItem value="ghost">Ghost</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeButton(index)}
-                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
+            <SortableContext
+              items={buttons.map(b => b.id || '')}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {buttons.map((button, index) => (
+                  <SortableButtonItem
+                    key={button.id || `nav-button-${index}`}
+                    button={button}
+                    index={index}
+                    updateButton={updateButton}
+                    removeButton={removeButton}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           {buttons.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4">

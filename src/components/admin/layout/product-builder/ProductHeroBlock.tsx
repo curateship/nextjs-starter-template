@@ -9,7 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Reorder } from "motion/react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface ProductHeroBlockProps {
   title: string
@@ -64,6 +82,84 @@ interface ProductHeroBlockProps {
   onShowTrustedByBadgeChange: (value: boolean) => void
   siteId: string
   blockId: string
+}
+
+// Sortable avatar item component
+function SortableAvatarItem({
+  avatar,
+  index,
+  updateAvatar,
+  removeAvatar,
+  setShowPicker
+}: {
+  avatar: { src: string; alt: string; fallback: string; id?: string }
+  index: number
+  updateAvatar: (index: number, src: string) => void
+  removeAvatar: (index: number) => void
+  setShowPicker: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: avatar.id || `avatar-${index}` })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-3 transition-colors hover:border-muted-foreground bg-background"
+    >
+      <div className="flex items-center gap-3">
+        <div
+          {...attributes}
+          {...listeners}
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={avatar.src} alt={avatar.alt} />
+          <AvatarFallback>{avatar.fallback}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <Input
+            value={avatar.src}
+            onChange={(e) => updateAvatar(index, e.target.value)}
+            placeholder={`Avatar ${index + 1} URL`}
+            className="w-full"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowPicker(index)}
+          className="h-8 w-8 p-0 flex items-center justify-center"
+        >
+          <ImageIcon className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeAvatar(index)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center justify-center"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 // Helper functions
@@ -222,23 +318,29 @@ export function ProductHeroBlock({
     setShowPicker(null)
   }
 
-  const avatarsTimeoutRef = useRef<NodeJS.Timeout>()
-  const handleReorderAvatars = useCallback((reorderedAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => {
-    // Clear previous timeout
-    if (avatarsTimeoutRef.current) {
-      clearTimeout(avatarsTimeoutRef.current)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleAvatarDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = trustedByAvatars.findIndex((avatar) => avatar.id === active.id)
+      const newIndex = trustedByAvatars.findIndex((avatar) => avatar.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onTrustedByAvatarsChange(arrayMove(trustedByAvatars, oldIndex, newIndex))
+      }
     }
-    
-    // Set new timeout to debounce the save
-    avatarsTimeoutRef.current = setTimeout(() => {
-      // Ensure IDs are preserved in reordered avatars
-      const reorderedWithIds = reorderedAvatars.map(avatar => ({
-        ...avatar,
-        id: avatar.id || `avatar-${Date.now()}-${Math.random()}`
-      }))
-      onTrustedByAvatarsChange(reorderedWithIds)
-    }, 300)
-  }, [onTrustedByAvatarsChange])
+  }
 
   // Handle hero image changes
   const handleHeroImageChange = async (newImageUrl: string) => {
@@ -350,62 +452,29 @@ export function ProductHeroBlock({
         <CardContent className="space-y-4">
           
           {/* Avatar Management */}
-          <Reorder.Group 
-            axis="y" 
-            values={trustedByAvatars} 
-            onReorder={handleReorderAvatars}
-            className="space-y-2"
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleAvatarDragEnd}
           >
-            {trustedByAvatars.map((avatar, index) => (
-              <Reorder.Item 
-                key={avatar.id || `avatar-${index}`}
-                value={avatar}
-                className="border rounded-lg p-3 transition-colors hover:border-muted-foreground cursor-pointer"
-                whileDrag={{ 
-                  scale: 1.02, 
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  zIndex: 1000
-                }}
-                style={{ cursor: "grab" }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing">
-                    <GripVertical className="w-4 h-4" />
-                  </div>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={avatar.src} alt={avatar.alt} />
-                    <AvatarFallback>{avatar.fallback}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <Input
-                      value={avatar.src}
-                      onChange={(e) => updateAvatar(index, e.target.value)}
-                      placeholder={`Avatar ${index + 1} URL`}
-                      className="w-full"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPicker(index)}
-                    className="h-8 w-8 p-0 flex items-center justify-center"
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeAvatar(index)}
-                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center justify-center"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Reorder.Item>
-            ))}
-          </Reorder.Group>
+            <SortableContext
+              items={trustedByAvatars.map(avatar => avatar.id || '')}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {trustedByAvatars.map((avatar, index) => (
+                  <SortableAvatarItem
+                    key={avatar.id || `avatar-${index}`}
+                    avatar={avatar}
+                    index={index}
+                    updateAvatar={updateAvatar}
+                    removeAvatar={removeAvatar}
+                    setShowPicker={setShowPicker}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
           
           {trustedByAvatars.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">

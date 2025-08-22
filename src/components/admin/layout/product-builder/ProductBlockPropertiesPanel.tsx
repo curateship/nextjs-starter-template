@@ -179,12 +179,12 @@ export function ProductBlockPropertiesPanel({
             
             {selectedBlock.type === 'product-pricing' && (
               <ProductPricingBlock
-                title={selectedBlock.content.title || 'Pricing'}
-                subtitle={selectedBlock.content.subtitle || 'Check out our affordable pricing plans below and choose the one that suits you best.'}
-                pricingTiers={selectedBlock.content.pricingTiers || []}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
-                onPricingTiersChange={(tiers) => updateBlockContent('pricingTiers', tiers)}
+                headerTitle={selectedBlock.content.headerTitle || 'Pricing'}
+                headerSubtitle={selectedBlock.content.headerSubtitle || 'Check out our affordable pricing plans below and choose the one that suits you best.'}
+                tiers={selectedBlock.content.tiers || []}
+                onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
+                onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
+                onTiersChange={(tiers) => updateBlockContent('tiers', tiers)}
               />
             )}
             
