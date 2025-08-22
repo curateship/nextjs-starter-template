@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
@@ -13,11 +14,13 @@ import type { Hotspot } from "@/components/ui/product-hotspot-block"
 interface ProductHotspotBlockProps {
   title: string
   subtitle: string
+  headerAlign?: 'left' | 'center'
   backgroundImage: string
   hotspots: Hotspot[]
   showTooltipsAlways: boolean
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
+  onHeaderAlignChange?: (value: 'left' | 'center') => void
   onBackgroundImageChange: (value: string) => void
   onHotspotsChange: (hotspots: Hotspot[]) => void
   onShowTooltipsAlwaysChange: (value: boolean) => void
@@ -28,11 +31,13 @@ interface ProductHotspotBlockProps {
 export function ProductHotspotBlock({
   title,
   subtitle,
+  headerAlign = 'left',
   backgroundImage,
   hotspots,
   showTooltipsAlways,
   onTitleChange,
   onSubtitleChange,
+  onHeaderAlignChange,
   onBackgroundImageChange,
   onHotspotsChange,
   onShowTooltipsAlwaysChange,
@@ -139,26 +144,40 @@ export function ProductHotspotBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Content</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder="Interactive Product Overview"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="subtitle">Subtitle</Label>
-            <Textarea
-              id="subtitle"
-              value={subtitle}
-              onChange={(e) => onSubtitleChange(e.target.value)}
-              placeholder="Hover over the blinking dots to discover more about our features"
-              rows={3}
-            />
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => onTitleChange(e.target.value)}
+                placeholder="Interactive Product Overview"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="subtitle">Subtitle</Label>
+              <Input
+                id="subtitle"
+                value={subtitle}
+                onChange={(e) => onSubtitleChange(e.target.value)}
+                placeholder="Hover over the blinking dots to discover more about our features"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="hotspot-align">Header Alignment</Label>
+              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                <SelectTrigger id="hotspot-align">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -15,6 +15,7 @@ interface ProductFAQBlockProps {
     content?: {
         title?: string
         subtitle?: string
+        headerAlign?: 'left' | 'center'
         faqItems?: FaqItem[]
     }
 }
@@ -58,7 +59,7 @@ const ProductFAQBlock = ({ content }: ProductFAQBlockProps) => {
             header={{
                 title: content?.title || "Product FAQ",
                 subtitle: content?.subtitle || "Get answers to common questions about this product, its features, compatibility, and support options.",
-                align: "center"
+                align: content?.headerAlign || "center"
             }}
         >
             <div className="mt-12">

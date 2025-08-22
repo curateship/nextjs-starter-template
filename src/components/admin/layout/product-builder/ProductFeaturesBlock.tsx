@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { Plus, Trash2, GripVertical, ImageIcon } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -37,9 +38,11 @@ interface Feature {
 interface ProductFeaturesBlockProps {
   headerTitle: string
   headerSubtitle: string
+  headerAlign?: 'left' | 'center'
   features: Feature[]
   onHeaderTitleChange: (value: string) => void
   onHeaderSubtitleChange: (value: string) => void
+  onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFeaturesChange: (features: Feature[]) => void
   siteId: string
   blockId: string
@@ -84,7 +87,7 @@ function SortableFeatureItem({
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 pt-1"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 self-center"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -106,36 +109,25 @@ function SortableFeatureItem({
                 </div>
               )}
             </div>
-            <div className="flex-1">
-              <Input
-                value={feature.title}
-                onChange={(e) => updateFeature(index, 'title', e.target.value)}
-                placeholder="Feature title"
-                className="font-medium"
-              />
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              <div>
+                <Input
+                  id={`feature-title-${index}`}
+                  value={feature.title}
+                  onChange={(e) => updateFeature(index, 'title', e.target.value)}
+                  placeholder="Feature title"
+                  className="font-medium"
+                />
+              </div>
+              <div>
+                <Input
+                  id={`feature-desc-${index}`}
+                  value={feature.description}
+                  onChange={(e) => updateFeature(index, 'description', e.target.value)}
+                  placeholder="Describe this feature and its benefits..."
+                />
+              </div>
             </div>
-          </div>
-          
-          <div>
-            <Label htmlFor={`feature-desc-${index}`}>Description</Label>
-            <textarea
-              id={`feature-desc-${index}`}
-              value={feature.description}
-              onChange={(e) => updateFeature(index, 'description', e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md min-h-[80px] text-sm"
-              placeholder="Describe this feature and its benefits..."
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor={`feature-img-${index}`}>Image URL</Label>
-            <Input
-              id={`feature-img-${index}`}
-              value={feature.image}
-              onChange={(e) => updateFeature(index, 'image', e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className="mt-1"
-            />
           </div>
         </div>
         <Button
@@ -155,9 +147,11 @@ function SortableFeatureItem({
 export function ProductFeaturesBlock({
   headerTitle,
   headerSubtitle,
+  headerAlign = 'left',
   features,
   onHeaderTitleChange,
   onHeaderSubtitleChange,
+  onHeaderAlignChange,
   onFeaturesChange,
   siteId,
   blockId,
@@ -222,24 +216,40 @@ export function ProductFeaturesBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="features-title">Title</Label>
-            <Input
-              id="features-title"
-              value={headerTitle}
-              onChange={(e) => onHeaderTitleChange(e.target.value)}
-              placeholder="Features"
-            />
-          </div>
-          <div>
-            <Label htmlFor="features-subtitle">Subtitle</Label>
-            <Input
-              id="features-subtitle"
-              value={headerSubtitle}
-              onChange={(e) => onHeaderSubtitleChange(e.target.value)}
-              placeholder="Discover what makes our product special"
-            />
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="features-title">Title</Label>
+              <Input
+                id="features-title"
+                value={headerTitle}
+                onChange={(e) => onHeaderTitleChange(e.target.value)}
+                placeholder="Features"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="features-subtitle">Subtitle</Label>
+              <Input
+                id="features-subtitle"
+                value={headerSubtitle}
+                onChange={(e) => onHeaderSubtitleChange(e.target.value)}
+                placeholder="Discover what makes our product special"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="features-align">Header Alignment</Label>
+              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                <SelectTrigger id="features-align">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

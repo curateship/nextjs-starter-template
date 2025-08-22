@@ -15,6 +15,7 @@ interface FaqBlockProps {
     content?: {
         title?: string
         subtitle?: string
+        headerAlign?: 'left' | 'center'
         faqItems?: FaqItem[]
     }
 }
@@ -58,7 +59,7 @@ const FaqBlock = ({ content }: FaqBlockProps) => {
             header={{
                 title: content?.title || "Frequently Asked Questions",
                 subtitle: content?.subtitle || "Discover quick and comprehensive answers to common questions about our platform, services, and features.",
-                align: "center"
+                align: content?.headerAlign || "center"
             }}
         >
             <div className="mt-12">

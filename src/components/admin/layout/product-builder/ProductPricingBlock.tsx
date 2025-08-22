@@ -85,9 +85,11 @@ interface PricingTier {
 interface ProductPricingBlockProps {
   headerTitle: string
   headerSubtitle: string
+  headerAlign?: 'left' | 'center'
   tiers: PricingTier[]
   onHeaderTitleChange: (value: string) => void
   onHeaderSubtitleChange: (value: string) => void
+  onHeaderAlignChange?: (value: 'left' | 'center') => void
   onTiersChange: (tiers: PricingTier[]) => void
 }
 
@@ -149,7 +151,7 @@ function SortablePricingTierItem({
       </div>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <Label htmlFor={`tier-name-${tierIndex}`}>Plan Name</Label>
             <Input
@@ -166,6 +168,15 @@ function SortablePricingTierItem({
               value={tier.price}
               onChange={(e) => updateTier(tierIndex, 'price', sanitizeAdminInput(e.target.value))}
               placeholder="$9.99"
+            />
+          </div>
+          <div>
+            <Label htmlFor={`tier-description-${tierIndex}`}>Description</Label>
+            <Input
+              id={`tier-description-${tierIndex}`}
+              value={tier.description}
+              onChange={(e) => updateTier(tierIndex, 'description', sanitizeAdminInput(e.target.value))}
+              placeholder="Perfect for individuals getting started"
             />
           </div>
         </div>
@@ -191,17 +202,6 @@ function SortablePricingTierItem({
         </div>
 
         <div>
-          <Label htmlFor={`tier-description-${tierIndex}`}>Description</Label>
-          <Textarea
-            id={`tier-description-${tierIndex}`}
-            value={tier.description}
-            onChange={(e) => updateTier(tierIndex, 'description', sanitizeAdminInput(e.target.value))}
-            placeholder="Perfect for individuals getting started"
-            rows={2}
-          />
-        </div>
-
-        <div>
           <Label htmlFor={`tier-features-${tierIndex}`}>Features (one per line)</Label>
           <Textarea
             id={`tier-features-${tierIndex}`}
@@ -212,7 +212,7 @@ function SortablePricingTierItem({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div>
             <Label htmlFor={`tier-button-text-${tierIndex}`}>Button Text</Label>
             <Input
@@ -237,9 +237,6 @@ function SortablePricingTierItem({
               className={!isValidPartialUrl(tier.buttonUrl) ? 'border-red-300' : ''}
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor={`tier-ribbon-text-${tierIndex}`}>Ribbon Text (optional)</Label>
             <Input
@@ -276,9 +273,11 @@ function SortablePricingTierItem({
 export function ProductPricingBlock({
   headerTitle,
   headerSubtitle,
+  headerAlign = 'left',
   tiers,
   onHeaderTitleChange,
   onHeaderSubtitleChange,
+  onHeaderAlignChange,
   onTiersChange,
 }: ProductPricingBlockProps) {
   const sensors = useSensors(
@@ -345,24 +344,40 @@ export function ProductPricingBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="pricing-title">Title</Label>
-            <Input
-              id="pricing-title"
-              value={headerTitle}
-              onChange={(e) => onHeaderTitleChange(sanitizeAdminInput(e.target.value))}
-              placeholder="Pricing Plans"
-            />
-          </div>
-          <div>
-            <Label htmlFor="pricing-subtitle">Subtitle</Label>
-            <Input
-              id="pricing-subtitle"
-              value={headerSubtitle}
-              onChange={(e) => onHeaderSubtitleChange(sanitizeAdminInput(e.target.value))}
-              placeholder="Choose the perfect plan for your needs"
-            />
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="pricing-title">Title</Label>
+              <Input
+                id="pricing-title"
+                value={headerTitle}
+                onChange={(e) => onHeaderTitleChange(sanitizeAdminInput(e.target.value))}
+                placeholder="Pricing Plans"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="pricing-subtitle">Subtitle</Label>
+              <Input
+                id="pricing-subtitle"
+                value={headerSubtitle}
+                onChange={(e) => onHeaderSubtitleChange(sanitizeAdminInput(e.target.value))}
+                placeholder="Choose the perfect plan for your needs"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="pricing-align">Header Alignment</Label>
+              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                <SelectTrigger id="pricing-align">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

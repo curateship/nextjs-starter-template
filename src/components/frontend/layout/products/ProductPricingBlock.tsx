@@ -43,6 +43,7 @@ interface PricingTier {
 interface ProductPricingBlockProps {
   title?: string
   subtitle?: string
+  headerAlign?: 'left' | 'center'
   pricingTiers?: PricingTier[]
 }
 
@@ -182,6 +183,7 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 const ProductPricingBlock = ({
   title = "Pricing",
   subtitle = "Check out our affordable pricing plans below and choose the one that suits you best. If you need a custom plan, please contact us.",
+  headerAlign = 'center',
   pricingTiers = []
 }: ProductPricingBlockProps) => {
   // Show default pricing if no tiers configured
@@ -236,7 +238,7 @@ const ProductPricingBlock = ({
         header={{
           title,
           subtitle,
-          align: "center"
+          align: headerAlign
         }}
       >
         <SinglePricingCard tier={singleTier} />
@@ -252,7 +254,7 @@ const ProductPricingBlock = ({
       header={{
         title,
         subtitle,
-        align: "center"
+        align: headerAlign
       }}
     >
       {/* Grid layout for pricing tiers */}

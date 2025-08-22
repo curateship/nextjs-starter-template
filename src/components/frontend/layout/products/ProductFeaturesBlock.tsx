@@ -12,12 +12,14 @@ interface Feature {
 interface ProductFeaturesBlockProps {
   headerTitle?: string
   headerSubtitle?: string
+  headerAlign?: 'left' | 'center'
   features?: Feature[]
 }
 
 const ProductFeaturesBlock = ({
   headerTitle = "Effortless Task Management",
   headerSubtitle = "Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more. AI-powered scheduling helps you stay on track and adapt to changing priorities.",
+  headerAlign = "center",
   features = []
 }: ProductFeaturesBlockProps) => {
   // Show default features if none provided
@@ -48,7 +50,7 @@ const ProductFeaturesBlock = ({
       header={{
         title: headerTitle,
         subtitle: headerSubtitle,
-        align: "center"
+        align: headerAlign
       }}
     >
       <div className="mt-8 grid gap-6 sm:grid-cols-2 md:mt-16 md:grid-cols-3 md:gap-8">
