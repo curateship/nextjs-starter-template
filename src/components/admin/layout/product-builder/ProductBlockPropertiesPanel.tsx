@@ -149,8 +149,8 @@ export function ProductBlockPropertiesPanel({
             
             {selectedBlock.type === 'product-features' && (
               <ProductFeaturesBlock
-                headerTitle={selectedBlock.content.headerTitle || 'Effortless Task Management'}
-                headerSubtitle={selectedBlock.content.headerSubtitle || 'Automate your tasks and workflows by connecting your favorite tools like Notion, Todoist, and more.'}
+                headerTitle={selectedBlock.content.headerTitle ?? ''}
+                headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
                 headerAlign={selectedBlock.content.headerAlign || 'left'}
                 features={selectedBlock.content.features || []}
                 onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
@@ -164,9 +164,9 @@ export function ProductBlockPropertiesPanel({
             
             {selectedBlock.type === 'product-hotspot' && (
               <ProductHotspotBlock
-                title={selectedBlock.content.title || 'Interactive Product Overview'}
-                subtitle={selectedBlock.content.subtitle || 'Hover over the blinking dots to discover more about our features'}
-                headerAlign={selectedBlock.content.headerAlign || 'left'}
+                title={selectedBlock.content.title ?? 'Interactive Product Overview'}
+                subtitle={selectedBlock.content.subtitle ?? 'Hover over the blinking dots to discover more about our features'}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 backgroundImage={selectedBlock.content.backgroundImage || ''}
                 hotspots={selectedBlock.content.hotspots || []}
                 showTooltipsAlways={selectedBlock.content.showTooltipsAlways || false}
@@ -183,9 +183,9 @@ export function ProductBlockPropertiesPanel({
             
             {selectedBlock.type === 'product-pricing' && (
               <ProductPricingBlock
-                headerTitle={selectedBlock.content.headerTitle || 'Pricing'}
-                headerSubtitle={selectedBlock.content.headerSubtitle || 'Check out our affordable pricing plans below and choose the one that suits you best.'}
-                headerAlign={selectedBlock.content.headerAlign || 'left'}
+                headerTitle={selectedBlock.content.headerTitle ?? 'Pricing'}
+                headerSubtitle={selectedBlock.content.headerSubtitle ?? 'Check out our affordable pricing plans below and choose the one that suits you best.'}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 tiers={selectedBlock.content.tiers || []}
                 onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
                 onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
@@ -196,9 +196,9 @@ export function ProductBlockPropertiesPanel({
             
             {selectedBlock.type === 'faq' && (
               <ProductFAQBlock
-                title={selectedBlock.content.title || 'Product FAQ'}
-                subtitle={selectedBlock.content.subtitle || 'Get answers to common questions about this product, its features, compatibility, and support options.'}
-                headerAlign={selectedBlock.content.headerAlign || 'left'}
+                title={selectedBlock.content.title ?? 'Product FAQ'}
+                subtitle={selectedBlock.content.subtitle ?? 'Get answers to common questions about this product, its features, compatibility, and support options.'}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 faqItems={selectedBlock.content.faqItems || []}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}

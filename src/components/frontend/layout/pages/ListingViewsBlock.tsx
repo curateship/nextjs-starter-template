@@ -42,8 +42,8 @@ export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
   
   // Destructure with defaults
   const {
-    title = 'Latest Products',
-    subtitle = 'Check out our products',
+    title = '',
+    subtitle = '',
     headerAlign = 'left',
     contentType = 'products',
     displayMode = 'grid',

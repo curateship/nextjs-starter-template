@@ -181,8 +181,8 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 }
 
 const ProductPricingBlock = ({
-  title = "Pricing",
-  subtitle = "Check out our affordable pricing plans below and choose the one that suits you best. If you need a custom plan, please contact us.",
+  title = '',
+  subtitle = '',
   headerAlign = 'center',
   pricingTiers = []
 }: ProductPricingBlockProps) => {

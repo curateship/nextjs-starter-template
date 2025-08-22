@@ -325,28 +325,36 @@ const getButtonIcon = (iconName?: string) => {
 }
 
 // Hero title component with animation
-const HeroTitle = ({ title }: { title?: string }) => (
-  <motion.h1
-    initial={{ opacity: 0, y: 30 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6 }}
-    className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
-  >
-    {title || "Build Exceptional Interfaces with Ease"}
-  </motion.h1>
-)
+const HeroTitle = ({ title }: { title?: string }) => {
+  if (!title || !title.trim()) return null
+  
+  return (
+    <motion.h1
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
+    >
+      {title}
+    </motion.h1>
+  )
+}
 
 // Hero subtitle component with animation
-const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => (
-  <motion.p
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay: 0.2 }}
-    className="text-lg text-muted-foreground max-w-xl mx-auto"
-  >
-    {subtitle || "Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."}
-  </motion.p>
-)
+const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => {
+  if (!subtitle || !subtitle.trim()) return null
+  
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2 }}
+      className="text-lg text-muted-foreground max-w-xl mx-auto"
+    >
+      {subtitle}
+    </motion.p>
+  )
+}
 
 // Call-to-action buttons component with animation
 const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string | any; secondaryButton?: string | any; primaryButtonLink?: string; secondaryButtonLink?: string }) => {

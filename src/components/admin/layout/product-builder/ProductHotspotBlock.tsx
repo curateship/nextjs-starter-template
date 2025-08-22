@@ -12,8 +12,8 @@ import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/ui/product-hotspot-block"
 
 interface ProductHotspotBlockProps {
-  title: string
-  subtitle: string
+  title?: string
+  subtitle?: string
   headerAlign?: 'left' | 'center'
   backgroundImage: string
   hotspots: Hotspot[]
@@ -29,8 +29,8 @@ interface ProductHotspotBlockProps {
 }
 
 export function ProductHotspotBlock({
-  title,
-  subtitle,
+  title = '',
+  subtitle = '',
   headerAlign = 'left',
   backgroundImage,
   hotspots,

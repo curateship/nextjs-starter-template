@@ -110,10 +110,10 @@ function SortableBlockItem({
           <div
             {...attributes}
             {...listeners}
-            className={`${
+            className={`flex items-center justify-center w-8 h-8 rounded ${
               isProtected 
                 ? 'text-gray-400 cursor-not-allowed' 
-                : 'text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing'
+                : 'text-muted-foreground hover:text-foreground hover:bg-gray-100 cursor-grab active:cursor-grabbing'
             }`}
           >
             <GripVertical className="w-4 h-4" />
