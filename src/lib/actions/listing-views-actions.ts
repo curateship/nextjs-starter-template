@@ -89,7 +89,7 @@ export async function getListingViewsData(params: {
     const transformedProducts = (products || []).map(product => ({
       ...product,
       featured_image: product.featured_image,
-      richText: product.description
+      richText: product.description ? product.description.replace(/<[^>]*>/g, '') : null
     }))
 
     return {

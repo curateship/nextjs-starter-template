@@ -29,6 +29,7 @@ interface ProductBlockPropertiesPanelProps {
     site_id?: string
     featured_image?: string | null
     description?: string | null
+    is_published?: boolean
   }
   site?: {
     id: string
@@ -208,7 +209,10 @@ export function ProductBlockPropertiesPanel({
               title: currentProduct.title || currentProduct.name,
               slug: currentProduct.slug,
               meta_description: currentProduct.meta_description,
-              site_id: currentProduct.site_id || siteId
+              site_id: currentProduct.site_id || siteId,
+              featured_image: currentProduct.featured_image || null,
+              description: currentProduct.description || null,
+              is_published: currentProduct.is_published || false
             } : undefined}
             site={site}
             siteBlocks={siteBlocks}

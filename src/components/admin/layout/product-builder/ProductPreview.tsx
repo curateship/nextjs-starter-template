@@ -17,6 +17,9 @@ interface Product {
   slug: string
   meta_description?: string
   site_id: string
+  featured_image?: string | null
+  description?: string | null
+  is_published?: boolean
 }
 
 interface ProductPreviewProps {
@@ -49,8 +52,9 @@ export function ProductPreview({ blocks, product, site, siteBlocks, className = 
     id: product?.id || 'preview',
     title: product?.title || 'Preview Product',
     slug: product?.slug || 'preview',
-    meta_description: product?.meta_description || 'Product preview',
-    site_id: product?.site_id || site?.id || 'preview',
+    is_published: product?.is_published || true,
+    featured_image: product?.featured_image || null,
+    description: product?.description || null,
     blocks: transformedBlocks
   }
 
