@@ -15,7 +15,6 @@ import { ProductBlockListPanel } from "@/components/admin/layout/product-builder
 import { ProductBlockTypesPanel } from "@/components/admin/layout/product-builder/ProductBlockTypesPanel"
 import { getSiteProductsAction } from "@/lib/actions/product-actions"
 import type { Product } from "@/lib/actions/product-actions"
-import { getSiteBlocksAction } from "@/lib/actions/page-blocks-actions"
 
 export default function ProductBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -25,8 +24,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const [products, setProducts] = useState<Product[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
-  const [siteBlocks, setSiteBlocks] = useState<{ navigation?: any; footer?: any } | null>(null)
-  
   // Get initial product from URL params or default to first product
   const initialProduct = searchParams.get('product') || ''
   const [selectedProduct, setSelectedProduct] = useState(initialProduct)
@@ -70,32 +67,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     loadProducts()
   }, [siteId, initialProduct, router])
   
-  // Load site blocks for navigation and footer
-  useEffect(() => {
-    async function loadSiteBlocks() {
-      try {
-        const result = await getSiteBlocksAction(siteId)
-        if (result.success && result.blocks) {
-          // Find navigation and footer blocks from all pages
-          const allBlocks = Object.values(result.blocks).flat()
-          const navigationBlock = allBlocks.find(block => block.type === 'navigation')
-          const footerBlock = allBlocks.find(block => block.type === 'footer')
-          
-          setSiteBlocks({
-            navigation: navigationBlock?.content,
-            footer: footerBlock?.content
-          })
-        }
-      } catch (error) {
-        console.error('Failed to load site blocks:', error)
-      }
-    }
-
-    loadSiteBlocks()
-  }, [siteId])
-  
   // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)
+  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change
@@ -231,7 +204,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               name: site?.name || 'Product Site',
               subdomain: site?.subdomain || 'preview'
             }}
-            siteBlocks={siteBlocks}
+            allBlocks={siteBlocks}
             blocksLoading={blocksLoading}
           />
           

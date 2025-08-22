@@ -36,10 +36,7 @@ interface ProductBlockPropertiesPanelProps {
     name: string
     subdomain: string
   }
-  siteBlocks?: {
-    navigation?: any
-    footer?: any
-  } | null
+  allBlocks?: Record<string, any[]>
   blocksLoading?: boolean
   onOpenProductSettings?: () => void
 }
@@ -50,7 +47,7 @@ export function ProductBlockPropertiesPanel({
   siteId,
   currentProduct,
   site,
-  siteBlocks,
+  allBlocks,
   blocksLoading = false,
   onOpenProductSettings
 }: ProductBlockPropertiesPanelProps) {
@@ -223,7 +220,7 @@ export function ProductBlockPropertiesPanel({
               is_published: currentProduct.is_published || false
             } : undefined}
             site={site}
-            siteBlocks={siteBlocks}
+            allBlocks={allBlocks}
             className="h-full"
             blocksLoading={blocksLoading}
           />

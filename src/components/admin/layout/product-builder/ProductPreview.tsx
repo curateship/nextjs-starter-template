@@ -1,8 +1,9 @@
 "use client"
 
 import { ProductBlockRenderer } from "@/components/frontend/layout/products/product-block-renderer"
+import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
-import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
+import type { Block } from "@/lib/actions/page-blocks-actions"
 
 interface ProductBlock {
   id: string
@@ -30,22 +31,40 @@ interface ProductPreviewProps {
     name: string
     subdomain: string
   }
-  siteBlocks?: {
-    navigation?: any
-    footer?: any
-  } | null
+  allBlocks?: Record<string, Block[]>
   className?: string
   blocksLoading?: boolean
 }
 
-export function ProductPreview({ blocks, product, site, siteBlocks, className = "", blocksLoading = false }: ProductPreviewProps) {
-  // Transform admin blocks to frontend format
-  const transformedBlocks = blocks.map(block => ({
+export function ProductPreview({ blocks, product, site, allBlocks, className = "", blocksLoading = false }: ProductPreviewProps) {
+  // Convert product blocks to Block format for compatibility with createPreviewSite
+  const productBlocks: Block[] = blocks.map(block => ({
     id: block.id,
     type: block.type,
+    title: block.title,
     content: block.content,
     display_order: 0 // Will be handled by block ordering
   }))
+
+  // Combine product blocks with navigation and footer from allBlocks (same as PagePreview)
+  let allPreviewBlocks = [...productBlocks]
+  
+  if (allBlocks) {
+    // Find navigation and footer blocks from all pages (same logic as PagePreview)
+    const navigationBlock = Object.values(allBlocks).flat().find(block => block.type === 'navigation')
+    const footerBlock = Object.values(allBlocks).flat().find(block => block.type === 'footer')
+    
+    // Add navigation and footer if they exist and aren't already in the product blocks
+    if (navigationBlock && !productBlocks.some(b => b.type === 'navigation')) {
+      allPreviewBlocks.unshift(navigationBlock)
+    }
+    if (footerBlock && !productBlocks.some(b => b.type === 'footer')) {
+      allPreviewBlocks.push(footerBlock)
+    }
+  }
+  
+  // Transform admin blocks to frontend format using the same utility as PagePreview
+  const previewSite = createPreviewSite(allPreviewBlocks, site)
 
   // Create mock product data
   const previewProduct: ProductWithBlocks = {
@@ -55,42 +74,12 @@ export function ProductPreview({ blocks, product, site, siteBlocks, className = 
     is_published: product?.is_published || true,
     featured_image: product?.featured_image || null,
     description: product?.description || null,
-    blocks: transformedBlocks
-  }
-
-  // Create site data with unified block structure
-  const siteBlocksArray = []
-  
-  // Only render navigation/footer if we have loaded site blocks
-  if (siteBlocks) {
-    if (siteBlocks.navigation) {
-      siteBlocksArray.push({
-        id: 'nav-preview',
-        type: 'navigation',
-        content: siteBlocks.navigation,
-        display_order: 1
-      })
-    }
-    
-    if (siteBlocks.footer) {
-      siteBlocksArray.push({
-        id: 'footer-preview',
-        type: 'footer',
-        content: siteBlocks.footer,
-        display_order: 100
-      })
-    }
-  }
-
-  const previewSite: SiteWithBlocks = {
-    id: site?.id || 'preview',
-    name: site?.name || 'Preview Site',
-    subdomain: site?.subdomain || 'preview',
-    custom_domain: null,
-    theme_id: 'default',
-    theme_name: 'Default Theme',
-    settings: {},
-    blocks: siteBlocksArray
+    blocks: productBlocks.map(block => ({
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      display_order: block.display_order
+    }))
   }
   
   return (
