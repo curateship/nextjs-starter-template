@@ -340,33 +340,6 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
             </div>
         </div>
 
-        {/* Selected image info */}
-        {selectedImage && (
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-center space-x-3">
-              <div className="w-16 h-16 relative rounded overflow-hidden bg-background">
-                <Image
-                  src={selectedImage.public_url}
-                  alt={selectedImage.alt_text || selectedImage.original_name}
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{selectedImage.original_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {(selectedImage.file_size / (1024 * 1024)).toFixed(2)} MB
-                </p>
-                {selectedImage.alt_text && (
-                  <p className="text-sm text-muted-foreground truncate">
-                    Alt: {selectedImage.alt_text}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         <DialogFooter>
           {currentImageUrl && (
