@@ -1,5 +1,5 @@
 import { BlockContainer } from '@/components/ui/block-container'
-import { useEffect, useState } from 'react'
+import Image from 'next/image'
 
 interface ProductDefaultBlockProps {
   title?: string
@@ -12,32 +12,6 @@ const ProductDefaultBlock = ({
   richText,
   featuredImage
 }: ProductDefaultBlockProps) => {
-  const [sanitizedContent, setSanitizedContent] = useState('')
-
-  useEffect(() => {
-    const sanitizeContent = async () => {
-      if (richText) {
-        if (typeof window !== 'undefined') {
-          // Client-side: use DOMPurify
-          try {
-            const DOMPurify = (await import('dompurify')).default
-            setSanitizedContent(DOMPurify.sanitize(richText))
-          } catch (error) {
-            console.warn('Failed to load DOMPurify, using raw content:', error)
-            setSanitizedContent(richText)
-          }
-        } else {
-          // Server-side: use raw content (will be sanitized on client)
-          setSanitizedContent(richText)
-        }
-      } else {
-        setSanitizedContent('')
-      }
-    }
-    
-    sanitizeContent()
-  }, [richText])
-
   return (
     <BlockContainer className="white">
       <div className="max-w-6xl mx-auto">
@@ -50,10 +24,10 @@ const ProductDefaultBlock = ({
               </h1>
             )}
             
-            {sanitizedContent && (
+            {richText && (
               <div 
                 className="prose prose-lg max-w-none text-muted-foreground"
-                dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+                dangerouslySetInnerHTML={{ __html: richText }}
               />
             )}
           </div>

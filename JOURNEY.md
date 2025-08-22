@@ -2,6 +2,8 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
+**Last Updated**: August 21, 2025
+
 
 ### Phase 1: Initial Authentication Setup
 
@@ -4825,6 +4827,88 @@ requestHeaders.set('x-site-domain', site.custom_domain || '')
 **Correct Implementation** (what should have been done immediately):
 ```typescript
 // In middleware.ts - Simple fix
+const parts = hostname.split('.')
+const subdomain = parts.length > 1 ? parts[0] : null // Changed from > 2 to > 1
+```
+
+**Files Modified**:
+- `/src/middleware.ts` - Updated subdomain extraction logic  
+- `/src/components/admin/layout/sidebar/site-switcher-menu.tsx` - Updated "View Site" links to use subdomains
+
+**Lesson for Claude**: Test assumptions before proposing complex solutions. Native browser capabilities often exceed what documentation suggests.
+
+---
+
+### Phase 16: Product Featured Images Data Migration & Frontend Listing Fix
+
+**Date**: August 21, 2025
+
+**User Issue**: Featured images not displaying in frontend product listings, despite working in admin views
+
+**Root Problem Analysis**:
+- Database migration 058 successfully added `featured_image` and `description` columns to products table
+- Product settings modal correctly saving to new database columns
+- Admin product listings correctly displaying thumbnails from database columns
+- **BUT**: Frontend homepage product grid still showing "No Image" placeholders
+
+**Investigation Process**:
+1. **Initial Debugging** (Wrong Direction):
+   - Investigated individual product detail pages (`/products/[slug]`) - these were working
+   - Checked admin product listing (`/admin/products`) - these were working  
+   - Added debug code to ProductDefaultBlock component - not the issue
+   - Spent significant time on wrong components due to unclear problem description
+
+2. **Problem Identification**:
+   - User clarified issue was with frontend homepage product grid listing
+   - Located `ListingViewsBlock.tsx` component responsible for homepage product display
+   - Found `getListingViewsData` action powering the grid
+
+3. **Root Cause Discovery**:
+   - `listing-views-actions.ts` was still using old approach:
+     ```sql
+     .select('id, title, slug, created_at, display_order, content_blocks')
+     ```
+   - Then extracting from JSON: `product.content_blocks?.['product-default']?.featuredImage`
+   - Should have been using new database columns directly
+
+**Implementation Fix**:
+
+**File**: `/src/lib/actions/listing-views-actions.ts`
+
+1. **Updated Database Query**:
+   ```typescript
+   // OLD approach (broken)
+   .select('id, title, slug, created_at, display_order, content_blocks')
+   
+   // NEW approach (fixed)
+   .select('id, title, slug, created_at, display_order, featured_image, description')
+   ```
+
+2. **Updated Data Transformation**:
+   ```typescript
+   // OLD approach (broken)
+   const transformedProducts = (products || []).map(product => ({
+     ...product,
+     featured_image: product.content_blocks?.['product-default']?.featuredImage || null,
+     richText: product.content_blocks?.['product-default']?.richText || null
+   }))
+   
+   // NEW approach (fixed)
+   const transformedProducts = (products || []).map(product => ({
+     ...product,
+     featured_image: product.featured_image,
+     richText: product.description
+   }))
+   ```
+
+**Result**: ✅ Frontend homepage product grid now correctly displays featured images
+
+**Learning**: When debugging data display issues, always verify the data source action is using the correct database schema, especially after migrations.
+
+**Files Modified**:
+- `/src/lib/actions/listing-views-actions.ts` - Updated to use new database columns instead of JSON extraction
+
+---
 if (parts.length > 1) { // Changed from parts.length > 2
   siteIdentifier = parts[0] // Extract subdomain correctly
 }

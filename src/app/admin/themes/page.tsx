@@ -61,7 +61,6 @@ export default function ThemesPage() {
       
       if (data) {
         setThemes(data)
-        console.log('Loaded themes:', data)
       }
     } catch (err) {
       console.error('Error loading themes:', err)

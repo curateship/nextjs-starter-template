@@ -15,7 +15,6 @@ interface UseProductBuilderParams {
   productId?: string
   currentProduct?: {
     title?: string
-    featured_image?: string | null
   }
 }
 
@@ -103,9 +102,7 @@ export function useProductBuilder({
 
   const handleAddProductDefaultBlock = () => {
     addBlock('product-default', 'Product Information', {
-      title: currentProduct?.title || 'Product Title',
-      richText: 'Add your product description here...',
-      featuredImage: currentProduct?.featured_image || ''
+      viewOnly: true
     })
   }
 

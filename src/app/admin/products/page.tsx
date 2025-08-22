@@ -343,9 +343,9 @@ export default function ProductsPage() {
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
-                            {product.content_blocks?.['product-default']?.featuredImage ? (
+                            {product.featured_image ? (
                               <img 
-                                src={product.content_blocks['product-default'].featuredImage} 
+                                src={product.featured_image} 
                                 alt={product.title}
                                 className="w-full h-full object-cover"
                               />

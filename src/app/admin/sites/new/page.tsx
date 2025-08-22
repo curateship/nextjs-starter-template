@@ -60,7 +60,6 @@ export default function NewSitePage() {
       }
 
       if (data) {
-        console.log('Site created successfully:', data)
         // Refresh the site context to get the new site
         await refreshSites()
         // Set the newly created site as the current site in context

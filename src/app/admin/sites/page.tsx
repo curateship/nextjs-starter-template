@@ -46,7 +46,6 @@ export default function SitesPage() {
       
       if (data) {
         setSites(data)
-        console.log('Loaded sites:', data)
       }
     } catch (err) {
       console.error('Error loading sites:', err)

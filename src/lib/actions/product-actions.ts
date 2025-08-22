@@ -53,6 +53,8 @@ export interface Product {
   is_published: boolean
   display_order: number
   content_blocks: Record<string, any>
+  featured_image: string | null
+  description: string | null
   created_at: string
   updated_at: string
 }
@@ -74,6 +76,8 @@ export interface UpdateProductData {
   title?: string
   slug?: string
   is_published?: boolean
+  featured_image?: string | null
+  description?: string | null
 }
 
 /**
@@ -145,11 +149,12 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
 
     const { data, error } = await supabaseAdmin
       .from('products')
-      .select('*')
+      .select('*, featured_image, description')
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
 
     if (error) {
+      console.error('Products query error:', error.message)
       // Check if it's a table not found error
       if (error.message.includes('relation') && error.message.includes('does not exist')) {
         // Products table doesn't exist yet - return mock data for now
