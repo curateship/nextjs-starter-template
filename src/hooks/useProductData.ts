@@ -49,10 +49,10 @@ export function useProductData(siteId: string): UseProductDataReturn {
         setSiteError(siteResult.error || 'Failed to load site')
       }
       
+      let convertedBlocks: Record<string, ProductBlock[]> = {}
+      
       if (productsResult.data) {
         // Convert products with JSON content_blocks to the block format the UI expects
-        const convertedBlocks: Record<string, ProductBlock[]> = {}
-        
         productsResult.data.forEach((product) => {
           // Convert JSON content_blocks to block array format
           const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
@@ -72,16 +72,39 @@ export function useProductData(siteId: string): UseProductDataReturn {
         setBlocks({})
       }
 
-      // Load site blocks (navigation, footer) from pages
-      if (pagesResult.data) {
+      // Load site blocks (navigation, footer) from site data
+      if (siteResult.data) {
         const siteBlocksData: Record<string, any[]> = {}
-        pagesResult.data.forEach(page => {
-          const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
-          siteBlocksData[page.slug] = pageBlocks
+        
+        // Create navigation and footer blocks from site data for all products
+        Object.keys(convertedBlocks).forEach(productSlug => {
+          const siteBlocks = []
+          
+          if (siteResult.data?.settings?.navigation) {
+            siteBlocks.push({
+              id: 'site-navigation',
+              type: 'navigation',
+              title: 'Navigation',
+              content: siteResult.data.settings.navigation,
+              display_order: -1
+            })
+          }
+          
+          if (siteResult.data?.settings?.footer) {
+            siteBlocks.push({
+              id: 'site-footer',
+              type: 'footer',
+              title: 'Footer',
+              content: siteResult.data.settings.footer,
+              display_order: 999
+            })
+          }
+          
+          siteBlocksData[productSlug] = siteBlocks
         })
+        
         setSiteBlocks(siteBlocksData)
       } else {
-        console.error('Failed to load pages:', pagesResult.error)
         setSiteBlocks({})
       }
     } catch (error) {

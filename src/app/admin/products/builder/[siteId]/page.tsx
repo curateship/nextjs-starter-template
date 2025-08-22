@@ -202,7 +202,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             site={{
               id: siteId,
               name: site?.name || 'Product Site',
-              subdomain: site?.subdomain || 'preview'
+              subdomain: site?.subdomain || 'preview',
+              settings: site?.settings
             }}
             allBlocks={siteBlocks}
             blocksLoading={blocksLoading}

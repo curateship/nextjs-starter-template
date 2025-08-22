@@ -54,6 +54,8 @@ export interface Site {
   custom_domain: string | null
   status: 'active' | 'inactive' | 'draft' | 'suspended'
   settings: Record<string, any>
+  navigation_data: Record<string, any> | null
+  footer_data: Record<string, any> | null
   created_at: string
   updated_at: string
 }
@@ -475,6 +477,126 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
     // Error checking subdomain availability
     return { 
       available: false, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
+/**
+ * Update site navigation data
+ */
+export async function updateSiteNavigationAction(siteId: string, navigationData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
+  try {
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns this site
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Get current settings
+    const { data: currentSite, error: fetchError } = await supabaseAdmin
+      .from('sites')
+      .select('settings')
+      .eq('id', siteId)
+      .single()
+
+    if (fetchError) {
+      return { success: false, error: `Failed to fetch site settings: ${fetchError.message}` }
+    }
+
+    // Update navigation in settings
+    const updatedSettings = {
+      ...currentSite.settings,
+      navigation: navigationData
+    }
+
+    const { error } = await supabaseAdmin
+      .from('sites')
+      .update({ settings: updatedSettings })
+      .eq('id', siteId)
+
+    if (error) {
+      return { success: false, error: `Failed to update navigation: ${error.message}` }
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
+/**
+ * Update site footer data
+ */
+export async function updateSiteFooterAction(siteId: string, footerData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
+  try {
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify user owns this site
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
+    }
+
+    // Get current settings
+    const { data: currentSite, error: fetchError } = await supabaseAdmin
+      .from('sites')
+      .select('settings')
+      .eq('id', siteId)
+      .single()
+
+    if (fetchError) {
+      return { success: false, error: `Failed to fetch site settings: ${fetchError.message}` }
+    }
+
+    // Update footer in settings
+    const updatedSettings = {
+      ...currentSite.settings,
+      footer: footerData
+    }
+
+    const { error } = await supabaseAdmin
+      .from('sites')
+      .update({ settings: updatedSettings })
+      .eq('id', siteId)
+
+    if (error) {
+      return { success: false, error: `Failed to update footer: ${error.message}` }
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return { 
+      success: false, 
       error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
     }
   }

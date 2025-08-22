@@ -30,6 +30,10 @@ interface ProductPreviewProps {
     id: string
     name: string
     subdomain: string
+    settings?: {
+      navigation?: any
+      footer?: any
+    }
   }
   allBlocks?: Record<string, Block[]>
   className?: string
@@ -46,22 +50,34 @@ export function ProductPreview({ blocks, product, site, allBlocks, className = "
     display_order: 0 // Will be handled by block ordering
   }))
 
-  // Combine product blocks with navigation and footer from allBlocks (same as PagePreview)
+  // Combine product blocks with navigation and footer from site settings
   let allPreviewBlocks = [...productBlocks]
   
-  if (allBlocks) {
-    // Find navigation and footer blocks from all pages (same logic as PagePreview)
-    const navigationBlock = Object.values(allBlocks).flat().find(block => block.type === 'navigation')
-    const footerBlock = Object.values(allBlocks).flat().find(block => block.type === 'footer')
-    
-    // Add navigation and footer if they exist and aren't already in the product blocks
-    if (navigationBlock && !productBlocks.some(b => b.type === 'navigation')) {
-      allPreviewBlocks.unshift(navigationBlock)
+  // Add navigation and footer from site settings
+  if (site?.settings?.navigation && !productBlocks.some(b => b.type === 'navigation')) {
+    const navigationBlock: Block = {
+      id: 'site-navigation',
+      type: 'navigation',
+      title: 'Navigation',
+      content: site.settings.navigation,
+      display_order: -1
     }
-    if (footerBlock && !productBlocks.some(b => b.type === 'footer')) {
-      allPreviewBlocks.push(footerBlock)
-    }
+    allPreviewBlocks.unshift(navigationBlock)
   }
+  
+  if (site?.settings?.footer && !productBlocks.some(b => b.type === 'footer')) {
+    const footerBlock: Block = {
+      id: 'site-footer', 
+      type: 'footer',
+      title: 'Footer',
+      content: site.settings.footer,
+      display_order: 999
+    }
+    allPreviewBlocks.push(footerBlock)
+  }
+  
+  // Sort all blocks by display_order
+  allPreviewBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
   
   // Transform admin blocks to frontend format using the same utility as PagePreview
   const previewSite = createPreviewSite(allPreviewBlocks, site)
