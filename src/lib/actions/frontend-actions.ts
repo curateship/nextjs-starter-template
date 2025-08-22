@@ -114,7 +114,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
         display_order: block.display_order || 0
       })).sort((a, b) => a.display_order - b.display_order)
     }
-    // No fallback needed - all pages should use content_blocks JSON field now
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
@@ -306,7 +305,6 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
         display_order: block.display_order || 0
       })).sort((a, b) => a.display_order - b.display_order)
     }
-    // No fallback needed - all pages should use content_blocks JSON field now
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,

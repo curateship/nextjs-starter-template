@@ -651,8 +651,6 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // No need to delete blocks - posts don't use page_blocks anymore
-
     // Remove featured image usage tracking if post has an image
     if (post.featured_image) {
       const { data: imageId } = await getImageByUrlAction(post.featured_image)
@@ -781,8 +779,6 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
     if (error) {
       return { data: null, error: `Failed to duplicate post: ${error.message}` }
     }
-
-    // No need to copy blocks - posts don't use page_blocks anymore
 
     // Track featured image usage if the new post has one and is published
     if (newPost.featured_image && newPost.is_published) {
