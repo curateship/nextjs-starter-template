@@ -6,7 +6,7 @@ import { SharedFaqBlock } from "@/components/admin/layout/page-builder/SharedFaq
 import { SharedListingViewsBlock } from "@/components/admin/layout/page-builder/SharedListingViewsBlock"
 import { SharedDividerBlock } from "@/components/admin/layout/page-builder/SharedDividerBlock"
 import { PagePreview } from "./PagePreview"
-import type { Block } from "@/lib/actions/page-blocks-actions"
+import type { Block } from "@/lib/types/blocks"
 
 // Helper function to generate callback props dynamically
 const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {

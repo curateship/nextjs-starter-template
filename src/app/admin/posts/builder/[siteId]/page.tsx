@@ -15,7 +15,6 @@ import { PostBlockListPanel } from "@/components/admin/layout/post-builder/PostB
 import { PostBlockTypesPanel } from "@/components/admin/layout/post-builder/PostBlockTypesPanel"
 import { getSitePostsAction } from "@/lib/actions/post-actions"
 import type { Post } from "@/lib/actions/post-actions"
-import { getSiteBlocksAction } from "@/lib/actions/page-blocks-actions"
 
 export default function PostBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)

@@ -651,17 +651,7 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // Delete associated blocks first (cleanup orphaned blocks)
-    const { error: blockDeleteError } = await supabaseAdmin
-      .from('page_blocks')
-      .delete()
-      .eq('site_id', post.site_id)
-      .eq('page_slug', `post-${post.slug}`)
-
-    if (blockDeleteError) {
-      console.warn('Failed to delete associated blocks:', blockDeleteError.message)
-      // Continue with post deletion even if block cleanup fails
-    }
+    // No need to delete blocks - posts don't use page_blocks anymore
 
     // Remove featured image usage tracking if post has an image
     if (post.featured_image) {
@@ -792,26 +782,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
       return { data: null, error: `Failed to duplicate post: ${error.message}` }
     }
 
-    // Copy all blocks from the original post to the new post
-    const { data: originalBlocks } = await supabaseAdmin
-      .from('page_blocks')
-      .select('*')
-      .eq('site_id', originalPost.site_id)
-      .eq('page_slug', `post-${originalPost.slug}`)
-
-    if (originalBlocks && originalBlocks.length > 0) {
-      const duplicatedBlocks = originalBlocks.map(block => ({
-        site_id: block.site_id,
-        block_type: block.block_type,
-        page_slug: `post-${newSlug}`,
-        content: block.content,
-        display_order: block.display_order
-      }))
-
-      await supabaseAdmin
-        .from('page_blocks')
-        .insert(duplicatedBlocks)
-    }
+    // No need to copy blocks - posts don't use page_blocks anymore
 
     // Track featured image usage if the new post has one and is published
     if (newPost.featured_image && newPost.is_published) {

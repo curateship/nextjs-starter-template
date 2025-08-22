@@ -1,4 +1,4 @@
-import type { Block } from "@/lib/actions/page-blocks-actions"
+import type { Block } from "@/lib/types/blocks"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 
 /**
