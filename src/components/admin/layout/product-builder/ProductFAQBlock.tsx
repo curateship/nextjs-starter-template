@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import {
   DndContext,
@@ -36,9 +37,11 @@ interface FaqItem {
 interface ProductFAQBlockProps {
   title?: string
   subtitle?: string
+  headerAlign?: 'left' | 'center'
   faqItems?: FaqItem[]
   onTitleChange?: (value: string) => void
   onSubtitleChange?: (value: string) => void
+  onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFaqItemsChange?: (value: FaqItem[]) => void
 }
 
@@ -123,9 +126,11 @@ function SortableFaqItem({
 export function ProductFAQBlock({
   title = '',
   subtitle = '',
+  headerAlign = 'left',
   faqItems = [],
   onTitleChange,
   onSubtitleChange,
+  onHeaderAlignChange,
   onFaqItemsChange
 }: ProductFAQBlockProps) {
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
@@ -186,26 +191,40 @@ export function ProductFAQBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="product-faq-title">Title</Label>
-            <Input
-              id="product-faq-title"
-              value={title}
-              onChange={(e) => onTitleChange?.(e.target.value)}
-              placeholder="Product FAQ"
-            />
-          </div>
-          
-          <div>
-            <Label htmlFor="product-faq-subtitle">Subtitle</Label>
-            <Textarea
-              id="product-faq-subtitle"
-              value={subtitle}
-              onChange={(e) => onSubtitleChange?.(e.target.value)}
-              placeholder="Get answers to common questions about this product..."
-              rows={2}
-            />
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="product-faq-title">Title</Label>
+              <Input
+                id="product-faq-title"
+                value={title}
+                onChange={(e) => onTitleChange?.(e.target.value)}
+                placeholder="Product FAQ"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="product-faq-subtitle">Subtitle</Label>
+              <Input
+                id="product-faq-subtitle"
+                value={subtitle}
+                onChange={(e) => onSubtitleChange?.(e.target.value)}
+                placeholder="Get answers to common questions about this product..."
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="product-faq-align">Header Alignment</Label>
+              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                <SelectTrigger id="product-faq-align">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

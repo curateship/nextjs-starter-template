@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import {
@@ -34,9 +36,11 @@ interface FaqItem {
 interface SharedFaqBlockProps {
   title?: string
   subtitle?: string
+  headerAlign?: 'left' | 'center'
   faqItems?: FaqItem[]
   onTitleChange?: (value: string) => void
   onSubtitleChange?: (value: string) => void
+  onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFaqItemsChange?: (value: FaqItem[]) => void
 }
 
@@ -121,9 +125,11 @@ function SortableFaqItem({
 export function SharedFaqBlock({
   title = '',
   subtitle = '',
+  headerAlign = 'left',
   faqItems = [],
   onTitleChange,
   onSubtitleChange,
+  onHeaderAlignChange,
   onFaqItemsChange
 }: SharedFaqBlockProps) {
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
@@ -184,28 +190,40 @@ export function SharedFaqBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="faq-title">Title</Label>
-            <input
-              type="text"
-              id="faq-title"
-              value={title}
-              onChange={(e) => onTitleChange?.(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md"
-              placeholder="Frequently Asked Questions"
-            />
-          </div>
-          <div>
-            <Label htmlFor="faq-subtitle">Subtitle</Label>
-            <input
-              type="text"
-              id="faq-subtitle"
-              value={subtitle}
-              onChange={(e) => onSubtitleChange?.(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded-md"
-              placeholder="Find answers to common questions"
-            />
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="faq-title">Title</Label>
+              <Input
+                id="faq-title"
+                value={title}
+                onChange={(e) => onTitleChange?.(e.target.value)}
+                placeholder="Frequently Asked Questions"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="faq-subtitle">Subtitle</Label>
+              <Input
+                id="faq-subtitle"
+                value={subtitle}
+                onChange={(e) => onSubtitleChange?.(e.target.value)}
+                placeholder="Find answers to common questions"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="faq-align">Header Alignment</Label>
+              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                <SelectTrigger id="faq-align">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

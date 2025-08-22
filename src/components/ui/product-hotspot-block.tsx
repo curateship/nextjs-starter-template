@@ -14,6 +14,7 @@ interface Hotspot {
 interface ProductHotspotBlockProps {
   title?: string
   subtitle?: string
+  headerAlign?: 'left' | 'center'
   backgroundImage?: string
   hotspots?: Hotspot[]
   showTooltipsAlways?: boolean
@@ -23,6 +24,7 @@ interface ProductHotspotBlockProps {
 const ProductHotspotBlock = ({
   title = "Interactive Product Overview",
   subtitle = "Hover over the blinking dots to discover more about our features",
+  headerAlign = "center",
   backgroundImage = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
   hotspots = [],
   showTooltipsAlways = false,
@@ -37,7 +39,7 @@ const ProductHotspotBlock = ({
       header={{
         title,
         subtitle,
-        align: "center"
+        align: headerAlign
       }}
     >
       <div className="flex flex-col items-center">
