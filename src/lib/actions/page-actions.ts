@@ -565,8 +565,6 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
       }
     }
 
-    // No need to delete blocks - pages use content_blocks JSON field now
-
     // Delete the page
     const { error } = await supabaseAdmin
       .from('pages')
@@ -686,9 +684,6 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
     if (error) {
       return { data: null, error: `Failed to duplicate page: ${error.message}` }
     }
-
-    // No need to copy blocks - pages use content_blocks JSON field now
-    // The content_blocks field is already copied in the INSERT above
 
     return { data: newPage as Page, error: null }
   } catch (error) {

@@ -654,8 +654,6 @@ export async function deleteProductAction(productId: string): Promise<{ success:
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // No need to delete blocks - products use content_blocks JSON field now
-
     // Delete the product
     const { error } = await supabaseAdmin
       .from('products')
