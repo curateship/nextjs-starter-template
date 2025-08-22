@@ -216,7 +216,7 @@ export default function ImagesPage() {
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium mb-2">No images found</p>
               <p className="text-muted-foreground mb-4">
-                You haven't uploaded any images yet.
+                You haven&apos;t uploaded any images yet.
               </p>
               <Button onClick={() => document.getElementById('image-upload-input')?.click()}>
                 Upload Your First Image
