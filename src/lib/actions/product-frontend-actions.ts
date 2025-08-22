@@ -22,6 +22,8 @@ export interface ProductWithBlocks {
   title: string
   slug: string
   is_published: boolean
+  featured_image: string | null
+  description: string | null
   blocks: ProductBlock[]
 }
 
@@ -118,6 +120,8 @@ export async function getProductBySlug(siteId: string, productSlug: string): Pro
       title: product.title,
       slug: product.slug,
       is_published: product.is_published,
+      featured_image: product.featured_image,
+      description: product.description,
       blocks
     }
 
@@ -186,6 +190,8 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       title: product.title,
       slug: product.slug,
       is_published: product.is_published,
+      featured_image: product.featured_image,
+      description: product.description,
       blocks
     }
 

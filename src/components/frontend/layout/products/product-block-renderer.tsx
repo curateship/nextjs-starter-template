@@ -19,6 +19,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const { blocks: siteBlocks = [] } = site
   const { blocks: productBlocks = [] } = product
   
+  
   // Sort product blocks by display_order
   const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
   
@@ -28,6 +29,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   
   return (
     <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {
@@ -38,9 +40,9 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductDefaultBlock
               key={`product-default-${block.id}`}
-              title={block.content.title}
-              richText={block.content.richText}
-              featuredImage={block.content.featuredImage}
+              title={product.title}
+              richText={product.description || ''}
+              featuredImage={product.featured_image || ''}
             />
           )
         }

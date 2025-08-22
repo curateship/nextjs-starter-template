@@ -53,7 +53,6 @@ export function ProductBuilderHeader({
     
     // Use clean routing: /products/[slug]
     const url = `http://localhost:3000/products/${currentProduct.slug}`
-    console.log('Generated product URL:', url)
     return url
   }
   

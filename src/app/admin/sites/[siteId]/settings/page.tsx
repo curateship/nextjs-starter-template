@@ -49,7 +49,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setThemeId(data.theme_id)
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
-        console.log('Loaded site for editing:', data)
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -105,7 +104,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       }
 
       if (data) {
-        console.log('Site updated successfully:', data)
         // Stay on the same page after successful update
         // Optionally show a success message or update the site state
         setSite(data)

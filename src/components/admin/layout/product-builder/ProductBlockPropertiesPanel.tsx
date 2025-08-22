@@ -27,6 +27,8 @@ interface ProductBlockPropertiesPanelProps {
     title?: string
     meta_description?: string
     site_id?: string
+    featured_image?: string | null
+    description?: string | null
   }
   site?: {
     id: string
@@ -38,6 +40,7 @@ interface ProductBlockPropertiesPanelProps {
     footer?: any
   } | null
   blocksLoading?: boolean
+  onOpenProductSettings?: () => void
 }
 
 export function ProductBlockPropertiesPanel({
@@ -47,7 +50,8 @@ export function ProductBlockPropertiesPanel({
   currentProduct,
   site,
   siteBlocks,
-  blocksLoading = false
+  blocksLoading = false,
+  onOpenProductSettings
 }: ProductBlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -56,12 +60,10 @@ export function ProductBlockPropertiesPanel({
           <div className="space-y-4">
             {selectedBlock.type === 'product-default' && (
               <ProductDefaultBlock
-                title={selectedBlock.content.title || ''}
-                richText={selectedBlock.content.richText || ''}
-                featuredImage={selectedBlock.content.featuredImage || ''}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onRichTextChange={(value) => updateBlockContent('richText', value)}
-                onFeaturedImageChange={(value) => updateBlockContent('featuredImage', value)}
+                title={currentProduct?.title || currentProduct?.name || ''}
+                richText={currentProduct?.description || ''}
+                featuredImage={currentProduct?.featured_image || ''}
+                onOpenSettings={onOpenProductSettings}
               />
             )}
             

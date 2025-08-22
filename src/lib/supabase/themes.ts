@@ -29,13 +29,10 @@ export class ThemeService {
 
   async getAllThemes(): Promise<{ data: Theme[] | null; error: any }> {
     try {
-      console.log('Attempting to fetch themes from database...')
       const { data, error } = await this.supabase
         .from('themes')
         .select('*')
         .order('created_at', { ascending: false })
-
-      console.log('Supabase response:', { data, error })
 
       if (error) {
         console.error('Database error:', error)

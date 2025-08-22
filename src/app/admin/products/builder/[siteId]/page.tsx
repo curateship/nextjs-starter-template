@@ -222,7 +222,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               id: currentProductData?.id,
               title: currentProductData?.title,
               meta_description: currentProductData?.meta_description,
-              site_id: currentProductData?.site_id
+              site_id: currentProductData?.site_id,
+              featured_image: currentProductData?.featured_image,
+              description: currentProductData?.description
             }}
             site={{
               id: siteId,
