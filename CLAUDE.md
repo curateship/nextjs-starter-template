@@ -50,12 +50,17 @@ Before implementing ANY feature, ask:
 - **ALWAYS state exactly which files you plan to examine before doing anything**
 - **WAIT for user confirmation before proceeding with any debugging or implementation**
 - **If you skip this protocol and start working without confirmation, you are violating CLAUDE.md**
+- **EXCEPTION: For simple questions about code/components, just answer directly without confirmation**
 
 **Example:**
 - User: "the preview panel is not showing the right thing"
 - Claude: "I understand you're reporting an issue with the preview panel in the admin builder where content is not displaying correctly. I plan to examine the ProductPreview component and related files. Should I proceed with this focus?"
 - User: "yes" 
 - Claude: *then* proceed with investigation
+
+**Exception Example:**
+- User: "what is this component used for?"
+- Claude: *directly examines and explains the component*
 
 **This protocol prevents Claude from debugging wrong components and wasting user time.**
 
