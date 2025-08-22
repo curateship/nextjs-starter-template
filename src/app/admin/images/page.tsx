@@ -4,17 +4,11 @@ import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, MoreHorizontal } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit } from "lucide-react"
 import { getImagesAction, deleteImageAction, updateImageAction } from "@/lib/actions/image-actions"
 import type { ImageData } from "@/lib/actions/image-actions"
 import Image from "next/image"
 import { toast } from "sonner"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
 import { 
   Dialog,
   DialogContent,
@@ -32,6 +26,7 @@ export default function ImagesPage() {
   // Removed usage-based filtering
   const [editingImage, setEditingImage] = useState<ImageData | null>(null)
   const [editAltText, setEditAltText] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
 
   // Load images on mount
   useEffect(() => {
@@ -98,6 +93,57 @@ export default function ImagesPage() {
     }
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type (SVG removed due to XSS risks)
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.')
+      return
+    }
+
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      toast.error('File size too large. Maximum size is 10MB.')
+      return
+    }
+
+    setIsUploading(true)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      toast.success("Image uploaded successfully!")
+      
+      // Refresh the images list
+      loadImages()
+
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Upload failed')
+    } finally {
+      setIsUploading(false)
+      // Clear the input
+      if (e.target) {
+        e.target.value = ''
+      }
+    }
+  }
+
   const filteredImages = images
 
   const formatFileSize = (bytes: number) => {
@@ -115,9 +161,19 @@ export default function ImagesPage() {
           title="Image Library"
           subtitle="Manage images for all your sites"
           primaryAction={{
-            label: "Add Image",
-            href: "/admin/images/new"
+            label: isUploading ? "Uploading..." : "Upload Image",
+            onClick: () => document.getElementById('image-upload-input')?.click(),
+            disabled: isUploading
           }}
+        />
+        
+        {/* Hidden file input */}
+        <input
+          id="image-upload-input"
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+          onChange={handleImageUpload}
+          className="hidden"
         />
         
         <AdminCard>
@@ -162,8 +218,8 @@ export default function ImagesPage() {
               <p className="text-muted-foreground mb-4">
                 You haven't uploaded any images yet.
               </p>
-              <Button asChild>
-                <Link href="/admin/images/new">Upload Your First Image</Link>
+              <Button onClick={() => document.getElementById('image-upload-input')?.click()}>
+                Upload Your First Image
               </Button>
             </div>
           ) : viewMode === 'gallery' ? (
@@ -180,52 +236,24 @@ export default function ImagesPage() {
                       sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <div className="text-white text-center text-sm p-2">
-                        <p className="font-medium truncate">{image.original_name}</p>
-                        <p className="text-xs">Image</p>
-                        <div className="flex justify-center space-x-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleEditImage(image)}
-                          >
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteImage(image)}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
+                      <div className="flex justify-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleEditImage(image)}
+                          className="cursor-pointer"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteImage(image)}
+                          className="cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
-                    </div>
-                    <div className="absolute top-2 left-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="w-8 h-8 p-0"
-                          >
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => handleEditImage(image)}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteImage(image)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   </div>
                 ))}
@@ -249,31 +277,29 @@ export default function ImagesPage() {
                     <div>
                       <h4 className="font-medium">{image.original_name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {image.filename} • {formatFileSize(image.file_size)}
+                        {formatFileSize(image.file_size)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditImage(image)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteImage(image)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditImage(image)}
+                      className="cursor-pointer"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleDeleteImage(image)}
+                      className="cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
