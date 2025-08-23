@@ -90,10 +90,10 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type (SVG removed due to XSS risks)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    // Validate file type 
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.')
+      toast.error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.')
       return
     }
 
@@ -191,7 +191,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                   <input
                     type="file"
                     className="hidden"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                     onChange={handleFileSelect}
                   />
                   <Upload className="w-4 h-4 mr-2" />
@@ -286,7 +286,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                       <input
                         type="file"
                         className="hidden"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                         onChange={handleFileSelect}
                       />
                       Upload Your First Image

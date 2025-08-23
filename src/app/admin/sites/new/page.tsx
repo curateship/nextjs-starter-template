@@ -16,6 +16,7 @@ export default function NewSitePage() {
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
+  const [favicon, setFavicon] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +47,7 @@ export default function NewSitePage() {
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
+        favicon: favicon || undefined,
         settings: {
           site_title: siteName.trim(),
           site_description: description.trim(),
@@ -107,12 +109,14 @@ export default function NewSitePage() {
             themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
+            favicon={favicon}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
+            onFaviconChange={setFavicon}
           />
         </form>
       </div>

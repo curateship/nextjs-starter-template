@@ -334,235 +334,241 @@ export function FooterBlock({
 
   return (
     <div className="space-y-4">
-      {/* Logo Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Logo & Copyright</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Label>Logo</Label>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  {logo && logo !== '/images/logo.png' ? (
-                    <div 
-                      className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setShowPicker(true)}
-                    >
-                      <img
-                        src={logo}
-                        alt="Logo"
-                        className="h-full w-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                          <p className="text-xs font-medium">Click to change</p>
+      {/* Logo & Copyright and Styling Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Logo Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Logo & Copyright</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <Label>Logo</Label>
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0">
+                    {logo && logo !== '/images/logo.png' ? (
+                      <div 
+                        className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setShowPicker(true)}
+                      >
+                        <img
+                          src={logo}
+                          alt="Logo"
+                          className="h-full w-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                          <div className="text-white text-center">
+                            <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                            <p className="text-xs font-medium">Click to change</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div 
-                      className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                      onClick={() => setShowPicker(true)}
-                    >
-                      <div className="text-center">
-                        <ImageIcon className="mx-auto w-4 h-4 text-muted-foreground/50" />
-                        <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                    ) : (
+                      <div 
+                        className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                        onClick={() => setShowPicker(true)}
+                      >
+                        <div className="text-center">
+                          <ImageIcon className="mx-auto w-4 h-4 text-muted-foreground/50" />
+                          <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <input
+                      id="logoUrl"
+                      type="text"
+                      value={logoUrl || ''}
+                      onChange={(e) => onLogoUrlChange(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      placeholder="https://example.com (leave empty for site homepage)"
+                    />
+                  </div>
                 </div>
-                
-                <div className="flex-1">
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="copyright">Copyright Text</Label>
+                <input
+                  id="copyright"
+                  type="text"
+                  value={copyright}
+                  onChange={(e) => onCopyrightChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  placeholder="© 2024 Your Company. All rights reserved."
+                />
+              </div>
+            </div>
+            
+            {/* Image Picker Modal */}
+            <ImagePicker
+              open={showPicker}
+              onOpenChange={setShowPicker}
+              onSelectImage={(imageUrl) => {
+                onLogoChange(imageUrl)
+                setShowPicker(false)
+              }}
+              currentImageUrl={logo}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Style Settings Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Styling</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="footerBgColor">Background Color</Label>
+                <div className="flex gap-2">
                   <input
-                    id="logoUrl"
+                    id="footerBgColor"
+                    type="color"
+                    value={style.backgroundColor}
+                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
                     type="text"
-                    value={logoUrl || ''}
-                    onChange={(e) => onLogoUrlChange(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md text-sm"
-                    placeholder="https://example.com (leave empty for site homepage)"
+                    value={style.backgroundColor}
+                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#000000"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="footerTextColor">Text Color</Label>
+                <div className="flex gap-2">
+                  <input
+                    id="footerTextColor"
+                    type="color"
+                    value={style.textColor}
+                    onChange={(e) => updateStyle('textColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
+                    type="text"
+                    value={style.textColor}
+                    onChange={(e) => updateStyle('textColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#ffffff"
                   />
                 </div>
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="copyright">Copyright Text</Label>
-              <input
-                id="copyright"
-                type="text"
-                value={copyright}
-                onChange={(e) => onCopyrightChange(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md text-sm"
-                placeholder="© 2024 Your Company. All rights reserved."
-              />
-            </div>
-          </div>
-          
-          {/* Image Picker Modal */}
-          <ImagePicker
-            open={showPicker}
-            onOpenChange={setShowPicker}
-            onSelectImage={(imageUrl) => {
-              onLogoChange(imageUrl)
-              setShowPicker(false)
-            }}
-            currentImageUrl={logo}
-          />
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Footer Links Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Footer Links</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLink}
-              className="h-8 w-8 p-0"
+      {/* Footer Links & Social Links Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Footer Links Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Footer Links</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addLink}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleLinkDragEnd}
             >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleLinkDragEnd}
-          >
-            <SortableContext
-              items={(links || []).map(l => l.id || '')}
-              strategy={verticalListSortingStrategy}
+              <SortableContext
+                items={(links || []).map(l => l.id || '')}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {(links || []).map((link, index) => (
+                    <SortableFooterLinkItem
+                      key={link.id || `footer-link-${index}`}
+                      link={link}
+                      index={index}
+                      updateLink={updateLink}
+                      removeLink={removeLink}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            {links.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                No footer links. Click + to add one.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Social Links Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Social Links</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addSocialLink}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleSocialLinkDragEnd}
             >
-              <div className="space-y-2">
-                {(links || []).map((link, index) => (
-                  <SortableFooterLinkItem
-                    key={link.id || `footer-link-${index}`}
-                    link={link}
-                    index={index}
-                    updateLink={updateLink}
-                    removeLink={removeLink}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={(socialLinks || []).map(l => l.id || '')}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {(socialLinks || []).map((socialLink, index) => (
+                    <SortableSocialLinkItem
+                      key={socialLink.id || `social-link-${index}`}
+                      socialLink={socialLink}
+                      index={index}
+                      updateSocialLink={updateSocialLink}
+                      removeSocialLink={removeSocialLink}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
 
-          {links.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4">
-              No footer links. Click + to add one.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Social Links Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Social Links</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addSocialLink}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleSocialLinkDragEnd}
-          >
-            <SortableContext
-              items={(socialLinks || []).map(l => l.id || '')}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2">
-                {(socialLinks || []).map((socialLink, index) => (
-                  <SortableSocialLinkItem
-                    key={socialLink.id || `social-link-${index}`}
-                    socialLink={socialLink}
-                    index={index}
-                    updateSocialLink={updateSocialLink}
-                    removeSocialLink={removeSocialLink}
-                  />
-                ))}
+            {socialLinks.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                No social links. Click + to add one.
               </div>
-            </SortableContext>
-          </DndContext>
-
-          {socialLinks.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4">
-              No social links. Click + to add one.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Style Settings Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Styling</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="footerBgColor">Background Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="footerBgColor"
-                  type="color"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                />
-                <input
-                  type="text"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#000000"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="footerTextColor">Text Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="footerTextColor"
-                  type="color"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                />
-                <input
-                  type="text"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#ffffff"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

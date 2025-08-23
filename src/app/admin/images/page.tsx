@@ -97,10 +97,10 @@ export default function ImagesPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type (SVG removed due to XSS risks)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.')
+      toast.error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.')
       return
     }
 
@@ -171,7 +171,7 @@ export default function ImagesPage() {
         <input
           id="image-upload-input"
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
           onChange={handleImageUpload}
           className="hidden"
         />
