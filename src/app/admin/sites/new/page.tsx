@@ -11,7 +11,8 @@ export default function NewSitePage() {
   const router = useRouter()
   const { refreshSites, setCurrentSite } = useSiteContext()
   const [siteName, setSiteName] = useState("")
-  const [description, setDescription] = useState("")
+  const [subdomain, setSubdomain] = useState("")
+  const [customDomain, setCustomDomain] = useState("")
   const [status, setStatus] = useState("draft")
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
@@ -31,6 +32,11 @@ export default function NewSitePage() {
       return
     }
 
+    if (!subdomain.trim()) {
+      setError('Subdomain is required')
+      return
+    }
+
     if (!themeId) {
       setError('Please select a theme')
       return
@@ -42,7 +48,8 @@ export default function NewSitePage() {
 
       const { data, error } = await createSiteAction({
         name: siteName.trim(),
-        description: description.trim() || undefined,
+        subdomain: subdomain.trim(),
+        custom_domain: customDomain.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
@@ -50,7 +57,6 @@ export default function NewSitePage() {
         favicon: favicon || undefined,
         settings: {
           site_title: siteName.trim(),
-          site_description: description.trim(),
           analytics_enabled: false,
           seo_enabled: true
         }
@@ -104,14 +110,16 @@ export default function NewSitePage() {
         <form onSubmit={handleSubmit}>
           <SiteDashboard
             siteName={siteName}
-            description={description}
+            subdomain={subdomain}
+            customDomain={customDomain}
             status={status}
             themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
             onSiteNameChange={setSiteName}
-            onDescriptionChange={setDescription}
+            onSubdomainChange={setSubdomain}
+            onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}

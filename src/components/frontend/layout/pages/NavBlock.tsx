@@ -51,18 +51,21 @@ const DesktopDropdownItem = ({
   item, 
   dropdownOpen, 
   handleDropdownMouseEnter, 
-  handleDropdownMouseLeave 
+  handleDropdownMouseLeave,
+  textColor 
 }: {
   item: MenuItem;
   dropdownOpen: boolean;
   handleDropdownMouseEnter: () => void;
   handleDropdownMouseLeave: () => void;
+  textColor?: string;
 }) => (
   <div className="relative">
     <button
       onMouseEnter={handleDropdownMouseEnter}
       onMouseLeave={handleDropdownMouseLeave}
-      className="text-muted-foreground hover:text-accent-foreground flex items-center gap-1 duration-150"
+      className="flex items-center gap-1 duration-150 hover:opacity-80"
+      style={{ color: textColor || undefined }}
     >
       <span>{item.name}</span>
       <ChevronDown 
@@ -84,7 +87,8 @@ const DesktopDropdownItem = ({
             <Link
               key={dropdownIndex}
               href={dropdownItem.href}
-              className="block px-4 py-2 text-sm text-muted-foreground hover:text-accent-foreground hover:bg-muted"
+              className="block px-4 py-2 text-sm hover:bg-muted hover:opacity-80"
+              style={{ color: textColor || undefined }}
             >
               {dropdownItem.name}
             </Link>
@@ -100,12 +104,14 @@ const DesktopNav = ({
   menuItems, 
   dropdownOpen, 
   handleDropdownMouseEnter, 
-  handleDropdownMouseLeave 
+  handleDropdownMouseLeave,
+  textColor
 }: {
   menuItems: MenuItem[];
   dropdownOpen: boolean;
   handleDropdownMouseEnter: () => void;
   handleDropdownMouseLeave: () => void;
+  textColor?: string;
 }) => (
   <div className="hidden lg:block">
     <ul className="flex gap-8 text-md font-semibold">
@@ -117,11 +123,13 @@ const DesktopNav = ({
               dropdownOpen={dropdownOpen}
               handleDropdownMouseEnter={handleDropdownMouseEnter}
               handleDropdownMouseLeave={handleDropdownMouseLeave}
+              textColor={textColor}
             />
           ) : (
             <Link
               href={item.href}
-              className="text-muted-foreground hover:text-accent-foreground block duration-150"
+              className="block duration-150 hover:opacity-80"
+              style={{ color: textColor || undefined }}
             >
               <span>{item.name}</span>
             </Link>
@@ -133,9 +141,9 @@ const DesktopNav = ({
 )
 
 // Mobile dropdown menu item component
-const MobileDropdownItem = ({ item }: { item: MenuItem }) => (
+const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: string }) => (
   <div>
-    <div className="text-muted-foreground mb-2 font-semibold">
+    <div className="mb-2 font-semibold" style={{ color: textColor || undefined }}>
       {item.name}
     </div>
     <div className="ml-4 space-y-2">
@@ -143,7 +151,8 @@ const MobileDropdownItem = ({ item }: { item: MenuItem }) => (
         <Link
           key={dropdownIndex}
           href={dropdownItem.href}
-          className="block text-sm text-muted-foreground hover:text-accent-foreground"
+          className="block text-sm hover:opacity-80"
+          style={{ color: textColor || undefined }}
         >
           {dropdownItem.name}
         </Link>
@@ -153,17 +162,18 @@ const MobileDropdownItem = ({ item }: { item: MenuItem }) => (
 )
 
 // Mobile navigation menu component
-const MobileNav = ({ menuItems }: { menuItems: MenuItem[] }) => (
+const MobileNav = ({ menuItems, textColor }: { menuItems: MenuItem[]; textColor?: string }) => (
   <div className="lg:hidden">
     <ul className="space-y-6 text-base">
       {menuItems.map((item, index) => (
         <li key={index}>
           {item.hasDropdown ? (
-            <MobileDropdownItem item={item} />
+            <MobileDropdownItem item={item} textColor={textColor} />
           ) : (
             <Link
               href={item.href}
-              className="text-muted-foreground hover:text-accent-foreground block duration-150"
+              className="block duration-150 hover:opacity-80"
+              style={{ color: textColor || undefined }}
             >
               <span>{item.name}</span>
             </Link>
@@ -180,15 +190,15 @@ const MobileMenuButton = ({
   setMenuState 
 }: { 
   menuState: boolean; 
-  setMenuState: (state: boolean) => void 
+  setMenuState: (state: boolean) => void;
 }) => (
   <button
     onClick={() => setMenuState(!menuState)}
     aria-label={menuState ? 'Close Menu' : 'Open Menu'}
     className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden"
   >
-    <Menu className="in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 m-auto size-6 duration-200" />
-    <X className="in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200" />
+    <Menu className="in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 m-auto size-6 duration-200 text-foreground" />
+    <X className="in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200 text-foreground" />
   </button>
 )
 
@@ -229,14 +239,16 @@ const CTAButtons = ({ buttons }: { buttons?: Array<{ text: string; url: string; 
 const MobileMenuPanel = ({ 
   menuItems, 
   menuState,
-  buttons 
+  buttons,
+  textColor 
 }: { 
   menuItems: MenuItem[];
   menuState: boolean;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
+  textColor?: string;
 }) => (
   <div className="bg-background in-data-[state=active]:block lg:in-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
-    <MobileNav menuItems={menuItems} />
+    <MobileNav menuItems={menuItems} textColor={textColor} />
     <CTAButtons buttons={buttons} />
   </div>
 )
@@ -321,8 +333,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
           scrolled && style && blurEffect !== 'none' && blurClass
         )}
         style={style ? {
-          backgroundColor: scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor,
-          color: style.textColor
+          backgroundColor: scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
         } : undefined}
       >
         <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
@@ -358,7 +369,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                     }}
                   />
                 ) : (
-                  <Globe className="h-8 w-8 text-muted-foreground" />
+                  <Globe className="h-8 w-8" style={{ color: style?.textColor || undefined }} />
                 )}
                 <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : 'hidden'} />
               </Link>
@@ -369,10 +380,11 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                 dropdownOpen={dropdownOpen}
                 handleDropdownMouseEnter={handleDropdownMouseEnter}
                 handleDropdownMouseLeave={handleDropdownMouseLeave}
+                textColor={style?.textColor}
               />
             </div>
 
-            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} />
+            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} textColor={style?.textColor} />
           </div>
         </div>
       </nav>

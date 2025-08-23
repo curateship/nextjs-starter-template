@@ -18,7 +18,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const { siteId } = use(params)
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteName, setSiteName] = useState("")
-  const [description, setDescription] = useState("")
+  const [subdomain, setSubdomain] = useState("")
   const [customDomain, setCustomDomain] = useState("")
   const [status, setStatus] = useState("draft")
   const [themeId, setThemeId] = useState("")
@@ -44,7 +44,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       if (data) {
         setSite(data)
         setSiteName(data.name)
-        setDescription(data.description || "")
+        setSubdomain(data.subdomain || "")
         setCustomDomain(data.custom_domain || "")
         setStatus(data.status)
         setThemeId(data.theme_id)
@@ -86,7 +86,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
       const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
-        description: description.trim() || undefined,
+        subdomain: subdomain.trim(),
         custom_domain: customDomain.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
@@ -95,7 +95,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         favicon: favicon === '' ? '' : favicon || undefined,
         settings: {
           site_title: siteName.trim(),
-          site_description: description.trim(),
           analytics_enabled: false,
           seo_enabled: true
         }
@@ -175,7 +174,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         <form onSubmit={handleSubmit}>
           <SiteDashboard
             siteName={siteName}
-            description={description}
+            subdomain={subdomain}
             customDomain={customDomain}
             status={status}
             themeId={themeId}
@@ -184,7 +183,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             favicon={favicon}
             isEditMode={true}
             onSiteNameChange={setSiteName}
-            onDescriptionChange={setDescription}
+            onSubdomainChange={setSubdomain}
             onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
             onThemeIdChange={setThemeId}
