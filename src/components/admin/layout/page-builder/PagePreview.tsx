@@ -10,6 +10,10 @@ interface PagePreviewProps {
     id: string
     name: string
     subdomain: string
+    settings?: {
+      favicon?: string
+      [key: string]: any
+    }
   }
   allBlocks?: Record<string, Block[]>
   className?: string

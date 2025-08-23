@@ -10,6 +10,10 @@ interface SiteLayoutProps {
     id: string
     subdomain: string
     name?: string
+    settings?: {
+      favicon?: string
+      [key: string]: any
+    }
   }
   navigation?: {
     logo?: string

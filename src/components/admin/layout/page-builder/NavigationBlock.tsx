@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
-import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -59,6 +59,7 @@ interface NavigationBlockProps {
   onStyleChange: (style: NavigationStyle) => void
   siteId: string
   blockId: string
+  siteFavicon?: string
 }
 
 // Sortable button item component
@@ -227,6 +228,7 @@ export function NavigationBlock({
   onLinksChange,
   onButtonsChange,
   onStyleChange,
+  siteFavicon,
 }: NavigationBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
@@ -361,13 +363,31 @@ export function NavigationBlock({
                       </div>
                     </div>
                   </div>
+                ) : siteFavicon ? (
+                  <div 
+                    className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
+                    onClick={() => setShowPicker(true)}
+                  >
+                    <img
+                      src={siteFavicon}
+                      alt="Site favicon (used as logo)"
+                      className="h-8 w-8 object-contain"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                      <div className="text-white text-center">
+                        <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                        <p className="text-xs font-medium">Using favicon - Click to add logo</p>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div 
                     className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
                     onClick={() => setShowPicker(true)}
                   >
                     <div className="text-center">
-                      <ImageIcon className="mx-auto w-4 h-4 text-muted-foreground/50" />
+                      <Globe className="mx-auto w-4 h-4 text-muted-foreground/50" />
                       <p className="text-xs text-muted-foreground mt-1">Click to select</p>
                     </div>
                   </div>

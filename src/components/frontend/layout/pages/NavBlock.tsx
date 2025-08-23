@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Logo } from '@/components/ui/navigation/logo'
-import { Menu, X, ChevronDown } from 'lucide-react'
+import { Menu, X, ChevronDown, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,10 @@ interface NavBlockProps {
     id: string;
     subdomain: string;
     name?: string;
+    settings?: {
+      favicon?: string;
+      [key: string]: any;
+    };
   };
   links?: Array<{ text: string; url: string }>;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
@@ -342,8 +346,21 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                       e.currentTarget.nextElementSibling?.classList.remove('hidden');
                     }}
                   />
-                ) : null}
-                <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : ''} />
+                ) : site?.settings?.favicon ? (
+                  <img 
+                    src={site.settings.favicon} 
+                    alt="Site favicon" 
+                    className="h-8 w-8 object-cover rounded-lg"
+                    onError={(e) => {
+                      // Fallback to Globe icon on error
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : (
+                  <Globe className="h-8 w-8 text-muted-foreground" />
+                )}
+                <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : 'hidden'} />
               </Link>
 
               <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
