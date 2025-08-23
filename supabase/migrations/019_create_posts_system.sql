@@ -85,6 +85,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Create trigger to automatically create default post for new sites
+-- NOTE: This trigger was later removed in migration 055_remove_auto_post_creation_trigger.sql
 CREATE TRIGGER create_default_post_trigger
     AFTER INSERT ON sites
     FOR EACH ROW
