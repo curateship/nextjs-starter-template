@@ -65,10 +65,10 @@ export async function uploadImageAction(
   alt_text?: string
 ): Promise<{ data: ImageData | null; error: string | null }> {
   try {
-    // Validate file type (SVG removed due to XSS risks)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     if (!allowedTypes.includes(file.type)) {
-      return { data: null, error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.' }
+      return { data: null, error: 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.' }
     }
 
     // Validate file size (10MB limit)

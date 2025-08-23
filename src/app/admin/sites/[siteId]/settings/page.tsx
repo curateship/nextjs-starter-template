@@ -24,6 +24,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
+  const [favicon, setFavicon] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +50,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setThemeId(data.theme_id)
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
+        setFavicon(data.settings?.favicon || "")
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -90,6 +92,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
+        favicon: favicon || undefined,
         settings: {
           site_title: siteName.trim(),
           site_description: description.trim(),
@@ -178,6 +181,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
+            favicon={favicon}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onDescriptionChange={setDescription}
@@ -186,6 +190,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
+            onFaviconChange={setFavicon}
           />
         </form>
       </div>

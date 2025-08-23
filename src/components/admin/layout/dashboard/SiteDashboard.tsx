@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, ImageIcon } from "lucide-react"
+import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
@@ -17,6 +18,7 @@ interface SiteDashboardProps {
   themeId: string
   description?: string
   customDomain?: string
+  favicon?: string
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
@@ -25,6 +27,7 @@ interface SiteDashboardProps {
   onThemeIdChange: (value: string) => void
   onDescriptionChange?: (value: string) => void
   onCustomDomainChange?: (value: string) => void
+  onFaviconChange?: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
 }
@@ -35,6 +38,7 @@ export function SiteDashboard({
   themeId,
   description = "",
   customDomain = "",
+  favicon = "",
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
@@ -43,6 +47,7 @@ export function SiteDashboard({
   onThemeIdChange,
   onDescriptionChange,
   onCustomDomainChange,
+  onFaviconChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
 }: SiteDashboardProps) {
@@ -53,6 +58,7 @@ export function SiteDashboard({
     available: boolean | null
     suggestion?: string
   }>({ checking: false, available: null })
+  const [showFaviconPicker, setShowFaviconPicker] = useState(false)
 
   // Load themes on component mount
   useEffect(() => {
@@ -121,6 +127,7 @@ export function SiteDashboard({
   }
 
   return (
+    <>
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Site Information</CardTitle>
@@ -273,6 +280,48 @@ export function SiteDashboard({
           </div>
         )}
 
+        {/* Favicon */}
+        {onFaviconChange && (
+          <div className="space-y-2">
+            <label htmlFor="favicon" className="text-sm font-medium text-gray-700">
+              Site Favicon
+            </label>
+            <div className="relative">
+              {favicon ? (
+                <div 
+                  className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                  onClick={() => setShowFaviconPicker(true)}
+                >
+                  <img 
+                    src={favicon} 
+                    alt="Favicon preview" 
+                    className="w-16 h-16 object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                    <div className="text-white text-center">
+                      <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                      <p className="text-xs">Change</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="flex items-center justify-center w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  onClick={() => setShowFaviconPicker(true)}
+                >
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-4 w-4 text-muted-foreground/50" />
+                    <p className="mt-1 text-xs text-muted-foreground">Select</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <p>Upload a square image for your site's favicon (recommended: 32x32px or 64x64px)</p>
+            </div>
+          </div>
+        )}
+
         {/* Status */}
         <div className="space-y-2">
           <Select value={status} onValueChange={onStatusChange}>
@@ -289,6 +338,20 @@ export function SiteDashboard({
 
       </CardContent>
     </Card>
+
+    {/* Favicon Image Picker Modal */}
+    {onFaviconChange && (
+      <ImagePicker
+        open={showFaviconPicker}
+        onOpenChange={setShowFaviconPicker}
+        onSelectImage={(imageUrl) => {
+          onFaviconChange(imageUrl)
+          setShowFaviconPicker(false)
+        }}
+        currentImageUrl={favicon}
+      />
+    )}
+  </>
   )
 }
 

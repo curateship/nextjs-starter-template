@@ -77,6 +77,7 @@ export interface CreateSiteData {
   font_weights?: string[]
   secondary_font_family?: string
   secondary_font_weights?: string[]
+  favicon?: string
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -189,7 +190,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     const actualUserId = user.id
     // Creating site for authenticated user
 
-    // Prepare settings with font configuration
+    // Prepare settings with font and favicon configuration
     const settings = {
       ...(siteData.settings || {
         site_title: siteData.name,
@@ -200,7 +201,8 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       font_family: siteData.font_family || 'playfair-display',
       font_weights: siteData.font_weights || ['400', '500', '600', '700', '800', '900'],
       secondary_font_family: siteData.secondary_font_family || 'inter',
-      secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700']
+      secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700'],
+      favicon: siteData.favicon || null
     }
 
     // Create the site
@@ -272,9 +274,9 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings, merge them into settings
+    // If updating font settings or favicon, merge them into settings
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights) {
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined) {
       const { data: currentSite } = await supabaseAdmin
         .from('sites')
         .select('settings')
@@ -287,14 +289,16 @@ export async function updateSiteAction(
         ...(updates.font_family && { font_family: updates.font_family }),
         ...(updates.font_weights && { font_weights: updates.font_weights }),
         ...(updates.secondary_font_family && { secondary_font_family: updates.secondary_font_family }),
-        ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights })
+        ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
+        ...(updates.favicon !== undefined && { favicon: updates.favicon || null })
       }
       
-      // Remove font properties from top level as they're now in settings
+      // Remove font and favicon properties from top level as they're now in settings
       delete finalUpdates.font_family
       delete finalUpdates.font_weights
       delete finalUpdates.secondary_font_family
       delete finalUpdates.secondary_font_weights
+      delete finalUpdates.favicon
     }
 
     // If updating name, regenerate subdomain

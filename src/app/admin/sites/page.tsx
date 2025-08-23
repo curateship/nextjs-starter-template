@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Eye, Settings, Trash2, Edit, MoreHorizontal } from "lucide-react"
+import { Eye, Settings, Trash2, Edit, MoreHorizontal, Globe } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -245,10 +245,18 @@ export default function SitesPage() {
                           href={`/admin/sites/${site.id}/settings`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
-                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                            <span className="text-muted-foreground text-sm font-medium">
-                              {initials}
-                            </span>
+                          <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                            {site.settings?.favicon ? (
+                              <img 
+                                src={site.settings.favicon} 
+                                alt={`${site.name} favicon`}
+                                className="w-12 h-12 object-cover rounded-lg"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                                <Globe className="w-5 h-5 text-muted-foreground" />
+                              </div>
+                            )}
                           </div>
                           <div>
                             <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>

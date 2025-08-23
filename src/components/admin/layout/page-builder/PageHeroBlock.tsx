@@ -529,7 +529,7 @@ export function PageHeroBlock({
                     <img 
                       src={heroImage} 
                       alt="Hero preview" 
-                      className="w-full h-32 object-cover"
+                      className="w-full h-24 object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
@@ -541,7 +541,7 @@ export function PageHeroBlock({
                   </div>
                 ) : (
                   <div 
-                    className="flex items-center justify-center h-32 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                    className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
                     onClick={() => setShowHeroImagePicker(true)}
                   >
                     <div className="text-center">
@@ -686,10 +686,6 @@ export function PageHeroBlock({
               </>
             )}
           </div>
-          
-          <p className="text-sm text-muted-foreground">
-            Choose a background pattern or select "No Background" for a clean look
-          </p>
         </CardContent>
       </Card>
 

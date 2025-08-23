@@ -5074,3 +5074,18 @@ Migrated navigation/footer to `sites.settings.navigation` and `sites.settings.fo
 - **UI Experience**: Completely identical - users edit navigation/footer exactly the same way
 
 **Impact**: Cleaner architecture with site-wide elements properly stored at site level. Zero disruption to user experience.
+
+---
+
+## Phase 27: Favicon Support & SVG Implementation (August 22, 2025)
+
+### **Implementation**:
+- **Favicon Field**: Added favicon upload to site creation/settings, stored in `sites.settings.favicon`
+- **SVG Support**: Enabled SVG file uploads across all image components with proper validation
+- **UI Integration**: Site switcher sidebar and sites listing now display favicons with Globe fallback
+- **Visual Polish**: Removed dark backgrounds, added 2px sidebar padding, constrained preview to 64x64px
+
+### **Files Modified**: 
+`site-actions.ts`, `SiteDashboard.tsx`, `site-switcher-menu.tsx`, `/admin/sites/page.tsx`, image upload components
+
+**Impact**: Sites now have visual identity with scalable favicon support throughout the platform.

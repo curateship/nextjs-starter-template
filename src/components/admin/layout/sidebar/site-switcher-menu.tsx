@@ -73,8 +73,18 @@ export function SiteSwitcherMenu() {
               size="lg"
               className="w-full cursor-pointer"
             >
-              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <Globe className="size-4" />
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
+                {currentSite?.settings?.favicon ? (
+                  <img 
+                    src={currentSite.settings.favicon} 
+                    alt={`${currentSite.name} favicon`}
+                    className="size-8 object-cover rounded-lg p-0.5"
+                  />
+                ) : (
+                  <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                    <Globe className="size-4" />
+                  </div>
+                )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">
@@ -110,8 +120,18 @@ export function SiteSwitcherMenu() {
                   }}
                   className="gap-2 p-2"
                 >
-                  <div className="flex size-6 items-center justify-center rounded-md border">
-                    <Globe className="size-3.5 shrink-0" />
+                  <div className="flex size-6 items-center justify-center rounded-md overflow-hidden">
+                    {site.settings?.favicon ? (
+                      <img 
+                        src={site.settings.favicon} 
+                        alt={`${site.name} favicon`}
+                        className="size-6 object-cover rounded-md"
+                      />
+                    ) : (
+                      <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                        <Globe className="size-3.5 shrink-0" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="font-medium">{site.name}</div>
