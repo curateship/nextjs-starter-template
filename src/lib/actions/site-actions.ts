@@ -49,7 +49,6 @@ export interface Site {
   user_id: string
   theme_id: string
   name: string
-  description: string | null
   subdomain: string
   custom_domain: string | null
   status: 'active' | 'inactive' | 'draft' | 'suspended'
@@ -68,7 +67,7 @@ export interface SiteWithTheme extends Site {
 
 export interface CreateSiteData {
   name: string
-  description?: string
+  subdomain?: string
   custom_domain?: string
   theme_id: string
   status?: 'active' | 'inactive' | 'draft'
@@ -117,8 +116,8 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
   try {
     // Creating new site
     
-    // Generate unique subdomain if not provided
-    let subdomain = siteData.name.toLowerCase()
+    // Use provided subdomain or generate from name
+    let subdomain = siteData.subdomain || siteData.name.toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
@@ -194,7 +193,6 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     const settings = {
       ...(siteData.settings || {
         site_title: siteData.name,
-        site_description: siteData.description || '',
         analytics_enabled: false,
         seo_enabled: true
       }),
@@ -210,7 +208,6 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       .from('sites')
       .insert([{
         name: siteData.name,
-        description: siteData.description || null,
         theme_id: themeId,
         user_id: actualUserId,
         subdomain,
