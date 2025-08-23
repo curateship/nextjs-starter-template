@@ -8,10 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Save, Eye, Plus, Settings } from "lucide-react"
+import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { CreatePageForm } from "@/components/admin/layout/page-builder/create-page-form"
-import { EditPageForm } from "@/components/admin/layout/page-builder/edit-page-form"
+import { PageSettingsModal } from "@/components/admin/layout/page-builder/page-settings-modal"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 import type { Page } from "@/lib/actions/page-actions"
 
@@ -106,9 +106,24 @@ export function PageBuilderHeader({
         </div>
         <div className="ml-auto flex items-center space-x-2">
           {saveMessage && (
-            <span className={`text-sm ${saveMessage.includes('Error') || saveMessage.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>
-              {saveMessage}
-            </span>
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
+              saveMessage.includes('Error') || saveMessage.includes('Failed') 
+                ? 'bg-red-50 border border-red-200' 
+                : 'bg-green-50 border border-green-200'
+            }`}>
+              <CheckCircle className={`w-4 h-4 ${
+                saveMessage.includes('Error') || saveMessage.includes('Failed') 
+                  ? 'text-red-600' 
+                  : 'text-green-600'
+              }`} />
+              <span className={`text-sm font-medium ${
+                saveMessage.includes('Error') || saveMessage.includes('Failed') 
+                  ? 'text-red-800' 
+                  : 'text-green-700'
+              }`}>
+                {saveMessage}
+              </span>
+            </div>
           )}
           <Button 
             variant="outline"
@@ -152,26 +167,15 @@ export function PageBuilderHeader({
       </Dialog>
 
       {/* Edit Page Settings Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Page Settings</DialogTitle>
-            <DialogDescription>
-              Configure settings for "{currentPage?.title || selectedPage}"
-            </DialogDescription>
-          </DialogHeader>
-          {currentPage && (
-            <EditPageForm 
-              page={currentPage}
-              onSuccess={(updatedPage) => {
-                onPageUpdated(updatedPage)
-                setShowEditDialog(false)
-              }}
-              onCancel={() => setShowEditDialog(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <PageSettingsModal
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        page={currentPage}
+        site={site}
+        onSuccess={(updatedPage) => {
+          onPageUpdated(updatedPage)
+        }}
+      />
     </div>
   )
 }

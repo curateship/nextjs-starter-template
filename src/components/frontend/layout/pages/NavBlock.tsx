@@ -350,7 +350,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                   <img 
                     src={site.settings.favicon} 
                     alt="Site favicon" 
-                    className="h-8 w-8 object-cover rounded-lg"
+                    className="h-10 w-10 object-contain rounded-lg p-0.5"
                     onError={(e) => {
                       // Fallback to Globe icon on error
                       e.currentTarget.style.display = 'none';

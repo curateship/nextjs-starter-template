@@ -371,7 +371,7 @@ export function NavigationBlock({
                     <img
                       src={siteFavicon}
                       alt="Site favicon (used as logo)"
-                      className="h-8 w-8 object-contain"
+                      className="h-10 w-10 object-contain p-0.5"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
