@@ -87,12 +87,12 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
         description: description.trim() || undefined,
-        custom_domain: customDomain.trim() || null,
+        custom_domain: customDomain.trim() || undefined,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
-        favicon: favicon || undefined,
+        favicon: favicon === '' ? '' : favicon || undefined,
         settings: {
           site_title: siteName.trim(),
           site_description: description.trim(),
@@ -109,7 +109,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       if (data) {
         // Stay on the same page after successful update
         // Optionally show a success message or update the site state
-        setSite(data)
+        setSite(prev => prev ? { ...prev, ...data } : null)
       }
     } catch (err) {
       console.error('Error updating site:', err)

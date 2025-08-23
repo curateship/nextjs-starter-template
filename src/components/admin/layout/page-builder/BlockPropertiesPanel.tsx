@@ -31,6 +31,10 @@ interface BlockPropertiesPanelProps {
     id: string
     name: string
     subdomain: string
+    settings?: {
+      favicon?: string
+      [key: string]: any
+    }
   }
   allBlocks?: Record<string, Block[]>
   blocksLoading?: boolean
@@ -71,6 +75,7 @@ export function BlockPropertiesPanel({
                 {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style'])}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                siteFavicon={site?.settings?.favicon}
               />
             )}
             {selectedBlock.type === 'footer' && (

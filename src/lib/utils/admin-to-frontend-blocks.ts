@@ -7,7 +7,7 @@ import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
  */
 export function transformAdminBlocksToFrontend(
   blocks: Block[],
-  site?: { id: string; name: string; subdomain: string }
+  site?: { id: string; name: string; subdomain: string; settings?: { favicon?: string; [key: string]: any } }
 ): SiteWithBlocks['blocks'] {
   // Simple transformation - no complex property mapping needed
   return blocks.map(block => ({
@@ -23,7 +23,7 @@ export function transformAdminBlocksToFrontend(
  */
 export function createPreviewSite(
   blocks: Block[],
-  site?: { id: string; name: string; subdomain: string }
+  site?: { id: string; name: string; subdomain: string; settings?: { favicon?: string; [key: string]: any } }
 ): SiteWithBlocks {
   return {
     id: site?.id || 'preview',
@@ -32,7 +32,7 @@ export function createPreviewSite(
     custom_domain: null,
     theme_id: 'default',
     theme_name: 'Default Theme',
-    settings: {},
+    settings: site?.settings || {},
     blocks: transformAdminBlocksToFrontend(blocks, site)
   }
 }
