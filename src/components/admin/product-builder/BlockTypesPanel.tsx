@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle, Info, DollarSign } from "lucide-react"
 
-interface ProductBlockTypesPanelProps {
+interface BlockTypesPanelProps {
   onAddProductDefaultBlock: () => void
   onAddProductHeroBlock: () => void
   onAddProductFeaturesBlock: () => void
@@ -10,14 +10,14 @@ interface ProductBlockTypesPanelProps {
   onAddProductFAQBlock: () => void
 }
 
-export function ProductBlockTypesPanel({ 
+export function BlockTypesPanel({ 
   onAddProductDefaultBlock,
   onAddProductHeroBlock,
   onAddProductFeaturesBlock,
   onAddProductHotspotBlock,
   onAddProductPricingBlock,
   onAddProductFAQBlock
-}: ProductBlockTypesPanelProps) {
+}: BlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
       <div>

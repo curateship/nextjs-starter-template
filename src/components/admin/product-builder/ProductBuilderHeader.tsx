@@ -11,8 +11,8 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/product-builder/product-settings-modal"
-import { CreateGlobalProductForm } from "@/components/admin/product-builder/create-global-product-form"
+import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
+import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -166,7 +166,7 @@ export function ProductBuilderHeader({
               Add a new product to your catalog. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
-          <CreateGlobalProductForm 
+          <CreateProductModal 
             onSuccess={(product) => {
               // Add the new product to the list if callback exists
               if (onProductCreated) {

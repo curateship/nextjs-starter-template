@@ -1,11 +1,11 @@
-import { ProductDefaultBlock } from "@/components/admin/product-builder/ProductDefaultBlock"
-import { ProductHeroBlock } from "@/components/admin/product-builder/ProductHeroBlock"
-import { ProductDetailsBlock } from "@/components/admin/product-builder/ProductDetailsBlock"
-import { ProductGalleryBlock } from "@/components/admin/product-builder/ProductGalleryBlock"
-import { ProductFeaturesBlock } from "@/components/admin/product-builder/ProductFeaturesBlock"
-import { ProductHotspotBlock } from "@/components/admin/product-builder/ProductHotspotBlock"
-import { ProductPricingBlock } from "@/components/admin/product-builder/ProductPricingBlock"
-import { ProductFAQBlock } from "@/components/admin/product-builder/ProductFAQBlock"
+import { ProductDefaultBlock } from "@/components/admin/product-builder/blocks/ProductDefaultBlock"
+import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/ProductHeroBlock"
+import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/ProductDetailsBlock"
+import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/ProductGalleryBlock"
+import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/ProductFeaturesBlock"
+import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/ProductHotspotBlock"
+import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/ProductPricingBlock"
+import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -15,7 +15,7 @@ interface ProductBlock {
   content: Record<string, any>
 }
 
-interface ProductBlockPropertiesPanelProps {
+interface BlockPropertiesPanelProps {
   selectedBlock: ProductBlock | null
   updateBlockContent: (field: string, value: any) => void
   siteId: string
@@ -45,7 +45,7 @@ interface ProductBlockPropertiesPanelProps {
   onOpenProductSettings?: () => void
 }
 
-export function ProductBlockPropertiesPanel({
+export function BlockPropertiesPanel({
   selectedBlock,
   updateBlockContent,
   siteId,
@@ -54,7 +54,7 @@ export function ProductBlockPropertiesPanel({
   allBlocks,
   blocksLoading = false,
   onOpenProductSettings
-}: ProductBlockPropertiesPanelProps) {
+}: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
       {selectedBlock ? (
