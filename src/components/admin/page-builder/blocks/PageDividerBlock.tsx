@@ -28,7 +28,7 @@ interface SharedDividerBlockProps {
   onCustomWidthChange: (value: number) => void
 }
 
-export function SharedDividerBlock({
+export function PageDividerBlock({
   spacingTop = 64,
   spacingBottom = 64,
   dividerStyle = 'line',

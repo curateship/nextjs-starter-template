@@ -215,7 +215,7 @@ function SortableSocialLinkItem({
   )
 }
 
-export function FooterBlock({
+export function PageFooterBlock({
   logo,
   logoUrl,
   copyright,

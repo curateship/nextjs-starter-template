@@ -9,13 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createPageAction } from "@/lib/actions/page-actions"
 import type { Page, CreatePageData } from "@/lib/actions/page-actions"
 
-interface CreatePageFormProps {
+interface CreatePageModalProps {
   siteId: string
   onSuccess: (page: Page) => void
   onCancel: () => void
 }
 
-export function CreatePageForm({ siteId, onSuccess, onCancel }: CreatePageFormProps) {
+export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModalProps) {
   const [formData, setFormData] = useState<CreatePageData>({
     title: '',
     slug: '',

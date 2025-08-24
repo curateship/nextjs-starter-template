@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Upload, X } from "lucide-react"
-import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
+import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 
 interface BasicBlockProps {
   title: string
@@ -79,7 +79,7 @@ export function BasicBlock({
 
         {/* Rich Text Editor */}
         <div className="space-y-2">
-          <RichTextEditor
+          <PageRichTextEditorBlock
             content={{
               content: richText || '',
               hideHeader: true,
