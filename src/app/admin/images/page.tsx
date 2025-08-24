@@ -77,7 +77,7 @@ export default function ImagesPage() {
 
     try {
       const { data, error } = await updateImageAction(editingImage.id, {
-        alt_text: editAltText.trim() || null
+        alt_text: editAltText.trim() || undefined
       })
       
       if (error) {
@@ -162,8 +162,7 @@ export default function ImagesPage() {
           subtitle="Manage images for all your sites"
           primaryAction={{
             label: isUploading ? "Uploading..." : "Upload Image",
-            onClick: () => document.getElementById('image-upload-input')?.click(),
-            disabled: isUploading
+            onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
           }}
         />
         

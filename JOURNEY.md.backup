@@ -5,7 +5,7 @@
 **Last Updated**: August 24, 2025
 
 
-## Phase 1: Initial Authentication Setup
+### Phase 1: Initial Authentication Setup
 
 **User Request**: Setup Supabase authentication with specific requirements:
 - Remove Google/Apple login buttons from existing UI
@@ -38,7 +38,7 @@
    - Implemented secure logout functionality
    - Used server-side Supabase client
 
-## Phase 2: Critical Bug Fixes
+### Phase 2: Critical Bug Fixes
 
 **Major Issues Discovered**:
 
@@ -55,7 +55,7 @@
    - **Resolution**: Consolidated to single clean implementation
    - **Removed**: All duplicate configuration files
 
-## Phase 3: Security Vulnerability Discovery & Fixes
+### Phase 3: Security Vulnerability Discovery & Fixes
 
 **CRITICAL SECURITY HOLE**: Authentication bypass vulnerability
 - **Issue**: Sidebar displayed fake hardcoded user data even when not authenticated
@@ -78,7 +78,7 @@ const [user, setUser] = useState<{
 } | null>(null)
 ```
 
-## Phase 4: Enhanced Security Audit (Super Engineer Level)
+### Phase 4: Enhanced Security Audit (Super Engineer Level)
 
 **Vulnerabilities Found & Fixed**:
 
@@ -106,7 +106,7 @@ const [user, setUser] = useState<{
    - **Action**: Removed all console.log statements containing sensitive data
    - **Scope**: Authentication flows and user data handling
 
-## Phase 5: Advanced Security Audit (Nation-State Level)
+### Phase 5: Advanced Security Audit (Nation-State Level)
 
 **Comprehensive Attack Vector Analysis**:
 
@@ -178,7 +178,7 @@ const [user, setUser] = useState<{
 - ❌ Fixed race conditions in React components
 - ❌ Removed debug files and unused code
 
-## Phase 6: User Settings Implementation
+### Phase 6: User Settings Implementation
 
 **User Request**: Create user settings page for profile management
 - User settings page with email and password change functionality
@@ -204,7 +204,7 @@ const [user, setUser] = useState<{
    - Added `updateProfile()` and `updatePassword()` server actions
    - Server-side validation and input sanitization
 
-## Phase 7: Advanced Security Audit & Hardening
+### Phase 7: Advanced Security Audit & Hardening
 
 **Security Expert Analysis**: Comprehensive security review of user settings implementation
 
@@ -272,7 +272,7 @@ const [user, setUser] = useState<{
 
 ---
 
-## Phase 8: Multi-Tenant Theme System Implementation
+### Phase 8: Multi-Tenant Theme System Implementation
 
 **User Request**: Implement multi-tenant platform with theme-based site management
 
@@ -320,7 +320,7 @@ const [user, setUser] = useState<{
 - ✅ Theme-site associations with foreign keys
 - ✅ Site status management (draft, active, inactive, suspended)
 
-## Phase 9: Critical Bug Fixes & Improvements
+### Phase 9: Critical Bug Fixes & Improvements
 
 **Issues Resolved**:
 
@@ -419,7 +419,7 @@ const { data: { user } } = await supabase.auth.getUser()
 
 ---
 
-## Phase 10: Block Registry System & Component Architecture Refactoring
+### Phase 10: Block Registry System & Component Architecture Refactoring
 
 **User Request**: Implement Task 2.1 from PRD - Create centralized block registry system for theme customization
 
@@ -550,7 +550,7 @@ const updateBlockContent = (field: string, value: any) => {
 
 ---
 
-## Phase 11: Admin Interface Polish & Enhanced CRUD Operations
+### Phase 11: Admin Interface Polish & Enhanced CRUD Operations
 
 **User Request**: Improve admin interface usability and complete CRUD operations for themes and sites
 
@@ -574,7 +574,7 @@ const updateBlockContent = (field: string, value: any) => {
 
 ---
 
-## Phase 12: Multi-Site Block System & Frontend Integration
+### Phase 12: Multi-Site Block System & Frontend Integration
 
 **User Request**: Fix multi-site block rendering and implement complete page management system
 
@@ -762,7 +762,7 @@ export async function deleteResourceAction(id: string) {
 
 ---
 
-## Phase 13: Site Builder Block Management Enhancement
+### Phase 12: Site Builder Block Management Enhancement
 
 **User Request**: Fix delete functionality and add block restoration capabilities
 
@@ -804,7 +804,7 @@ export async function deleteResourceAction(id: string) {
 - Heuristic block positioning for optimal user experience
 - Server action integration with comprehensive validation
 
-## Phase 14: Site Builder Component Architecture Refactoring
+### Phase 13: Site Builder Component Architecture Refactoring
 
 **User Request**: Address component size and organization issues - 503-line monolithic component
 
@@ -881,7 +881,7 @@ export async function deleteResourceAction(id: string) {
 
 ---
 
-## Phase 15: Multi-Tenant Site Management Architecture
+### Phase 14: Multi-Tenant Site Management Architecture
 
 **User Request**: Implement proper multi-tenant site management where each site is self-contained with its own content, similar to Beehiiv's approach
 
@@ -1000,7 +1000,7 @@ const siteNavItems = currentSite ? [
 
 ---
 
-## Phase 16: Database Security Investigation & PostgreSQL View Security Analysis
+### Phase 15: Database Security Investigation & PostgreSQL View Security Analysis
 
 **User Issue**: Discovered "*Unrestricted" badge on `site_details` view in Supabase indicating potential security vulnerability
 
@@ -1073,7 +1073,7 @@ CREATE VIEW site_details AS SELECT ...
 
 ---
 
-## Phase 17: Site Builder Block Editor Enhancements & UI Polish
+### Phase 16: Site Builder Block Editor Enhancements & UI Polish
 
 **User Request**: Enhance site builder with navigation and footer block editors plus comprehensive UI improvements
 
@@ -1205,7 +1205,7 @@ npm run dev
 
 ---
 
-## Phase 18: Frontend Site Rendering Implementation
+### Phase 17: Frontend Site Rendering Implementation
 
 **User Request**: Implement frontend rendering system to display built sites at `http://localhost:3000/[subdomain]`
 
@@ -1337,7 +1337,7 @@ The system represents a professional-grade, production-ready multi-tenant websit
 
 ---
 
-## Phase 19: Image Library System Implementation & Security Hardening
+### Phase 18: Image Library System Implementation & Security Hardening
 
 **User Request**: Implement comprehensive image library system for centralized image and file management across the multi-tenant platform
 
@@ -1478,7 +1478,7 @@ site-images/
 - **Security**: Enterprise-grade protection against common attacks
 - **Maintainability**: Clean component architecture with proper separation
 
-## Phase 20: Image Usage Tracking Fix (2025-08-09)
+## 📊 Phase 18.1 - Image Usage Tracking Fix (2025-08-09)
 
 **Issue Resolved**: Image usage tracking was showing all images as "unused" even when selected in the site builder.
 
@@ -1518,7 +1518,7 @@ const { data: image } = await supabaseAdmin.from('images')
 
 **Total Development Achievement**: Successfully implemented a comprehensive, secure image library system that transforms the platform from basic file handling to enterprise-grade digital asset management. The system provides seamless integration with the site builder while maintaining strict security standards and excellent user experience. Users can now upload, organize, and manage images efficiently while the system automatically tracks usage and prevents data loss.
 
-## Phase 21: Admin Sidebar UX Optimization (2025-08-09)
+## 🎯 Phase 19 - Admin Sidebar UX Optimization (2025-08-09)
 
 **Challenge**: Poor user experience where sidebar elements (site switcher and Site Builder link) showed loading states on every page navigation, causing visual flashing and perception of slowness.
 
@@ -1629,7 +1629,7 @@ This optimization transforms the admin interface from feeling slow and unpolishe
 
 ---
 
-## Phase 22: WordPress-Style Page Management System (2025-08-10)
+## 📄 Phase 20 - WordPress-Style Page Management System (2025-08-10)
 
 **User Request**: Build a WordPress-style page builder where users can create unlimited custom pages for their sites, with complete page management capabilities.
 
@@ -1804,7 +1804,7 @@ This completes the evolution from basic multi-tenant site management to a full-f
 
 ---
 
-## Phase 23: Frontend Routing Architecture Fix & Double Footer Resolution (2025-08-10)
+## 🔧 Phase 20.1 - Frontend Routing Architecture Fix & Double Footer Resolution (2025-08-10)
 
 **Critical Issue**: Users reported double footers appearing on frontend sites - one dynamic footer from site blocks and one static placeholder footer.
 
@@ -1926,7 +1926,7 @@ export default async function DynamicSubdomainPage({ params }) {
 
 ---
 
-## Phase 24: Font Selector Implementation with Typography Pairing (2025-08-11)
+## 🎨 Phase 21 - Font Selector Implementation with Typography Pairing (2025-08-11)
 
 **User Request**: Add comprehensive font selection capability to site creation and editing, supporting Google Fonts with primary and secondary font pairing for professional typography control.
 
@@ -2132,7 +2132,7 @@ This enhancement elevates the platform's design capabilities to match profession
 
 ---
 
-## Phase 25: Architecture Refactoring & File Organization (2025-08-11)
+## 🔧 Phase 22 - Architecture Refactoring & File Organization (2025-08-11)
 
 **User Request**: Reorganize file architecture for better maintainability and fix DOMPurify SSR issues
 
@@ -2204,7 +2204,7 @@ This enhancement elevates the platform's design capabilities to match profession
 
 ---
 
-## Phase 26: Site Builder → Page Builder Refactoring
+## Phase 23: Site Builder → Page Builder Refactoring
 *August 11, 2025*
 
 **Objective**: Resolve architectural confusion by renaming "Site Builder" to "Page Builder" since the builder only builds individual pages, not entire sites.
@@ -2251,7 +2251,7 @@ This enhancement elevates the platform's design capabilities to match profession
 
 ---
 
-## Phase 27: Input Validation Consistency Fix
+## Phase 24: Input Validation Consistency Fix
 *August 22, 2025*
 
 **Problem**: Users couldn't delete all text from title/subtitle fields - they would auto-revert to default text instead of staying blank.
@@ -2286,7 +2286,7 @@ This enhancement elevates the platform's design capabilities to match profession
 **Current System Status**: ✅ **ENTERPRISE ARCHITECTURE**
 The platform now features clean, logical file organization with proper separation of concerns, enhanced reliability through SSR-safe components, consolidated server actions architecture, and accurate naming that reflects the true functionality of the Page Builder system.
 
-## Phase 28: Advanced Block Management & Visual Organization (January 2025)
+## Phase 24: Advanced Block Management & Visual Organization (January 2025)
 
 **Scope**: Enhanced drag-and-drop functionality, visual UI improvements, and comprehensive block editor organization for better user experience.
 
@@ -2411,7 +2411,7 @@ The platform now features intuitive drag-and-drop block management with comprehe
 
 ---
 
-## Phase 29: Navigation & Footer Links Drag-and-Drop Implementation
+## Phase 25: Navigation & Footer Links Drag-and-Drop Implementation
 **Date**: August 11, 2025  
 **Focus**: Consistent drag-and-drop UX across all link management interfaces
 
@@ -2570,7 +2570,7 @@ const handleReorderLinks = useCallback((reorderedLinks: NavigationLink[]) => {
 6. **Performance Fix** → Debounced saves with proper timeout clearing
 7. **UI Polish** → Modern header layout with consistent spacing
 
-## Phase 30:
+### Files Modified in Phase 25:
 - `/src/components/admin/layout/page-builder/NavigationBlock.tsx` - Drag-and-drop links + buttons, UI cleanup
 - `/src/components/admin/layout/page-builder/FooterBlock.tsx` - Drag-and-drop footer/social links, UI cleanup
 
@@ -2579,7 +2579,7 @@ The platform now delivers a completely consistent, modern drag-and-drop experien
 
 ---
 
-## Phase 31: Page Deletion System Enhancement
+## 🗑️ Phase 26: Page Deletion System Enhancement
 
 **User Request**: Improve page deletion error handling and user experience with proper modal dialogs and clear messaging.
 
@@ -2733,7 +2733,7 @@ The platform now provides a completely professional page deletion experience wit
 
 ---
 
-## Phase 32: Product System Frontend Display & Site Isolation (August 2025)
+## Phase 11: Product System Frontend Display & Site Isolation (August 2025)
 
 ### 🎯 **User Request**: 
 Complete the product system implementation:
@@ -2846,7 +2846,7 @@ The platform now features a complete, secure, and scalable product management sy
 
 ---
 
-## Phase 33: Product Hero Block System - 100% Direct Copy Implementation
+## Phase 15: Product Hero Block System - 100% Direct Copy Implementation
 
 ### **User Request**: 
 Create a complete 1:1 copy of the HeroRuixenBlock system for products with ALL functionality preserved:
@@ -2992,7 +2992,7 @@ Products now have access to the exact same sophisticated hero block system as pa
 
 ---
 
-## Phase 34: Background Pattern System & Critical Routing Fix**
+## **Phase 8: Background Pattern System & Critical Routing Fix**
 *Date: August 13, 2025*
 
 ### **🎨 Background Pattern Implementation**:
@@ -3318,7 +3318,7 @@ Both page and product builders now provide instant, contextual previews that sig
 
 ---
 
-## Phase 35: Preview Panel Scaling Fix (Aug 14, 2025)
+## Phase 27: Preview Panel Scaling Fix (Aug 14, 2025)
 
 ### Problem
 Preview panels using `zoom: 0.8` had navigation elements overflowing their containers. The browser treated scaled content as full-size for positioning, causing sticky navigation to reference the viewport instead of the scaled container.
@@ -3356,7 +3356,7 @@ The preview system now provides a flawless viewing experience with proper scalin
 
 ---
 
-## Phase 36: Product Features Block Implementation (Aug 14, 2025)
+## Phase 28: Product Features Block Implementation (Aug 14, 2025)
 
 ### User Request
 Build a new "Product Features" block for products using the existing ProductFeatureGridBlock.tsx UI with integrated image library and drag & drop functionality.
@@ -3402,7 +3402,7 @@ CHECK (block_type IN ('product-hero', 'product-features'));
 
 ---
 
-## Phase 37: Critical Data Safety Overhaul (Aug 14, 2025)
+## Phase 29: Critical Data Safety Overhaul (Aug 14, 2025)
 
 ### Critical Issue Discovered
 User experienced data loss when Product Features save failed due to database constraint. The system used a dangerous "delete everything first, then insert" approach that permanently deleted hero block content when the insert operation failed.
@@ -3494,7 +3494,7 @@ Comprehensive security audit completed per CLAUDE.md:
 
 ---
 
-## Phase 38: Product Hotspot Block Implementation
+## Phase 9: Product Hotspot Block Implementation
 
 ### User Request
 Build a complex "Product Hotspot" block for the product builder system allowing:
@@ -3578,7 +3578,7 @@ Build a complex "Product Hotspot" block for the product builder system allowing:
 
 ---
 
-## Phase 39: FAQ Block Implementation
+## Phase 11: FAQ Block Implementation
 
 **User Request**: Add a shared FAQ block component with drag & drop reordering functionality.
 
@@ -3624,7 +3624,7 @@ Build a complex "Product Hotspot" block for the product builder system allowing:
 
 ---
 
-## Phase 40: The Sins of Overcomplicated Code - A Confession
+## Phase 12: The Sins of Overcomplicated Code - A Confession
 
 **Context**: User requested shared blocks for products, which led to a catastrophic display of overcomplicated programming that caused data loss and system failures.
 
@@ -3693,7 +3693,7 @@ Instead, I built a rocket ship to cross the street.
 
 ---
 
-## Phase 41: FAQ Block Duplication Success - Following the System (2025-08-15)
+## Phase 13: FAQ Block Duplication Success - Following the System (2025-08-15)
 
 ### User Request: "lets duplicate the faq block from pages to products. use the guide from claude.md. lets see if you can do it easily"
 
@@ -3750,7 +3750,7 @@ Instead, I built a rocket ship to cross the street.
 
 ---
 
-## Phase 42: Product Default Block Evolution (Dec 2024)
+## Phase 14: Product Default Block Evolution (Dec 2024)
 
 ### Initial Implementation: The "Special" Default Block
 Following the successful FAQ block implementation, user requested a default block for products to automatically display core product information (title, description, featured image). Initially implemented this as a "special" non-deletable block with complex visibility toggles.
@@ -3826,7 +3826,7 @@ This perfectly demonstrates the core principle from CLAUDE.md:
 
 ---
 
-## Phase 43: Complete Architecture Unification - The Ultimate Performance & Consistency Achievement
+## Phase 13: Complete Architecture Unification - The Ultimate Performance & Consistency Achievement
 **Date**: August 17, 2025
 
 **Context**: After implementing elegant Product Information blocks, we discovered a fundamental performance issue: products were taking 3+ seconds to load compared to pages loading in ~30-50ms. What started as a performance investigation became the most comprehensive architectural unification in the project's history.
@@ -3882,7 +3882,7 @@ User demanded complete analysis revealing **FIVE major architectural differences
 
 **The Crisis**: They were implemented with completely different architectures for NO technical reason.
 
-## Phase 44: True Architectural Unification
+### Phase 5: True Architectural Unification
 
 **Database Schema Unification**:
 ```sql
@@ -3921,7 +3921,7 @@ const blocksResult = await getAllProductBlocksAction(currentSite.id)
 - Eliminated batch-only saves that caused UX inconsistencies
 - Unified all save operations across both content types
 
-## Phase 45: The Final Unification - Frontend Data Structure
+### Phase 6: The Final Unification - Frontend Data Structure
 
 **The Last Major Difference**: Pages still used complex dual-structure transformation
 
@@ -4059,7 +4059,7 @@ blocks: Array<{
 
 ---
 
-## Phase 46: The Final Performance Breakthrough - React Context vs Direct Parameters (August 2025)
+## Phase 13: The Final Performance Breakthrough - React Context vs Direct Parameters (August 2025)
 
 ### The Remaining Mystery
 
@@ -4230,7 +4230,7 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 
 ---
 
-## Phase 47: ListingViews Block Implementation - Dynamic Product Display System (August 18, 2025)
+## Phase 14: ListingViews Block Implementation - Dynamic Product Display System (August 18, 2025)
 
 **User Request**: Create flexible product listing display for pages (homepages, archives)
 
@@ -4274,7 +4274,7 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 
 **Result**: Production-ready dynamic content listing system with intuitive admin controls and secure implementation.
 
-## Phase 48: ProductPricingBlock & React Hooks Crisis (Dec 2024)
+## Phase 13: ProductPricingBlock & React Hooks Crisis (Dec 2024)
 
 **Implementation Success**: ProductPricingBlock created following CLAUDE.md guide with database constraints, backend validation, admin editor with drag & drop, and adaptive frontend layouts.
 
@@ -4293,7 +4293,7 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 
 ---
 
-## Phase 49: Product Image Tracking Reliability Fix (August 18, 2025)
+## Phase 15: Product Image Tracking Reliability Fix (August 18, 2025)
 
 **Issue**: Product featured images not appearing as "used" in image library despite tracking code in forms.
 
@@ -4309,7 +4309,7 @@ GET /admin/builder/[siteId]?page=slug 200 in 35ms
 
 ---
 
-## Phase 50: DividerBlock Enhancement & Hydration Crisis (August 19, 2025)
+## Phase 16: DividerBlock Enhancement & Hydration Crisis (August 19, 2025)
 
 **Request**: Replace "Show Divider" toggle with "No Divider" dropdown option and implement custom pixel width input.
 
@@ -4365,7 +4365,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
 
 ---
 
-## Phase 51: Posts Content System Implementation
+## Phase 13: Posts Content System Implementation
 **Date**: August 20, 2025
 
 **Objective**: Implement complete Posts system mirroring Products architecture for blog/content management.
@@ -4416,7 +4416,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true && npm run dev
 
 *Lesson: Following established patterns accelerates development while maintaining security. The Products system architecture provided a solid foundation that translated directly to Posts with minimal modifications.*
 
-## Phase 52: Product Data Column Migration to Pure JSON Architecture (August 20, 2025)
+### Phase 14: Product Data Column Migration to Pure JSON Architecture (August 20, 2025)
 
 **User Request**: Eliminate data duplication by moving `rich_text` and `featured_image` columns into JSON blocks, then remove obsolete SEO columns.
 
@@ -4545,7 +4545,7 @@ NEW: products table with JSON content_blocks column
 
 ---
 
-## Phase 53: Pages JSON Migration & Meta Keywords Cleanup
+## Phase 15: Pages JSON Migration & Meta Keywords Cleanup
 
 **Date**: August 21, 2025
 **User Request**: "do everything you did but for page_blocks" + "we need to remove the meta keywords col"
@@ -4575,7 +4575,7 @@ NEW: products table with JSON content_blocks column
 
 ---
 
-## Phase 54: Image Usage Tracking System Removal
+## Phase 16: Image Usage Tracking System Removal
 
 **Date**: August 21, 2025
 **User Request**: "we need to completely remove the image_usage table. it has gotten out of hand"
@@ -4607,7 +4607,7 @@ NEW: products table with JSON content_blocks column
 
 *Lesson: Sometimes the best feature is the one you remove. The "safety" system was actually making things worse by preventing legitimate deletions and adding unnecessary complexity.*
 
-## Phase 55: The Hidden Trigger Disaster (August 20, 2025)
+## 🚨 Phase 17: The Hidden Trigger Disaster (August 20, 2025)
 
 **Problem**: Site creation failing with "column meta_description of relation products does not exist"
 
@@ -4623,7 +4623,7 @@ NEW: products table with JSON content_blocks column
 
 **Lesson**: ALWAYS read project history first. Stop adding "helpful" automation that breaks things.
 
-## Phase 56: Database Cleanup & Image Tracking System Elimination (August 21, 2025)
+## 🧹 Phase 18: Database Cleanup & Image Tracking System Elimination (August 21, 2025)
 
 **Problem**: Database bloated with unused columns and massively overcomplicated image tracking system
 
@@ -4655,7 +4655,7 @@ NEW: products table with JSON content_blocks column
 **Result**: Eliminated "fake safety" anti-pattern. Followed CLAUDE.md simplicity principles - the database already knows which images are in use through direct queries. Classic example of how removing complex code is often the best solution.
 
 
-## Phase 57: Major Architectural Refactor - Custom Domain & Route Simplification (August 21, 2025)
+## 🏗️ Phase 19: Major Architectural Refactor - Custom Domain & Route Simplification (August 21, 2025)
 
 **Context**: User requested connecting one site to the root domain (`http://localhost:3000/`) using environment configuration. This triggered a complete architectural overhaul from path-based routing to true subdomain architecture.
 
@@ -4823,7 +4823,7 @@ requestHeaders.set('x-site-domain', site.custom_domain || '')
 
 ---
 
-## Phase 58: Claude's Subdomain Routing Disaster (August 21, 2025)
+## Phase 14: Claude's Subdomain Routing Disaster (August 21, 2025)
 
 ### Issue: Claude Massively Overcomplicated Native Browser Subdomain Support
 
@@ -4862,7 +4862,7 @@ const subdomain = parts.length > 1 ? parts[0] : null // Changed from > 2 to > 1
 
 ---
 
-## Phase 59: Product Featured Images Data Migration & Frontend Listing Fix
+### Phase 16: Product Featured Images Data Migration & Frontend Listing Fix
 
 **Date**: August 21, 2025
 
@@ -4970,7 +4970,7 @@ if (parts.length > 1) { // Changed from parts.length > 2
 
 ---
 
-## Phase 60: Drag & Drop System Migration to @dnd-kit (August 22, 2025)
+## Phase 20: Drag & Drop System Migration to @dnd-kit (August 22, 2025)
 
 ### **User Request**: 
 Fix drag and drop across all admin interfaces - items were "switching all over the place" with unreliable snapping behavior.
@@ -5036,7 +5036,7 @@ The platform now features reliable, accessible, and consistent drag and drop fun
 
 ---
 
-## Phase 61: Product Preview Navigation Fix & page_blocks Table Removal (August 22, 2025)
+## Phase 25: Product Preview Navigation Fix & page_blocks Table Removal (August 22, 2025)
 
 ### **Fixed Product Preview Navigation/Footer**:
 - Added navigation and footer blocks to product preview panel
@@ -5053,7 +5053,7 @@ The platform now features reliable, accessible, and consistent drag and drop fun
 
 ---
 
-## Phase 62: Navigation/Footer Architecture Refactor (August 22, 2025)
+## Phase 26: Navigation/Footer Architecture Refactor (August 22, 2025)
 
 ### **Problem**: 
 Navigation and footer blocks stored in `pages.content_blocks` (home page only) - conceptually wrong for site-wide elements.
@@ -5078,7 +5078,7 @@ Migrated navigation/footer to `sites.settings.navigation` and `sites.settings.fo
 
 ---
 
-## Phase 63: Favicon Support & SVG Implementation (August 22, 2025)
+## Phase 27: Favicon Support & SVG Implementation (August 22, 2025)
 
 ### **Implementation**:
 - **Favicon Field**: Added favicon upload to site creation/settings, stored in `sites.settings.favicon`
@@ -5093,7 +5093,7 @@ Migrated navigation/footer to `sites.settings.navigation` and `sites.settings.fo
 
 ---
 
-## Phase 64: Post Builder Skeleton Loading Implementation (August 24, 2025)
+## Phase 28: Post Builder Skeleton Loading Implementation (August 24, 2025)
 
 ### **User Request**: 
 Add skeleton loading to post builder that matches the actual UI layout (like products and pages have)

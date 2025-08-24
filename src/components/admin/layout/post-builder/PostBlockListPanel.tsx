@@ -41,14 +41,21 @@ interface CurrentPost {
   blocks: PostBlock[]
 }
 
+interface PostData {
+  title?: string
+  meta_description?: string
+  excerpt?: string
+}
+
 interface PostBlockListPanelProps {
   currentPost: CurrentPost
   selectedBlock: PostBlock | null
   onSelectBlock: (block: PostBlock) => void
   onDeleteBlock: (block: PostBlock) => void
-  onReorderBlocks: (blocks: PostBlock[]) => void
+  onReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
   deleting: string | null
   blocksLoading?: boolean
+  postData?: PostData
 }
 
 // Sortable post block item component
@@ -58,7 +65,9 @@ function SortablePostBlockItem({
   onSelectBlock,
   deleting,
   getBlockIcon,
-  handleDeleteClick
+  handleDeleteClick,
+  isDefaultBlock,
+  postTitle
 }: {
   block: PostBlock
   selectedBlock: PostBlock | null
@@ -66,6 +75,8 @@ function SortablePostBlockItem({
   deleting: string | null
   getBlockIcon: (blockType: string) => JSX.Element
   handleDeleteClick: (block: PostBlock) => void
+  isDefaultBlock: (block: PostBlock) => boolean
+  postTitle?: string
 }) {
   const {
     attributes,
@@ -104,27 +115,35 @@ function SortablePostBlockItem({
           </div>
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
-            <h3 className="font-medium">{block.title}</h3>
+            <h3 className="font-medium">
+              {isDefaultBlock(block) ? postTitle || 'Untitled Post' : (block.content?.title || getBlockTypeName(block))}
+            </h3>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDeleteClick(block)
-            }}
-            disabled={deleting === block.id}
-            title="Delete block"
-          >
-            {deleting === block.id ? (
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-          </Button>
+          {!isDefaultBlock(block) ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteClick(block)
+              }}
+              disabled={deleting === block.id}
+              title="Delete block"
+            >
+              {deleting === block.id ? (
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+          ) : (
+            <div className="text-xs text-muted-foreground px-2">
+              Required
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -138,7 +157,8 @@ export function PostBlockListPanel({
   onDeleteBlock,
   onReorderBlocks,
   deleting,
-  blocksLoading = false
+  blocksLoading = false,
+  postData
 }: PostBlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
@@ -162,7 +182,12 @@ export function PostBlockListPanel({
       const newIndex = currentPost.blocks.findIndex((block) => block.id === over.id)
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        onReorderBlocks(arrayMove(currentPost.blocks, oldIndex, newIndex))
+        const reorderedBlocks = arrayMove(currentPost.blocks, oldIndex, newIndex)
+        const newOrder = reorderedBlocks.map((block, index) => ({
+          id: block.id,
+          display_order: index + 1
+        }))
+        onReorderBlocks(newOrder)
       }
     }
   }
@@ -181,12 +206,18 @@ export function PostBlockListPanel({
   }
 
   const getBlockTypeName = (block: PostBlock) => {
-    return block.type === 'post-content' ? 'Content Block' : 'Block'
+    if (block.type === 'post-content' || block.type === 'rich-text') return 'Default Block'
+    return 'Block'
+  }
+
+  const isDefaultBlock = (block: PostBlock) => {
+    return block.type === 'post-content' || block.type === 'rich-text'
   }
 
   const getBlockIcon = (blockType: string) => {
     switch (blockType) {
       case 'post-content':
+      case 'rich-text':
         return <FileText className="w-4 h-4" />
       default:
         return <div className="w-4 h-4" />
@@ -250,6 +281,8 @@ export function PostBlockListPanel({
                       deleting={deleting}
                       getBlockIcon={getBlockIcon}
                       handleDeleteClick={handleDeleteClick}
+                      isDefaultBlock={isDefaultBlock}
+                      postTitle={postData?.title}
                     />
                   ))}
                 </div>

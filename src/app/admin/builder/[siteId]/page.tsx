@@ -200,7 +200,12 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             updateBlockContent={builderState.updateBlockContent}
             siteId={siteId}
             currentPage={currentPage}
-            site={site}
+            site={site ? {
+              id: site.id,
+              name: site.name,
+              subdomain: site.subdomain,
+              settings: site.settings
+            } : undefined}
             allBlocks={localBlocks}
             blocksLoading={blocksLoading}
           />

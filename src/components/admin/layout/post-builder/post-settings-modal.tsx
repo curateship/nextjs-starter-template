@@ -92,13 +92,23 @@ export function PostSettingsModal({
   // Initialize form data when post changes
   useEffect(() => {
     if (post) {
+      // Extract content from content_blocks structure
+      let extractedContent = ''
+      if (post.content_blocks && typeof post.content_blocks === 'object') {
+        const blocks = Object.values(post.content_blocks)
+        const firstBlock = blocks.find((block: any) => block.type === 'rich-text')
+        if (firstBlock && firstBlock.content) {
+          extractedContent = firstBlock.content.body || firstBlock.content.text || ''
+        }
+      }
+      
       setFormData({
         title: post.title,
         slug: post.slug,
         meta_description: post.meta_description || '',
         featured_image: post.featured_image || '',
         excerpt: post.excerpt || '',
-        content: post.content || '',
+        content: extractedContent,
         is_published: post.is_published
       })
       

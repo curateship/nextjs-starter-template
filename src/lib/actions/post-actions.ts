@@ -45,6 +45,15 @@ async function createServerSupabaseClient() {
   )
 }
 
+export interface PostBlock {
+  id: string
+  type: 'rich-text' | 'image' | 'code' | 'quote' | 'divider'
+  content: Record<string, any>
+  display_order: number
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Post {
   id: string
   site_id: string
@@ -53,7 +62,7 @@ export interface Post {
   meta_description: string | null
   featured_image: string | null
   excerpt: string | null
-  content: string | null
+  content_blocks: Record<string, PostBlock>
   is_published: boolean
   display_order: number
   created_at: string
@@ -73,7 +82,8 @@ export interface CreatePostData {
   meta_description?: string
   featured_image?: string
   excerpt?: string
-  content?: string
+  content?: string // Add content field
+  content_blocks?: Record<string, PostBlock>
   is_published?: boolean
 }
 
@@ -83,7 +93,7 @@ export interface UpdatePostData {
   meta_description?: string
   featured_image?: string
   excerpt?: string
-  content?: string
+  content_blocks?: Record<string, PostBlock>
   is_published?: boolean
 }
 
@@ -114,7 +124,10 @@ export async function getAllPostsAction(): Promise<{ data: Post[] | null; error:
       return { data: null, error: `Failed to fetch posts: ${error.message}` }
     }
 
-    return { data: data as Post[], error: null }
+    // Data already includes content_blocks column - no transformation needed
+    const transformedData = data || []
+
+    return { data: transformedData as Post[], error: null }
   } catch (error) {
     return { 
       data: null, 
@@ -169,7 +182,10 @@ export async function getSitePostsAction(siteId: string): Promise<{ data: Post[]
       return { data: null, error: `Failed to fetch posts: ${error.message}` }
     }
 
-    return { data: data as Post[], error: null }
+    // Data already includes content_blocks column - no transformation needed
+    const transformedData = data || []
+
+    return { data: transformedData as Post[], error: null }
   } catch (error) {
     return { 
       data: null, 
@@ -197,7 +213,7 @@ export async function getPostByIdAction(postId: string): Promise<{ data: Post | 
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
-    // First get the post to check which site it belongs to
+    // Get the post to check which site it belongs to
     const { data: post, error: postError } = await supabaseAdmin
       .from('posts')
       .select('*')
@@ -234,14 +250,15 @@ export async function getPostByIdAction(postId: string): Promise<{ data: Post | 
       return { data: null, error: 'Site not found or access denied' }
     }
 
-    // Ensure all dates are properly serialized
-    const serializedPost = {
+    // Data already includes content_blocks column - just normalize dates
+    const transformedPost = {
       ...post,
+      content_blocks: post.content_blocks || {},
       created_at: post.created_at ? new Date(post.created_at).toISOString() : new Date().toISOString(),
       updated_at: post.updated_at ? new Date(post.updated_at).toISOString() : new Date().toISOString()
     }
     
-    return { data: serializedPost, error: null }
+    return { data: transformedPost as Post, error: null }
   } catch (error) {
     return { 
       data: null, 
@@ -250,112 +267,6 @@ export async function getPostByIdAction(postId: string): Promise<{ data: Post | 
   }
 }
 
-/**
- * Create a new global post
- */
-export async function createGlobalPostAction(postData: CreatePostData): Promise<{ data: Post | null; error: string | null }> {
-  try {
-    // Validate required fields
-    if (!postData.title?.trim()) {
-      return { data: null, error: 'Post title is required' }
-    }
-
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the user's first site as the default site for the post
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('user_id', user.id)
-      .limit(1)
-
-    if (!sites || sites.length === 0) {
-      return { data: null, error: 'You must have at least one site to create posts' }
-    }
-
-    const siteId = sites[0].id
-
-    // Generate slug from title if not provided
-    let slug = postData.slug
-    if (!slug) {
-      slug = postData.title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '')
-    }
-
-    // Validate slug format
-    if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-      return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
-    }
-
-    // Check for reserved slugs
-    const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-    if (reservedSlugs.includes(slug.toLowerCase())) {
-      return { data: null, error: 'This slug is reserved and cannot be used.' }
-    }
-
-    // Check if slug already exists globally
-    const { data: existingPost, error: slugCheckError } = await supabaseAdmin
-      .from('posts')
-      .select('id')
-      .eq('slug', slug)
-      .single()
-
-    if (slugCheckError && slugCheckError.code !== 'PGRST116') {
-      return { data: null, error: 'Failed to validate slug uniqueness' }
-    }
-
-    if (existingPost) {
-      return { data: null, error: 'A post with this slug already exists' }
-    }
-
-    // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('posts')
-      .select('display_order')
-      .order('display_order', { ascending: false })
-      .limit(1)
-
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
-
-    // Create the post
-    const { data, error } = await supabaseAdmin
-      .from('posts')
-      .insert([{
-        site_id: siteId, // Use the user's first site
-        title: postData.title.trim(),
-        slug,
-        meta_description: postData.meta_description?.trim() || null,
-        featured_image: postData.featured_image?.trim() || null,
-        excerpt: postData.excerpt?.trim() || null,
-        content: postData.content?.trim() || null,
-        is_published: postData.is_published !== false,
-        display_order: nextOrder
-      }])
-      .select()
-      .single()
-
-    if (error) {
-      return { data: null, error: `Failed to create post: ${error.message}` }
-    }
-
-    return { data: data as Post, error: null }
-  } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
-}
 
 /**
  * Create a new post for a site
@@ -441,8 +352,37 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
 
     const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
 
-    // Create the post
-    const { data, error } = await supabaseAdmin
+    // Create content blocks from content field or use provided content_blocks
+    let contentBlocks
+    if (postData.content && postData.content.trim()) {
+      // Convert content field to content_blocks  
+      const blockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      contentBlocks = {
+        [blockId]: {
+          id: blockId,
+          type: 'rich-text' as const,
+          content: { title: '', body: postData.content.trim(), format: 'html' },
+          display_order: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
+    } else {
+      // Use provided content_blocks or create default
+      contentBlocks = postData.content_blocks || {
+        'block-1': {
+          id: 'block-1',
+          type: 'rich-text' as const,
+          content: { title: '', body: '', format: 'html' },
+          display_order: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
+    }
+
+    // Create the post with content_blocks directly in the posts table
+    const { data: newPost, error: postError } = await supabaseAdmin
       .from('posts')
       .insert([{
         site_id: siteId,
@@ -451,25 +391,31 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
         meta_description: postData.meta_description?.trim() || null,
         featured_image: postData.featured_image?.trim() || null,
         excerpt: postData.excerpt?.trim() || null,
-        content: postData.content?.trim() || null,
         is_published: postData.is_published !== false,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: contentBlocks
       }])
       .select()
       .single()
 
-    if (error) {
-      return { data: null, error: `Failed to create post: ${error.message}` }
+    if (postError) {
+      return { data: null, error: `Failed to create post: ${postError.message}` }
     }
 
     // Track featured image usage if post has one and is published
-    if (data.featured_image && data.is_published) {
-      const { data: imageId } = await getImageByUrlAction(data.featured_image)
+    if (newPost.featured_image && newPost.is_published) {
+      const { data: imageId } = await getImageByUrlAction(newPost.featured_image)
       if (imageId) {
       }
     }
 
-    return { data: data as Post, error: null }
+    return { 
+      data: {
+        ...newPost,
+        content_blocks: contentBlocks
+      } as Post, 
+      error: null 
+    }
   } catch (error) {
     return { 
       data: null, 
@@ -557,14 +503,17 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       processedUpdates.slug = slug
     }
 
-    // Clean up the updates object
-    const finalUpdates: any = {}
-    Object.entries(processedUpdates).forEach(([key, value]) => {
+    // Separate content_blocks from other updates
+    const { content_blocks, ...postUpdates } = processedUpdates
+    
+    // Clean up the post updates
+    const finalPostUpdates: any = {}
+    Object.entries(postUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'featured_image' || key === 'excerpt' || key === 'content') {
-          finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
+        if (key === 'title' || key === 'meta_description' || key === 'featured_image' || key === 'excerpt') {
+          finalPostUpdates[key] = typeof value === 'string' ? value.trim() || null : value
         } else {
-          finalUpdates[key] = value
+          finalPostUpdates[key] = value
         }
       }
     })
@@ -573,7 +522,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     const { data, error } = await supabaseAdmin
       .from('posts')
       .update({
-        ...finalUpdates,
+        ...finalPostUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', postId)
@@ -582,6 +531,11 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
 
     if (error) {
       return { data: null, error: `Failed to update post: ${error.message}` }
+    }
+
+    // Include content_blocks in the main update if provided
+    if (content_blocks !== undefined) {
+      updates.content_blocks = content_blocks
     }
 
     // Only track image usage if featured_image was actually updated
@@ -601,7 +555,10 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       }
     }
 
-    return { data: data as Post, error: null }
+    return { 
+      data: data as Post, 
+      error: null 
+    }
   } catch (error) {
     return { 
       data: null, 
@@ -760,7 +717,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 
     const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
 
-    // Create the duplicate post
+    // Create the duplicate post with content_blocks
     const { data: newPost, error } = await supabaseAdmin
       .from('posts')
       .insert([{
@@ -770,7 +727,8 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
         meta_description: originalPost.meta_description,
         featured_image: originalPost.featured_image,
         excerpt: originalPost.excerpt,
-        content: originalPost.content,
+        content: originalPost.content,  // Keep for backward compatibility
+        content_blocks: originalPost.content_blocks || {},  // Copy content_blocks
         is_published: originalPost.is_published,
         display_order: nextOrder
       }])

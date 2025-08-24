@@ -91,7 +91,15 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
       setLoading(true)
       setError(null)
       
-      const draftData = { ...formData, is_published: false }
+      const draftData = { 
+        title: formData.title,
+        slug: formData.slug,
+        meta_description: formData.meta_description,
+        featured_image: formData.featured_image,
+        excerpt: formData.excerpt,
+        content: formData.content, // Send content field
+        is_published: false 
+      }
       const { data, error: actionError } = await createPostAction(currentSite.id, draftData)
       
       if (actionError) {
@@ -125,7 +133,15 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
       setLoading(true)
       setError(null)
       
-      const publishData = { ...formData, is_published: true }
+      const publishData = { 
+        title: formData.title,
+        slug: formData.slug,
+        meta_description: formData.meta_description,
+        featured_image: formData.featured_image,
+        excerpt: formData.excerpt,
+        content: formData.content, // Send content field
+        is_published: true 
+      }
       const { data, error: actionError } = await createPostAction(currentSite.id, publishData)
       
       if (actionError) {
