@@ -15,17 +15,17 @@ import {
   Settings,
 } from "lucide-react"
 
-import { NavMain } from "@/components/admin/sidebar/nav-main"
-import { NavProjects } from "@/components/admin/sidebar/nav-projects"
-import { NavUser } from "@/components/admin/sidebar/nav-user"
-import { SiteSwitcherMenu } from "@/components/admin/sidebar/site-switcher-menu"
+import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
+import { NavProjects } from "@/components/admin/layout/sidebar/nav-projects"
+import { NavUser } from "@/components/admin/layout/sidebar/nav-user"
+import { SiteSwitcherMenu } from "@/components/admin/layout/sidebar/site-switcher-menu"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/admin/sidebar/sidebar"
+} from "@/components/admin/layout/sidebar/sidebar"
 import { useSiteContext } from "@/contexts/site-context"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

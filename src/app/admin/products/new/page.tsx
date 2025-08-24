@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/admin-layout"
+import { AdminLayout, AdminPageHeader, BasicBlock } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 
 export default function NewProductPage() {

@@ -18,7 +18,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   useSidebar,
-} from "@/components/admin/sidebar/sidebar"
+} from "@/components/admin/layout/sidebar/sidebar"
 
 export function NavMain({
   items,
