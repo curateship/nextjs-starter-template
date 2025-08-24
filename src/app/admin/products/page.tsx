@@ -23,8 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreateGlobalProductForm } from "@/components/admin/product-builder/create-global-product-form"
-import { ProductSettingsModal } from "@/components/admin/product-builder/product-settings-modal"
+import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
+import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
@@ -473,7 +473,7 @@ export default function ProductsPage() {
                     Add a new product to your catalog. You can customize the content after creation.
                   </DialogDescription>
                 </DialogHeader>
-                <CreateGlobalProductForm 
+                <CreateProductModal 
                   onSuccess={(product) => {
                     setProducts(prev => [...prev, product])
                     setShowCreateDialog(false)

@@ -12,12 +12,12 @@ import { createProductAction, updateProductBlocksAction } from "@/lib/actions/pr
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/product-actions"
 
-interface CreateGlobalProductFormProps {
+interface CreateProductModalProps {
   onSuccess: (product: Product) => void
   onCancel: () => void
 }
 
-export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalProductFormProps) {
+export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalProps) {
   const { currentSite } = useSiteContext()
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',

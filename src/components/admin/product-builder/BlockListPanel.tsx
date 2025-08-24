@@ -41,7 +41,7 @@ interface CurrentProduct {
   blocks: ProductBlock[]
 }
 
-interface ProductBlockListPanelProps {
+interface BlockListPanelProps {
   currentProduct: CurrentProduct
   selectedBlock: ProductBlock | null
   onSelectBlock: (block: ProductBlock) => void
@@ -131,7 +131,7 @@ function SortableProductBlockItem({
   )
 }
 
-export function ProductBlockListPanel({
+export function BlockListPanel({
   currentProduct,
   selectedBlock,
   onSelectBlock,
@@ -139,7 +139,7 @@ export function ProductBlockListPanel({
   onReorderBlocks,
   deleting,
   blocksLoading = false
-}: ProductBlockListPanelProps) {
+}: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<ProductBlock | null>(null)
   

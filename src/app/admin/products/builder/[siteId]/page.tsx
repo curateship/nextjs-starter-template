@@ -10,9 +10,9 @@ import { useProductData } from "@/hooks/useProductData"
 import { useProductBuilder } from "@/hooks/useProductBuilder"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductBuilderHeader } from "@/components/admin/product-builder/ProductBuilderHeader"
-import { ProductBlockPropertiesPanel } from "@/components/admin/product-builder/ProductBlockPropertiesPanel"
-import { ProductBlockListPanel } from "@/components/admin/product-builder/ProductBlockListPanel"
-import { ProductBlockTypesPanel } from "@/components/admin/product-builder/ProductBlockTypesPanel"
+import { BlockPropertiesPanel } from "@/components/admin/product-builder/BlockPropertiesPanel"
+import { BlockListPanel } from "@/components/admin/product-builder/BlockListPanel"
+import { BlockTypesPanel } from "@/components/admin/product-builder/BlockTypesPanel"
 import { getSiteProductsAction } from "@/lib/actions/product-actions"
 import type { Product } from "@/lib/actions/product-actions"
 
@@ -186,7 +186,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         />
         
         <div className="flex-1 flex">
-          <ProductBlockPropertiesPanel
+          <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.updateBlockContent}
             siteId={siteId}
@@ -209,7 +209,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             blocksLoading={blocksLoading}
           />
           
-          <ProductBlockListPanel
+          <BlockListPanel
             currentProduct={currentProduct}
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
@@ -219,7 +219,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             blocksLoading={blocksLoading}
           />
           
-          <ProductBlockTypesPanel
+          <BlockTypesPanel
             onAddProductDefaultBlock={builderState.handleAddProductDefaultBlock}
             onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
             onAddProductFeaturesBlock={builderState.handleAddProductFeaturesBlock}
