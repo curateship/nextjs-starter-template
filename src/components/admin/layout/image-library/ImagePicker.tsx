@@ -65,10 +65,17 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
     }
   }
 
-  const filteredImages = images.filter(image => 
-    image.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (image.alt_text && image.alt_text.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  const filteredImages = images
+    .filter(image => 
+      image.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (image.alt_text && image.alt_text.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+    .sort((a, b) => {
+      // Move currently selected image to the front
+      if (currentImageUrl && a.public_url === currentImageUrl) return -1
+      if (currentImageUrl && b.public_url === currentImageUrl) return 1
+      return 0
+    })
 
   const handleSelectImage = () => {
     if (selectedImage) {

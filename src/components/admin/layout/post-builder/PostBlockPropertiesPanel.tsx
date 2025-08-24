@@ -1,21 +1,19 @@
 import { PostContentBlock } from "@/components/admin/layout/post-builder/PostContentBlock"
 import { PostPreview } from "./PostPreview"
+import type { PostBlock } from "@/lib/actions/post-actions"
 
-interface PostBlock {
+interface PostBlockWithId extends PostBlock {
   id: string
-  type: string
-  title: string
-  content: Record<string, any>
 }
 
 interface PostBlockPropertiesPanelProps {
-  selectedBlock: PostBlock | null
-  updateBlockContent: (field: string, value: any) => void
+  selectedBlock: PostBlockWithId | null
+  updateBlockContent: (blockId: string, updates: Partial<PostBlockWithId>) => void
   siteId: string
   currentPost?: {
     slug: string
     name: string
-    blocks: PostBlock[]
+    blocks: PostBlockWithId[]
     id?: string
     title?: string
     meta_description?: string
@@ -52,11 +50,40 @@ export function PostBlockPropertiesPanel({
       {selectedBlock ? (
         <div>
           <div className="space-y-4">
-            {selectedBlock.type === 'post-content' && (
+            {(selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content') && (
               <PostContentBlock
-                content={selectedBlock.content.content || ''}
-                onContentChange={(value) => updateBlockContent('content', value)}
+                block={selectedBlock}
+                onContentChange={(content: Record<string, any>) => 
+                  updateBlockContent(selectedBlock.id, { content })
+                }
+                postData={{
+                  title: currentPost?.title,
+                  meta_description: currentPost?.meta_description,
+                  excerpt: currentPost?.excerpt
+                }}
+                isDefaultBlock={selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content'}
               />
+            )}
+            {/* Future block types can be added here */}
+            {selectedBlock.type === 'image' && (
+              <div className="text-center text-muted-foreground p-8">
+                Image block editor coming soon
+              </div>
+            )}
+            {selectedBlock.type === 'code' && (
+              <div className="text-center text-muted-foreground p-8">
+                Code block editor coming soon
+              </div>
+            )}
+            {selectedBlock.type === 'quote' && (
+              <div className="text-center text-muted-foreground p-8">
+                Quote block editor coming soon
+              </div>
+            )}
+            {selectedBlock.type === 'divider' && (
+              <div className="text-center text-muted-foreground p-8">
+                Divider block editor coming soon
+              </div>
             )}
           </div>
         </div>

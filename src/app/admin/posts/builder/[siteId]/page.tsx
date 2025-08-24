@@ -6,8 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { usePostData } from "@/hooks/usePostData"
 import { usePostBuilder } from "@/hooks/usePostBuilder"
+import type { PostBlock as DBPostBlock } from "@/lib/actions/post-block-actions"
+import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostBuilderHeader } from "@/components/admin/layout/post-builder/PostBuilderHeader"
 import { PostBlockPropertiesPanel } from "@/components/admin/layout/post-builder/PostBlockPropertiesPanel"
@@ -22,9 +23,10 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const searchParams = useSearchParams()
   const { currentSite } = useSiteContext()
   const [posts, setPosts] = useState<Post[]>([])
-  const [postsLoading, setPostsLoading] = useState(true)
-  const [postsError, setPostsError] = useState<string | null>(null)
-  const [siteBlocks, setSiteBlocks] = useState<{ navigation?: any; footer?: any } | null>(null)
+  const [site, setSite] = useState<SiteWithTheme | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [localBlocks, setLocalBlocks] = useState<Record<string, any>>({})
   
   // Get initial post from URL params or default to first post
   const initialPost = searchParams.get('post') || ''
@@ -35,119 +37,82 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     if (currentSite && currentSite.id !== siteId) {
       router.push(`/admin/posts/builder/${currentSite.id}`)
     }
-  }, [currentSite, siteId, router])
+  }, [currentSite, siteId]) // Don't include router - it's stable
   
-  // Load posts data (using mock data for now)
+  // Load site and posts data
   useEffect(() => {
-    async function loadPosts() {
+    async function loadData() {
       try {
-        setPostsLoading(true)
-        setPostsError(null)
+        setLoading(true)
+        setError(null)
         
-        // Mock posts data for UI
-        const mockPosts: Post[] = [
-          {
-            id: '1',
-            site_id: siteId,
-            title: 'Sample Blog Post',
-            slug: 'sample-blog-post',
-            meta_description: 'A sample blog post for testing',
-            featured_image: null,
-            excerpt: 'This is a sample blog post excerpt',
-            content: 'Sample content here',
-            is_published: true,
-            display_order: 1,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          {
-            id: '2',
-            site_id: siteId,
-            title: 'Another Post',
-            slug: 'another-post',
-            meta_description: 'Another sample post',
-            featured_image: null,
-            excerpt: 'Another post excerpt',
-            content: 'Another post content',
-            is_published: false,
-            display_order: 2,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ]
+        // Load site data
+        const siteResult = await getSiteByIdAction(siteId)
+        if (!siteResult.data) {
+          setError(siteResult.error || 'Failed to load site')
+          return
+        }
+        setSite(siteResult.data)
         
-        setPosts(mockPosts)
+        // Load posts data
+        const postsResult = await getSitePostsAction(siteId)
+        if (!postsResult.data) {
+          setError(postsResult.error || 'Failed to load posts')
+          return
+        }
+        
+        setPosts(postsResult.data)
         
         // If initial post doesn't exist, redirect to first post
-        if (mockPosts && mockPosts.length > 0) {
-          const postExists = mockPosts.some(p => p.slug === initialPost)
+        if (postsResult.data.length > 0) {
+          const postExists = postsResult.data.some((p: Post) => p.slug === initialPost)
           if (!postExists) {
-            const firstPost = mockPosts[0]
+            const firstPost = postsResult.data[0]
             setSelectedPost(firstPost.slug)
             router.replace(`/admin/posts/builder/${siteId}?post=${firstPost.slug}`)
           }
         }
       } catch (err) {
-        setPostsError('Failed to load posts')
+        setError('Failed to load data')
       } finally {
-        setPostsLoading(false)
+        setLoading(false)
       }
     }
     
-    loadPosts()
-  }, [siteId, initialPost, router])
+    loadData()
+  }, [siteId, initialPost])
   
-  // Load site blocks for navigation and footer (mock for now)
-  useEffect(() => {
-    async function loadSiteBlocks() {
-      try {
-        // Mock site blocks
-        setSiteBlocks({
-          navigation: { logo: 'Site Logo', menuItems: [] },
-          footer: { content: 'Footer content' }
-        })
-      } catch (error) {
-        console.error('Failed to load site blocks:', error)
-      }
-    }
-
-    loadSiteBlocks()
-  }, [siteId])
   
-  // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePostData(siteId)
-  const [localBlocks, setLocalBlocks] = useState(blocks)
-  
-  // Update local blocks when server blocks change
-  useEffect(() => {
-    setLocalBlocks(blocks)
-  }, [blocks])
-  
-  const builderState = usePostBuilder({ 
-    blocks: localBlocks, 
-    setBlocks: setLocalBlocks, 
-    selectedPost,
-    postId: posts.find(p => p.slug === selectedPost)?.id,
-    currentPost: posts.find(p => p.slug === selectedPost)
-  })
-  
-  // Current post data with staged deletions filtered out
+  // Current post data
   const currentPostData = posts.find(p => p.slug === selectedPost)
+  const currentPostId = currentPostData?.id
+  
+  // Update local blocks when post data changes
+  useEffect(() => {
+    if (currentPostData?.content_blocks) {
+      setLocalBlocks(currentPostData.content_blocks)
+    } else {
+      setLocalBlocks({})
+    }
+  }, [selectedPost, currentPostData?.id])
+  
+  // Post builder hook for block management - just like products
+  const builderState = usePostBuilder({
+    blocks: localBlocks,
+    setBlocks: setLocalBlocks,
+    postId: currentPostId || '',
+    selectedPost
+  })
   const currentPost = {
     slug: selectedPost,
     name: currentPostData?.title || selectedPost,
-    blocks: localBlocks[selectedPost] || []
+    blocks: Object.values(builderState.blocks).sort((a, b) => a.display_order - b.display_order) as any
   }
   
   // Handle post change with URL update
   const handlePostChange = (postSlug: string) => {
     if (postSlug !== selectedPost) {
       setSelectedPost(postSlug)
-      // Ensure blocks array exists for this post
-      setLocalBlocks(prev => ({
-        ...prev,
-        [postSlug]: prev[postSlug] || []
-      }))
       router.replace(`/admin/posts/builder/${siteId}?post=${postSlug}`)
     }
   }
@@ -155,11 +120,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Handle post creation
   const handlePostCreated = (newPost: Post) => {
     setPosts(prev => [...prev, newPost])
-    // Initialize blocks array for the new post
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newPost.slug]: []
-    }))
     // Switch to the newly created post
     setSelectedPost(newPost.slug)
     router.replace(`/admin/posts/builder/${siteId}?post=${newPost.slug}`)
@@ -169,32 +129,21 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const handlePostUpdated = (updatedPost: Post) => {
     setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
     
-    // If the slug changed, we need to update our local blocks and URL
+    // If the slug changed, update selected post and URL
     const currentPost = posts.find(p => p.id === updatedPost.id)
     if (currentPost && currentPost.slug !== updatedPost.slug) {
-      // Move blocks from old slug to new slug
-      setLocalBlocks(prev => {
-        const blocksForPost = prev[currentPost.slug] || []
-        const { [currentPost.slug]: removed, ...rest } = prev
-        return {
-          ...rest,
-          [updatedPost.slug]: blocksForPost
-        }
-      })
-      
-      // Update selected post and URL
       setSelectedPost(updatedPost.slug)
       router.replace(`/admin/posts/builder/${siteId}?post=${updatedPost.slug}`)
     }
   }
 
   // Only show loading state for critical errors (not during normal loading)
-  if (!site && siteError) {
+  if (!site && error) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-red-600 mb-2">{siteError}</p>
+            <p className="text-red-600 mb-2">{error}</p>
             <p className="text-sm text-muted-foreground mb-4">
               Site ID: <code>{siteId}</code>
             </p>
@@ -215,6 +164,93 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     )
   }
 
+  // Show loading skeleton
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="flex flex-col -m-4 -mt-6 h-full">
+          {/* Header Skeleton */}
+          <div className="bg-background border-b p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="h-8 bg-gray-200 rounded animate-pulse w-32"></div>
+                <div className="h-8 bg-gray-200 rounded animate-pulse w-24"></div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="h-8 bg-gray-200 rounded animate-pulse w-20"></div>
+                <div className="h-8 bg-gray-200 rounded animate-pulse w-16"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 flex">
+            {/* PostBlockPropertiesPanel - Large Preview Area */}
+            <div className="flex-1 border-r bg-muted/30 p-4">
+              <div className="bg-white h-full">
+                <div className="p-8 space-y-8">
+                  {/* Preview header skeleton */}
+                  <div className="text-center space-y-4">
+                    <div className="h-12 bg-gray-200 rounded animate-pulse w-3/4 mx-auto"></div>
+                    <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2 mx-auto"></div>
+                  </div>
+                  
+                  {/* Preview content blocks skeleton */}
+                  <div className="space-y-6">
+                    <div className="h-64 bg-gray-100 rounded animate-pulse"></div>
+                    <div className="space-y-3">
+                      <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                      <div className="h-4 bg-gray-100 rounded animate-pulse w-4/5"></div>
+                      <div className="h-4 bg-gray-100 rounded animate-pulse w-3/5"></div>
+                    </div>
+                    <div className="h-32 bg-gray-100 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* PostBlockListPanel */}
+            <div className="w-[400px] p-6">
+              <div className="max-w-3xl mx-auto">
+                <div className="h-7 bg-gray-200 rounded animate-pulse w-1/2 mb-6"></div>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+                          <div className="h-3 bg-gray-100 rounded animate-pulse w-2/3"></div>
+                        </div>
+                        <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* PostBlockTypesPanel */}
+            <div className="w-64 border-l p-4">
+              <div className="space-y-4">
+                <div className="h-6 bg-gray-200 rounded animate-pulse w-24"></div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-3 rounded-lg border bg-background flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
+                      </div>
+                      <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    )
+  }
 
   return (
     <AdminLayout>
@@ -226,50 +262,55 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onPostCreated={handlePostCreated}
           onPostUpdated={handlePostUpdated}
           saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
+          isSaving={false}
+          onSave={() => {}}
           onPreviewPost={() => builderState.setSelectedBlock(null)}
-          postsLoading={postsLoading}
+          postsLoading={loading}
         />
         
         <div className="flex-1 flex">
           <PostBlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
+            updateBlockContent={builderState.handleUpdateBlock}
             siteId={siteId}
             currentPost={{
               ...currentPost,
               id: currentPostData?.id,
               title: currentPostData?.title,
-              meta_description: currentPostData?.meta_description,
+              meta_description: currentPostData?.meta_description || undefined,
               site_id: currentPostData?.site_id,
-              featured_image: currentPostData?.featured_image,
-              excerpt: currentPostData?.excerpt
+              featured_image: currentPostData?.featured_image || undefined,
+              excerpt: currentPostData?.excerpt || undefined
             }}
             site={{
               id: siteId,
               name: site?.name || 'Post Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
+              subdomain: site?.subdomain || 'preview'
             }}
             siteBlocks={{
-              navigation: site?.settings?.navigation || siteBlocks?.navigation,
-              footer: site?.settings?.footer || siteBlocks?.footer
+              navigation: site?.settings?.navigation,
+              footer: site?.settings?.footer
             }}
-            blocksLoading={blocksLoading}
+            blocksLoading={loading}
           />
           
           <PostBlockListPanel
             currentPost={currentPost}
-            selectedBlock={builderState.selectedBlock}
+            selectedBlock={builderState.selectedBlock as any}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            blocksLoading={blocksLoading}
+            blocksLoading={loading}
+            postData={{
+              title: currentPostData?.title,
+              meta_description: currentPostData?.meta_description,
+              excerpt: currentPostData?.excerpt
+            }}
           />
           
           <PostBlockTypesPanel
-            onAddPostContentBlock={builderState.handleAddPostContentBlock}
+            onAddRichTextBlock={builderState.handleAddRichTextBlock}
+            currentBlocks={Object.values(builderState.blocks)}
           />
         </div>
       </div>

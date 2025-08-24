@@ -271,6 +271,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
   const [menuState, setMenuState] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   
   // Timeout ref for dropdown hover delay
   const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -278,13 +279,20 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
   // Track scroll progress for navbar background effect
   const { scrollYProgress } = useScroll()
 
+  // Handle client-side mounting to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Update scrolled state based on scroll position
   useEffect(() => {
+    if (!mounted) return
+    
     const unsubscribe = scrollYProgress.on('change', (latest) => {
       setScrolled(latest > 0.01)
     })
     return () => unsubscribe()
-  }, [scrollYProgress])
+  }, [scrollYProgress, mounted])
 
   // Handle dropdown hover with delay to prevent accidental closing
   const handleDropdownMouseEnter = () => {
@@ -329,11 +337,11 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
         className={cn(
           'fixed z-20 w-full border-b transition-colors duration-150',
           !style && 'bg-background',
-          scrolled && !style && 'bg-background/50 backdrop-blur-xl',
-          scrolled && style && blurEffect !== 'none' && blurClass
+          mounted && scrolled && !style && 'bg-background/50 backdrop-blur-xl',
+          mounted && scrolled && style && blurEffect !== 'none' && blurClass
         )}
         style={style ? {
-          backgroundColor: scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
+          backgroundColor: mounted && scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
         } : undefined}
       >
         <div className="mx-auto w-full max-w-6xl px-4 md:px-6">

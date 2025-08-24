@@ -30,9 +30,10 @@ interface ListingViewsBlockProps {
     backgroundColor?: string
   }
   siteId: string
+  siteSubdomain?: string
 }
 
-export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
+export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
@@ -229,7 +230,7 @@ export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
         }}
         viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
           text: viewAllText,
-          href: `/${siteSubdomain}${viewAllLink}`
+          href: siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink
         } : undefined}
       >
         <div className={`grid ${gridColumns} gap-8`}>
@@ -263,7 +264,7 @@ export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
         }}
         viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
           text: viewAllText,
-          href: `/${siteSubdomain}${viewAllLink}`
+          href: siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink
         } : undefined}
       >
         <p className="text-muted-foreground text-center py-8">
@@ -284,7 +285,7 @@ export function ListingViewsBlock({ content, siteId }: ListingViewsBlockProps) {
       }}
       viewAllButton={viewAllText && viewAllLink && !isPaginated ? {
         text: viewAllText,
-        href: `/${siteSubdomain}${viewAllLink}`
+        href: siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink
       } : undefined}
     >
       <div className={`grid ${gridColumns} gap-8`}>
