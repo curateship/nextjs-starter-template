@@ -2,12 +2,12 @@
 
 import { PageHeroBlock } from "@/components/frontend/pages/PageHeroBlock"
 import { PostGridBlock } from "@/components/frontend/posts/PostGridBlock"
-import { FaqBlock } from "@/components/frontend/pages/FaqBlock"
+import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"
 import { ProductGridBlock } from "@/components/frontend/products/ProductGridBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { RichTextBlock } from "@/components/frontend/pages/RichTextBlock"
-import { ListingViewsBlock } from "@/components/frontend/pages/ListingViewsBlock"
-import { DividerBlock } from "@/components/frontend/pages/DividerBlock"
+import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
+import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBlock"
+import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 
 interface BlockRendererProps {
