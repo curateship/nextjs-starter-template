@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/admin-layout"
+import { SiteDashboard } from "@/components/admin/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -23,8 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreateGlobalProductForm } from "@/components/admin/layout/product-builder/create-global-product-form"
-import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
+import { CreateGlobalProductForm } from "@/components/admin/product-builder/create-global-product-form"
+import { ProductSettingsModal } from "@/components/admin/product-builder/product-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"

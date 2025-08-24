@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2, ImageIcon } from "lucide-react"
-import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
+import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
-import { FontSelector } from "@/components/admin/layout/page-builder/font-selector"
+import { FontSelector } from "@/components/admin/page-builder/font-selector"
 
 interface SiteDashboardProps {
   siteName: string

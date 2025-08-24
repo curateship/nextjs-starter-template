@@ -17,7 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Skeleton } from "@/components/admin/layout/dashboard/skeleton"
+import { Skeleton } from "@/components/admin/dashboard/skeleton"
 import {
   Tooltip,
   TooltipContent,

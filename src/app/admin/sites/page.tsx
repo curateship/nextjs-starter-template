@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Eye, Settings, Trash2, Edit, MoreHorizontal, Globe } from "lucide-react"
 import {

@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -22,8 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreatePageForm } from "@/components/admin/layout/page-builder/create-page-form"
-import { PageSettingsModal } from "@/components/admin/layout/page-builder/page-settings-modal"
+import { CreatePageForm } from "@/components/admin/page-builder/create-page-form"
+import { PageSettingsModal } from "@/components/admin/page-builder/page-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
 import { getSitePagesAction, deletePageAction, duplicatePageAction } from "@/lib/actions/page-actions"
 import type { Page } from "@/lib/actions/page-actions"

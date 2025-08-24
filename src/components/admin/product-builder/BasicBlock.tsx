@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Upload, X } from "lucide-react"
-import { RichTextEditor } from "@/components/admin/layout/page-builder/RichTextEditor"
+import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
 
 interface BasicBlockProps {
   title: string

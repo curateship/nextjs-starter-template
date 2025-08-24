@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ImagePicker } from "@/components/admin/layout/image-library/ImagePicker"
+import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { useState, useEffect } from "react"
 import {

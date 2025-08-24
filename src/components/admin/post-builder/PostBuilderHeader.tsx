@@ -11,8 +11,8 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { PostSettingsModal } from "@/components/admin/layout/post-builder/post-settings-modal"
-import { CreateGlobalPostForm } from "@/components/admin/layout/post-builder/create-global-post-form"
+import { PostSettingsModal } from "@/components/admin/post-builder/post-settings-modal"
+import { CreateGlobalPostForm } from "@/components/admin/post-builder/create-global-post-form"
 import type { Post } from "@/lib/actions/post-actions"
 
 interface PostBuilderHeaderProps {

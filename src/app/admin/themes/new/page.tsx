@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { ThemeDashboard } from "@/components/admin/layout/dashboard/ThemeDashboard"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/admin-layout"
+import { ThemeDashboard } from "@/components/admin/dashboard/ThemeDashboard"
 
 export default function NewThemePage() {
   const [title, setTitle] = useState("")

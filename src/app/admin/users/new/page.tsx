@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/admin-layout"
 import { UserBlock } from "@/components/ui/user-block"
 
 export default function NewUserPage() {

@@ -1,4 +1,4 @@
-import { PostContentBlock } from "@/components/admin/layout/post-builder/PostContentBlock"
+import { PostContentBlock } from "@/components/admin/post-builder/PostContentBlock"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/post-actions"
 
