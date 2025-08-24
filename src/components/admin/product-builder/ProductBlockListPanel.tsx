@@ -64,7 +64,7 @@ function SortableProductBlockItem({
   selectedBlock: ProductBlock | null
   onSelectBlock: (block: ProductBlock) => void
   deleting: string | null
-  getBlockIcon: (blockType: string) => JSX.Element
+  getBlockIcon: (blockType: string) => React.ReactElement
   handleDeleteClick: (block: ProductBlock) => void
 }) {
   const {

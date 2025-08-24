@@ -27,13 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-
-interface PostBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+import type { PostBlock } from "@/lib/actions/post-block-actions"
 
 interface CurrentPost {
   slug: string
@@ -47,10 +41,10 @@ interface PostData {
   excerpt?: string
 }
 
-interface PostBlockListPanelProps {
+interface BlockListPanelProps {
   currentPost: CurrentPost
   selectedBlock: PostBlock | null
-  onSelectBlock: (block: PostBlock) => void
+  onSelectBlock: (block: PostBlock | null) => void
   onDeleteBlock: (block: PostBlock) => void
   onReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
   deleting: string | null
@@ -71,9 +65,9 @@ function SortablePostBlockItem({
 }: {
   block: PostBlock
   selectedBlock: PostBlock | null
-  onSelectBlock: (block: PostBlock) => void
+  onSelectBlock: (block: PostBlock | null) => void
   deleting: string | null
-  getBlockIcon: (blockType: string) => JSX.Element
+  getBlockIcon: (blockType: string) => React.ReactElement
   handleDeleteClick: (block: PostBlock) => void
   isDefaultBlock: (block: PostBlock) => boolean
   postTitle?: string
@@ -150,7 +144,7 @@ function SortablePostBlockItem({
   )
 }
 
-export function PostBlockListPanel({
+export function BlockListPanel({
   currentPost,
   selectedBlock,
   onSelectBlock,
@@ -159,7 +153,7 @@ export function PostBlockListPanel({
   deleting,
   blocksLoading = false,
   postData
-}: PostBlockListPanelProps) {
+}: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<PostBlock | null>(null)
   

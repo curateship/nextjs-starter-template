@@ -6,18 +6,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { PageRichTextEditorBlock as PagePageRichTextEditorBlockBlock } from "@/components/admin/page-builder/blocks/PagePageRichTextEditorBlockBlock"
+import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createPostAction } from "@/lib/actions/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post, CreatePostData } from "@/lib/actions/post-actions"
 
-interface CreateGlobalPostFormProps {
+interface CreatePostModalProps {
   onSuccess: (post: Post) => void
   onCancel: () => void
 }
 
-export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFormProps) {
+export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const { currentSite } = useSiteContext()
   const [formData, setFormData] = useState<CreatePostData>({
     title: '',

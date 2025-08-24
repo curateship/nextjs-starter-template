@@ -194,7 +194,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               ...currentProduct,
               id: currentProductData?.id,
               title: currentProductData?.title,
-              meta_description: currentProductData?.meta_description,
+              meta_description: currentProductData?.description || undefined,
               site_id: currentProductData?.site_id,
               featured_image: currentProductData?.featured_image,
               description: currentProductData?.description
@@ -215,6 +215,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            deleting={null}
             blocksLoading={blocksLoading}
           />
           

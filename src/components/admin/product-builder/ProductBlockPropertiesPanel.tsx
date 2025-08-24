@@ -35,6 +35,10 @@ interface ProductBlockPropertiesPanelProps {
     id: string
     name: string
     subdomain: string
+    settings?: {
+      navigation?: any
+      footer?: any
+    }
   }
   allBlocks?: Record<string, any[]>
   blocksLoading?: boolean

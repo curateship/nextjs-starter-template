@@ -7,7 +7,7 @@ interface PostBlock {
   content: Record<string, any>
 }
 
-interface PostBlockTypesPanelProps {
+interface BlockTypesPanelProps {
   onAddPostContentBlock?: () => void
   onAddRichTextBlock?: () => void
   onAddImageBlock?: () => void
@@ -17,7 +17,7 @@ interface PostBlockTypesPanelProps {
   currentBlocks?: PostBlock[]
 }
 
-export function PostBlockTypesPanel({ 
+export function BlockTypesPanel({ 
   onAddPostContentBlock,
   onAddRichTextBlock,
   onAddImageBlock,
@@ -25,7 +25,7 @@ export function PostBlockTypesPanel({
   onAddQuoteBlock,
   onAddDividerBlock,
   currentBlocks = []
-}: PostBlockTypesPanelProps) {
+}: BlockTypesPanelProps) {
   // Check if default block already exists
   const hasDefaultBlock = currentBlocks.some(block => 
     block.type === 'rich-text' || block.type === 'post-content'
