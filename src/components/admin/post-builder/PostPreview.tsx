@@ -2,8 +2,8 @@
 
 import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { RichTextBlock } from "@/components/frontend/layout/pages/RichTextBlock"
-import { FaqBlock } from "@/components/frontend/layout/pages/FaqBlock"
+import { RichTextBlock } from "@/components/frontend/pages/RichTextBlock"
+import { FaqBlock } from "@/components/frontend/pages/FaqBlock"
 import type { Block } from "@/lib/types/blocks"
 
 interface PostBlock {

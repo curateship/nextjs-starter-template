@@ -1,4 +1,4 @@
-import { ProductBlockRenderer } from "@/components/frontend/layout/products/product-block-renderer"
+import { ProductBlockRenderer } from "@/components/frontend/products/product-block-renderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-headers"
 import { getProductBySlug } from "@/lib/actions/product-frontend-actions"
 import { notFound } from "next/navigation"

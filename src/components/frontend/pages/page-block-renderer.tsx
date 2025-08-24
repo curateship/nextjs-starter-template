@@ -1,13 +1,13 @@
 "use client"
 
-import { PageHeroBlock } from "@/components/frontend/layout/pages/PageHeroBlock"
-import { PostGridBlock } from "@/components/frontend/layout/posts/PostGridBlock"
-import { FaqBlock } from "@/components/frontend/layout/pages/FaqBlock"
-import { ProductGridBlock } from "@/components/frontend/layout/products/ProductGridBlock"
+import { PageHeroBlock } from "@/components/frontend/pages/PageHeroBlock"
+import { PostGridBlock } from "@/components/frontend/posts/PostGridBlock"
+import { FaqBlock } from "@/components/frontend/pages/FaqBlock"
+import { ProductGridBlock } from "@/components/frontend/products/ProductGridBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { RichTextBlock } from "@/components/frontend/layout/pages/RichTextBlock"
-import { ListingViewsBlock } from "@/components/frontend/layout/pages/ListingViewsBlock"
-import { DividerBlock } from "@/components/frontend/layout/pages/DividerBlock"
+import { RichTextBlock } from "@/components/frontend/pages/RichTextBlock"
+import { ListingViewsBlock } from "@/components/frontend/pages/ListingViewsBlock"
+import { DividerBlock } from "@/components/frontend/pages/DividerBlock"
 import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
 
 interface BlockRendererProps {
