@@ -1,4 +1,4 @@
-import { BlockRenderer } from "@/components/frontend/pages/page-block-renderer"
+import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-headers"
 import { notFound } from "next/navigation"
 
