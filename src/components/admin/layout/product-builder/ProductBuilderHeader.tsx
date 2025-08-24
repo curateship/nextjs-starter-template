@@ -12,7 +12,7 @@ import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
-import { CreateProductForm } from "@/components/admin/layout/product-builder/create-product-form"
+import { CreateGlobalProductForm } from "@/components/admin/layout/product-builder/create-global-product-form"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -159,28 +159,25 @@ export function ProductBuilderHeader({
       
       {/* Create Product Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
           <DialogHeader>
             <DialogTitle>Create New Product</DialogTitle>
             <DialogDescription>
               Add a new product to your catalog. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
-          {currentSite?.id && (
-            <CreateProductForm 
-              siteId={currentSite.id}
-              onSuccess={(product) => {
-                // Add the new product to the list if callback exists
-                if (onProductCreated) {
-                  onProductCreated(product)
-                }
-                setShowCreateDialog(false)
-                // Navigate to the new product's builder page
-                onProductChange(product.slug)
-              }}
-              onCancel={() => setShowCreateDialog(false)}
-            />
-          )}
+          <CreateGlobalProductForm 
+            onSuccess={(product) => {
+              // Add the new product to the list if callback exists
+              if (onProductCreated) {
+                onProductCreated(product)
+              }
+              setShowCreateDialog(false)
+              // Navigate to the new product's builder page
+              onProductChange(product.slug)
+            }}
+            onCancel={() => setShowCreateDialog(false)}
+          />
         </DialogContent>
       </Dialog>
 

@@ -467,11 +467,8 @@ export default function PostsPage() {
                   <X className="h-4 w-4" />
                   <span className="sr-only">Close</span>
                 </DialogPrimitive.Close>
-                <DialogHeader>
+                <DialogHeader className="mb-6">
                   <DialogTitle>Create New Post</DialogTitle>
-                  <DialogDescription>
-                    Add a new blog post to your site. You can customize the content after creation.
-                  </DialogDescription>
                 </DialogHeader>
                 <CreateGlobalPostForm 
                   onSuccess={(post) => {

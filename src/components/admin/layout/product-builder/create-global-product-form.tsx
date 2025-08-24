@@ -212,11 +212,11 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
         <Label htmlFor="featured_image">Featured Image</Label>
         <div className="mt-2">
           {featuredImage ? (
-            <div className="relative rounded-lg overflow-hidden bg-muted">
+            <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
               <img 
                 src={featuredImage} 
                 alt="Featured image preview" 
-                className="w-full h-48 object-cover"
+                className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
               <button
@@ -237,7 +237,7 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
             </div>
           ) : (
             <div 
-              className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+              className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
               onClick={() => setShowImagePicker(true)}
             >
               <div className="text-center">
@@ -262,6 +262,7 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
             hideEditorHeader: true
           }}
           onContentChange={(content) => setRichTextContent(content.content)}
+          compact={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the product description (will be saved as a product block)

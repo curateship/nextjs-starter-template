@@ -501,12 +501,9 @@ export default function SitePagesPage({ params }: PageProps) {
         
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
+          <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+            <DialogHeader className="mb-6">
               <DialogTitle>Create New Page</DialogTitle>
-              <DialogDescription>
-                Add a new page to your site. You can customize the content after creation.
-              </DialogDescription>
             </DialogHeader>
             <CreatePageForm 
               siteId={siteId}

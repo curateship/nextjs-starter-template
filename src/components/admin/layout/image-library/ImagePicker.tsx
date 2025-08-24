@@ -181,7 +181,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
           <DialogTitle>Select Image</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-6">
             {/* Search and Upload */}
             <div className="flex gap-3">
               <div className="relative flex-1">
@@ -301,7 +301,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                   </Button>
                 </div>
               ) : (
-                <div className="max-h-[60vh] overflow-y-auto p-4">
+                <div className="max-h-[60vh] overflow-y-auto p-8">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {filteredImages.map((image) => (
                       <div

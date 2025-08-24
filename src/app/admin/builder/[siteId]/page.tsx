@@ -98,7 +98,9 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const currentPage = {
     slug: selectedPage,
     name: currentPageData?.title || selectedPage,
-    blocks: localBlocks[selectedPage] || []
+    blocks: (localBlocks[selectedPage] || []).filter((block, index, self) => 
+      index === self.findIndex(b => b.id === block.id)
+    )
   }
   
   // Handle page change with URL update

@@ -159,27 +159,22 @@ export function PostBuilderHeader({
       
       {/* Create Post Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+          <DialogHeader className="mb-4">
             <DialogTitle>Create New Post</DialogTitle>
-            <DialogDescription>
-              Add a new post to your blog. You can customize the content after creation.
-            </DialogDescription>
           </DialogHeader>
-          {currentSite?.id && (
-            <CreateGlobalPostForm 
-              onSuccess={(post) => {
-                // Add the new post to the list if callback exists
-                if (onPostCreated) {
-                  onPostCreated(post)
-                }
-                setShowCreateDialog(false)
-                // Navigate to the new post's builder page
-                onPostChange(post.slug)
-              }}
-              onCancel={() => setShowCreateDialog(false)}
-            />
-          )}
+          <CreateGlobalPostForm 
+            onSuccess={(post) => {
+              // Add the new post to the list if callback exists
+              if (onPostCreated) {
+                onPostCreated(post)
+              }
+              setShowCreateDialog(false)
+              // Navigate to the new post's builder page
+              onPostChange(post.slug)
+            }}
+            onCancel={() => setShowCreateDialog(false)}
+          />
         </DialogContent>
       </Dialog>
 
