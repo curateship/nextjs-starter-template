@@ -5118,3 +5118,31 @@ Should have immediately copied existing working skeleton patterns from products/
 - `/src/app/admin/posts/builder/[siteId]/page.tsx` - Added proper 3-panel skeleton loading structure
 
 **Impact**: Post builder now has skeleton loading that matches actual component layout.
+
+
+---
+
+## File Structure Standardization - August 24, 2025
+
+### **Task**: 
+Standardize product-builder component naming to match page-builder and post-builder patterns
+
+### **Changes Made**:
+1. **Panel Components Renamed**:
+   - `ProductBlockListPanel.tsx` → `BlockListPanel.tsx`
+   - `ProductBlockPropertiesPanel.tsx` → `BlockPropertiesPanel.tsx`  
+   - `ProductBlockTypesPanel.tsx` → `BlockTypesPanel.tsx`
+
+2. **Modal Components to PascalCase**:
+   - `create-global-product-form.tsx` → `CreateProductModal.tsx`
+   - `product-settings-modal.tsx` → `ProductSettingsModal.tsx`
+
+3. **Block Components Organized**:
+   - Created `blocks/` subfolder in product-builder
+   - Moved all `Product*Block.tsx` components into subfolder
+   - Updated `BasicBlock.tsx` → `blocks/ProductBasicBlock.tsx`
+
+4. **Import Updates**: Fixed all import statements across 8+ files
+
+### **Result**: 
+Unified naming architecture across page-builder, post-builder, and product-builder for consistent development experience.
