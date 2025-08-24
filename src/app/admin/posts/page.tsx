@@ -23,8 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreateGlobalPostForm } from "@/components/admin/post-builder/create-global-post-form"
-import { PostSettingsModal } from "@/components/admin/post-builder/post-settings-modal"
+import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
+import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, BookOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/post-actions"
@@ -470,7 +470,7 @@ export default function PostsPage() {
                 <DialogHeader className="mb-6">
                   <DialogTitle>Create New Post</DialogTitle>
                 </DialogHeader>
-                <CreateGlobalPostForm 
+                <CreatePostModal 
                   onSuccess={(post) => {
                     setPosts(prev => [...prev, post])
                     setShowCreateDialog(false)

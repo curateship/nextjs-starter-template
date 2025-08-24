@@ -71,7 +71,7 @@ function SortableBlockItem({
   onDeleteBlock: (block: Block) => Promise<void>
   deleting: string | null
   getBlockTypeName: (block: Block) => string
-  getBlockIcon: (blockType: string) => JSX.Element
+  getBlockIcon: (blockType: string) => React.ReactElement
   handleDeleteClick: (block: Block) => void
 }) {
   const isProtected = isBlockTypeProtected(block.type)

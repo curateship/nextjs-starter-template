@@ -44,7 +44,24 @@ Before implementing ANY feature, ask:
 
 **REMEMBER: The user losing data due to "safety" features is worse than any simple bug.**
 
-### 7. MANDATORY TASK CONFIRMATION PROTOCOL (NEVER SKIP)
+### 7. ABSOLUTELY NO SCOPE CREEP (CRITICAL RULE)
+- **ONLY fix the exact problem the user asked about** - nothing more, nothing less
+- **NEVER "fix" unrelated TypeScript warnings or compilation errors** unless they directly block the requested change
+- **NEVER optimize, refactor, or improve code that wasn't part of the request**
+- **If you see unrelated issues, IGNORE THEM** - they were working before and can keep working
+- **Pre-existing warnings/errors are NOT your problem unless specifically asked**
+- **When you see `npm run build` errors, only fix ones that are directly caused by your changes**
+- **Stop fucking around and just fix the problem at hand**
+
+### 8. MANDATORY SERVER VERIFICATION (NEVER SKIP)
+- **NEVER say "server is running" without actually testing it first**
+- **ALWAYS verify server response with `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000`**
+- **ALWAYS check if process exists with `lsof -ti:3000`**
+- **If server returns non-200 status or no process exists, DO NOT claim it's running**
+- **Test actual functionality, not just build output or "Ready" messages**
+- **A server that says "Ready" but doesn't respond to requests is NOT running**
+
+### 9. MANDATORY TASK CONFIRMATION PROTOCOL (NEVER SKIP)
 - **ALWAYS repeat back the user's request in your own words first**
 - **ALWAYS confirm what specific component/file/location you understand the issue to be in**
 - **ALWAYS state exactly which files you plan to examine before doing anything**

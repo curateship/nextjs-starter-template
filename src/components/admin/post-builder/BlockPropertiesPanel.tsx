@@ -1,12 +1,12 @@
-import { PostContentBlock } from "@/components/admin/post-builder/PostContentBlock"
+import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { PostPreview } from "./PostPreview"
-import type { PostBlock } from "@/lib/actions/post-actions"
+import type { PostBlock } from "@/lib/actions/post-block-actions"
 
 interface PostBlockWithId extends PostBlock {
   id: string
 }
 
-interface PostBlockPropertiesPanelProps {
+interface BlockPropertiesPanelProps {
   selectedBlock: PostBlockWithId | null
   updateBlockContent: (blockId: string, updates: Partial<PostBlockWithId>) => void
   siteId: string
@@ -35,7 +35,7 @@ interface PostBlockPropertiesPanelProps {
   onOpenPostSettings?: () => void
 }
 
-export function PostBlockPropertiesPanel({
+export function BlockPropertiesPanel({
   selectedBlock,
   updateBlockContent,
   siteId,
@@ -44,7 +44,7 @@ export function PostBlockPropertiesPanel({
   siteBlocks,
   blocksLoading = false,
   onOpenPostSettings
-}: PostBlockPropertiesPanelProps) {
+}: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
       {selectedBlock ? (

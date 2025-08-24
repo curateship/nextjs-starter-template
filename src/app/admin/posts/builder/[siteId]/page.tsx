@@ -11,9 +11,9 @@ import type { PostBlock as DBPostBlock } from "@/lib/actions/post-block-actions"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostBuilderHeader } from "@/components/admin/post-builder/PostBuilderHeader"
-import { PostBlockPropertiesPanel } from "@/components/admin/post-builder/PostBlockPropertiesPanel"
-import { PostBlockListPanel } from "@/components/admin/post-builder/PostBlockListPanel"
-import { PostBlockTypesPanel } from "@/components/admin/post-builder/PostBlockTypesPanel"
+import { BlockPropertiesPanel } from "@/components/admin/post-builder/BlockPropertiesPanel"
+import { BlockListPanel } from "@/components/admin/post-builder/BlockListPanel"
+import { BlockTypesPanel } from "@/components/admin/post-builder/BlockTypesPanel"
 import { getSitePostsAction } from "@/lib/actions/post-actions"
 import type { Post } from "@/lib/actions/post-actions"
 
@@ -269,7 +269,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         />
         
         <div className="flex-1 flex">
-          <PostBlockPropertiesPanel
+          <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.handleUpdateBlock}
             siteId={siteId}
@@ -294,21 +294,22 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             blocksLoading={loading}
           />
           
-          <PostBlockListPanel
+          <BlockListPanel
             currentPost={currentPost}
             selectedBlock={builderState.selectedBlock as any}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            deleting={null}
             blocksLoading={loading}
             postData={{
               title: currentPostData?.title,
-              meta_description: currentPostData?.meta_description,
-              excerpt: currentPostData?.excerpt
+              meta_description: currentPostData?.meta_description || undefined,
+              excerpt: currentPostData?.excerpt || undefined
             }}
           />
           
-          <PostBlockTypesPanel
+          <BlockTypesPanel
             onAddRichTextBlock={builderState.handleAddRichTextBlock}
             currentBlocks={Object.values(builderState.blocks)}
           />

@@ -11,8 +11,8 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { PostSettingsModal } from "@/components/admin/post-builder/post-settings-modal"
-import { CreateGlobalPostForm } from "@/components/admin/post-builder/create-global-post-form"
+import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
+import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
 import type { Post } from "@/lib/actions/post-actions"
 
 interface PostBuilderHeaderProps {
@@ -163,7 +163,7 @@ export function PostBuilderHeader({
           <DialogHeader className="mb-4">
             <DialogTitle>Create New Post</DialogTitle>
           </DialogHeader>
-          <CreateGlobalPostForm 
+          <CreatePostModal 
             onSuccess={(post) => {
               // Add the new post to the list if callback exists
               if (onPostCreated) {
