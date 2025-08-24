@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
+import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction, updateProductBlocksAction } from "@/lib/actions/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
@@ -255,7 +255,7 @@ export function CreateGlobalProductForm({ onSuccess, onCancel }: CreateGlobalPro
       {/* Rich Text Content */}
       <div>
         <Label htmlFor="rich_text">Product Description</Label>
-        <RichTextEditor
+        <PageRichTextEditorBlock
           content={{
             content: richTextContent,
             hideHeader: true,

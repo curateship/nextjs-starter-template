@@ -11,7 +11,7 @@ import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { getActiveThemesAction } from "@/lib/actions/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
-import { FontSelector } from "@/components/admin/page-builder/font-selector"
+import { FontSelector } from "@/components/admin/page-builder/FontSelector"
 
 interface SiteDashboardProps {
   siteName: string

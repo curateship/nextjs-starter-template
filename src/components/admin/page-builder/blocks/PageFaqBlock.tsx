@@ -134,7 +134,7 @@ function SortableFaqItem({
   )
 }
 
-export function SharedFaqBlock({
+export function PageFaqBlock({
   title = '',
   subtitle = '',
   headerAlign = 'left',

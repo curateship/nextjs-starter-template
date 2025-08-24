@@ -22,8 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreatePageForm } from "@/components/admin/page-builder/create-page-form"
-import { PageSettingsModal } from "@/components/admin/page-builder/page-settings-modal"
+import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
+import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
 import { getSitePagesAction, deletePageAction, duplicatePageAction } from "@/lib/actions/page-actions"
 import type { Page } from "@/lib/actions/page-actions"
@@ -505,7 +505,7 @@ export default function SitePagesPage({ params }: PageProps) {
             <DialogHeader className="mb-6">
               <DialogTitle>Create New Page</DialogTitle>
             </DialogHeader>
-            <CreatePageForm 
+            <CreatePageModal 
               siteId={siteId}
               onSuccess={(page) => {
                 setPages(prev => [...prev, page])

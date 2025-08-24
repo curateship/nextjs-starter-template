@@ -41,7 +41,7 @@ interface SharedListingViewsBlockProps {
   onBackgroundColorChange: (value: string) => void
 }
 
-export function SharedListingViewsBlock({
+export function PageListingViewBlock({
   title = 'Latest Products',
   subtitle = 'Check out our products',
   headerAlign = 'left',

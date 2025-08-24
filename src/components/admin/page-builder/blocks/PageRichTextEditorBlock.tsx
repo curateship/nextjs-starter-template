@@ -38,7 +38,7 @@ interface RichTextBlockProps {
   compact?: boolean
 }
 
-export function RichTextEditor({ content, onContentChange, compact = false }: RichTextBlockProps) {
+export function PageRichTextEditorBlock({ content, onContentChange, compact = false }: RichTextBlockProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({

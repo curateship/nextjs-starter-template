@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
+import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import Link from "next/link"
@@ -363,7 +363,7 @@ export function PostSettingsModal({
               {/* Post Content */}
               <div className="space-y-2">
                 <Label htmlFor="content">Post Content</Label>
-                <RichTextEditor
+                <PageRichTextEditorBlock
                   content={{
                     content: formData.content || '',
                     hideHeader: true,

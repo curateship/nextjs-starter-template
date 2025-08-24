@@ -217,7 +217,7 @@ function SortableLinkItem({
   )
 }
 
-export function NavigationBlock({
+export function PageNavigationBlock({
   logo,
   logoUrl,
   links = [],

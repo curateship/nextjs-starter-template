@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
+import { PageRichTextEditorBlock as PagePageRichTextEditorBlockBlock } from "@/components/admin/page-builder/blocks/PagePageRichTextEditorBlockBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createPostAction } from "@/lib/actions/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
@@ -272,7 +272,7 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
       {/* Post Content */}
       <div>
         <Label htmlFor="content">Post Content</Label>
-        <RichTextEditor
+        <PageRichTextEditorBlock
           content={{
             content: formData.content || '',
             hideHeader: true,

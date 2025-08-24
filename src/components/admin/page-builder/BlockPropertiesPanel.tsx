@@ -1,10 +1,10 @@
-import { PageHeroBlock } from "./PageHeroBlock"
-import { NavigationBlock } from "./NavigationBlock"
-import { FooterBlock } from "./FooterBlock"
-import { RichTextEditor } from "@/components/admin/page-builder/RichTextEditor"
-import { SharedFaqBlock } from "@/components/admin/page-builder/SharedFaqBlock"
-import { SharedListingViewsBlock } from "@/components/admin/page-builder/SharedListingViewsBlock"
-import { SharedDividerBlock } from "@/components/admin/page-builder/SharedDividerBlock"
+import { PageHeroBlock } from "./blocks/PageHeroBlock"
+import { PageNavigationBlock } from "./blocks/PageNavigationBlock"
+import { PageFooterBlock } from "./blocks/PageFooterBlock"
+import { PageRichTextEditorBlock } from "./blocks/PageRichTextEditorBlock"
+import { PageFaqBlock } from "./blocks/PageFaqBlock"
+import { PageListingViewBlock } from "./blocks/PageListingViewBlock"
+import { PageDividerBlock } from "./blocks/PageDividerBlock"
 import { PagePreview } from "./PagePreview"
 import type { Block } from "@/lib/types/blocks"
 
@@ -70,7 +70,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'navigation' && (
-              <NavigationBlock
+              <PageNavigationBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style'])}
                 siteId={siteId}
@@ -79,7 +79,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'footer' && (
-              <FooterBlock
+              <PageFooterBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style'])}
                 siteId={siteId}
@@ -87,7 +87,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'rich-text' && (
-              <RichTextEditor
+              <PageRichTextEditorBlock
                 content={selectedBlock.content}
                 onContentChange={(contentObj) => {
                   updateBlockContent('title', contentObj.title)
@@ -98,7 +98,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'faq' && (
-              <SharedFaqBlock
+              <PageFaqBlock
                 title={selectedBlock.content.title ?? ''}
                 subtitle={selectedBlock.content.subtitle ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
@@ -110,7 +110,7 @@ export function BlockPropertiesPanel({
               />
             )}
             {selectedBlock.type === 'listing-views' && (
-              <SharedListingViewsBlock
+              <PageListingViewBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'headerAlign', 'contentType', 'displayMode',
@@ -122,7 +122,7 @@ export function BlockPropertiesPanel({
             )}
             
             {selectedBlock.type === 'divider' && (
-              <SharedDividerBlock
+              <PageDividerBlock
                 {...selectedBlock.content}
                 {...createCallbacks(updateBlockContent, [
                   'spacingTop', 'spacingBottom', 'dividerStyle',
