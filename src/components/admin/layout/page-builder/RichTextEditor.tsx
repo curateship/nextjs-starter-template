@@ -35,9 +35,10 @@ interface RichTextBlockProps {
     hideEditorHeader?: boolean
   }
   onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
+  compact?: boolean
 }
 
-export function RichTextEditor({ content, onContentChange }: RichTextBlockProps) {
+export function RichTextEditor({ content, onContentChange, compact = false }: RichTextBlockProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({
@@ -355,7 +356,7 @@ export function RichTextEditor({ content, onContentChange }: RichTextBlockProps)
               >
                 <EditorContent 
                   editor={editor} 
-                  className={`prose prose-sm max-w-none min-h-[200px] [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                  className={`prose prose-sm max-w-none ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
                 />
               </div>
             </>
@@ -387,12 +388,11 @@ export function RichTextEditor({ content, onContentChange }: RichTextBlockProps)
             </div>
           )}
           
-          <div className="text-xs text-muted-foreground">
-            {showPreview ? 
-              'This is how your content will appear on the frontend.' :
-              'Use the toolbar above to format your content. Links, headings, and lists are supported.'
-            }
-          </div>
+          {showPreview && (
+            <div className="text-xs text-muted-foreground">
+              This is how your content will appear on the frontend.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

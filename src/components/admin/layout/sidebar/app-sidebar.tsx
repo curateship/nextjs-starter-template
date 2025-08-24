@@ -12,6 +12,7 @@ import {
   FileText,
   Package,
   BookOpen,
+  Settings,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/nav-main"
@@ -78,14 +79,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
   }, [])
 
-  // Site navigation items
-  const siteNavItems = [
-    {
-      title: "Pages",
-      url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
-      icon: FileText,
-      isActive: false,
-    },
+  // Content creation items
+  const contentNavItems = [
     {
       title: "Products",
       url: "/admin/products",
@@ -100,7 +95,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
   ]
 
-  // Platform management items (always visible)
+  // Site management items
+  const siteManagementProjects = [
+    {
+      name: "Pages",
+      url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
+      icon: FileText,
+    },
+    {
+      name: "Image Library",
+      url: "/admin/images",
+      icon: Image,
+    },
+    {
+      name: "Site Settings",
+      url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
+      icon: Settings,
+    },
+  ]
+
+  // Platform management items
   const platformProjects = [
     {
       name: "Sites",
@@ -117,11 +131,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/admin/users",
       icon: Users,
     },
-    {
-      name: "Image Library",
-      url: "/admin/images",
-      icon: Image,
-    },
   ]
   
   return (
@@ -130,7 +139,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SiteSwitcherMenu />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={siteNavItems} />
+        <NavMain items={contentNavItems} />
+        <NavProjects title="Site Management" projects={siteManagementProjects} />
         <NavProjects title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>

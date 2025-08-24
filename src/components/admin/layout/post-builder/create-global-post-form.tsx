@@ -208,11 +208,11 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
         <Label htmlFor="featured_image">Featured Image</Label>
         <div className="mt-2">
           {formData.featured_image ? (
-            <div className="relative rounded-lg overflow-hidden bg-muted">
+            <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
               <img 
                 src={formData.featured_image} 
                 alt="Featured image preview" 
-                className="w-full h-48 object-cover"
+                className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
               <button
@@ -233,7 +233,7 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
             </div>
           ) : (
             <div 
-              className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+              className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
               onClick={() => setShowImagePicker(true)}
             >
               <div className="text-center">
@@ -256,7 +256,13 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
           value={formData.excerpt}
           onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
           placeholder="A brief summary of your post content"
-          rows={3}
+          className="resize-none min-h-[40px] overflow-hidden"
+          style={{ height: 'auto' }}
+          onInput={(e) => {
+            const target = e.target as HTMLTextAreaElement;
+            target.style.height = 'auto';
+            target.style.height = target.scrollHeight + 'px';
+          }}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Brief summary shown in post listings and previews
@@ -273,6 +279,7 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
             hideEditorHeader: true
           }}
           onContentChange={(content) => setFormData(prev => ({ ...prev, content: content.content }))}
+          compact={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the post body
@@ -287,7 +294,13 @@ export function CreateGlobalPostForm({ onSuccess, onCancel }: CreateGlobalPostFo
           value={formData.meta_description}
           onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
           placeholder="A brief description of this post for search engines"
-          rows={3}
+          className="resize-none min-h-[40px] overflow-hidden"
+          style={{ height: 'auto' }}
+          onInput={(e) => {
+            const target = e.target as HTMLTextAreaElement;
+            target.style.height = 'auto';
+            target.style.height = target.scrollHeight + 'px';
+          }}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Recommended length: 150-160 characters

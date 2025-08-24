@@ -243,11 +243,18 @@ export function ProductSettingsModal({
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
-        <DialogHeader>
-          <DialogTitle>Product Settings</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="mb-6">
+          <DialogTitle className="flex items-center gap-3">
             Configure settings for "{product.title}"
-          </DialogDescription>
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                product?.is_published ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span className="text-sm font-medium">
+                {product?.is_published ? 'Published' : 'Draft'}
+              </span>
+            </div>
+          </DialogTitle>
         </DialogHeader>
 
         {error && (
@@ -305,11 +312,11 @@ export function ProductSettingsModal({
                 <Label htmlFor="featured_image">Featured Image</Label>
                 <div className="mt-2">
                   {featuredImage ? (
-                    <div className="relative rounded-lg overflow-hidden bg-muted">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
                       <img 
                         src={featuredImage} 
                         alt="Featured image preview" 
-                        className="w-full h-48 object-cover"
+                        className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
                       <button
@@ -330,7 +337,7 @@ export function ProductSettingsModal({
                     </div>
                   ) : (
                     <div 
-                      className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
                       onClick={() => setShowImagePicker(true)}
                     >
                       <div className="text-center">
@@ -358,59 +365,16 @@ export function ProductSettingsModal({
                     setIsSaved(false)
                     setRichTextContent(content.content)
                   }}
+                  compact={true}
                 />
                 <p className="text-xs text-muted-foreground">
                   Rich text content for the product description (will be saved as a product block)
                 </p>
               </div>
                 
-              {/* Current Status Display */}
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    product?.is_published ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
-                  <span className="text-sm font-medium">
-                    Current Status: {product?.is_published ? 'Published' : 'Draft'}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {product?.is_published 
-                    ? 'This product is visible to visitors' 
-                    : 'This product is hidden from visitors'}
-                </p>
-              </div>
             </CardContent>
           </Card>
 
-
-          {/* Quick Actions */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
-                Common product management tasks
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/admin/products/builder/${product.slug}`}>
-                    Edit Product
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a 
-                    href={site ? `/products/${product.slug}` : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    Preview Product
-                  </a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
 
           {/* Form Actions */}

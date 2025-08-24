@@ -226,11 +226,18 @@ export function PageSettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
-        <DialogHeader>
-          <DialogTitle>Page Settings</DialogTitle>
-          <DialogDescription>
+        <DialogHeader className="mb-6">
+          <DialogTitle className="flex items-center gap-3">
             Configure settings for "{page.title}"
-          </DialogDescription>
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                page?.is_published ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span className="text-sm font-medium">
+                {page?.is_published ? 'Published' : 'Draft'}
+              </span>
+            </div>
+          </DialogTitle>
         </DialogHeader>
 
         {error && (
@@ -296,22 +303,6 @@ export function PageSettingsModal({
                   </div>
                 </div>
                 
-                {/* Current Status Display */}
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      page?.is_published ? 'bg-green-500' : 'bg-gray-400'
-                    }`} />
-                    <span className="text-sm font-medium">
-                      Current Status: {page?.is_published ? 'Published' : 'Draft'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {page?.is_published 
-                      ? 'This page is visible to visitors' 
-                      : 'This page is hidden from visitors'}
-                  </p>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -343,33 +334,6 @@ export function PageSettingsModal({
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
-                Common page management tasks
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/admin/builder/${site?.id}?page=${page.slug}`}>
-                    Edit Content
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a 
-                    href={site ? `/${page.slug}` : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    Preview Page
-                  </a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
 
           {/* Form Actions */}
