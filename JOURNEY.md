@@ -5246,5 +5246,66 @@ The `/layout/` folder should only contain true layout components, not domain-spe
 
 **Result**: Better organized frontend structure with layout folder containing only true layout components.
 
+### **Part D: Library Structure Consolidation & TypeScript Fixes**
+
+**Task**: Reorganize `/src/lib/` files for consistency and fix compilation errors
+
+**Problem**: 
+Library files were scattered across multiple folders with some unused files causing maintenance overhead:
+- `src/lib/types/blocks.ts` - Isolated types folder
+- `src/lib/fonts/config.ts` - Single file in fonts folder  
+- `src/lib/shared-blocks/` - Partially unused utilities
+- `src/lib/logger.ts` - Unused logging utility
+- TypeScript compilation errors from property mismatches
+
+**Implementation**:
+
+1. **Library Consolidation**:
+   ```
+   src/lib/
+   ├── utils/                           # Consolidated utilities folder
+   │   ├── cn.ts                       # Moved from lib/utils.ts
+   │   ├── font-config.ts              # Moved from lib/fonts/config.ts  
+   │   ├── block-utils.ts              # Moved from lib/shared-blocks/
+   │   └── block-types.ts              # Moved from lib/types/blocks.ts
+   └── [other lib files unchanged]
+   ```
+
+2. **Removed Unused Files**:
+   - `src/lib/logger.ts` - Unused logging utility
+   - `src/lib/shared-blocks/` folder - Consolidated into utils
+   - `src/lib/types/` folder - Consolidated into utils
+   - `src/lib/fonts/` folder - Consolidated into utils
+
+3. **Updated Import Statements**:
+   - `@/lib/types/blocks` → `@/lib/utils/block-types` (5 files)
+   - `@/lib/fonts/config` → `@/lib/utils/font-config` (2 files)
+   - `@/lib/shared-blocks/block-utils` → `@/lib/utils/block-utils` (2 files)
+
+4. **Fixed TypeScript Compilation Errors**:
+   - **Product Actions**: Fixed undefined `productData` references causing destructuring errors
+   - **Site Types**: Fixed `Site` vs `SiteWithTheme` type mismatches
+   - **Property Names**: Fixed `description` vs `theme_description` and `meta_description` vs `description`
+   - **Component Exports**: Fixed `ProductBasicBlock` vs `BasicBlock` export mismatch
+
+5. **Server Stability Fixes**:
+   - Cleared Next.js cache to resolve server action issues
+   - Fixed "Cannot destructure property 'data'" error in products dashboard
+   - Ensured proper server restart protocol for cache clearing
+
+**Testing & Verification**:
+- Ran `npm run build` - All TypeScript errors resolved
+- Verified server responds with HTTP 200 
+- Confirmed process running on port 3000
+- Products dashboard now loads without errors
+
+**Files Modified**:
+- **Moved**: 4 files to `src/lib/utils/` folder
+- **Removed**: 3 unused files and empty directories  
+- **Updated**: 9+ files with corrected import paths
+- **Fixed**: 5+ TypeScript compilation errors
+
+**Result**: Clean, consolidated library structure with all utilities in one location and zero compilation errors.
+
 ### **Overall Impact**: 
-Achieved complete file structure consistency across the entire platform - both admin interface with unified naming patterns and organized component hierarchy, plus properly organized frontend components with clear separation between layout and domain-specific components.
+Achieved complete file structure consistency across the entire platform - both admin interface with unified naming patterns and organized component hierarchy, plus properly organized frontend components with clear separation between layout and domain-specific components. Additionally consolidated all library utilities into a single organized location and eliminated all TypeScript compilation errors for a stable, maintainable codebase.

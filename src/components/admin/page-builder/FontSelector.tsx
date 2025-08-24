@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { availableFonts, getFontByValue, getGoogleFontUrl, type FontOption } from "@/lib/fonts/config"
+import { availableFonts, getFontByValue, getGoogleFontUrl, type FontOption } from "@/lib/utils/font-config"
 
 interface FontSelectorProps {
   value: string

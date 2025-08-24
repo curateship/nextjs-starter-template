@@ -168,7 +168,7 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
               is_homepage: false,
               is_published: true,
               display_order: 1,
-              content_blocks: productData.content_blocks || {},
+              content_blocks: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             }
@@ -227,7 +227,7 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
             is_homepage: false,
             is_published: true,
             display_order: 1,
-            content_blocks: productData.content_blocks || {},
+            content_blocks: {},
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -363,7 +363,7 @@ export async function createGlobalProductAction(productData: CreateProductData):
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder,
-        content_blocks: productData.content_blocks || {}
+        content_blocks: {}
       }])
       .select()
       .single()
@@ -475,7 +475,7 @@ export async function createProductAction(siteId: string, productData: CreatePro
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder,
-        content_blocks: productData.content_blocks || {}
+        content_blocks: {}
       }])
       .select()
       .single()

@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: ProductPageProps) {
     
     return {
       title: `${product.title} - ${site.name}`,
-      description: product.meta_description || `${product.title} from ${site.name}`,
+      description: product.description || `${product.title} from ${site.name}`,
     }
   } catch (error) {
     return {

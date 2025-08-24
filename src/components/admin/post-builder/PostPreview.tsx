@@ -4,7 +4,7 @@ import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"
-import type { Block } from "@/lib/types/blocks"
+import type { Block } from "@/lib/utils/block-types"
 
 interface PostBlock {
   id: string

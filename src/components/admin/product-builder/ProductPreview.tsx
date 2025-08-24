@@ -3,7 +3,7 @@
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
 import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
 import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
-import type { Block } from "@/lib/types/blocks"
+import type { Block } from "@/lib/utils/block-types"
 
 interface ProductBlock {
   id: string

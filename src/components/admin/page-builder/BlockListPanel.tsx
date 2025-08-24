@@ -27,7 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/shared-blocks/block-utils"
+import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/utils/block-utils"
 
 interface Block {
   id: string
