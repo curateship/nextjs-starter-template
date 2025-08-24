@@ -1,7 +1,7 @@
 "use client"
 
-import { NavBlock } from "@/components/frontend/layout/pages/NavBlock"
-import { FooterBlock } from "@/components/frontend/layout/pages/FooterBlock"
+import { NavBlock } from "@/components/frontend/pages/NavBlock"
+import { FooterBlock } from "@/components/frontend/pages/FooterBlock"
 import { type ReactNode } from "react"
 
 interface SiteLayoutProps {

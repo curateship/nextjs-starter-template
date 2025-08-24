@@ -1,4 +1,4 @@
-import { PostArchiveBlock } from "@/components/frontend/layout/posts/PostArchiveBlock";
+import { PostArchiveBlock } from "@/components/frontend/posts/PostArchiveBlock";
 
 export default function PostsArchivePage() {
   return (

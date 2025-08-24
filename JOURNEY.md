@@ -5197,5 +5197,54 @@ This violated CLAUDE.md architecture guidelines for layout organization.
 
 **Result**: Clean, organized admin component structure following CLAUDE.md guidelines with all layout components grouped under `/layout/` folder.
 
+### **Part C: Frontend Component Structure Cleanup**
+
+**Task**: Move domain-specific components out of `/layout/` folder to better reflect their purpose
+
+**Problem**: 
+Frontend components were incorrectly organized within the layout folder:
+- `src/components/frontend/layout/pages/` - Page-specific components
+- `src/components/frontend/layout/posts/` - Post-specific components  
+- `src/components/frontend/layout/products/` - Product-specific components
+
+The `/layout/` folder should only contain true layout components, not domain-specific blocks.
+
+**Implementation**:
+1. **Moved Domain Components to Root Level**:
+   ```
+   src/components/frontend/
+   ├── layout/                      # Only true layout components
+   │   ├── font-provider.tsx        
+   │   └── site-layout.tsx          
+   ├── pages/                       # Moved from layout/pages/
+   │   ├── page-block-renderer.tsx
+   │   ├── NavBlock.tsx, FooterBlock.tsx
+   │   └── [other page blocks]
+   ├── posts/                       # Moved from layout/posts/
+   │   ├── PostBlockRenderer.tsx
+   │   └── [post components]
+   └── products/                    # Moved from layout/products/
+       ├── product-block-renderer.tsx
+       └── [product components]
+   ```
+
+2. **Updated Import Statements**:
+   - `@/components/frontend/layout/pages` → `@/components/frontend/pages`
+   - `@/components/frontend/layout/posts` → `@/components/frontend/posts`
+   - `@/components/frontend/layout/products` → `@/components/frontend/products`
+
+3. **Batch Processing**: Used automated `sed` commands for efficient import path updates
+
+**Files Modified**:
+- **Moved**: 3 folders (`pages/`, `posts/`, `products/`) out of layout
+- **Updated**: Import statements in 15+ files across components and app routes
+
+**Testing & Verification**:
+- Cleared Next.js cache and restarted server
+- Verified 200 response and no compilation errors
+- Confirmed clean folder structure
+
+**Result**: Better organized frontend structure with layout folder containing only true layout components.
+
 ### **Overall Impact**: 
-Achieved complete file structure consistency across the entire admin interface with unified naming patterns and organized component hierarchy.
+Achieved complete file structure consistency across the entire platform - both admin interface with unified naming patterns and organized component hierarchy, plus properly organized frontend components with clear separation between layout and domain-specific components.
