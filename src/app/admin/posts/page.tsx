@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -23,8 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreateGlobalPostForm } from "@/components/admin/layout/post-builder/create-global-post-form"
-import { PostSettingsModal } from "@/components/admin/layout/post-builder/post-settings-modal"
+import { CreateGlobalPostForm } from "@/components/admin/post-builder/create-global-post-form"
+import { PostSettingsModal } from "@/components/admin/post-builder/post-settings-modal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, BookOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/post-actions"

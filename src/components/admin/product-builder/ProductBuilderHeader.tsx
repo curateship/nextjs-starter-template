@@ -11,8 +11,8 @@ import {
 import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/layout/product-builder/product-settings-modal"
-import { CreateGlobalProductForm } from "@/components/admin/layout/product-builder/create-global-product-form"
+import { ProductSettingsModal } from "@/components/admin/product-builder/product-settings-modal"
+import { CreateGlobalProductForm } from "@/components/admin/product-builder/create-global-product-form"
 import type { Product } from "@/lib/actions/product-actions"
 
 interface ProductBuilderHeaderProps {

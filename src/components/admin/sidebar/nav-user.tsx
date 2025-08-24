@@ -30,7 +30,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/admin/layout/sidebar/sidebar"
+} from "@/components/admin/sidebar/sidebar"
 
 export function NavUser({
   user,
