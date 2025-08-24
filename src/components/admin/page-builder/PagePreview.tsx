@@ -2,7 +2,7 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
-import type { Block } from "@/lib/types/blocks"
+import type { Block } from "@/lib/utils/block-types"
 
 interface PagePreviewProps {
   blocks: Block[]

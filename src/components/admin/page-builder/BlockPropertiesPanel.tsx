@@ -6,7 +6,7 @@ import { PageFaqBlock } from "./blocks/PageFaqBlock"
 import { PageListingViewBlock } from "./blocks/PageListingViewBlock"
 import { PageDividerBlock } from "./blocks/PageDividerBlock"
 import { PagePreview } from "./PagePreview"
-import type { Block } from "@/lib/types/blocks"
+import type { Block } from "@/lib/utils/block-types"
 
 // Helper function to generate callback props dynamically
 const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {

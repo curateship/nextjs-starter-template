@@ -68,12 +68,11 @@ export default function NewSitePage() {
       }
 
       if (data) {
-        // Refresh the site context to get the new site
+        // Refresh the site context to get the new site with theme data
         await refreshSites()
-        // Set the newly created site as the current site in context
-        setCurrentSite(data)
         // Update localStorage to set the new site as selected
         localStorage.setItem('selectedSiteId', data.id)
+        // The refreshSites will automatically set the current site from localStorage
         // Redirect to site builder for the new site
         router.push(`/admin/builder/${data.id}`)
       }

@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/cn"
 
 interface AdminCardProps {
   children: React.ReactNode

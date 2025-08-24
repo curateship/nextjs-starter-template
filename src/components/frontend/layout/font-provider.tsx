@@ -1,4 +1,4 @@
-import { getFontByValue, getGoogleFontUrl, getFontFamily } from "@/lib/fonts/config"
+import { getFontByValue, getGoogleFontUrl, getFontFamily } from "@/lib/utils/font-config"
 
 interface FontProviderProps {
   fontFamily?: string

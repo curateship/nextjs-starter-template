@@ -261,7 +261,7 @@ export default function SitesPage() {
                           <div>
                             <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>
                             <p className="text-sm text-muted-foreground">
-                              {site.description || site.name}
+                              {site.theme_description || site.name}
                             </p>
                           </div>
                         </Link>

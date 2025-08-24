@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { updatePageBlocksAction, type Page } from "@/lib/actions/page-actions"
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/site-actions"
 import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
-import { isBlockTypeProtected } from "@/lib/shared-blocks/block-utils"
+import { isBlockTypeProtected } from "@/lib/utils/block-utils"
 
 interface UsePageBuilderParams {
   siteId: string
