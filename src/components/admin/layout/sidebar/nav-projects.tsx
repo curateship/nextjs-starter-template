@@ -24,7 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/admin/sidebar/sidebar"
+} from "@/components/admin/layout/sidebar/sidebar"
 
 export function NavProjects({
   projects,

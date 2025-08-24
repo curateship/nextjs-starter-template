@@ -19,7 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/admin/sidebar/sidebar"
+} from "@/components/admin/layout/sidebar/sidebar"
 import { useSiteContext } from "@/contexts/site-context"
 
 export function SiteSwitcherMenu() {

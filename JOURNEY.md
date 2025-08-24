@@ -5122,12 +5122,13 @@ Should have immediately copied existing working skeleton patterns from products/
 
 ---
 
-## File Structure Standardization - August 24, 2025
+## Phase 65: File Structure Standardization & Admin Layout Reorganization (August 24, 2025)
 
-### **Task**: 
-Standardize product-builder component naming to match page-builder and post-builder patterns
+### **Part A: Product Builder Component Naming Standardization**
 
-### **Changes Made**:
+**Task**: Standardize product-builder component naming to match page-builder and post-builder patterns
+
+**Changes Made**:
 1. **Panel Components Renamed**:
    - `ProductBlockListPanel.tsx` → `BlockListPanel.tsx`
    - `ProductBlockPropertiesPanel.tsx` → `BlockPropertiesPanel.tsx`  
@@ -5144,5 +5145,57 @@ Standardize product-builder component naming to match page-builder and post-buil
 
 4. **Import Updates**: Fixed all import statements across 8+ files
 
-### **Result**: 
-Unified naming architecture across page-builder, post-builder, and product-builder for consistent development experience.
+**Result**: Unified naming architecture across page-builder, post-builder, and product-builder.
+
+### **Part B: Admin Layout Component Reorganization**
+
+**Task**: Reorganize admin layout components into dedicated `/layout/` folder for better code organization
+
+**Problem**: 
+Admin components were inconsistently organized:
+- `admin-layout.tsx` at root level
+- `sidebar/` folder at root level  
+- `dashboard/` folder at root level
+- Other layout components in `/layout/page-builder/` subfolder
+
+This violated CLAUDE.md architecture guidelines for layout organization.
+
+**Implementation**:
+1. **Created Layout Folder Structure**:
+   ```
+   src/components/admin/
+   ├── layout/                          # New layout folder
+   │   ├── admin-layout.tsx             # Moved from root
+   │   ├── dashboard/                   # Moved from root
+   │   │   ├── SiteDashboard.tsx
+   │   │   ├── ThemeDashboard.tsx
+   │   │   └── [other dashboard components]
+   │   └── sidebar/                     # Moved from root  
+   │       ├── app-sidebar.tsx
+   │       ├── nav-main.tsx
+   │       └── [other sidebar components]
+   ```
+
+2. **Import Path Updates**:
+   - Updated 21+ files with import statements
+   - `@/components/admin/admin-layout` → `@/components/admin/layout/admin-layout`
+   - `@/components/admin/sidebar` → `@/components/admin/layout/sidebar`
+   - `@/components/admin/dashboard` → `@/components/admin/layout/dashboard`
+
+3. **Batch Processing**: Used automated `sed` commands for efficient import path updates
+
+**Files Modified**:
+- **Created**: `src/components/admin/layout/` directory
+- **Moved**: `admin-layout.tsx`, `sidebar/` folder, `dashboard/` folder
+- **Updated**: 21+ files across `/app/admin/` with import path changes
+
+**Testing & Verification**:
+- Cleared Next.js cache with `rm -rf .next`
+- Restarted development server
+- Verified 200 response from localhost:3000
+- Confirmed no compilation errors
+
+**Result**: Clean, organized admin component structure following CLAUDE.md guidelines with all layout components grouped under `/layout/` folder.
+
+### **Overall Impact**: 
+Achieved complete file structure consistency across the entire admin interface with unified naming patterns and organized component hierarchy.

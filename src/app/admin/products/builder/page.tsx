@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout } from "@/components/admin/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { useSiteContext } from "@/contexts/site-context"
 import { Package } from "lucide-react"
 
