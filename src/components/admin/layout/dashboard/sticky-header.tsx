@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@/lib/utils/cn"
+import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"

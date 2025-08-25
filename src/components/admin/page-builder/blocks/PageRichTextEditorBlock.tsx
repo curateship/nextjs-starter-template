@@ -23,7 +23,7 @@ import {
   EyeOff
 } from "lucide-react"
 import { useState, useCallback, useEffect } from 'react'
-import { cn } from "@/lib/utils/cn"
+import { cn } from "@/lib/utils/tailwind-class-merger"
 
 interface RichTextBlockProps {
   content: {
