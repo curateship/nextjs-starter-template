@@ -1,9 +1,8 @@
 "use client"
 
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
-import { createPreviewSite } from "@/lib/utils/admin-builder-preview"
+import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
-import type { Block } from "@/lib/utils/block-types"
 
 interface ProductBlock {
   id: string
@@ -35,52 +34,22 @@ interface ProductPreviewProps {
       footer?: any
     }
   }
-  allBlocks?: Record<string, Block[]>
+  // allBlocks removed - navigation/footer now come from site.settings
   className?: string
   blocksLoading?: boolean
 }
 
-export function ProductPreview({ blocks, product, site, allBlocks, className = "", blocksLoading = false }: ProductPreviewProps) {
-  // Convert product blocks to Block format for compatibility with createPreviewSite
-  const productBlocks: Block[] = blocks.map(block => ({
+export function ProductPreview({ blocks, product, site, className = "", blocksLoading = false }: ProductPreviewProps) {
+  // Convert product blocks to PreviewBlock format for the generic preview system
+  const previewBlocks: PreviewBlock[] = blocks.map(block => ({
     id: block.id,
     type: block.type,
-    title: block.title,
     content: block.content,
     display_order: 0 // Will be handled by block ordering
   }))
 
-  // Combine product blocks with navigation and footer from site settings
-  let allPreviewBlocks = [...productBlocks]
-  
-  // Add navigation and footer from site settings
-  if (site?.settings?.navigation && !productBlocks.some(b => b.type === 'navigation')) {
-    const navigationBlock: Block = {
-      id: 'site-navigation',
-      type: 'navigation',
-      title: 'Navigation',
-      content: site.settings.navigation,
-      display_order: -1
-    }
-    allPreviewBlocks.unshift(navigationBlock)
-  }
-  
-  if (site?.settings?.footer && !productBlocks.some(b => b.type === 'footer')) {
-    const footerBlock: Block = {
-      id: 'site-footer', 
-      type: 'footer',
-      title: 'Footer',
-      content: site.settings.footer,
-      display_order: 999
-    }
-    allPreviewBlocks.push(footerBlock)
-  }
-  
-  // Sort all blocks by display_order
-  allPreviewBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-  
-  // Transform admin blocks to frontend format using the same utility as PagePreview
-  const previewSite = createPreviewSite(allPreviewBlocks, site)
+  // Create preview site - navigation and footer will be added from site.settings automatically
+  const previewSite = createPreviewSite(previewBlocks, site)
 
   // Create mock product data
   const previewProduct: ProductWithBlocks = {
@@ -90,11 +59,11 @@ export function ProductPreview({ blocks, product, site, allBlocks, className = "
     is_published: product?.is_published || true,
     featured_image: product?.featured_image || null,
     description: product?.description || null,
-    blocks: productBlocks.map(block => ({
+    blocks: previewBlocks.map(block => ({
       id: block.id,
       type: block.type,
       content: block.content,
-      display_order: block.display_order
+      display_order: block.display_order || 0
     }))
   }
   

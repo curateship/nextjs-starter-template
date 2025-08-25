@@ -1,11 +1,22 @@
 /**
- * Utility functions for converting between page JSON blocks and UI array format
+ * Page block types and utility functions for converting between page JSON blocks and UI array format
  */
+
+/**
+ * Page block interface for admin builder
+ */
+export interface PageBlock {
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+  display_order: number
+}
 
 /**
  * Convert JSON blocks object to array format for UI
  */
-export function convertPageJsonToBlocks(jsonBlocks: Record<string, any>): any[] {
+export function convertPageJsonToBlocks(jsonBlocks: Record<string, any>): PageBlock[] {
   if (!jsonBlocks || typeof jsonBlocks !== 'object') {
     return []
   }
@@ -26,7 +37,7 @@ export function convertPageJsonToBlocks(jsonBlocks: Record<string, any>): any[] 
 /**
  * Convert UI blocks array to JSON object format for storage
  */
-export function convertPageBlocksToJson(blocks: any[]): Record<string, any> {
+export function convertPageBlocksToJson(blocks: PageBlock[]): Record<string, any> {
   if (!Array.isArray(blocks)) {
     return {}
   }
