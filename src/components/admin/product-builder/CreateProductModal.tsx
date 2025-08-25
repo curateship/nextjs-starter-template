@@ -10,7 +10,6 @@ import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
-import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/products/product-actions"
 
@@ -20,7 +19,7 @@ interface CreateProductModalProps {
 }
 
 export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite, siteSettings } = useSiteContext()
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',
     slug: '',
@@ -100,26 +99,12 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     return () => clearTimeout(timeoutId)
   }, [formData.slug, currentSite?.id])
 
-  // Fetch URL prefix for this site
+  // Get URL prefix from context (cached, no API call needed)
   useEffect(() => {
-    const fetchUrlPrefix = async () => {
-      if (!currentSite?.id) return
-      
-      try {
-        const { data: site } = await getSiteByIdAction(currentSite.id)
-        if (site?.settings?.url_prefixes?.products !== undefined) {
-          setUrlPrefix(site.settings.url_prefixes.products)
-        } else {
-          setUrlPrefix("") // Clear prefix if not set
-        }
-      } catch (error) {
-        // Silently fail - prefix is optional
-        setUrlPrefix("")
-      }
+    if (currentSite?.id) {
+      setUrlPrefix(siteSettings?.urlPrefixes?.products || "")
     }
-    
-    fetchUrlPrefix()
-  }, [currentSite?.id])
+  }, [currentSite?.id, siteSettings?.urlPrefixes?.products])
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {

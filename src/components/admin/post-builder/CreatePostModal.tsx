@@ -10,7 +10,6 @@ import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/
 import { ImageIcon, X } from "lucide-react"
 import { createPostAction } from "@/lib/actions/posts/post-actions"
 import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
-import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post, CreatePostData } from "@/lib/actions/posts/post-actions"
 
@@ -20,7 +19,7 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite, siteSettings } = useSiteContext()
   const [formData, setFormData] = useState<CreatePostData>({
     title: '',
     slug: '',
@@ -102,26 +101,12 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     return () => clearTimeout(timeoutId)
   }, [formData.slug, currentSite?.id])
 
-  // Fetch URL prefix for this site
+  // Get URL prefix from context (cached, no API call needed)
   useEffect(() => {
-    const fetchUrlPrefix = async () => {
-      if (!currentSite?.id) return
-      
-      try {
-        const { data: site } = await getSiteByIdAction(currentSite.id)
-        if (site?.settings?.url_prefixes?.posts !== undefined) {
-          setUrlPrefix(site.settings.url_prefixes.posts)
-        } else {
-          setUrlPrefix("") // Clear prefix if not set
-        }
-      } catch (error) {
-        // Silently fail - prefix is optional
-        setUrlPrefix("")
-      }
+    if (currentSite?.id) {
+      setUrlPrefix(siteSettings?.urlPrefixes?.posts || "")
     }
-    
-    fetchUrlPrefix()
-  }, [currentSite?.id])
+  }, [currentSite?.id, siteSettings?.urlPrefixes?.posts])
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {

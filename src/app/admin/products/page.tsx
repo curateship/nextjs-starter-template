@@ -30,11 +30,10 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
-import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 export default function ProductsPage() {
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, siteSettings } = useSiteContext()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,26 +50,12 @@ export default function ProductsPage() {
   const [urlPrefix, setUrlPrefix] = useState<string>("")
   const filterRef = useRef<HTMLDivElement>(null)
 
-  // Fetch URL prefix for this site
+  // Get URL prefix from context (cached, no API call needed)
   useEffect(() => {
-    const fetchUrlPrefix = async () => {
-      if (!currentSite?.id) return
-      
-      try {
-        const { data: site } = await getSiteByIdAction(currentSite.id)
-        if (site?.settings?.url_prefixes?.products !== undefined) {
-          setUrlPrefix(site.settings.url_prefixes.products)
-        } else {
-          setUrlPrefix("") // Clear prefix if not set
-        }
-      } catch (error) {
-        // Silently fail - prefix is optional
-        setUrlPrefix("")
-      }
+    if (currentSite?.id) {
+      setUrlPrefix(siteSettings?.urlPrefixes?.products || "")
     }
-    
-    fetchUrlPrefix()
-  }, [currentSite?.id])
+  }, [currentSite?.id, siteSettings?.urlPrefixes?.products])
 
   // Load products
   useEffect(() => {

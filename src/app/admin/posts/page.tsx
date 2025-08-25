@@ -30,11 +30,10 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
-import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 export default function PostsPage() {
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, siteSettings } = useSiteContext()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,26 +50,12 @@ export default function PostsPage() {
   const [urlPrefix, setUrlPrefix] = useState<string>("")
   const filterRef = useRef<HTMLDivElement>(null)
 
-  // Fetch URL prefix for this site
+  // Get URL prefix from context (cached, no API call needed)
   useEffect(() => {
-    const fetchUrlPrefix = async () => {
-      if (!currentSite?.id) return
-      
-      try {
-        const { data: site } = await getSiteByIdAction(currentSite.id)
-        if (site?.settings?.url_prefixes?.posts !== undefined) {
-          setUrlPrefix(site.settings.url_prefixes.posts)
-        } else {
-          setUrlPrefix("") // Clear prefix if not set
-        }
-      } catch (error) {
-        // Silently fail - prefix is optional
-        setUrlPrefix("")
-      }
+    if (currentSite?.id) {
+      setUrlPrefix(siteSettings?.urlPrefixes?.posts || "")
     }
-    
-    fetchUrlPrefix()
-  }, [currentSite?.id])
+  }, [currentSite?.id, siteSettings?.urlPrefixes?.posts])
 
   // Load posts
   useEffect(() => {
