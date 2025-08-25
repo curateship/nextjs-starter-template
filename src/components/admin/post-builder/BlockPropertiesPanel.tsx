@@ -52,14 +52,14 @@ export function BlockPropertiesPanel({
           <div className="space-y-4">
             {(selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content') && (
               <PostContentBlock
-                block={selectedBlock}
+                block={selectedBlock as any}
                 onContentChange={(content: Record<string, any>) => 
                   updateBlockContent(selectedBlock.id, { content })
                 }
                 postData={{
                   title: currentPost?.title,
                   meta_description: currentPost?.meta_description,
-                  excerpt: currentPost?.excerpt
+                  excerpt: currentPost?.excerpt || undefined
                 }}
                 isDefaultBlock={selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content'}
               />
@@ -90,7 +90,7 @@ export function BlockPropertiesPanel({
       ) : (
         <div className="h-full">
           <PostPreview 
-            blocks={currentPost?.blocks || []} 
+            blocks={(currentPost?.blocks || []) as any} 
             post={currentPost ? {
               id: currentPost.id || 'preview',
               title: currentPost.title || currentPost.name,

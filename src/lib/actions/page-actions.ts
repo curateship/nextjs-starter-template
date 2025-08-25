@@ -131,10 +131,10 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'Home',
               slug: 'home',
               meta_description: 'Welcome to our website',
-              template: 'default' as const,
               is_homepage: true,
               is_published: true,
               display_order: 1,
+              content_blocks: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             },
@@ -144,10 +144,10 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'About',
               slug: 'about',
               meta_description: 'Learn more about us',
-              template: 'default' as const,
               is_homepage: false,
               is_published: true,
               display_order: 2,
+              content_blocks: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             },
@@ -157,10 +157,10 @@ export async function getSitePagesAction(siteId: string): Promise<{ data: Page[]
               title: 'Contact',
               slug: 'contact',
               meta_description: 'Get in touch with us',
-              template: 'default' as const,
               is_homepage: false,
               is_published: true,
               display_order: 3,
+              content_blocks: {},
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             }
@@ -217,10 +217,10 @@ export async function getPageByIdAction(pageId: string): Promise<{ data: Page | 
             title: 'Sample Page',
             slug: 'sample-page',
             meta_description: 'This is a sample page',
-            template: 'default' as const,
             is_homepage: false,
             is_published: true,
             display_order: 1,
+            content_blocks: {},
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -372,7 +372,8 @@ export async function createPageAction(siteId: string, pageData: CreatePageData)
         meta_description: pageData.meta_description?.trim() || null,
         is_homepage: pageData.is_homepage || false,
         is_published: pageData.is_published !== false,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: {}
       }])
       .select()
       .single()
@@ -676,7 +677,8 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
         meta_description: originalPage.meta_description,
         is_homepage: false, // Never duplicate as homepage
         is_published: originalPage.is_published,
-        display_order: nextOrder
+        display_order: nextOrder,
+        content_blocks: originalPage.content_blocks
       }])
       .select()
       .single()

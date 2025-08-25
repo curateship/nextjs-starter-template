@@ -167,7 +167,7 @@ export function PageBuilderHeader({
       <PageSettingsModal
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
-        page={currentPage}
+        page={currentPage || null}
         site={site}
         onSuccess={(updatedPage) => {
           onPageUpdated(updatedPage)

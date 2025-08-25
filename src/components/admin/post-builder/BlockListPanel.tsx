@@ -61,6 +61,7 @@ function SortablePostBlockItem({
   getBlockIcon,
   handleDeleteClick,
   isDefaultBlock,
+  getBlockTypeName,
   postTitle
 }: {
   block: PostBlock
@@ -70,6 +71,7 @@ function SortablePostBlockItem({
   getBlockIcon: (blockType: string) => React.ReactElement
   handleDeleteClick: (block: PostBlock) => void
   isDefaultBlock: (block: PostBlock) => boolean
+  getBlockTypeName: (block: PostBlock) => string
   postTitle?: string
 }) {
   const {
@@ -276,6 +278,7 @@ export function BlockListPanel({
                       getBlockIcon={getBlockIcon}
                       handleDeleteClick={handleDeleteClick}
                       isDefaultBlock={isDefaultBlock}
+                      getBlockTypeName={getBlockTypeName}
                       postTitle={postData?.title}
                     />
                   ))}
