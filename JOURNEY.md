@@ -2,7 +2,7 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
-**Last Updated**: August 24, 2025
+**Last Updated**: August 25, 2025
 
 
 ## Phase 1: Initial Authentication Setup
@@ -5307,5 +5307,125 @@ Library files were scattered across multiple folders with some unused files caus
 
 **Result**: Clean, consolidated library structure with all utilities in one location and zero compilation errors.
 
+## Phase 15: Domain-Based Actions Organization & Preview System Refactor (August 25, 2025)
+
+**User Request**: Organize actions into domain-based folders and fix the preview system's architectural inconsistencies.
+
+### **Domain-Based Actions Organization**
+
+**Problem**: All action files were in a flat `/lib/actions/` structure, making the codebase hard to navigate and scale.
+
+**Implementation**:
+
+1. **Created Domain Folders**:
+   - `pages/` - Page-related actions and frontend actions
+   - `products/` - Product-related actions and frontend actions
+   - `posts/` - Post-related actions
+   - `auth/` - Authentication actions
+   - `images/` - Image upload and management actions
+   - `sites/` - Site management actions
+   - `themes/` - Theme management actions
+
+2. **File Migrations**:
+   - `frontend-actions.ts` → `pages/page-frontend-actions.ts`
+   - `listing-views-actions.ts` → `pages/page-listing-views-actions.ts`
+   - `page-actions.ts` → `pages/page-actions.ts`
+   - `product-actions.ts` → `products/product-actions.ts`
+   - `product-frontend-actions.ts` → `products/product-frontend-actions.ts`
+   - `post-actions.ts` → `posts/post-actions.ts`
+   - `auth-actions.ts` → `auth/auth-actions.ts`
+   - `image-actions.ts` → `images/image-actions.ts`
+   - `site-actions.ts` → `sites/site-actions.ts`
+   - `theme-actions.ts` → `themes/theme-actions.ts`
+
+3. **Import Path Updates**: Updated 45+ files across the codebase with new import paths
+
+4. **File Cleanup**: 
+   - Renamed `admin-to-frontend-blocks.ts` → `admin-builder-preview.ts` for clarity
+   - Consolidated post-block-actions.ts into post-actions.ts (post_blocks table was dropped)
+
+### **Block Types Architecture Cleanup**
+
+**Problem**: The generic `Block` interface was confusing and forced artificial conversions between domains.
+
+**Issues Discovered**:
+- Generic `Block` interface was actually page-specific but used by all domains
+- Products and Posts were forced to convert to `PageBlock` format just for preview
+- Unused `ProductBlock` interface in `block-types.ts` was dead code
+- The real `ProductBlock` interface lived in `product-block-utils.ts`
+
+**Solution**:
+
+1. **Renamed Generic Interface**: `Block` → `PageBlock` for clarity
+2. **Moved to Proper Location**: Moved `PageBlock` from `block-types.ts` to `page-block-utils.ts`
+3. **Eliminated Dead Code**: Removed unused `ProductBlock` from `block-types.ts` and deleted the empty file
+4. **Updated Type References**: Updated all imports to use `PageBlock` from `page-block-utils.ts`
+
+### **Preview System Architectural Fix**
+
+**Problem**: The preview system was architecturally inconsistent:
+- PagePreview got navigation/footer from `allBlocks` parameter (from other pages)
+- ProductPreview and PostPreview got navigation/footer from `site.settings`
+- All three were forced to convert to `PageBlock` format for preview
+- Navigation/footer had moved to `site.settings` but PagePreview wasn't updated
+
+**Root Cause**: Navigation/footer were moved to the sites table but the preview system wasn't properly updated.
+
+**Solution - Generic Preview System**:
+
+1. **Created Generic PreviewBlock Interface**:
+   ```typescript
+   interface PreviewBlock {
+     id: string
+     type: string  
+     content: Record<string, any>
+     display_order?: number
+   }
+   ```
+
+2. **Updated admin-builder-preview.ts**:
+   - Accepts `PreviewBlock[]` instead of `PageBlock[]`
+   - Automatically handles navigation/footer from `site.settings`
+   - Domain-agnostic preview utility
+
+3. **Fixed All Preview Components**:
+   - **PagePreview**: Removed `allBlocks` dependency, uses `site.settings`
+   - **ProductPreview**: No more forced conversion to PageBlock
+   - **PostPreview**: No more forced conversion to PageBlock
+   - All get navigation/footer consistently from `site.settings`
+
+4. **Removed Forced Conversions**: Each domain now uses its own block interface directly
+
+### **Implementation Details**
+
+**Files Modified**:
+- **Actions Organization**: 10 action files moved to domain folders
+- **Import Updates**: 45+ files updated with new import paths
+- **Block Types**: 7 files updated to use PageBlock properly
+- **Preview System**: 5 preview components refactored
+
+**Domain Separation Benefits**:
+- ✅ Pages use `PageBlock` interface (with `title` and `display_order`)
+- ✅ Products use `ProductBlock` interface (without `title`, different structure)
+- ✅ Posts use `PostBlock` interface (domain-specific)
+- ✅ Preview system works with all formats without forced conversion
+- ✅ Consistent navigation/footer source (`site.settings`)
+
+**Testing & Verification**:
+- `npm run build` passes successfully
+- All TypeScript errors resolved
+- No forced type conversions
+- Clean domain boundaries maintained
+
+### **Architecture Improvements**
+
+1. **Scalable Organization**: Domain-based folders follow modern architecture patterns
+2. **Eliminated Coupling**: No more artificial dependencies between domains
+3. **Consistent Data Flow**: All navigation/footer from single source (`site.settings`)
+4. **Type Safety**: Each domain has its own properly-typed interfaces
+5. **Preview System**: Generic utility that respects domain boundaries
+
+**Result**: Clean, scalable architecture with proper domain separation and a unified preview system that works consistently across all builders.
+
 ### **Overall Impact**: 
-Achieved complete file structure consistency across the entire platform - both admin interface with unified naming patterns and organized component hierarchy, plus properly organized frontend components with clear separation between layout and domain-specific components. Additionally consolidated all library utilities into a single organized location and eliminated all TypeScript compilation errors for a stable, maintainable codebase.
+Achieved complete file structure consistency across the entire platform - both admin interface with unified naming patterns and organized component hierarchy, plus properly organized frontend components with clear separation between layout and domain-specific components. Additionally consolidated all library utilities into a single organized location and eliminated all TypeScript compilation errors for a stable, maintainable codebase. The new domain-based actions organization and generic preview system provide a scalable foundation for future development.

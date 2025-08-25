@@ -1,10 +1,9 @@
 "use client"
 
-import { createPreviewSite } from "@/lib/utils/admin-builder-preview"
+import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"
-import type { Block } from "@/lib/utils/block-types"
 
 interface PostBlock {
   id: string
@@ -54,46 +53,16 @@ export function PostPreview({
   className = "",
   blocksLoading = false
 }: PostPreviewProps) {
-  // Convert post blocks to Block format for compatibility with createPreviewSite
-  const postBlocks: Block[] = blocks.map(block => ({
+  // Convert post blocks to PreviewBlock format for the generic preview system
+  const previewBlocks: PreviewBlock[] = blocks.map(block => ({
     id: block.id,
     type: block.type,
-    title: block.title,
     content: block.content,
     display_order: 0 // Will be handled by block ordering
   }))
 
-  // Combine post blocks with navigation and footer from site blocks
-  let allPreviewBlocks = [...postBlocks]
-  
-  // Add navigation and footer from site settings (like ProductPreview)
-  if (site?.settings?.navigation && !postBlocks.some(b => b.type === 'navigation')) {
-    const navigationBlock: Block = {
-      id: 'site-navigation',
-      type: 'navigation',
-      title: 'Navigation',
-      content: site.settings.navigation,
-      display_order: -1
-    }
-    allPreviewBlocks.unshift(navigationBlock)
-  }
-  
-  if (site?.settings?.footer && !postBlocks.some(b => b.type === 'footer')) {
-    const footerBlock: Block = {
-      id: 'site-footer', 
-      type: 'footer',
-      title: 'Footer',
-      content: site.settings.footer,
-      display_order: 999
-    }
-    allPreviewBlocks.push(footerBlock)
-  }
-  
-  // Sort all blocks by display_order
-  allPreviewBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-  
-  // Transform admin blocks to frontend format using the same utility as PagePreview
-  const previewSite = createPreviewSite(allPreviewBlocks, site)
+  // Create preview site - navigation and footer will be added from site.settings automatically
+  const previewSite = createPreviewSite(previewBlocks, site)
 
   return (
     <div className={`overflow-x-hidden ${className}`}>
@@ -156,7 +125,7 @@ export function PostPreview({
 
                 {/* Post Content Blocks */}
                 <div className="prose prose-lg max-w-none">
-                  {postBlocks.map((block) => {
+                  {blocks.map((block) => {
                     if (block.type === 'post-content') {
                       return (
                         <RichTextBlock

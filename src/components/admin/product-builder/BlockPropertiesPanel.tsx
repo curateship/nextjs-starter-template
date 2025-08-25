@@ -40,7 +40,7 @@ interface BlockPropertiesPanelProps {
       footer?: any
     }
   }
-  allBlocks?: Record<string, any[]>
+  // allBlocks removed - navigation/footer now come from site.settings
   blocksLoading?: boolean
   onOpenProductSettings?: () => void
 }
@@ -51,7 +51,6 @@ export function BlockPropertiesPanel({
   siteId,
   currentProduct,
   site,
-  allBlocks,
   blocksLoading = false,
   onOpenProductSettings
 }: BlockPropertiesPanelProps) {
@@ -224,7 +223,6 @@ export function BlockPropertiesPanel({
               is_published: currentProduct.is_published || false
             } : undefined}
             site={site}
-            allBlocks={allBlocks}
             className="h-full"
             blocksLoading={blocksLoading}
           />

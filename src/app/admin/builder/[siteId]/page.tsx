@@ -208,7 +208,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
               subdomain: site.subdomain,
               settings: site.settings
             } : undefined}
-            allBlocks={localBlocks}
             blocksLoading={blocksLoading}
           />
           
