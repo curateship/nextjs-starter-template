@@ -178,7 +178,11 @@ export default function ImagesPage() {
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Images Library ({filteredImages.length})</h3>
+              {isLoading ? (
+                <div className="h-6 bg-gray-200 rounded animate-pulse w-48"></div>
+              ) : (
+                <h3 className="text-lg font-semibold">Images Library ({filteredImages.length})</h3>
+              )}
               <div className="flex items-center space-x-4">
                 {/* View Mode Toggle */}
                 <div className="flex items-center border rounded-md">
@@ -204,12 +208,36 @@ export default function ImagesPage() {
           </div>
           
           {isLoading ? (
-            <div className="p-6 flex items-center justify-center">
-              <div className="text-center">
-                <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
-                <p className="text-muted-foreground">Loading images...</p>
+            // Skeleton loading states
+            viewMode === 'gallery' ? (
+              <div className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {[...Array(10)].map((_, i) => (
+                    <div key={i} className="relative bg-gray-200 rounded-lg overflow-hidden aspect-square animate-pulse">
+                      <div className="absolute inset-0 bg-gray-300"></div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="divide-y">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="p-6 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-16 h-16 bg-gray-200 rounded-lg animate-pulse"></div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-32"></div>
+                        <div className="h-3 bg-gray-100 rounded animate-pulse w-16"></div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="h-8 w-16 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : filteredImages.length === 0 ? (
             <div className="p-6 text-center">
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
