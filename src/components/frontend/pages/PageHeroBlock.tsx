@@ -80,7 +80,7 @@ const BackgroundPattern = ({
     />
   );
 };
-import { cn } from "@/lib/utils/cn";
+import { cn } from "@/lib/utils/tailwind-class-merger";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";

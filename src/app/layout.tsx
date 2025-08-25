@@ -6,7 +6,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 
-import { cn } from "@/lib/utils/cn";
+import { cn } from "@/lib/utils/tailwind-class-merger";
 
 const urbanist = Urbanist({
   variable: "--font-urbanist",

@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { cn } from "@/lib/utils/cn";
+import { cn } from "@/lib/utils/tailwind-class-merger";
 
 interface DotPatternProps {
   width?: any;

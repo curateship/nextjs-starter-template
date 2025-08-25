@@ -4,7 +4,7 @@ import { Logo } from '@/components/ui/navigation/logo'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import React, { useEffect, useState } from 'react'
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/utils/tailwind-class-merger'
 import { useScroll } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
 
