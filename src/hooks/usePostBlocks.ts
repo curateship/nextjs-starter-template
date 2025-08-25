@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { PostBlock } from '@/lib/actions/post-actions'
+import type { PostBlock } from '@/lib/actions/posts/post-actions'
 
 export interface PostBlockWithId extends PostBlock {
   id: string

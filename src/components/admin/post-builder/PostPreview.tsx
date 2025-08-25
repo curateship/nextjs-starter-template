@@ -1,6 +1,6 @@
 "use client"
 
-import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
+import { createPreviewSite } from "@/lib/utils/admin-builder-preview"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"

@@ -20,9 +20,9 @@ import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import Link from "next/link"
-import { updateProductAction } from "@/lib/actions/product-actions"
-import type { Product, UpdateProductData } from "@/lib/actions/product-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { updateProductAction } from "@/lib/actions/products/product-actions"
+import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface ProductSettingsModalProps {
   open: boolean

@@ -7,8 +7,8 @@ import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block"
 import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
-import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
+import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 
 interface ProductBlockRendererProps {
   site: SiteWithBlocks

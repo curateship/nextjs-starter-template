@@ -17,9 +17,9 @@ import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, CheckCircle, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { updatePostAction } from "@/lib/actions/post-actions"
-import type { Post, UpdatePostData } from "@/lib/actions/post-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { updatePostAction } from "@/lib/actions/posts/post-actions"
+import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface PostSettingsModalProps {
   open: boolean

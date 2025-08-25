@@ -5,8 +5,8 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Grid, List, Image as ImageIcon, Trash2, Edit } from "lucide-react"
-import { getImagesAction, deleteImageAction, updateImageAction } from "@/lib/actions/image-actions"
-import type { ImageData } from "@/lib/actions/image-actions"
+import { getImagesAction, deleteImageAction, updateImageAction } from "@/lib/actions/images/image-actions"
+import type { ImageData } from "@/lib/actions/images/image-actions"
 import Image from "next/image"
 import { toast } from "sonner"
 import { 

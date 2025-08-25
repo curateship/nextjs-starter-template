@@ -1,4 +1,4 @@
-import type { PostBlock } from '@/lib/actions/post-actions'
+import type { PostBlock } from '@/lib/actions/posts/post-actions'
 
 interface PostBlockRendererProps {
   blocks: Record<string, PostBlock>

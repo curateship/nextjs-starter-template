@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/site-actions'
+import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 
 interface SiteContextType {
   currentSite: SiteWithTheme | null

@@ -13,7 +13,7 @@ import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
 import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
-import type { Product } from "@/lib/actions/product-actions"
+import type { Product } from "@/lib/actions/products/product-actions"
 
 interface ProductBuilderHeaderProps {
   products: Product[]

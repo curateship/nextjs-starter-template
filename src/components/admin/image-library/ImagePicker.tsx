@@ -17,8 +17,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import { getImagesAction } from "@/lib/actions/image-actions"
-import type { ImageData } from "@/lib/actions/image-actions"
+import { getImagesAction } from "@/lib/actions/images/image-actions"
+import type { ImageData } from "@/lib/actions/images/image-actions"
 import Image from "next/image"
 import { Search, ImageIcon, Upload, X } from "lucide-react"
 import { toast } from "sonner"

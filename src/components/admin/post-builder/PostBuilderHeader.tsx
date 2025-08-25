@@ -13,7 +13,7 @@ import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
-import type { Post } from "@/lib/actions/post-actions"
+import type { Post } from "@/lib/actions/posts/post-actions"
 
 interface PostBuilderHeaderProps {
   posts: Post[]

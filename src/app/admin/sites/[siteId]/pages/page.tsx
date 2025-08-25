@@ -25,9 +25,9 @@ import {
 import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
-import { getSitePagesAction, deletePageAction, duplicatePageAction } from "@/lib/actions/page-actions"
-import type { Page } from "@/lib/actions/page-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { getSitePagesAction, deletePageAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
+import type { Page } from "@/lib/actions/pages/page-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface PageProps {
   params: Promise<{

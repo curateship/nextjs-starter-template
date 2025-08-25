@@ -27,9 +27,9 @@ import { CreateProductModal } from "@/components/admin/product-builder/CreatePro
 import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/product-actions"
+import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Product } from "@/lib/actions/product-actions"
+import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductsPage() {
   const router = useRouter()

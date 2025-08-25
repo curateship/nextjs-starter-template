@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createPageAction } from "@/lib/actions/page-actions"
-import type { Page, CreatePageData } from "@/lib/actions/page-actions"
+import { createPageAction } from "@/lib/actions/pages/page-actions"
+import type { Page, CreatePageData } from "@/lib/actions/pages/page-actions"
 
 interface CreatePageModalProps {
   siteId: string

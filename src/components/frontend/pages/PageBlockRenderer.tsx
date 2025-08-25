@@ -8,7 +8,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
-import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
+import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface BlockRendererProps {
   site: SiteWithBlocks

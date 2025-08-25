@@ -12,8 +12,8 @@ import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
-import type { Page } from "@/lib/actions/page-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { Page } from "@/lib/actions/pages/page-actions"
 
 interface PageBuilderHeaderProps {
   site: SiteWithTheme | null

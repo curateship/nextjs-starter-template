@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
-import { getSiteProductsAction } from "@/lib/actions/product-actions"
-import { getSitePagesAction } from "@/lib/actions/page-actions"
+import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
+import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray, getProductBlockTitle } from "@/lib/utils/product-block-utils"
 import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
 

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
-import { createSiteAction } from "@/lib/actions/site-actions"
+import { createSiteAction } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function NewSitePage() {

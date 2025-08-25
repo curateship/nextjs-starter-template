@@ -6,7 +6,7 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { Button } from "@/components/ui/button"
 import { Trash2, MoreHorizontal, ExternalLink, Power, PowerOff } from "lucide-react"
 import type { Theme } from "@/lib/supabase/themes"
-import { getAllThemesAction, updateThemeStatusAction, deleteThemeAction } from "@/lib/actions/theme-actions"
+import { getAllThemesAction, updateThemeStatusAction, deleteThemeAction } from "@/lib/actions/themes/theme-actions"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'development'
 

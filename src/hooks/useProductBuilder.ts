@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { updateProductBlocksAction } from "@/lib/actions/product-actions"
+import { updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 
 interface ProductBlock {
   id: string
