@@ -35,9 +35,10 @@ interface ListingViewsBlockProps {
     products?: string
     posts?: string
   }
+  preloadedData?: any
 }
 
-export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes }: ListingViewsBlockProps) {
+export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes, preloadedData }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
@@ -71,6 +72,13 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes 
 
   useEffect(() => {
     async function loadData() {
+      // Use preloaded data for initial load if available
+      if (preloadedData && currentPage === 1 && !isPaginated) {
+        setData(preloadedData)
+        setLoading(false)
+        return
+      }
+      
       setLoading(true)
       
       const limit = isPaginated ? itemsPerPage : itemsToShow
@@ -93,7 +101,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes 
     }
     
     loadData()
-  }, [siteId, contentType, sortBy, sortOrder, itemsToShow, itemsPerPage, isPaginated, currentPage])
+  }, [siteId, contentType, sortBy, sortOrder, itemsToShow, itemsPerPage, isPaginated, currentPage, preloadedData])
 
   const gridColumns = displayMode === 'grid' 
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 

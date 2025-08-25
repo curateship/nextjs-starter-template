@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from '@supabase/supabase-js'
+import { getListingViewsData } from './page-listing-views-actions'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +22,7 @@ export interface SiteWithBlocks {
     content: Record<string, any>
     display_order: number
   }>
+  listingData?: Record<string, any>
 }
 
 /**
@@ -139,6 +141,42 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     // Sort all blocks by display_order
     blocks.sort((a, b) => a.display_order - b.display_order)
 
+    // Pre-fetch data for listing-views blocks to eliminate client-side loading
+    let listingData: Record<string, any> = {}
+    
+    for (const block of blocks) {
+      if (block.type === 'listing-views') {
+        try {
+          const {
+            contentType = 'products',
+            sortBy = 'date',
+            sortOrder = 'desc',
+            itemsToShow = 6,
+            itemsPerPage = 12,
+            isPaginated = false
+          } = block.content
+          
+          const limit = isPaginated ? itemsPerPage : itemsToShow
+          
+          const result = await getListingViewsData({
+            site_id: site.id,
+            contentType,
+            sortBy,
+            sortOrder,
+            limit,
+            offset: 0
+          })
+          
+          if (result.success && result.data) {
+            listingData[block.id] = result.data
+          }
+        } catch (error) {
+          // Silently continue - block will fall back to client loading
+          console.error('Failed to pre-fetch listing data for block', block.id, error)
+        }
+      }
+    }
+
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
       name: site.name,
@@ -147,7 +185,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       theme_id: site.theme_id,
       theme_name: site.theme_name,
       settings: site.settings,
-      blocks
+      blocks,
+      listingData: Object.keys(listingData).length > 0 ? listingData : undefined
     }
 
     return { success: true, site: siteWithBlocks }
@@ -354,6 +393,42 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
     // Sort all blocks by display_order
     blocks.sort((a, b) => a.display_order - b.display_order)
 
+    // Pre-fetch data for listing-views blocks to eliminate client-side loading
+    let listingData: Record<string, any> = {}
+    
+    for (const block of blocks) {
+      if (block.type === 'listing-views') {
+        try {
+          const {
+            contentType = 'products',
+            sortBy = 'date',
+            sortOrder = 'desc',
+            itemsToShow = 6,
+            itemsPerPage = 12,
+            isPaginated = false
+          } = block.content
+          
+          const limit = isPaginated ? itemsPerPage : itemsToShow
+          
+          const result = await getListingViewsData({
+            site_id: site.id,
+            contentType,
+            sortBy,
+            sortOrder,
+            limit,
+            offset: 0
+          })
+          
+          if (result.success && result.data) {
+            listingData[block.id] = result.data
+          }
+        } catch (error) {
+          // Silently continue - block will fall back to client loading
+          console.error('Failed to pre-fetch listing data for block', block.id, error)
+        }
+      }
+    }
+
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
       name: site.name,
@@ -362,7 +437,8 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       theme_id: site.theme_id,
       theme_name: site.theme_name,
       settings: site.settings,
-      blocks
+      blocks,
+      listingData: Object.keys(listingData).length > 0 ? listingData : undefined
     }
 
     return { success: true, site: siteWithBlocks }
