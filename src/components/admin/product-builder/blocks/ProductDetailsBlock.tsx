@@ -101,7 +101,7 @@ export function ProductDetailsBlock({
 
           {specifications.length === 0 && (
             <div className="text-center py-4 text-muted-foreground text-sm">
-              No specifications added yet. Click "Add" to create your first specification.
+              No specifications added yet. Click &quot;Add&quot; to create your first specification.
             </div>
           )}
         </div>

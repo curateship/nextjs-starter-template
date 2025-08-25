@@ -228,7 +228,7 @@ export function PageSettingsModal({
       <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
         <DialogHeader className="mb-6">
           <DialogTitle className="flex items-center gap-3">
-            Configure settings for "{page.title}"
+            Configure settings for &quot;{page.title}&quot;
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
                 page?.is_published ? 'bg-green-500' : 'bg-gray-400'

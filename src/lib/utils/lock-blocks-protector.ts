@@ -3,30 +3,6 @@
  */
 
 /**
- * Helper function to get display title for block type
- */
-export function getBlockTitle(blockType: string): string {
-  switch (blockType) {
-    case 'navigation':
-      return 'Navigation'
-    case 'hero':
-      return 'Hero Section'
-    case 'rich-text':
-      return 'Rich Text Content'
-    case 'faq':
-      return 'FAQ Section'
-    case 'listing-views':
-      return 'Listing Views'
-    case 'divider':
-      return 'Divider / Spacer'
-    case 'footer':
-      return 'Footer'
-    default:
-      return 'Block'
-  }
-}
-
-/**
  * Helper function to check if block type is protected from deletion
  */
 export function isBlockTypeProtected(blockType: string): boolean {

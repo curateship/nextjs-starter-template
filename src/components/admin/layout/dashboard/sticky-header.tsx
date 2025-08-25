@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { getSiteUrl } from "@/lib/utils/site-url"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 interface StickyHeaderProps {
   className?: string

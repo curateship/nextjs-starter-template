@@ -255,7 +255,7 @@ export function PostSettingsModal({
             </DialogPrimitive.Close>
             <DialogHeader className="mb-6">
               <DialogTitle className="flex items-center gap-3">
-                Configure settings for "{post.title}"
+                Configure settings for &quot;{post.title}&quot;
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${
                     post?.is_published ? 'bg-green-500' : 'bg-gray-400'

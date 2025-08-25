@@ -282,7 +282,7 @@ export function PageFaqBlock({
 
           {localFaqItems.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              No FAQ items yet. Click "Add Item" to create one.
+              No FAQ items yet. Click &quot;Add Item&quot; to create one.
             </div>
           )}
         </CardContent>

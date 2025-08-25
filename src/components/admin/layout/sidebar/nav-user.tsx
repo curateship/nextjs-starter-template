@@ -9,6 +9,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react"
+import Link from "next/link"
 import { signOut } from "@/lib/actions/auth/auth-actions"
 
 import {
@@ -101,10 +102,10 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <a href="/admin/settings">
+                <Link href="/admin/settings">
                   <Settings />
                   Settings
-                </a>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <BadgeCheck />

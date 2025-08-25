@@ -379,7 +379,7 @@ export function SiteDashboard({
               )}
             </div>
             <div className="text-xs text-muted-foreground">
-              <p>Upload a square image for your site's favicon (recommended: 32x32px or 64x64px)</p>
+              <p>Upload a square image for your site&apos;s favicon (recommended: 32x32px or 64x64px)</p>
             </div>
           </div>
         )}

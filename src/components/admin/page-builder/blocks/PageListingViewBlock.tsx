@@ -163,7 +163,7 @@ export function PageListingViewBlock({
           </div>
           
           <p className="text-sm text-muted-foreground">
-            Add text and link to display a "View All" button (only shown when not paginated)
+            Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
           </p>
         </CardContent>
       </Card>
