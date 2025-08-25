@@ -82,6 +82,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
                 products: site.settings?.url_prefixes?.products || '',
                 posts: site.settings?.url_prefixes?.posts || ''
               }}
+              preloadedData={site.listingData?.[block.id]}
             />
           )
         }
