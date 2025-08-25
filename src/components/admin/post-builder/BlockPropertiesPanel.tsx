@@ -1,6 +1,6 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { PostPreview } from "./PostPreview"
-import type { PostBlock } from "@/lib/actions/post-block-actions"
+import type { PostBlock } from "@/lib/actions/post-actions"
 
 interface PostBlockWithId extends PostBlock {
   id: string

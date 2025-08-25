@@ -27,7 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { PostBlock } from "@/lib/actions/post-block-actions"
+import type { PostBlock } from "@/lib/actions/post-actions"
 
 interface CurrentPost {
   slug: string
