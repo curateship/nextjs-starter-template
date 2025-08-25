@@ -4,11 +4,9 @@ import { useState, useEffect } from "react"
 import { 
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogPortal,
-  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,9 +15,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
-import { ImageIcon, X, CheckCircle } from "lucide-react"
+import { ImageIcon, X, CheckCircle, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import Link from "next/link"
 import { updatePostAction } from "@/lib/actions/post-actions"
 import type { Post, UpdatePostData } from "@/lib/actions/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/site-actions"
@@ -46,6 +43,8 @@ export function PostSettingsModal({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
+  const [extractedContent, setExtractedContent] = useState('')
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -59,6 +58,7 @@ export function PostSettingsModal({
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
+    setIsSaved(false)
     setFormData(prev => ({
       ...prev,
       title,
@@ -68,6 +68,7 @@ export function PostSettingsModal({
 
   // Handle manual slug changes
   const handleSlugChange = (slug: string) => {
+    setIsSaved(false)
     if (slug === '') {
       // If user clears the field, reset to auto-generation
       setSlugManuallyEdited(false)
@@ -80,11 +81,13 @@ export function PostSettingsModal({
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
+    setIsSaved(false)
     setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
   }
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
+    setIsSaved(false)
     setFormData(prev => ({ ...prev, featured_image: '' }))
   }
 
@@ -93,14 +96,15 @@ export function PostSettingsModal({
   useEffect(() => {
     if (post) {
       // Extract content from content_blocks structure
-      let extractedContent = ''
+      let content = ''
       if (post.content_blocks && typeof post.content_blocks === 'object') {
         const blocks = Object.values(post.content_blocks)
         const firstBlock = blocks.find((block: any) => block.type === 'rich-text')
         if (firstBlock && firstBlock.content) {
-          extractedContent = firstBlock.content.body || firstBlock.content.text || ''
+          content = firstBlock.content.body || firstBlock.content.text || ''
         }
       }
+      setExtractedContent(content)
       
       setFormData({
         title: post.title,
@@ -108,7 +112,6 @@ export function PostSettingsModal({
         meta_description: post.meta_description || '',
         featured_image: post.featured_image || '',
         excerpt: post.excerpt || '',
-        content: extractedContent,
         is_published: post.is_published
       })
       
@@ -159,6 +162,7 @@ export function PostSettingsModal({
       if (data) {
         setSaveMessage('Post saved as draft')
         setLastSavedAt(new Date())
+        setIsSaved(true)
         
         // Call success callback
         if (onSuccess) {
@@ -205,6 +209,7 @@ export function PostSettingsModal({
       if (data) {
         setSaveMessage(post?.is_published ? 'Post updated' : 'Post published')
         setLastSavedAt(new Date())
+        setIsSaved(true)
         
         // Update the form data to reflect the new published state
         setFormData(prev => ({ ...prev, is_published: true }))
@@ -248,12 +253,19 @@ export function PostSettingsModal({
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
-        <DialogHeader>
-          <DialogTitle>Post Settings</DialogTitle>
-          <DialogDescription>
-            Configure settings for "{post.title}"
-          </DialogDescription>
-        </DialogHeader>
+            <DialogHeader className="mb-6">
+              <DialogTitle className="flex items-center gap-3">
+                Configure settings for "{post.title}"
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    post?.is_published ? 'bg-green-500' : 'bg-gray-400'
+                  }`} />
+                  <span className="text-sm font-medium">
+                    {post?.is_published ? 'Published' : 'Draft'}
+                  </span>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -267,9 +279,6 @@ export function PostSettingsModal({
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the basic settings for this post
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Post Title */}
@@ -305,11 +314,11 @@ export function PostSettingsModal({
                 <Label htmlFor="featured_image">Featured Image</Label>
                 <div className="mt-2">
                   {formData.featured_image ? (
-                    <div className="relative rounded-lg overflow-hidden bg-muted">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
                       <img 
                         src={formData.featured_image} 
                         alt="Featured image preview" 
-                        className="w-full h-48 object-cover"
+                        className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
                       <button
@@ -330,7 +339,7 @@ export function PostSettingsModal({
                     </div>
                   ) : (
                     <div 
-                      className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
                       onClick={() => setShowImagePicker(true)}
                     >
                       <div className="text-center">
@@ -348,12 +357,11 @@ export function PostSettingsModal({
               {/* Post Excerpt */}
               <div className="space-y-2">
                 <Label htmlFor="excerpt">Post Excerpt</Label>
-                <Textarea
+                <Input
                   id="excerpt"
                   value={formData.excerpt || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
+                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, excerpt: e.target.value })); }}
                   placeholder="A brief summary of your post content"
-                  rows={3}
                 />
                 <p className="text-xs text-muted-foreground">
                   Brief summary shown in post listings and previews
@@ -365,33 +373,17 @@ export function PostSettingsModal({
                 <Label htmlFor="content">Post Content</Label>
                 <PageRichTextEditorBlock
                   content={{
-                    content: formData.content || '',
+                    content: extractedContent || '',
                     hideHeader: true,
                     hideEditorHeader: true
                   }}
-                  onContentChange={(content) => setFormData(prev => ({ ...prev, content: content.content }))}
+                  onContentChange={(content) => { setIsSaved(false); setExtractedContent(content.content); }}
                 />
                 <p className="text-xs text-muted-foreground">
                   Rich text content for the post body
                 </p>
               </div>
                 
-              {/* Current Status Display */}
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    post?.is_published ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
-                  <span className="text-sm font-medium">
-                    Current Status: {post?.is_published ? 'Published' : 'Draft'}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {post?.is_published 
-                    ? 'This post is visible to visitors' 
-                    : 'This post is hidden from visitors'}
-                </p>
-              </div>
             </CardContent>
           </Card>
 
@@ -407,12 +399,11 @@ export function PostSettingsModal({
               {/* Meta Description */}
               <div className="space-y-2">
                 <Label htmlFor="modal-meta_description">Meta Description</Label>
-                <Textarea
+                <Input
                   id="modal-meta_description"
                   value={formData.meta_description || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, meta_description: e.target.value })); }}
                   placeholder="A brief description of this post for search engines"
-                  rows={3}
                 />
                 <p className="text-xs text-muted-foreground">
                   Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
@@ -422,33 +413,6 @@ export function PostSettingsModal({
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>
-                Common post management tasks
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/admin/posts/builder/${post.slug}`}>
-                    Edit Post
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a 
-                    href={site ? `/posts/${post.slug}` : '#'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    Preview Post
-                  </a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
 
           {/* Form Actions */}
@@ -468,6 +432,12 @@ export function PostSettingsModal({
                   <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
                 </div>
               )}
+              {isSaved && (
+                <div className="flex items-center space-x-1 text-green-600">
+                  <Check className="h-4 w-4" />
+                  <span className="text-sm font-medium">Saved!</span>
+                </div>
+              )}
               <Button 
                 type="submit" 
                 variant="outline"
@@ -479,7 +449,6 @@ export function PostSettingsModal({
                 type="button" 
                 onClick={handlePublish}
                 disabled={saving}
-                className="relative"
               >
                 {saving ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
               </Button>

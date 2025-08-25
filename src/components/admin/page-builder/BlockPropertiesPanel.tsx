@@ -57,14 +57,14 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'hero' && (
               <PageHeroBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, [
+                {...(createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'primaryButton', 'secondaryButton', 
                   'primaryButtonLink', 'secondaryButtonLink', 'primaryButtonStyle', 'secondaryButtonStyle',
                   'backgroundColor', 'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
                   'githubLink', 'showParticles', 'trustedByText', 'trustedByTextColor', 
                   'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
                   'backgroundPatternOpacity', 'backgroundPatternColor', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
-                ])}
+                ]) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
@@ -72,7 +72,7 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'navigation' && (
               <PageNavigationBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style'])}
+                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style']) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
                 siteFavicon={site?.settings?.favicon}
@@ -81,14 +81,21 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'footer' && (
               <PageFooterBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style'])}
+                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style']) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
             )}
             {selectedBlock.type === 'rich-text' && (
               <PageRichTextEditorBlock
-                content={selectedBlock.content}
+                content={{
+                  title: selectedBlock.content.title || '',
+                  subtitle: selectedBlock.content.subtitle || '',
+                  headerAlign: selectedBlock.content.headerAlign || 'left',
+                  content: selectedBlock.content.content || '',
+                  hideHeader: selectedBlock.content.hideHeader,
+                  hideEditorHeader: selectedBlock.content.hideEditorHeader
+                }}
                 onContentChange={(contentObj) => {
                   updateBlockContent('title', contentObj.title)
                   updateBlockContent('subtitle', contentObj.subtitle)
@@ -112,22 +119,22 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'listing-views' && (
               <PageListingViewBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, [
+                {...(createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'headerAlign', 'contentType', 'displayMode',
                   'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
                   'showViewAll', 'viewAllText', 'viewAllLink', 'backgroundColor'
-                ])}
+                ]) as any)}
               />
             )}
             
             {selectedBlock.type === 'divider' && (
               <PageDividerBlock
                 {...selectedBlock.content}
-                {...createCallbacks(updateBlockContent, [
+                {...(createCallbacks(updateBlockContent, [
                   'spacingTop', 'spacingBottom', 'dividerStyle',
                   'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth'
-                ])}
+                ]) as any)}
               />
             )}
           </div>

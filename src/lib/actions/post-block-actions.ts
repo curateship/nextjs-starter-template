@@ -126,7 +126,7 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
       return { success: false, error: 'Post not found or access denied' }
     }
 
-    if (post.sites.user_id !== user.id) {
+    if (post.sites[0]?.user_id !== user.id) {
       return { success: false, error: 'Access denied - you do not own this post' }
     }
 

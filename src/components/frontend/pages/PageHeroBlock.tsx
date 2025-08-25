@@ -152,7 +152,6 @@ const HeroContent = ({
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
-  showRainbowButton,
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink,
