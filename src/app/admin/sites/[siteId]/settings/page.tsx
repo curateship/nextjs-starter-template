@@ -6,6 +6,7 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-la
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface SiteEditPageProps {
   params: Promise<{
@@ -16,6 +17,7 @@ interface SiteEditPageProps {
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
+  const { refreshSiteSettings } = useSiteContext()
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteName, setSiteName] = useState("")
   const [subdomain, setSubdomain] = useState("")
@@ -114,6 +116,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       }
 
       if (data) {
+        // Refresh site settings in context to update cached URL prefixes
+        await refreshSiteSettings()
         // Stay on the same page after successful update
         // Optionally show a success message or update the site state
         setSite(prev => prev ? { ...prev, ...data } : null)

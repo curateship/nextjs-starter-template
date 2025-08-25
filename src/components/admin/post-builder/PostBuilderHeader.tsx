@@ -4,7 +4,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -14,7 +13,6 @@ import { useSiteContext } from "@/contexts/site-context"
 import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
 import type { Post } from "@/lib/actions/posts/post-actions"
-import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 interface PostBuilderHeaderProps {
   posts: Post[]
@@ -44,29 +42,15 @@ export function PostBuilderHeader({
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [urlPrefix, setUrlPrefix] = useState<string>("")
-  const { currentSite } = useSiteContext()
+  const { currentSite, siteSettings } = useSiteContext()
   const currentPost = posts.find(p => p.slug === selectedPost)
   
-  // Fetch URL prefix for this site
+  // Get URL prefix from context (cached, no API call needed)
   useEffect(() => {
-    const fetchUrlPrefix = async () => {
-      if (!currentSite?.id) return
-      
-      try {
-        const { data: site } = await getSiteByIdAction(currentSite.id)
-        if (site?.settings?.url_prefixes?.posts !== undefined) {
-          setUrlPrefix(site.settings.url_prefixes.posts)
-        } else {
-          setUrlPrefix("") // Clear prefix if not set
-        }
-      } catch (error) {
-        // Silently fail - prefix is optional
-        setUrlPrefix("")
-      }
+    if (currentSite?.id) {
+      setUrlPrefix(siteSettings?.urlPrefixes?.posts || "")
     }
-    
-    fetchUrlPrefix()
-  }, [currentSite?.id])
+  }, [currentSite?.id, siteSettings?.urlPrefixes?.posts])
   
   // Generate post URL for frontend viewing
   const getPostUrl = () => {

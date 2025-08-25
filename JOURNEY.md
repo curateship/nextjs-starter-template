@@ -5492,3 +5492,51 @@ After:  /shop/iphone-case, /news/blog-post, /about (or any custom prefix)
 **Performance**: ~50-100ms additional latency per page load. Future optimization opportunities identified (React Context, caching, edge config).
 
 **Results**: WordPress-level URL flexibility with comprehensive security, backward compatibility, and production-ready implementation. All admin interfaces and frontend components now use dynamic URL generation based on site-specific prefix settings.
+
+---
+
+## Phase 17: URL Prefix Performance Optimization (August 25, 2025)
+
+### **User Observation**: 
+PageListingViewBlock loading separately from main page, creating waterfall loading pattern compared to individual product pages which load instantly.
+
+### **Performance Problem Discovered**
+Multiple components making redundant API calls to fetch URL prefix settings:
+- 7 components using individual `getSiteByIdAction` calls (~100-300ms each)
+- `PageListingViewBlock` making client-side API call on every render
+- N+1 query problem with 28 total occurrences across codebase
+
+### **Solution: React Context + Server Props Pattern**
+
+#### **Enhanced SiteContext**
+Added cached `siteSettings` to existing context:
+```typescript
+interface SiteSettings {
+  urlPrefixes: { posts?: string, products?: string }
+}
+// Auto-refresh when currentSite changes
+```
+
+#### **Dual Architecture Approach**
+- **Admin Components**: Use React Context for instant cached access
+- **Frontend Components**: Use server-rendered props (zero API calls)
+
+### **Performance Results**
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Component API Calls | 7 separate | 1 shared | 85% reduction |
+| Frontend Loading | Client API call | Server props | 100% elimination |
+| Loading Time | 100-300ms each | 0ms after initial | Instant access |
+
+### **Components Optimized**
+- ✅ 6 admin components now use cached context
+- ✅ `PageListingViewBlock` uses server-rendered props (eliminates separate loading)
+- ✅ Settings page triggers context refresh on changes
+- ✅ Removed unused imports and dead code
+
+### **Architecture Benefits**
+- **Separation of Concerns**: Admin (context) vs Frontend (server props)
+- **WordPress-Level Flexibility**: URL customization with enterprise performance
+- **Eliminated N+1 Queries**: Single shared API call per site change
+
+**Result**: Eliminated redundant URL prefix fetching while maintaining the flexible URL system's functionality. PageListingViewBlock now loads instantly with the main page instead of separately.

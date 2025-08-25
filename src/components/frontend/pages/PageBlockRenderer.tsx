@@ -78,6 +78,10 @@ export function BlockRenderer({ site }: BlockRendererProps) {
               key={`listing-views-${block.id}`}
               content={block.content}
               siteId={site.id}
+              urlPrefixes={{
+                products: site.settings?.url_prefixes?.products || '',
+                posts: site.settings?.url_prefixes?.posts || ''
+              }}
             />
           )
         }
