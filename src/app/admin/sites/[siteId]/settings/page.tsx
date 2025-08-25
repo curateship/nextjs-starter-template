@@ -7,6 +7,7 @@ import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import { CheckCircle } from "lucide-react"
 
 interface SiteEditPageProps {
   params: Promise<{
@@ -32,6 +33,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   const loadSite = useCallback(async () => {
     try {
@@ -89,6 +91,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     try {
       setIsSubmitting(true)
       setError(null)
+      setSaveMessage(null)
 
       const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
@@ -119,8 +122,15 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         // Refresh site settings in context to update cached URL prefixes
         await refreshSiteSettings()
         // Stay on the same page after successful update
-        // Optionally show a success message or update the site state
         setSite(prev => prev ? { ...prev, ...data } : null)
+        
+        // Show success message
+        setSaveMessage('Site settings saved successfully')
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSaveMessage(null)
+        }, 3000)
       }
     } catch (err) {
       console.error('Error updating site:', err)
@@ -191,6 +201,12 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             label: "Cancel",
             href: "/admin/sites"
           }}
+          extraContent={saveMessage && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
+            </div>
+          )}
         />
 
         {error && (

@@ -6,13 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2, ImageIcon } from "lucide-react"
-import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
+import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
-import type { Theme } from "@/lib/supabase/themes"
-import { FontSelector } from "@/components/admin/page-builder/FontSelector"
 import { SEOSettingsCard } from "./SEOSettingsCard"
+import { StylingSettingsCard } from "./StylingSettingsCard"
 
 interface SiteDashboardProps {
   siteName: string
@@ -61,20 +58,13 @@ export function SiteDashboard({
   onProductPrefixChange,
   onPostPrefixChange,
 }: SiteDashboardProps) {
-  const [themes, setThemes] = useState<Theme[]>([])
-  const [themesLoading, setThemesLoading] = useState(true)
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
     checking: boolean
     available: boolean | null
     suggestion?: string
   }>({ checking: false, available: null })
-  const [showFaviconPicker, setShowFaviconPicker] = useState(false)
 
-  // Load themes on component mount
-  useEffect(() => {
-    loadThemes()
-  }, [])
 
   // Generate subdomain from site name
   const generateSubdomain = (name: string) => {
@@ -126,25 +116,6 @@ export function SiteDashboard({
     }
   }, [siteName, subdomain])
 
-  const loadThemes = async () => {
-    try {
-      setThemesLoading(true)
-      const { data, error } = await getActiveThemesAction()
-      
-      if (error) {
-        console.error('Error loading themes:', error)
-        return
-      }
-      
-      if (data) {
-        setThemes(data)
-      }
-    } catch (err) {
-      console.error('Error loading themes:', err)
-    } finally {
-      setThemesLoading(false)
-    }
-  }
 
   const checkSubdomainAvailability = async (subdomainToCheck: string) => {
     if (!subdomainToCheck) {
@@ -285,116 +256,10 @@ export function SiteDashboard({
           </div>
         )}
 
-        {/* Theme Selection */}
-        <div className="space-y-2">
-            <Select value={themeId} onValueChange={onThemeIdChange}>
-              <SelectTrigger>
-                <SelectValue placeholder={themesLoading ? "Loading themes..." : "Select a theme"} />
-              </SelectTrigger>
-              <SelectContent>
-                {themesLoading ? (
-                  <SelectItem value="loading" disabled>
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-                      <span>Loading themes...</span>
-                    </div>
-                  </SelectItem>
-                ) : themes.length === 0 ? (
-                  <SelectItem value="no-themes" disabled>
-                    No active themes available
-                  </SelectItem>
-                ) : (
-                  themes.map((theme) => (
-                    <SelectItem key={theme.id} value={theme.id}>
-                      {theme.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            {themeId && themes.length > 0 && (
-              <div className="text-xs text-muted-foreground">
-                {(() => {
-                  const selectedTheme = themes.find(t => t.id === themeId)
-                  return selectedTheme ? (
-                    <div className="flex items-center justify-between">
-                      <span>Selected: {selectedTheme.name}</span>
-                    </div>
-                  ) : null
-                })()}
-              </div>
-            )}
-        </div>
-
-        {/* Font Selectors - Two Column Layout */}
-        {(onFontFamilyChange || onSecondaryFontFamilyChange) && (
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Typography</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {onFontFamilyChange && (
-                <FontSelector
-                  value={fontFamily}
-                  onChange={onFontFamilyChange}
-                  label="Primary Font"
-                  description="Used for headings and titles"
-                />
-              )}
-              {onSecondaryFontFamilyChange && (
-                <FontSelector
-                  value={secondaryFontFamily}
-                  onChange={onSecondaryFontFamilyChange}
-                  label="Secondary Font"
-                  description="Used for body text and content"
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Favicon */}
-        {onFaviconChange && (
-          <div className="space-y-2">
-            <label htmlFor="favicon" className="text-sm font-medium text-gray-700">
-              Site Favicon
-            </label>
-            <div className="relative">
-              {favicon ? (
-                <div 
-                  className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => setShowFaviconPicker(true)}
-                >
-                  <img 
-                    src={favicon} 
-                    alt="Favicon preview" 
-                    className="w-16 h-16 object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                    <div className="text-white text-center">
-                      <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                      <p className="text-xs">Change</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div 
-                  className="flex items-center justify-center w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                  onClick={() => setShowFaviconPicker(true)}
-                >
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-4 w-4 text-muted-foreground/50" />
-                    <p className="mt-1 text-xs text-muted-foreground">Select</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              <p>Upload a square image for your site&apos;s favicon (recommended: 32x32px or 64x64px)</p>
-            </div>
-          </div>
-        )}
 
         {/* Status */}
         <div className="space-y-2">
+          <Label htmlFor="status">Site Status</Label>
           <Select value={status} onValueChange={onStatusChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -410,6 +275,18 @@ export function SiteDashboard({
       </CardContent>
     </Card>
 
+    {/* Styling Settings Card */}
+    <StylingSettingsCard
+      themeId={themeId}
+      fontFamily={fontFamily}
+      secondaryFontFamily={secondaryFontFamily}
+      favicon={favicon}
+      onThemeIdChange={onThemeIdChange}
+      onFontFamilyChange={onFontFamilyChange}
+      onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
+      onFaviconChange={onFaviconChange}
+    />
+
     {/* SEO Settings Card */}
     {(onProductPrefixChange || onPostPrefixChange) && (
       <SEOSettingsCard
@@ -418,19 +295,6 @@ export function SiteDashboard({
         siteDomain={customDomain || `${subdomain}.yourdomain.com`}
         onProductPrefixChange={onProductPrefixChange}
         onPostPrefixChange={onPostPrefixChange}
-      />
-    )}
-
-    {/* Favicon Image Picker Modal */}
-    {onFaviconChange && (
-      <ImagePicker
-        open={showFaviconPicker}
-        onOpenChange={setShowFaviconPicker}
-        onSelectImage={(imageUrl) => {
-          onFaviconChange(imageUrl)
-          setShowFaviconPicker(false)
-        }}
-        currentImageUrl={favicon}
       />
     )}
   </div>

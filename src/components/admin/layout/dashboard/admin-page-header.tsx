@@ -20,6 +20,7 @@ interface AdminPageHeaderProps {
     onClick?: () => void
     variant?: "default" | "outline" | "destructive"
   }
+  extraContent?: React.ReactNode
 }
 
 export function AdminPageHeader({
@@ -28,6 +29,7 @@ export function AdminPageHeader({
   backUrl,
   primaryAction,
   secondaryAction,
+  extraContent,
 }: AdminPageHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-6 mt-8">
@@ -48,8 +50,9 @@ export function AdminPageHeader({
         </div>
       </div>
       
-      {(primaryAction || secondaryAction) && (
-        <div className="flex space-x-2">
+      {(primaryAction || secondaryAction || extraContent) && (
+        <div className="flex items-center space-x-2">
+          {extraContent}
           {secondaryAction && (
             <Button
               variant={secondaryAction.variant || "outline"}
