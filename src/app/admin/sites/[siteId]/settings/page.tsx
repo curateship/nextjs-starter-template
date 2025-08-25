@@ -122,9 +122,25 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     return (
       <AdminLayout>
         <div className="w-full max-w-6xl mx-auto">
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading site...</p>
+          <AdminPageHeader
+            title="Site Settings"
+            subtitle="Configure your site"
+            primaryAction={{
+              label: "Save Changes",
+              onClick: () => {}
+            }}
+          />
+          
+          {/* Skeleton loading - form field rows with card styling */}
+          <div className="bg-card border rounded-lg p-6 shadow-sm">
+            <div className="space-y-6">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                  <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </AdminLayout>
