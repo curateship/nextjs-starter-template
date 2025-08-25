@@ -9,7 +9,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react"
-import { signOut } from "@/lib/actions/auth-actions"
+import { signOut } from "@/lib/actions/auth/auth-actions"
 
 import {
   Avatar,

@@ -13,8 +13,8 @@ import { PageBuilderHeader } from "@/components/admin/page-builder/PageBuilderHe
 import { BlockPropertiesPanel } from "@/components/admin/page-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/page-builder/BlockListPanel"
 import { BlockTypesPanel } from "@/components/admin/page-builder/BlockTypesPanel"
-import { getSitePagesAction } from "@/lib/actions/page-actions"
-import type { Page } from "@/lib/actions/page-actions"
+import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
+import type { Page } from "@/lib/actions/pages/page-actions"
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)

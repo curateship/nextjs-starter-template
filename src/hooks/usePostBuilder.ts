@@ -5,7 +5,7 @@ import {
   addPostBlockAction, 
   deletePostBlockAction,
   type PostBlock 
-} from '@/lib/actions/post-actions'
+} from '@/lib/actions/posts/post-actions'
 
 interface UsePostBuilderParams {
   blocks: Record<string, PostBlock>

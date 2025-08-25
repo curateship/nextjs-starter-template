@@ -1,5 +1,5 @@
 import type { Block } from "@/lib/utils/block-types"
-import type { SiteWithBlocks } from "@/lib/actions/frontend-actions"
+import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 /**
  * Transform admin block format to frontend block format for preview rendering

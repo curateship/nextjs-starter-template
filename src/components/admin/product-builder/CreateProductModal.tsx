@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createProductAction, updateProductBlocksAction } from "@/lib/actions/product-actions"
+import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Product, CreateProductData } from "@/lib/actions/product-actions"
+import type { Product, CreateProductData } from "@/lib/actions/products/product-actions"
 
 interface CreateProductModalProps {
   onSuccess: (product: Product) => void

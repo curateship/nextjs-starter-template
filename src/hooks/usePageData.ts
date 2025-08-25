@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/site-actions"
-import { getSitePagesAction, type Page } from "@/lib/actions/page-actions"
+import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { getSitePagesAction, type Page } from "@/lib/actions/pages/page-actions"
 import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
 
 interface UsePageDataReturn {

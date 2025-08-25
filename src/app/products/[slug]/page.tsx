@@ -1,6 +1,6 @@
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-headers"
-import { getProductBySlug } from "@/lib/actions/product-frontend-actions"
+import { getProductBySlug } from "@/lib/actions/products/product-frontend-actions"
 import { notFound } from "next/navigation"
 
 interface ProductPageProps {

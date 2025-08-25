@@ -13,8 +13,8 @@ import { ProductBuilderHeader } from "@/components/admin/product-builder/Product
 import { BlockPropertiesPanel } from "@/components/admin/product-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/product-builder/BlockListPanel"
 import { BlockTypesPanel } from "@/components/admin/product-builder/BlockTypesPanel"
-import { getSiteProductsAction } from "@/lib/actions/product-actions"
-import type { Product } from "@/lib/actions/product-actions"
+import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
+import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)

@@ -16,8 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CheckCircle } from "lucide-react"
 import Link from "next/link"
-import type { Page, UpdatePageData } from "@/lib/actions/page-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import type { Page, UpdatePageData } from "@/lib/actions/pages/page-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface PageSettingsModalProps {
   open: boolean

@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { BarChart3, Users, Globe, TrendingUp, Settings, Edit3 } from 'lucide-react'
 import Link from 'next/link'
-import { getSiteByIdAction } from '@/lib/actions/site-actions'
+import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 
 interface PageProps {
   params: Promise<{

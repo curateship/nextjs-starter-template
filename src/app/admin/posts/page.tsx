@@ -27,9 +27,9 @@ import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal
 import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, BookOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/post-actions"
+import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Post } from "@/lib/actions/post-actions"
+import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostsPage() {
   const router = useRouter()

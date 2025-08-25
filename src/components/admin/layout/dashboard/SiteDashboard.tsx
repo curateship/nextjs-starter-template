@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2, ImageIcon } from "lucide-react"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
-import { getActiveThemesAction } from "@/lib/actions/theme-actions"
-import { checkSubdomainAvailabilityAction } from "@/lib/actions/site-actions"
+import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
+import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
 import { FontSelector } from "@/components/admin/page-builder/FontSelector"
 

@@ -1,8 +1,8 @@
 "use client"
 
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
-import { createPreviewSite } from "@/lib/utils/admin-to-frontend-blocks"
-import type { ProductWithBlocks } from "@/lib/actions/product-frontend-actions"
+import { createPreviewSite } from "@/lib/utils/admin-builder-preview"
+import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 import type { Block } from "@/lib/utils/block-types"
 
 interface ProductBlock {

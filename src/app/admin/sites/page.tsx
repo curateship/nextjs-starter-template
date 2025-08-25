@@ -13,8 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/site-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'

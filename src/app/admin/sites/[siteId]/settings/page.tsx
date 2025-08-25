@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
-import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/site-actions"
-import type { SiteWithTheme } from "@/lib/actions/site-actions"
+import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface SiteEditPageProps {
   params: Promise<{

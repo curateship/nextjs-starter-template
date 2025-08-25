@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadImageAction } from '@/lib/actions/image-actions'
+import { uploadImageAction } from '@/lib/actions/images/image-actions'
 
 export async function POST(request: NextRequest) {
   try {

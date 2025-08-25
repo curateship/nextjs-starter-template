@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { FrontendBlockContainer } from "@/components/ui/frontend-block-container"
-import { getListingViewsData, type ListingViewsData } from "@/lib/actions/listing-views-actions"
+import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 

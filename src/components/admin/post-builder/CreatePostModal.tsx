@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createPostAction } from "@/lib/actions/post-actions"
+import { createPostAction } from "@/lib/actions/posts/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Post, CreatePostData } from "@/lib/actions/post-actions"
+import type { Post, CreatePostData } from "@/lib/actions/posts/post-actions"
 
 interface CreatePostModalProps {
   onSuccess: (post: Post) => void
