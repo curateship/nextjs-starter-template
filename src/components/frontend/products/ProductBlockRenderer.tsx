@@ -3,10 +3,11 @@
 import { ProductDefaultBlock } from "@/components/frontend/products/ProductDefaultBlock"
 import { ProductHeroBlock } from "@/components/frontend/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/ProductFeaturesBlock"
-import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block"
+import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock"
 import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 
@@ -27,8 +28,18 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
   
+  // Get animation settings from site settings
+  const animationSettings = site.settings?.animations || {
+    enabled: false,
+    preset: 'fade',
+    duration: 0.6,
+    stagger: 0.1,
+    intensity: 'medium'
+  };
+  
   return (
-    <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+    <AnimationProvider settings={animationSettings}>
+      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
       
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
@@ -115,6 +126,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         
         return null
       })}
-    </SiteLayout>
+      </SiteLayout>
+    </AnimationProvider>
   )
 }

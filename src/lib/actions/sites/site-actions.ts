@@ -65,6 +65,14 @@ export interface SiteWithTheme extends Site {
   theme_metadata: Record<string, any>
 }
 
+export interface AnimationSettings {
+  enabled: boolean
+  preset: 'fade' | 'slide' | 'scale' | 'blur' | 'blur-slide' | 'zoom' | 'flip' | 'bounce' | 'rotate' | 'swing'
+  duration: number // 0.3 to 2.0 seconds
+  stagger: number // 0 to 0.5 seconds
+  intensity: 'low' | 'medium' | 'high'
+}
+
 export interface CreateSiteData {
   name: string
   subdomain?: string
@@ -77,6 +85,7 @@ export interface CreateSiteData {
   secondary_font_family?: string
   secondary_font_weights?: string[]
   favicon?: string
+  animations?: AnimationSettings
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -189,7 +198,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
     const actualUserId = user.id
     // Creating site for authenticated user
 
-    // Prepare settings with font and favicon configuration
+    // Prepare settings with font, favicon, and animation configuration
     const settings = {
       ...(siteData.settings || {
         site_title: siteData.name,
@@ -200,7 +209,14 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       font_weights: siteData.font_weights || ['400', '500', '600', '700', '800', '900'],
       secondary_font_family: siteData.secondary_font_family || 'inter',
       secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700'],
-      favicon: siteData.favicon || null
+      favicon: siteData.favicon || null,
+      animations: siteData.animations || {
+        enabled: false, // Performance-first: disabled by default
+        preset: 'fade',
+        duration: 0.6,
+        stagger: 0.1,
+        intensity: 'medium'
+      }
     }
 
     // Create the site
@@ -271,9 +287,9 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings or favicon, merge them into settings
+    // If updating font settings, favicon, or animations, merge them into settings
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined) {
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations) {
       const { data: currentSite } = await supabaseAdmin
         .from('sites')
         .select('settings')
@@ -288,6 +304,7 @@ export async function updateSiteAction(
         ...(updates.secondary_font_family && { secondary_font_family: updates.secondary_font_family }),
         ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
         ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
+        ...(updates.animations && { animations: updates.animations }),
         // Preserve existing url_prefixes and merge with new settings
         url_prefixes: {
           ...(currentSite?.settings?.url_prefixes || {}),
@@ -295,12 +312,13 @@ export async function updateSiteAction(
         }
       }
       
-      // Remove font and favicon properties from top level as they're now in settings
+      // Remove font, favicon, and animation properties from top level as they're now in settings
       delete finalUpdates.font_family
       delete finalUpdates.font_weights
       delete finalUpdates.secondary_font_family
       delete finalUpdates.secondary_font_weights
       delete finalUpdates.favicon
+      delete finalUpdates.animations
     }
 
     // If updating name, regenerate subdomain

@@ -1,13 +1,12 @@
 "use client"
 
 import { PageHeroBlock } from "@/components/frontend/pages/PageHeroBlock"
-import { PostGridBlock } from "@/components/frontend/posts/PostGridBlock"
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"
-import { ProductGridBlock } from "@/components/frontend/products/ProductGridBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
+import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface BlockRendererProps {
@@ -28,12 +27,22 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   const navigationBlock = blocks.find(block => block.type === 'navigation')
   const footerBlock = blocks.find(block => block.type === 'footer')
   
+  // Get animation settings from site settings
+  const animationSettings = site.settings?.animations || {
+    enabled: false,
+    preset: 'fade',
+    duration: 0.6,
+    stagger: 0.1,
+    intensity: 'medium'
+  };
+
   return (
-    <SiteLayout 
-      navigation={navigationBlock?.content} 
-      footer={footerBlock?.content}
-      site={site}
-    >
+    <AnimationProvider settings={animationSettings}>
+      <SiteLayout 
+        navigation={navigationBlock?.content} 
+        footer={footerBlock?.content}
+        site={site}
+      >
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {
@@ -103,6 +112,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
       {/* <ProductGridBlock />
       <PostGridBlock />
       <FaqBlock /> */}
-    </SiteLayout>
+      </SiteLayout>
+    </AnimationProvider>
   )
 }

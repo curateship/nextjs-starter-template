@@ -1,7 +1,7 @@
 import { ProductHeroBlock } from "@/components/ui/product-hero-block-alt";
 import { ProductFeatureGridBlock } from "@/components/ui/product-feature-grid-block";
 import { ProductBonusBlock } from "@/components/ui/product-bonus-block";
-import { ProductHotspotBlock } from "@/components/ui/product-hotspot-block";
+import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock";
 import { ProductFeatureCarousel } from "@/components/ui/product-feature-carousel";
 import { ProductPricingBlock } from "@/components/ui/product-pricing-block";
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock";

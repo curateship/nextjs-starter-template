@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme, AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { CheckCircle } from "lucide-react"
 
@@ -28,6 +28,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
+  const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
   const [productPrefix, setProductPrefix] = useState("")
   const [postPrefix, setPostPrefix] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,6 +58,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
+        setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
         setProductPrefix(data.settings?.url_prefixes?.products || "")
         setPostPrefix(data.settings?.url_prefixes?.posts || "")
       }
@@ -102,6 +104,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
         favicon: favicon === '' ? '' : favicon || undefined,
+        animations: animations,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
@@ -225,6 +228,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
+            animations={animations}
             productPrefix={productPrefix}
             postPrefix={postPrefix}
             isEditMode={true}
@@ -236,6 +240,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}
+            onAnimationsChange={setAnimations}
             onProductPrefixChange={setProductPrefix}
             onPostPrefixChange={setPostPrefix}
           />
