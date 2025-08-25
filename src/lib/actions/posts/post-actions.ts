@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getImageByUrlAction } from '../images/image-actions'
+import { checkSlugConflicts } from '@/lib/utils/url-path-resolver'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -326,20 +327,16 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
       return { data: null, error: 'This slug is reserved and cannot be used.' }
     }
 
-    // Check if slug already exists for this site
-    const { data: existingPost, error: slugCheckError } = await supabaseAdmin
-      .from('posts')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (slugCheckError && slugCheckError.code !== 'PGRST116') {
-      return { data: null, error: 'Failed to validate slug uniqueness' }
-    }
-
-    if (existingPost) {
-      return { data: null, error: 'A post with this slug already exists' }
+    // Check if slug conflicts with any existing content (pages, posts, products)
+    const conflictCheck = await checkSlugConflicts(siteId, slug)
+    
+    if (conflictCheck.hasConflict) {
+      const contentType = conflictCheck.conflictType === 'page' ? 'page' : 
+                         conflictCheck.conflictType === 'post' ? 'post' : 'product'
+      return { 
+        data: null, 
+        error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+      }
     }
 
     // Get the next display order
@@ -487,17 +484,35 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }
 
-      // Check if slug already exists for this site (excluding current post)
-      const { data: existingPost } = await supabaseAdmin
-        .from('posts')
-        .select('id')
-        .eq('site_id', post.site_id)
-        .eq('slug', slug)
-        .neq('id', postId)
-        .single()
-
-      if (existingPost) {
-        return { data: null, error: 'A post with this slug already exists' }
+      // Check if slug conflicts with any existing content (excluding current post)
+      const conflictCheck = await checkSlugConflicts(post.site_id, slug)
+      
+      // If there's a conflict and it's not with the current post, it's an error
+      if (conflictCheck.hasConflict) {
+        // Double-check if the conflict is with the current post being updated
+        if (conflictCheck.conflictType === 'post') {
+          const { data: conflictingPost } = await supabaseAdmin
+            .from('posts')
+            .select('id')
+            .eq('site_id', post.site_id)
+            .eq('slug', slug)
+            .single()
+          
+          // If the conflicting post is not the current post, it's an error
+          if (conflictingPost && conflictingPost.id !== postId) {
+            return { 
+              data: null, 
+              error: `This slug is already used by another post titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+            }
+          }
+        } else {
+          // Conflict with page or product
+          const contentType = conflictCheck.conflictType === 'page' ? 'page' : 'product'
+          return { 
+            data: null, 
+            error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+          }
+        }
       }
 
       processedUpdates.slug = slug

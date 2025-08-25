@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
@@ -14,6 +14,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
 import type { Post } from "@/lib/actions/posts/post-actions"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 interface PostBuilderHeaderProps {
   posts: Post[]
@@ -42,8 +43,30 @@ export function PostBuilderHeader({
 }: PostBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const { currentSite } = useSiteContext()
   const currentPost = posts.find(p => p.slug === selectedPost)
+  
+  // Fetch URL prefix for this site
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!currentSite?.id) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(currentSite.id)
+        if (site?.settings?.url_prefixes?.posts !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.posts)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [currentSite?.id])
   
   // Generate post URL for frontend viewing
   const getPostUrl = () => {
@@ -51,8 +74,9 @@ export function PostBuilderHeader({
       return '#'
     }
     
-    // Use clean routing: /posts/[slug]
-    const url = `http://localhost:3000/posts/${currentPost.slug}`
+    // Use dynamic routing with prefix
+    const prefix = urlPrefix ? `${urlPrefix}/` : ''
+    const url = `http://localhost:3000/${prefix}${currentPost.slug}`
     return url
   }
   
@@ -110,7 +134,7 @@ export function PostBuilderHeader({
             asChild
             disabled={!currentPost || !currentSite?.subdomain}
           >
-            <Link href={currentPost ? `/posts/${selectedPost}` : '#'} target="_blank">
+            <Link href={getPostUrl()} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
               View Post
             </Link>

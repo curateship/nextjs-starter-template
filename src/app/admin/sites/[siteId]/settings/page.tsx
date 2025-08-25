@@ -25,6 +25,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
+  const [productPrefix, setProductPrefix] = useState("")
+  const [postPrefix, setPostPrefix] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +53,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
+        setProductPrefix(data.settings?.url_prefixes?.products || "")
+        setPostPrefix(data.settings?.url_prefixes?.posts || "")
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -96,7 +100,11 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
-          seo_enabled: true
+          seo_enabled: true,
+          url_prefixes: {
+            products: productPrefix.trim(),
+            posts: postPrefix.trim()
+          }
         }
       })
 
@@ -167,7 +175,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full max-w-6xl mx-auto pb-8">
         <AdminPageHeader
           title="Edit Site"
           subtitle={`Edit settings for ${site?.subdomain}.domain.com`}
@@ -197,6 +205,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
+            productPrefix={productPrefix}
+            postPrefix={postPrefix}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -206,6 +216,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}
+            onProductPrefixChange={setProductPrefix}
+            onPostPrefixChange={setPostPrefix}
           />
         </form>
       </div>

@@ -12,6 +12,7 @@ import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import type { Theme } from "@/lib/supabase/themes"
 import { FontSelector } from "@/components/admin/page-builder/FontSelector"
+import { SEOSettingsCard } from "./SEOSettingsCard"
 
 interface SiteDashboardProps {
   siteName: string
@@ -23,6 +24,8 @@ interface SiteDashboardProps {
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
+  productPrefix?: string
+  postPrefix?: string
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
@@ -31,6 +34,8 @@ interface SiteDashboardProps {
   onFaviconChange?: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
+  onProductPrefixChange?: (value: string) => void
+  onPostPrefixChange?: (value: string) => void
 }
 
 export function SiteDashboard({
@@ -43,6 +48,8 @@ export function SiteDashboard({
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
+  productPrefix = "",
+  postPrefix = "",
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
@@ -51,6 +58,8 @@ export function SiteDashboard({
   onFaviconChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
+  onProductPrefixChange,
+  onPostPrefixChange,
 }: SiteDashboardProps) {
   const [themes, setThemes] = useState<Theme[]>([])
   const [themesLoading, setThemesLoading] = useState(true)
@@ -159,7 +168,7 @@ export function SiteDashboard({
 
 
   return (
-    <>
+    <div className="space-y-6">
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle>Site Information</CardTitle>
@@ -401,6 +410,17 @@ export function SiteDashboard({
       </CardContent>
     </Card>
 
+    {/* SEO Settings Card */}
+    {(onProductPrefixChange || onPostPrefixChange) && (
+      <SEOSettingsCard
+        productPrefix={productPrefix}
+        postPrefix={postPrefix}
+        siteDomain={customDomain || `${subdomain}.yourdomain.com`}
+        onProductPrefixChange={onProductPrefixChange}
+        onPostPrefixChange={onPostPrefixChange}
+      />
+    )}
+
     {/* Favicon Image Picker Modal */}
     {onFaviconChange && (
       <ImagePicker
@@ -413,7 +433,7 @@ export function SiteDashboard({
         currentImageUrl={favicon}
       />
     )}
-  </>
+  </div>
   )
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
@@ -14,6 +14,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
 import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
 import type { Product } from "@/lib/actions/products/product-actions"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 interface ProductBuilderHeaderProps {
   products: Product[]
@@ -42,8 +43,30 @@ export function ProductBuilderHeader({
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
+  
+  // Fetch URL prefix for this site
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!currentSite?.id) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(currentSite.id)
+        if (site?.settings?.url_prefixes?.products !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.products)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [currentSite?.id])
   
   // Generate product URL for frontend viewing
   const getProductUrl = () => {
@@ -51,8 +74,9 @@ export function ProductBuilderHeader({
       return '#'
     }
     
-    // Use clean routing: /products/[slug]
-    const url = `http://localhost:3000/products/${currentProduct.slug}`
+    // Use dynamic routing with prefix
+    const prefix = urlPrefix ? `${urlPrefix}/` : ''
+    const url = `http://localhost:3000/${prefix}${currentProduct.slug}`
     return url
   }
   
@@ -110,7 +134,7 @@ export function ProductBuilderHeader({
             asChild
             disabled={!currentProduct || !currentSite?.subdomain}
           >
-            <Link href={currentProduct ? `/products/${selectedProduct}` : '#'} target="_blank">
+            <Link href={getProductUrl()} target="_blank">
               <Eye className="w-4 h-4 mr-2" />
               View Product
             </Link>

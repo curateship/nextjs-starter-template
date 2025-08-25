@@ -287,7 +287,12 @@ export async function updateSiteAction(
         ...(updates.font_weights && { font_weights: updates.font_weights }),
         ...(updates.secondary_font_family && { secondary_font_family: updates.secondary_font_family }),
         ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
-        ...(updates.favicon !== undefined && { favicon: updates.favicon || null })
+        ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
+        // Preserve existing url_prefixes and merge with new settings
+        url_prefixes: {
+          ...(currentSite?.settings?.url_prefixes || {}),
+          ...(updates.settings?.url_prefixes || {})
+        }
       }
       
       // Remove font and favicon properties from top level as they're now in settings
