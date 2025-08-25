@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { getSiteUrl } from "@/lib/utils/site-url"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 

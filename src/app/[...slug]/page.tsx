@@ -1,5 +1,5 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
-import { getSiteFromHeaders } from "@/lib/utils/site-headers"
+import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { notFound } from "next/navigation"
 
 interface PageProps {

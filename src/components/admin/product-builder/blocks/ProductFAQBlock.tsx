@@ -258,7 +258,7 @@ export function ProductFAQBlock({
 
           {localFaqItems.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No FAQ items yet. Click "Add FAQ" to create your first item.</p>
+              <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>
             </div>
           ) : (
             <DndContext

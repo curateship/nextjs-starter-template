@@ -41,7 +41,7 @@ export function ProductDefaultBlock({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-blue-600 dark:text-blue-400">
-            This block displays your product's information from the product settings. 
+            This block displays your product&apos;s information from the product settings. 
             To edit the title, description, or featured image, use the Product Settings modal.
           </p>
         </CardContent>
