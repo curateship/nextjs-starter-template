@@ -378,6 +378,7 @@ export function PostSettingsModal({
                     hideEditorHeader: true
                   }}
                   onContentChange={(content) => { setIsSaved(false); setExtractedContent(content.content); }}
+                  compact={true}
                 />
                 <p className="text-xs text-muted-foreground">
                   Rich text content for the post body
