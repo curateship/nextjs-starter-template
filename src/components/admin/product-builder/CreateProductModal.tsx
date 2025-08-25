@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,6 +9,8 @@ import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
+import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/products/product-actions"
 
@@ -29,6 +31,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [slugWarning, setSlugWarning] = useState<string | null>(null)
+  const [checkingSlug, setCheckingSlug] = useState(false)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -62,6 +67,59 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setFormData(prev => ({ ...prev, slug }))
     }
   }
+
+  // Debounced slug conflict checking
+  useEffect(() => {
+    const checkSlugConflict = async () => {
+      const slug = formData.slug?.trim()
+      if (!slug || slug.length < 2 || !currentSite?.id) {
+        setSlugWarning(null)
+        return
+      }
+
+      setCheckingSlug(true)
+      try {
+        const conflictResult = await checkSlugConflicts(currentSite.id, slug)
+        
+        if (conflictResult.hasConflict) {
+          const contentType = conflictResult.conflictType === 'page' ? 'page' :
+                             conflictResult.conflictType === 'post' ? 'post' : 'product'
+          setSlugWarning(`This slug is already used by a ${contentType} titled "${conflictResult.conflictTitle}". Please choose a different slug.`)
+        } else {
+          setSlugWarning(null)
+        }
+      } catch (error) {
+        // Silently fail - don't show error for conflict checking
+        setSlugWarning(null)
+      } finally {
+        setCheckingSlug(false)
+      }
+    }
+
+    const timeoutId = setTimeout(checkSlugConflict, 500) // 500ms debounce
+    return () => clearTimeout(timeoutId)
+  }, [formData.slug, currentSite?.id])
+
+  // Fetch URL prefix for this site
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!currentSite?.id) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(currentSite.id)
+        if (site?.settings?.url_prefixes?.products !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.products)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [currentSite?.id])
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
@@ -204,6 +262,23 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               ? "Custom URL slug. Clear this field to auto-generate from title again." 
               : "Auto-generated from title. You can edit this to customize the URL."}
           </p>
+          {formData.slug && (
+            <p className="text-xs text-blue-600 mt-1">
+              📄 Product URL: <strong>
+                /{urlPrefix ? `${urlPrefix}/` : ''}{formData.slug}
+              </strong>
+            </p>
+          )}
+          {checkingSlug && (
+            <p className="text-xs text-blue-600 mt-1">
+              Checking slug availability...
+            </p>
+          )}
+          {slugWarning && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠️ {slugWarning}
+            </p>
+          )}
         </div>
       </div>
 

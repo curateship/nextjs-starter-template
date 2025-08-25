@@ -8,6 +8,7 @@ import { FrontendBlockContainer } from "@/components/ui/frontend-block-container
 import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 interface ListingViewsBlockProps {
   content: {
@@ -36,6 +37,7 @@ interface ListingViewsBlockProps {
 export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const searchParams = useSearchParams()
   
   // Get current page from URL params
@@ -61,6 +63,27 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     viewAllLink = '',
     backgroundColor = '#ffffff'
   } = content
+
+  // Fetch URL prefix for products
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!siteId) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(siteId)
+        if (site?.settings?.url_prefixes?.products !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.products)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [siteId])
 
   useEffect(() => {
     async function loadData() {
@@ -145,7 +168,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain }: ListingVie
     return (
       <Link 
         key={product.id}
-        href={`/products/${product.slug}`}
+        href={`/${urlPrefix ? `${urlPrefix}/` : ''}${product.slug}`}
         className="block hover:opacity-75 transition-opacity"
       >
         {productContent}

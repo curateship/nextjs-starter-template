@@ -30,6 +30,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 export default function PostsPage() {
   const router = useRouter()
@@ -47,7 +48,29 @@ export default function PostsPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const filterRef = useRef<HTMLDivElement>(null)
+
+  // Fetch URL prefix for this site
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!currentSite?.id) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(currentSite.id)
+        if (site?.settings?.url_prefixes?.posts !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.posts)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [currentSite?.id])
 
   // Load posts
   useEffect(() => {
@@ -356,7 +379,7 @@ export default function PostsPage() {
                           <div>
                             <h4 className="font-medium hover:underline">{post.title}</h4>
                             <p className="text-sm text-muted-foreground">
-                              /posts/{post.slug}
+                              /{urlPrefix ? `${urlPrefix}/` : ''}{post.slug}
                             </p>
                           </div>
                         </Link>
@@ -401,7 +424,7 @@ export default function PostsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link 
-                                href={`/posts/${post.slug}`} 
+                                href={`/${urlPrefix ? `${urlPrefix}/` : ''}${post.slug}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

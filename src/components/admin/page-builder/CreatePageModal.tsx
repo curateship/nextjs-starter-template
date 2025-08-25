@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createPageAction } from "@/lib/actions/pages/page-actions"
+import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
 import type { Page, CreatePageData } from "@/lib/actions/pages/page-actions"
 
 interface CreatePageModalProps {
@@ -25,6 +26,8 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [slugWarning, setSlugWarning] = useState<string | null>(null)
+  const [checkingSlug, setCheckingSlug] = useState(false)
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -58,6 +61,38 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
       setFormData(prev => ({ ...prev, slug }))
     }
   }
+
+  // Debounced slug conflict checking
+  useEffect(() => {
+    const checkSlugConflict = async () => {
+      const slug = formData.slug?.trim()
+      if (!slug || slug.length < 2) {
+        setSlugWarning(null)
+        return
+      }
+
+      setCheckingSlug(true)
+      try {
+        const conflictResult = await checkSlugConflicts(siteId, slug)
+        
+        if (conflictResult.hasConflict) {
+          const contentType = conflictResult.conflictType === 'page' ? 'page' :
+                             conflictResult.conflictType === 'post' ? 'post' : 'product'
+          setSlugWarning(`This slug is already used by a ${contentType} titled "${conflictResult.conflictTitle}". Please choose a different slug.`)
+        } else {
+          setSlugWarning(null)
+        }
+      } catch (error) {
+        // Silently fail - don't show error for conflict checking
+        setSlugWarning(null)
+      } finally {
+        setCheckingSlug(false)
+      }
+    }
+
+    const timeoutId = setTimeout(checkSlugConflict, 500) // 500ms debounce
+    return () => clearTimeout(timeoutId)
+  }, [formData.slug, siteId])
 
   // Handle saving as draft
   const handleSaveDraft = async () => {
@@ -158,6 +193,21 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
               ? "Custom URL slug. Clear this field to auto-generate from title again." 
               : "Auto-generated from title. You can edit this to customize the URL."}
           </p>
+          {formData.slug && (
+            <p className="text-xs text-blue-600 mt-1">
+              🏠 Page URL: <strong>/{formData.slug}</strong>
+            </p>
+          )}
+          {checkingSlug && (
+            <p className="text-xs text-blue-600 mt-1">
+              Checking slug availability...
+            </p>
+          )}
+          {slugWarning && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠️ {slugWarning}
+            </p>
+          )}
         </div>
 
 

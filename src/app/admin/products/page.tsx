@@ -30,6 +30,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
+import { getSiteByIdAction } from "@/lib/actions/sites/site-actions"
 
 export default function ProductsPage() {
   const router = useRouter()
@@ -47,7 +48,29 @@ export default function ProductsPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const filterRef = useRef<HTMLDivElement>(null)
+
+  // Fetch URL prefix for this site
+  useEffect(() => {
+    const fetchUrlPrefix = async () => {
+      if (!currentSite?.id) return
+      
+      try {
+        const { data: site } = await getSiteByIdAction(currentSite.id)
+        if (site?.settings?.url_prefixes?.products !== undefined) {
+          setUrlPrefix(site.settings.url_prefixes.products)
+        } else {
+          setUrlPrefix("") // Clear prefix if not set
+        }
+      } catch (error) {
+        // Silently fail - prefix is optional
+        setUrlPrefix("")
+      }
+    }
+    
+    fetchUrlPrefix()
+  }, [currentSite?.id])
 
   // Load products
   useEffect(() => {
@@ -356,7 +379,7 @@ export default function ProductsPage() {
                           <div>
                             <h4 className="font-medium hover:underline">{product.title}</h4>
                             <p className="text-sm text-muted-foreground">
-                              /products/{product.slug}
+                              /{urlPrefix ? `${urlPrefix}/` : ''}{product.slug}
                             </p>
                           </div>
                         </Link>
@@ -401,7 +424,7 @@ export default function ProductsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link 
-                                href={`/products/${product.slug}`}
+                                href={`/${urlPrefix ? `${urlPrefix}/` : ''}${product.slug}`}
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

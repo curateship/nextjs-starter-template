@@ -86,7 +86,7 @@ export default function NewSitePage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full max-w-6xl mx-auto pb-8">
         <AdminPageHeader
           title="Create Site"
           subtitle="Add a new site to your multi-site collection"

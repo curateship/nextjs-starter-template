@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { checkSlugConflicts } from '@/lib/utils/url-path-resolver'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -333,19 +334,16 @@ export async function createGlobalProductAction(productData: CreateProductData):
       return { data: null, error: 'This slug is reserved and cannot be used.' }
     }
 
-    // Check if slug already exists globally
-    const { data: existingProduct, error: slugCheckError } = await supabaseAdmin
-      .from('products')
-      .select('id')
-      .eq('slug', slug)
-      .single()
-
-    if (slugCheckError && slugCheckError.code !== 'PGRST116') {
-      return { data: null, error: 'Failed to validate slug uniqueness' }
-    }
-
-    if (existingProduct) {
-      return { data: null, error: 'A product with this slug already exists' }
+    // Check if slug conflicts with any existing content (pages, posts, products)
+    const conflictCheck = await checkSlugConflicts(siteId, slug)
+    
+    if (conflictCheck.hasConflict) {
+      const contentType = conflictCheck.conflictType === 'page' ? 'page' : 
+                         conflictCheck.conflictType === 'post' ? 'post' : 'product'
+      return { 
+        data: null, 
+        error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+      }
     }
 
     // Get the next display order
@@ -443,20 +441,16 @@ export async function createProductAction(siteId: string, productData: CreatePro
       return { data: null, error: 'This slug is reserved and cannot be used.' }
     }
 
-    // Check if slug already exists for this site
-    const { data: existingProduct, error: slugCheckError } = await supabaseAdmin
-      .from('products')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (slugCheckError && slugCheckError.code !== 'PGRST116') {
-      return { data: null, error: 'Failed to validate slug uniqueness' }
-    }
-
-    if (existingProduct) {
-      return { data: null, error: 'A product with this slug already exists' }
+    // Check if slug conflicts with any existing content (pages, posts, products)
+    const conflictCheck = await checkSlugConflicts(siteId, slug)
+    
+    if (conflictCheck.hasConflict) {
+      const contentType = conflictCheck.conflictType === 'page' ? 'page' : 
+                         conflictCheck.conflictType === 'post' ? 'post' : 'product'
+      return { 
+        data: null, 
+        error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+      }
     }
 
     // Get the next display order
@@ -562,17 +556,35 @@ export async function updateProductAction(productId: string, updates: UpdateProd
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }
 
-      // Check if slug already exists for this site (excluding current product)
-      const { data: existingProduct } = await supabaseAdmin
-        .from('products')
-        .select('id')
-        .eq('site_id', product.site_id)
-        .eq('slug', slug)
-        .neq('id', productId)
-        .single()
-
-      if (existingProduct) {
-        return { data: null, error: 'A product with this slug already exists' }
+      // Check if slug conflicts with any existing content (excluding current product)
+      const conflictCheck = await checkSlugConflicts(product.site_id, slug)
+      
+      // If there's a conflict and it's not with the current product, it's an error
+      if (conflictCheck.hasConflict) {
+        // Double-check if the conflict is with the current product being updated
+        if (conflictCheck.conflictType === 'product') {
+          const { data: conflictingProduct } = await supabaseAdmin
+            .from('products')
+            .select('id')
+            .eq('site_id', product.site_id)
+            .eq('slug', slug)
+            .single()
+          
+          // If the conflicting product is not the current product, it's an error
+          if (conflictingProduct && conflictingProduct.id !== productId) {
+            return { 
+              data: null, 
+              error: `This slug is already used by another product titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+            }
+          }
+        } else {
+          // Conflict with page or post
+          const contentType = conflictCheck.conflictType === 'page' ? 'page' : 'post'
+          return { 
+            data: null, 
+            error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+          }
+        }
       }
 
       processedUpdates.slug = slug
