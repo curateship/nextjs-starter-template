@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
+import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { SEOSettingsCard } from "./SEOSettingsCard"
 import { StylingSettingsCard } from "./StylingSettingsCard"
 
@@ -18,6 +18,7 @@ interface SiteDashboardProps {
   subdomain?: string
   customDomain?: string
   favicon?: string
+  animations?: AnimationSettings
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
@@ -31,6 +32,7 @@ interface SiteDashboardProps {
   onFaviconChange?: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
+  onAnimationsChange?: (value: AnimationSettings) => void
   onProductPrefixChange?: (value: string) => void
   onPostPrefixChange?: (value: string) => void
 }
@@ -42,6 +44,7 @@ export function SiteDashboard({
   subdomain = "",
   customDomain = "",
   favicon = "",
+  animations = { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' },
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
@@ -55,6 +58,7 @@ export function SiteDashboard({
   onFaviconChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
+  onAnimationsChange,
   onProductPrefixChange,
   onPostPrefixChange,
 }: SiteDashboardProps) {
@@ -281,10 +285,12 @@ export function SiteDashboard({
       fontFamily={fontFamily}
       secondaryFontFamily={secondaryFontFamily}
       favicon={favicon}
+      animations={animations}
       onThemeIdChange={onThemeIdChange}
       onFontFamilyChange={onFontFamilyChange}
       onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
       onFaviconChange={onFaviconChange}
+      onAnimationsChange={onAnimationsChange}
     />
 
     {/* SEO Settings Card */}

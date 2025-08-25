@@ -1,7 +1,9 @@
 'use client';
-import { ReactNode } from 'react';
+import { ReactNode, lazy, Suspense } from 'react';
 import { motion, Variants } from 'motion/react';
 import React from 'react';
+import { useAnimationSettings, getOptimizedAnimationSettings } from '@/contexts/animation-context';
+import type { AnimationSettings } from '@/lib/actions/sites/site-actions';
 
 export type PresetType =
   | 'fade'
@@ -25,6 +27,11 @@ export type AnimatedGroupProps = {
   preset?: PresetType;
   as?: string;
   asChild?: string;
+  // Override global settings for specific use cases
+  forceEnabled?: boolean;
+  customSettings?: Partial<AnimationSettings>;
+  // Performance optimization
+  useIntersectionObserver?: boolean;
 };
 
 const defaultContainerVariants: Variants = {
@@ -40,65 +47,103 @@ const defaultItemVariants: Variants = {
   visible: { opacity: 1 },
 };
 
-const presetVariants: Record<PresetType, Variants> = {
-  fade: {},
-  slide: {
-    hidden: { y: 20 },
-    visible: { y: 0 },
-  },
-  scale: {
-    hidden: { scale: 0.8 },
-    visible: { scale: 1 },
-  },
-  blur: {
-    hidden: { filter: 'blur(4px)' },
-    visible: { filter: 'blur(0px)' },
-  },
-  'blur-slide': {
-    hidden: { filter: 'blur(4px)', y: 20 },
-    visible: { filter: 'blur(0px)', y: 0 },
-  },
-  zoom: {
-    hidden: { scale: 0.5 },
-    visible: {
-      scale: 1,
-      transition: { type: 'spring', stiffness: 300, damping: 20 },
+// Intensity-based animation variants
+const getPresetVariants = (intensity: 'low' | 'medium' | 'high'): Record<PresetType, Variants> => {
+  const intensityMultiplier = {
+    low: 0.5,
+    medium: 1,
+    high: 1.8
+  }[intensity];
+
+  return {
+    fade: {},
+    slide: {
+      hidden: { y: 12 * intensityMultiplier },
+      visible: { y: 0 },
     },
-  },
-  flip: {
-    hidden: { rotateX: -90 },
-    visible: {
-      rotateX: 0,
-      transition: { type: 'spring', stiffness: 300, damping: 20 },
+    scale: {
+      hidden: { scale: 1 - (0.2 * intensityMultiplier) },
+      visible: { scale: 1 },
     },
-  },
-  bounce: {
-    hidden: { y: -50 },
-    visible: {
-      y: 0,
-      transition: { type: 'spring', stiffness: 400, damping: 10 },
+    blur: {
+      hidden: { filter: `blur(${2 * intensityMultiplier}px)` },
+      visible: { filter: 'blur(0px)' },
     },
-  },
-  rotate: {
-    hidden: { rotate: -180 },
-    visible: {
-      rotate: 0,
-      transition: { type: 'spring', stiffness: 200, damping: 15 },
+    'blur-slide': {
+      hidden: { 
+        filter: `blur(${2 * intensityMultiplier}px)`, 
+        y: 12 * intensityMultiplier 
+      },
+      visible: { filter: 'blur(0px)', y: 0 },
     },
-  },
-  swing: {
-    hidden: { rotate: -10 },
-    visible: {
-      rotate: 0,
-      transition: { type: 'spring', stiffness: 300, damping: 8 },
+    zoom: {
+      hidden: { scale: 1 - (0.5 * intensityMultiplier) },
+      visible: {
+        scale: 1,
+        transition: { 
+          type: 'spring', 
+          stiffness: 300 / intensityMultiplier, 
+          damping: 20 
+        },
+      },
     },
-  },
+    flip: {
+      hidden: { rotateX: -45 * intensityMultiplier },
+      visible: {
+        rotateX: 0,
+        transition: { 
+          type: 'spring', 
+          stiffness: 300 / intensityMultiplier, 
+          damping: 20 
+        },
+      },
+    },
+    bounce: {
+      hidden: { y: -25 * intensityMultiplier },
+      visible: {
+        y: 0,
+        transition: { 
+          type: 'spring', 
+          stiffness: 400 / intensityMultiplier, 
+          damping: 10 
+        },
+      },
+    },
+    rotate: {
+      hidden: { rotate: -90 * intensityMultiplier },
+      visible: {
+        rotate: 0,
+        transition: { 
+          type: 'spring', 
+          stiffness: 200 / intensityMultiplier, 
+          damping: 15 
+        },
+      },
+    },
+    swing: {
+      hidden: { rotate: -5 * intensityMultiplier },
+      visible: {
+        rotate: 0,
+        transition: { 
+          type: 'spring', 
+          stiffness: 300 / intensityMultiplier, 
+          damping: 8 
+        },
+      },
+    },
+  };
 };
 
 const addDefaultVariants = (variants: Variants) => ({
   hidden: { ...defaultItemVariants.hidden, ...variants.hidden },
   visible: { ...defaultItemVariants.visible, ...variants.visible },
 });
+
+// Static wrapper for when animations are disabled
+function StaticWrapper({ children, className, as = 'div' }: { children: ReactNode, className?: string, as?: string }) {
+  const Component = as as keyof JSX.IntrinsicElements;
+  return <Component className={className}>{children}</Component>;
+}
 
 function AnimatedGroup({
   children,
@@ -107,22 +152,64 @@ function AnimatedGroup({
   preset,
   as = 'div',
   asChild = 'div',
+  forceEnabled = false,
+  customSettings,
+  useIntersectionObserver = true,
 }: AnimatedGroupProps) {
-  const selectedVariants = {
-    item: addDefaultVariants(preset ? presetVariants[preset] : {}),
-    container: addDefaultVariants(defaultContainerVariants),
-  };
-  const containerVariants = variants?.container || selectedVariants.container;
-  const itemVariants = variants?.item || selectedVariants.item;
+  const { settings, isEnabled } = useAnimationSettings();
+  
+  // Merge custom settings with global settings
+  const effectiveSettings = customSettings 
+    ? { ...settings, ...customSettings }
+    : settings;
 
-  // Use motion.div as the base and let motion handle the component type
+  // Get optimized settings for device performance
+  const optimizedSettings = getOptimizedAnimationSettings(effectiveSettings);
+  
+  // Final decision on whether to animate
+  const shouldAnimate = forceEnabled || isEnabled;
+
+  // If animations are disabled, return static wrapper
+  if (!shouldAnimate) {
+    return <StaticWrapper className={className} as={as}>{children}</StaticWrapper>;
+  }
+
+  // Get variants based on optimized settings
+  const presetVariants = getPresetVariants(optimizedSettings.intensity);
+  const effectivePreset = preset || optimizedSettings.preset;
+  
+  const containerVariants: Variants = variants?.container || {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: optimizedSettings.stagger,
+      },
+    },
+  };
+
+  const itemVariants: Variants = variants?.item || addDefaultVariants(
+    presetVariants[effectivePreset] || presetVariants.fade
+  );
+
+  // Add duration to all item transitions
+  if (itemVariants.visible && typeof itemVariants.visible === 'object') {
+    itemVariants.visible = {
+      ...itemVariants.visible,
+      transition: {
+        duration: optimizedSettings.duration,
+        ease: 'easeOut',
+        ...(itemVariants.visible.transition || {}),
+      },
+    };
+  }
+
   const MotionComponent = motion.div;
   const MotionChild = motion.div;
 
   return (
     <MotionComponent
-      initial='hidden'
-      animate='visible'
+      initial="hidden"
+      animate="visible"
       variants={containerVariants}
       className={className}
       {...(as !== 'div' && { as })}

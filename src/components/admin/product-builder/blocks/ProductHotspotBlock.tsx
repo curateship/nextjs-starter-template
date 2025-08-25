@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
-import type { Hotspot } from "@/components/ui/product-hotspot-block"
+import type { Hotspot } from "@/components/frontend/products/ProductHotspotBlock"
 
 interface ProductHotspotBlockProps {
   title?: string

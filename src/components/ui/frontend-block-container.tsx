@@ -1,4 +1,5 @@
 import { ViewAllButton } from "@/components/ui/view-all-button";
+import { BlockContainer } from "@/components/ui/block-container";
 
 interface FrontendBlockContainerProps {
   children: React.ReactNode
@@ -24,45 +25,54 @@ export function FrontendBlockContainer({
   header,
   viewAllButton
 }: FrontendBlockContainerProps) {
-  return (
-    <section className={`py-16 md:py-18 ${className}`} style={style}>
-      <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
-        {(header || viewAllButton) && (
-          <div className="mb-12">
-            {header && (
-              <div className={`${header.align === 'left' ? 'text-left' : header.align === 'right' ? 'text-right' : 'text-center'} ${viewAllButton ? 'flex justify-between items-start' : ''}`}>
-                <div className={viewAllButton ? 'flex-1' : ''}>
-                  {header.title && (
-                    <h2 className="text-3xl font-bold md:text-5xl">{header.title}</h2>
-                  )}
-                  {header.subtitle && (
-                    <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${header.align === 'center' ? 'mx-auto' : ''}`}>{header.subtitle}</p>
-                  )}
-                </div>
-                {viewAllButton && (
-                  <div className="flex-shrink-0 ml-8">
-                    <ViewAllButton 
-                      text={viewAllButton.text} 
-                      href={viewAllButton.href}
-                      className="mt-0"
-                    />
-                  </div>
+  const content = (
+    <>
+      {(header || viewAllButton) && (
+        <div className="mb-12">
+          {header && (
+            <div className={`${header.align === 'left' ? 'text-left' : header.align === 'right' ? 'text-right' : 'text-center'} ${viewAllButton ? 'flex justify-between items-start' : ''}`}>
+              <div className={viewAllButton ? 'flex-1' : ''}>
+                {header.title && (
+                  <h2 className="text-3xl font-bold md:text-5xl">{header.title}</h2>
+                )}
+                {header.subtitle && (
+                  <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${header.align === 'center' ? 'mx-auto' : ''}`}>{header.subtitle}</p>
                 )}
               </div>
-            )}
-            {!header && viewAllButton && (
-              <div className="flex justify-end">
-                <ViewAllButton 
-                  text={viewAllButton.text} 
-                  href={viewAllButton.href}
-                  className="mt-0"
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {children}
+              {viewAllButton && (
+                <div className="flex-shrink-0 ml-8">
+                  <ViewAllButton 
+                    text={viewAllButton.text} 
+                    href={viewAllButton.href}
+                    className="mt-0"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {!header && viewAllButton && (
+            <div className="flex justify-end">
+              <ViewAllButton 
+                text={viewAllButton.text} 
+                href={viewAllButton.href}
+                className="mt-0"
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {children}
+    </>
+  );
+
+  return (
+    <BlockContainer 
+      className={className}
+      container={container}
+    >
+      <div style={style}>
+        {content}
       </div>
-    </section>
+    </BlockContainer>
   )
 } 

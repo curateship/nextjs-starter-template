@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { BlockContainer } from "@/components/ui/block-container"
 
 interface DividerBlockProps {
   content: {
@@ -103,16 +104,21 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
   }
 
   return (
-    <section 
-      className={cn("w-full", className)}
-      style={{
-        paddingTop: `${Math.max(0, spacingTop)}px`,
-        paddingBottom: `${Math.max(0, spacingBottom)}px`
-      }}
+    <BlockContainer 
+      className={cn("!py-0", className)}
+      container={false}
     >
-      <div className={getContainerClass()} style={getContainerStyle()}>
-        {renderDivider()}
+      <div 
+        className="w-full"
+        style={{
+          paddingTop: `${Math.max(0, spacingTop)}px`,
+          paddingBottom: `${Math.max(0, spacingBottom)}px`
+        }}
+      >
+        <div className={getContainerClass()} style={getContainerStyle()}>
+          {renderDivider()}
+        </div>
       </div>
-    </section>
+    </BlockContainer>
   )
 }

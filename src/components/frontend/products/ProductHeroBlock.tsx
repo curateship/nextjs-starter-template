@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Key, Settings2, Sparkles, Zap, Github, ArrowRight, Download, ExternalLink, Star, Rocket } from "lucide-react";
 import DotPattern from "@/components/ui/dot-pattern";
@@ -42,7 +41,7 @@ const BackgroundPattern = ({
       <svg
         className={cn(
           "pointer-events-none absolute inset-0 h-full w-full",
-          "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]"
+          "[mask-image:radial-gradient(60vw_circle_at_center,white,transparent)]"
         )}
         style={{ opacity: patternOpacity }}
       >
@@ -70,7 +69,7 @@ const BackgroundPattern = ({
   return (
     <DotPattern 
       className={cn(
-        "[mask-image:radial-gradient(40vw_circle_at_center,white,transparent)]"
+        "[mask-image:radial-gradient(60vw_circle_at_center,white,transparent)]"
       )}
       {...patternSize}
       style={{ 
@@ -82,43 +81,7 @@ const BackgroundPattern = ({
 };
 import { cn } from "@/lib/utils/tailwind-class-merger";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
-
-// Pre-generated stable positions for floating particles
-// These create a natural, non-repetitive animation pattern across the hero section
-const particlePositions = [
-  { top: 15, left: 20, duration: 7, delay: 1 },
-  { top: 25, left: 80, duration: 8, delay: 2 },
-  { top: 35, left: 15, duration: 6, delay: 0.5 },
-  { top: 45, left: 90, duration: 9, delay: 3 },
-  { top: 55, left: 25, duration: 7.5, delay: 1.5 },
-  { top: 65, left: 75, duration: 8.5, delay: 2.5 },
-  { top: 75, left: 35, duration: 6.5, delay: 0.8 },
-  { top: 85, left: 60, duration: 7.8, delay: 3.2 },
-  { top: 10, left: 45, duration: 8.2, delay: 1.8 },
-  { top: 30, left: 70, duration: 6.8, delay: 2.8 },
-  { top: 50, left: 10, duration: 9.2, delay: 0.3 },
-  { top: 70, left: 85, duration: 7.2, delay: 3.5 },
-  { top: 20, left: 55, duration: 8.8, delay: 1.2 },
-  { top: 40, left: 30, duration: 6.2, delay: 2.2 },
-  { top: 60, left: 95, duration: 9.5, delay: 0.7 },
-  { top: 80, left: 5, duration: 7.7, delay: 3.7 },
-  { top: 12, left: 65, duration: 8.3, delay: 1.3 },
-  { top: 28, left: 40, duration: 6.7, delay: 2.7 },
-  { top: 48, left: 82, duration: 9.3, delay: 0.9 },
-  { top: 68, left: 18, duration: 7.3, delay: 3.3 },
-  { top: 88, left: 78, duration: 8.7, delay: 1.7 },
-  { top: 18, left: 92, duration: 6.3, delay: 2.3 },
-  { top: 38, left: 8, duration: 9.7, delay: 0.6 },
-  { top: 58, left: 52, duration: 7.6, delay: 3.6 },
-  { top: 78, left: 28, duration: 8.6, delay: 1.6 },
-  { top: 22, left: 72, duration: 6.6, delay: 2.6 },
-  { top: 42, left: 48, duration: 9.6, delay: 0.4 },
-  { top: 62, left: 88, duration: 7.4, delay: 3.4 },
-  { top: 82, left: 12, duration: 8.4, delay: 1.4 },
-  { top: 92, left: 68, duration: 6.4, delay: 2.4 },
-];
 
 interface ProductHeroBlockProps {
   className?: string;
@@ -132,7 +95,6 @@ interface ProductHeroBlockProps {
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
   githubLink?: string;
-  showParticles?: boolean;
   trustedByText?: string;
   trustedByTextColor?: string;
   trustedByCount?: string;
@@ -182,7 +144,6 @@ const ProductHeroBlock = ({
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink, 
-  showParticles = true,
   trustedByText,
   trustedByTextColor,
   trustedByCount,
@@ -193,81 +154,62 @@ const ProductHeroBlock = ({
   backgroundPatternColor,
   heroImage
 }: ProductHeroBlockProps) => {
-  // Track client-side mounting to avoid hydration issues with animations
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   return (
-    <section className="relative w-full overflow-hidden">
-      <div className="relative max-w-6xl mx-auto flex flex-col items-center justify-center px-6 pt-30">
-        {/* Background pattern with radial mask for visual depth */}
+    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
+      {/* Background layer with pattern and gradient overlays */}
+      <div className="absolute inset-0 z-0">
+        {/* Background pattern */}
         <BackgroundPattern 
-        pattern={backgroundPattern || 'dots'}
-        size={backgroundPatternSize || 'medium'}
-        opacity={backgroundPatternOpacity || 80}
-        color={backgroundPatternColor || '#a3a3a3'}
-      />
+          pattern={backgroundPattern || 'dots'}
+          size={backgroundPatternSize || 'medium'}
+          opacity={backgroundPatternOpacity || 80}
+          color={backgroundPatternColor || '#a3a3a3'}
+        />
+        
+        {/* Gradient overlays that only affect the background pattern */}
+        <GradientOverlays />
+      </div>
       
-      <GradientOverlays />
-      {showParticles && <FloatingParticles isMounted={isMounted} />}
-      <HeroContent 
-        title={title}
-        subtitle={subtitle}
-        primaryButton={primaryButton}
-        secondaryButton={secondaryButton}
-        primaryButtonLink={primaryButtonLink}
-        secondaryButtonLink={secondaryButtonLink}
-        rainbowButtonText={rainbowButtonText}
-        rainbowButtonIcon={rainbowButtonIcon}
-        githubLink={githubLink}
-        trustedByText={trustedByText}
-        trustedByTextColor={trustedByTextColor}
-        trustedByCount={trustedByCount}
-        trustedByAvatars={trustedByAvatars}
-        backgroundColor={backgroundColor}
-      />
+      {/* Content layer above background */}
+      <div className="relative z-10 w-full flex flex-col items-center">
+        <AnimatedGroup customSettings={{ stagger: 0.2 }}>
+          <HeroContent 
+          title={title}
+          subtitle={subtitle}
+          primaryButton={primaryButton}
+          secondaryButton={secondaryButton}
+          primaryButtonLink={primaryButtonLink}
+          secondaryButtonLink={secondaryButtonLink}
+          rainbowButtonText={rainbowButtonText}
+          rainbowButtonIcon={rainbowButtonIcon}
+          githubLink={githubLink}
+          trustedByText={trustedByText}
+          trustedByTextColor={trustedByTextColor}
+          trustedByCount={trustedByCount}
+          trustedByAvatars={trustedByAvatars}
+          backgroundColor={backgroundColor}
+          />
+        </AnimatedGroup>
         <HeroImage heroImage={heroImage} />
       </div>
     </section>
   );
 };
 
-// Animated floating particles component
-const FloatingParticles = ({ isMounted }: { isMounted: boolean }) => (
-  isMounted && (
-    <div className="absolute inset-0 z-0 pointer-events-none">
-      {particlePositions.map((particle, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 0 }}
-          animate={{ opacity: 0.2, y: [0, -20, 0] }}
-          transition={{
-            duration: particle.duration,
-            repeat: Infinity,
-            delay: particle.delay,
-          }}
-          className="absolute w-1 h-1 bg-muted-foreground/20 rounded-full"
-          style={{
-            top: `${particle.top}%`,
-            left: `${particle.left}%`,
-          }}
-        />
-      ))}
-    </div>
-  )
-)
-
-// Gradient overlay component for fade effects
+// Gradient overlay component for blending background pattern into page background
 const GradientOverlays = () => (
   <>
-    {/* Top gradient overlay - creates fade effect at top of hero section */}
-    <div className="absolute top-0 left-0 right-0 h-100 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
+    {/* Top gradient overlay - blends background pattern into page background */}
+    <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-background via-background/80 via-background/40 to-transparent pointer-events-none" />
     
-    {/* Bottom gradient overlay - creates fade effect at bottom of hero section */}
-    <div className="absolute bottom-0 left-0 right-0 h-50 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
+    {/* Bottom gradient overlay - blends background pattern into page background */}
+    <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-background via-background/80 via-background/40 to-transparent pointer-events-none" />
+    
+    {/* Left edge gradient for horizontal blending */}
+    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent pointer-events-none" />
+    
+    {/* Right edge gradient for horizontal blending */}
+    <div className="absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none" />
   </>
 )
 
@@ -325,39 +267,29 @@ const getButtonIcon = (iconName?: string) => {
   }
 }
 
-// Hero title component with animation
+// Hero title component (animation handled by AnimatedGroup)
 const HeroTitle = ({ title }: { title?: string }) => {
   if (!title || !title.trim()) return null
   
   return (
-    <motion.h1
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight"
-    >
+    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight">
       {title}
-    </motion.h1>
+    </h1>
   )
 }
 
-// Hero subtitle component with animation
+// Hero subtitle component (animation handled by AnimatedGroup)
 const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => {
   if (!subtitle || !subtitle.trim()) return null
   
   return (
-    <motion.p
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.2 }}
-      className="text-lg text-muted-foreground max-w-xl mx-auto"
-    >
+    <p className="text-lg text-muted-foreground max-w-xl mx-auto">
       {subtitle}
-    </motion.p>
+    </p>
   )
 }
 
-// Call-to-action buttons component with animation
+// Call-to-action buttons component (animation handled by AnimatedGroup)
 const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
   const hasPrimaryButton = primaryButton && primaryButton.trim()
   const hasSecondaryButton = secondaryButton && secondaryButton.trim()
@@ -386,12 +318,7 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.4 }}
-      className="mt-8 flex justify-center gap-4 flex-wrap"
-    >
+    <div className="mt-8 flex justify-center gap-4 flex-wrap">
       {hasPrimaryButton && (
         primaryButtonLink ? (
           <Link href={primaryButtonLink}>
@@ -416,56 +343,24 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
           </Button>
         )
       )}
-    </motion.div>
+    </div>
   )
 }
 
-// Social proof section component with animation
+// Social proof section component (animation handled by AnimatedGroup)
 const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByTextColor?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay: 0.6 }}
-    className="mt-8 flex justify-center"
-  >
+  <div className="mt-8 flex justify-center">
     <TrustedByAvatars badgeText={trustedByText} badgeTextColor={trustedByTextColor} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
-  </motion.div>
+  </div>
 )
 
-// Hero Image component with animation
+// Hero Image component (animation handled by global system)
 const HeroImage = ({ heroImage }: { heroImage?: string }) => {
   if (!heroImage) return null;
   
   return (
     <div className="max-w-6xl mx-auto">
-      <AnimatedGroup
-        variants={{
-          container: {
-            visible: {
-              transition: {
-                staggerChildren: 0.05,
-              },
-            },
-          },
-          item: {
-            hidden: {
-              opacity: 0,
-              filter: 'blur(12px)',
-              y: 12,
-            },
-            visible: {
-              opacity: 1,
-              filter: 'blur(0px)',
-              y: 0,
-              transition: {
-                type: 'spring',
-                bounce: 0.3,
-                duration: 1.5,
-              },
-            },
-          },
-        }}
-      >
+      <AnimatedGroup customSettings={{ stagger: 0.05, duration: 1.2 }}>
         <div className="-mr-56 overflow-hidden px-2 sm:mr-0 sm:mt-8">
           <div
             aria-hidden
