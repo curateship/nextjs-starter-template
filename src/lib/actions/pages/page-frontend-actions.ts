@@ -1,11 +1,79 @@
 "use server"
 
 import { createClient } from '@supabase/supabase-js'
+import { unstable_cache } from 'next/cache'
 import { getListingViewsData } from './page-listing-views-actions'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// Cached site lookup functions
+const getCachedSiteByDomain = unstable_cache(
+  async (domain: string) => {
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('*')
+      .eq('custom_domain', domain)
+      .single()
+
+    if (siteError || !site) {
+      return null
+    }
+
+    return site
+  },
+  ['site-by-domain'],
+  { 
+    revalidate: false,
+    tags: ['site-lookup']
+  }
+)
+
+const getCachedSiteBySubdomain = unstable_cache(
+  async (subdomain: string) => {
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('*')
+      .eq('subdomain', subdomain)
+      .single()
+
+    if (siteError || !site) {
+      return null
+    }
+
+    return site
+  },
+  ['site-by-subdomain'],
+  { 
+    revalidate: false,
+    tags: ['site-lookup']
+  }
+)
+
+// Cached page lookup function
+const getCachedPage = unstable_cache(
+  async (siteId: string, pageSlug: string) => {
+    const { data: page, error: pageError } = await supabaseAdmin
+      .from('pages')
+      .select('*')
+      .eq('site_id', siteId)
+      .eq('slug', pageSlug)
+      .eq('is_published', true)
+      .single()
+
+    if (pageError || !page) {
+      return null
+    }
+
+    return page
+  },
+  ['page-lookup'],
+  { 
+    revalidate: false,
+    tags: ['page-lookup']
+  }
 )
 
 export interface SiteWithBlocks {
@@ -36,14 +104,10 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: 'Subdomain is required' }
     }
 
-    // Get site from database (no theme join needed)
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('subdomain', subdomain)
-      .single()
+    // Get site from cache
+    const site = await getCachedSiteBySubdomain(subdomain)
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found' }
     }
 
@@ -55,19 +119,13 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     // Use default 'home' if no page slug provided
     let actualPageSlug = pageSlug || 'home'
 
-    // Check if the requested page exists and is published
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('site_id', site.id)
-      .eq('slug', actualPageSlug)
-      .eq('is_published', true)
-      .single()
+    // Check if the requested page exists and is published (cached)
+    const page = await getCachedPage(site.id, actualPageSlug)
 
     // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
-    if (pageError || !page) {
-      // Only continue if pages table doesn't exist or this is the home page
-      if (pageError?.code === 'PGRST204' && actualPageSlug !== 'home') {
+    if (!page) {
+      // Only continue if this is the home page (simplified logic for cached version)
+      if (actualPageSlug !== 'home') {
         return { success: false, error: 'Page not found' }
       }
       // For sites without pages system or home page, continue with old behavior
@@ -262,14 +320,10 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       return { success: false, error: 'Domain is required' }
     }
 
-    // Get site by custom domain from database (no theme join needed)
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('custom_domain', domain)
-      .single()
+    // Get site from cache
+    const site = await getCachedSiteByDomain(domain)
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found' }
     }
 
@@ -281,19 +335,13 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
     // Use default 'home' if no page slug provided
     let actualPageSlug = pageSlug || 'home'
 
-    // Check if the requested page exists and is published
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('site_id', site.id)
-      .eq('slug', actualPageSlug)
-      .eq('is_published', true)
-      .single()
+    // Check if the requested page exists and is published (cached)
+    const page = await getCachedPage(site.id, actualPageSlug)
 
     // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
-    if (pageError || !page) {
-      // Only continue if pages table doesn't exist or this is the home page
-      if (pageError?.code === 'PGRST204' && actualPageSlug !== 'home') {
+    if (!page) {
+      // Only continue if this is the home page (simplified logic for cached version)
+      if (actualPageSlug !== 'home') {
         return { success: false, error: 'Page not found' }
       }
       // For sites without pages system or home page, continue with old behavior
