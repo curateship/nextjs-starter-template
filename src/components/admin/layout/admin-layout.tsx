@@ -48,16 +48,9 @@ export function AdminLayout({
     checkAuth()
   }, [supabase, router])
 
-  // Show loading state while checking auth
+  // Don't render anything while checking auth to avoid double loading states
   if (isAuthenticated === null) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
-          <p className="text-sm text-muted-foreground">Checking authentication...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (

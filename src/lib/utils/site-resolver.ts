@@ -3,30 +3,24 @@ import { getSiteBySubdomain, getSiteByDomain } from '@/lib/actions/pages/page-fr
 import { getSiteMapping } from '@/lib/utils/site-mappings'
 
 /**
- * Get site data from request headers set by middleware
+ * Get site data by resolving host to site mapping, then fetching from database
  */
 export async function getSiteFromHeaders(pageSlug?: string) {
   const headersList = await headers()
-  const siteId = headersList.get('x-site-id')
-  const siteSubdomain = headersList.get('x-site-subdomain')
-  const siteDomain = headersList.get('x-site-domain')
-
-  if (!siteId) {
-    return { success: false, error: 'No site found in headers' }
+  const host = headersList.get('host') || 'localhost:3000'
+  
+  // Look up site in JSON mappings first
+  const siteMapping = getSiteMapping(host)
+  
+  if (!siteMapping) {
+    return { success: false, error: 'Site not found' }
   }
-
-  // For localhost development, use the custom domain lookup since hub site has custom_domain set to "localhost:3000"
-  if (siteSubdomain === 'localhost') {
-    // The hub site has custom_domain="localhost:3000", so use domain lookup 
-    return await getSiteByDomain('localhost:3000', pageSlug)
+  
+  // For localhost or custom domains, use domain lookup
+  if (siteMapping.custom_domain) {
+    return await getSiteByDomain(siteMapping.custom_domain, pageSlug)
   }
-
-  // Use custom domain if available, otherwise use subdomain
-  if (siteDomain) {
-    return await getSiteByDomain(siteDomain, pageSlug)
-  } else if (siteSubdomain) {
-    return await getSiteBySubdomain(siteSubdomain, pageSlug)
-  }
-
-  return { success: false, error: 'No site identifier found' }
+  
+  // Otherwise use subdomain lookup
+  return await getSiteBySubdomain(siteMapping.subdomain, pageSlug)
 }
