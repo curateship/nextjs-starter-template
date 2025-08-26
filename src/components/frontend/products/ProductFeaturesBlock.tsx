@@ -46,6 +46,7 @@ const ProductFeaturesBlock = ({
 
   return (
     <BlockContainer 
+      id="features"
       className="white"
       header={{
         title: headerTitle,

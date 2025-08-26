@@ -158,6 +158,7 @@ function AnimatedGroup({
         <MotionChild 
           key={index} 
           variants={itemVariants}
+          style={{ pointerEvents: 'auto' }}
           {...(asChild !== 'div' && { as: asChild })}
         >
           {child}

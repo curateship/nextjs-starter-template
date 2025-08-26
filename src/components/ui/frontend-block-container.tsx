@@ -5,6 +5,7 @@ interface FrontendBlockContainerProps {
   children: React.ReactNode
   className?: string
   container?: boolean
+  id?: string
   style?: React.CSSProperties
   header?: {
     title?: string
@@ -21,6 +22,7 @@ export function FrontendBlockContainer({
   children, 
   className = "",
   container = true,
+  id,
   style,
   header,
   viewAllButton
@@ -67,6 +69,7 @@ export function FrontendBlockContainer({
 
   return (
     <BlockContainer 
+      id={id}
       className={className}
       container={container}
     >

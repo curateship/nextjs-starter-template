@@ -13,7 +13,7 @@ const ProductDefaultBlock = ({
   featuredImage
 }: ProductDefaultBlockProps) => {
   return (
-    <BlockContainer className="white">
+    <BlockContainer id="product-default" className="white">
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Content Column */}
