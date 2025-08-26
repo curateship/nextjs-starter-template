@@ -16,11 +16,14 @@ export async function getSiteFromHeaders(pageSlug?: string) {
     return { success: false, error: 'Site not found' }
   }
   
+  // Pass homepage_slug from mappings to avoid database lookup
+  const homepageSlug = siteMapping.homepage_slug
+  
   // For localhost or custom domains, use domain lookup
   if (siteMapping.custom_domain) {
-    return await getSiteByDomain(siteMapping.custom_domain, pageSlug)
+    return await getSiteByDomain(siteMapping.custom_domain, pageSlug, homepageSlug)
   }
   
   // Otherwise use subdomain lookup
-  return await getSiteBySubdomain(siteMapping.subdomain, pageSlug)
+  return await getSiteBySubdomain(siteMapping.subdomain, pageSlug, homepageSlug)
 }
