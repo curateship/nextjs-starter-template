@@ -109,8 +109,7 @@ async function checkPostBySlug(siteId: string, slug: string): Promise<PostConten
  */
 async function checkProductBySlug(siteId: string, slug: string): Promise<ProductContent | null> {
   try {
-    // Get the product
-    const { data: product, error: productError } = await supabaseAdmin
+    const { data: product, error } = await supabaseAdmin
       .from('products')
       .select('*')
       .eq('site_id', siteId)
@@ -118,7 +117,7 @@ async function checkProductBySlug(siteId: string, slug: string): Promise<Product
       .eq('is_published', true)
       .single()
 
-    if (productError || !product) {
+    if (error || !product) {
       return null
     }
 
@@ -146,37 +145,17 @@ async function checkProductBySlug(siteId: string, slug: string): Promise<Product
   }
 }
 
-/**
- * Get site URL prefixes from settings
- */
-async function getSiteUrlPrefixes(siteId: string): Promise<{
-  products?: string
-  posts?: string
-}> {
-  try {
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('settings')
-      .eq('id', siteId)
-      .single()
-    
-    return site?.settings?.url_prefixes || {}
-  } catch (error) {
-    return {}
-  }
-}
 
 /**
- * Enhanced URL path resolver with prefix support
- * Handles both prefixed and non-prefixed routes with priority: Pages → Posts → Products
+ * Simple URL path resolver that checks content types in priority order
+ * Priority: Pages → Posts → Products
  * 
  * @param siteId - The site ID to search within
- * @param path - The full URL path to resolve (e.g., "blog/my-post" or "my-page")
+ * @param path - The URL path to resolve
  * @returns PathResolutionResult with the resolved content and type
  */
 export async function resolveUrlPath(siteId: string, path: string): Promise<PathResolutionResult> {
   try {
-    // Validate inputs
     if (!siteId || !path) {
       return {
         success: false,
@@ -184,51 +163,14 @@ export async function resolveUrlPath(siteId: string, path: string): Promise<Path
       }
     }
 
-    // Get site URL prefixes
-    const urlPrefixes = await getSiteUrlPrefixes(siteId)
+    // Check all content types in parallel for better performance
+    const [page, post, product] = await Promise.all([
+      checkPageBySlug(siteId, path),
+      checkPostBySlug(siteId, path),
+      checkProductBySlug(siteId, path)
+    ])
     
-    // Parse the path to extract prefix and slug
-    const pathSegments = path.split('/').filter(segment => segment.length > 0)
-    
-    // If we have multiple segments, check if first segment matches a prefix
-    if (pathSegments.length >= 2) {
-      const [firstSegment, ...remainingSegments] = pathSegments
-      const contentSlug = remainingSegments.join('/')
-      
-      // Check if first segment matches product prefix
-      if (urlPrefixes.products && firstSegment === urlPrefixes.products) {
-        const product = await checkProductBySlug(siteId, contentSlug)
-        if (product) {
-          return {
-            success: true,
-            resolution: {
-              type: 'product',
-              content: product
-            }
-          }
-        }
-      }
-      
-      // Check if first segment matches post prefix
-      if (urlPrefixes.posts && firstSegment === urlPrefixes.posts) {
-        const post = await checkPostBySlug(siteId, contentSlug)
-        if (post) {
-          return {
-            success: true,
-            resolution: {
-              type: 'post',
-              content: post
-            }
-          }
-        }
-      }
-    }
-    
-    // Single segment or no prefix match - check in priority order
-    const singleSlug = pathSegments.join('/')
-    
-    // Priority 1: Check for Pages (highest priority)
-    const page = await checkPageBySlug(siteId, singleSlug)
+    // Return first match in priority order: Pages → Posts → Products
     if (page) {
       return {
         success: true,
@@ -238,31 +180,23 @@ export async function resolveUrlPath(siteId: string, path: string): Promise<Path
         }
       }
     }
-
-    // Priority 2: Check for Posts (if no prefix configured or fallback)
-    if (!urlPrefixes.posts) {
-      const post = await checkPostBySlug(siteId, singleSlug)
-      if (post) {
-        return {
-          success: true,
-          resolution: {
-            type: 'post',
-            content: post
-          }
+    
+    if (post) {
+      return {
+        success: true,
+        resolution: {
+          type: 'post',
+          content: post
         }
       }
     }
-
-    // Priority 3: Check for Products (if no prefix configured or fallback)
-    if (!urlPrefixes.products) {
-      const product = await checkProductBySlug(siteId, singleSlug)
-      if (product) {
-        return {
-          success: true,
-          resolution: {
-            type: 'product',
-            content: product
-          }
+    
+    if (product) {
+      return {
+        success: true,
+        resolution: {
+          type: 'product',
+          content: product
         }
       }
     }

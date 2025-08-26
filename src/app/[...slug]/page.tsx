@@ -33,8 +33,7 @@ export default async function DynamicPage({ params }: PageProps) {
     notFound()
   }
   
-  // Use universal path resolver to find content
-  // urlPath is already the full path from the sanitized slug array
+  // Resolve URL path to determine content type
   const resolution = await resolveUrlPath(site.id, urlPath)
   
   if (!resolution.success || !resolution.resolution) {

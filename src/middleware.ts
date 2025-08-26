@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request,
@@ -128,31 +129,23 @@ export async function middleware(request: NextRequest) {
     }
     try {
       // Query the database for site info using the admin client
-      // Use separate queries to avoid SQL injection from string interpolation
-      let site = null
-      let error = null
-      
-      // Try subdomain match first
-      const subdomainResult = await supabaseAdmin
-        .from('sites')
-        .select('id, subdomain, custom_domain, status')
-        .eq('subdomain', siteIdentifier)
-        .maybeSingle()
-      
-      if (subdomainResult.data) {
-        site = subdomainResult.data
-        error = subdomainResult.error
-      } else {
-        // Try custom domain match if subdomain didn't match
-        const domainResult = await supabaseAdmin
+      // Run both queries in parallel for better performance
+      const [subdomainResult, domainResult] = await Promise.all([
+        supabaseAdmin
+          .from('sites')
+          .select('id, subdomain, custom_domain, status')
+          .eq('subdomain', siteIdentifier)
+          .maybeSingle(),
+        supabaseAdmin
           .from('sites')
           .select('id, subdomain, custom_domain, status')
           .eq('custom_domain', siteIdentifier)
           .maybeSingle()
-        
-        site = domainResult.data
-        error = domainResult.error
-      }
+      ])
+      
+      // Use whichever query found a result
+      const site = subdomainResult.data || domainResult.data
+      const error = subdomainResult.error || domainResult.error
 
       if (error) {
         console.error('Middleware - Error looking up site:', error)
