@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { getSiteBySubdomain, getSiteByDomain } from '@/lib/actions/pages/page-frontend-actions'
+import { getSiteMapping } from '@/lib/utils/site-mappings'
 
 /**
  * Get site data from request headers set by middleware
