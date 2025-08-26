@@ -1,9 +1,9 @@
 "use client"
 
 import { SiteProvider } from "@/contexts/site-context"
-import { AppSidebar } from "@/components/admin/layout/sidebar/app-sidebar"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/layout/sidebar/sidebar"
-import { StickyHeader } from "@/components/admin/layout/dashboard/sticky-header"
+import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/layout/sidebar/Sidebar"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 
 export default function AdminLayout({
   children,
