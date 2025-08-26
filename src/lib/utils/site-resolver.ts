@@ -14,6 +14,12 @@ export async function getSiteFromHeaders(pageSlug?: string) {
     return { success: false, error: 'No site found in headers' }
   }
 
+  // For localhost development, use the custom domain lookup since hub site has custom_domain set to "localhost:3000"
+  if (siteSubdomain === 'localhost') {
+    // The hub site has custom_domain="localhost:3000", so use domain lookup 
+    return await getSiteByDomain('localhost:3000', pageSlug)
+  }
+
   // Use custom domain if available, otherwise use subdomain
   if (siteDomain) {
     return await getSiteByDomain(siteDomain, pageSlug)
