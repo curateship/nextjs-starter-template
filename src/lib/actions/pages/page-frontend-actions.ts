@@ -38,7 +38,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: 'Subdomain is required' }
     }
 
-    // Get site with theme information
+    // Get site with theme information from database
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
       .select(`
@@ -290,7 +290,7 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       return { success: false, error: 'Domain is required' }
     }
 
-    // Get site with theme information by custom domain
+    // Get site with theme information by custom domain from database
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
       .select(`
