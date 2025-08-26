@@ -3,8 +3,7 @@ import { ProductBlockRenderer } from "@/components/frontend/products/ProductBloc
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { resolveUrlPath } from "@/lib/utils/url-path-resolver"
-import type { PostContent, ProductContent } from "@/lib/utils/url-path-resolver"
-import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { PostContent } from "@/lib/utils/url-path-resolver"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 import { notFound } from "next/navigation"
 
@@ -61,7 +60,7 @@ export default async function DynamicPage({ params }: PageProps) {
     case 'post':
       // For posts, we need to structure the data correctly
       const postContent = content as PostContent
-      const postBlocks = postContent.content ? {
+      const postBlocks: Record<string, any> = postContent.content ? {
         'post-content': {
           id: 'post-content',
           type: 'post-content' as const,

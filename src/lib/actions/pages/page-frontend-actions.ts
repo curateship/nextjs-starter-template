@@ -13,8 +13,6 @@ export interface SiteWithBlocks {
   name: string
   subdomain: string
   custom_domain: string | null
-  theme_id: string
-  theme_name: string
   settings?: Record<string, any>
   blocks: Array<{
     id: string
@@ -28,7 +26,7 @@ export interface SiteWithBlocks {
 /**
  * Get site data by subdomain for frontend rendering
  */
-export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
+export async function getSiteBySubdomain(subdomain: string, pageSlug?: string, homepageSlug: string = 'home'): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -38,18 +36,10 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: 'Subdomain is required' }
     }
 
-    // Get site with theme information from database
+    // Get site from database (no theme join needed)
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select(`
-        *,
-        themes(
-          id,
-          name,
-          description,
-          metadata
-        )
-      `)
+      .select('*')
       .eq('subdomain', subdomain)
       .single()
 
@@ -62,24 +52,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: 'Site is not available for viewing' }
     }
 
-    // If no page slug provided, find the homepage
-    let actualPageSlug = pageSlug
-    if (!pageSlug) {
-      const { data: homePage, error: homePageError } = await supabaseAdmin
-        .from('pages')
-        .select('slug')
-        .eq('site_id', site.id)
-        .eq('is_homepage', true)
-        .eq('is_published', true)
-        .single()
-      
-      if (!homePageError && homePage) {
-        actualPageSlug = homePage.slug
-      } else {
-        // Fallback to 'home' if no homepage is set
-        actualPageSlug = 'home'
-      }
-    }
+    // Use homepage slug from site mappings (no database query needed)
+    let actualPageSlug = pageSlug || homepageSlug
 
     // Check if the requested page exists and is published
     const { data: page, error: pageError } = await supabaseAdmin
@@ -182,8 +156,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       name: site.name,
       subdomain: site.subdomain,
       custom_domain: site.custom_domain,
-      theme_id: site.theme_id,
-      theme_name: site.theme_name,
       settings: site.settings,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined
@@ -280,7 +252,7 @@ export async function getSitePages(subdomain: string): Promise<{
 /**
  * Get site data by custom domain for subdomain routing
  */
-export async function getSiteByDomain(domain: string, pageSlug?: string): Promise<{
+export async function getSiteByDomain(domain: string, pageSlug?: string, homepageSlug: string = 'home'): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -290,18 +262,10 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       return { success: false, error: 'Domain is required' }
     }
 
-    // Get site with theme information by custom domain from database
+    // Get site by custom domain from database (no theme join needed)
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select(`
-        *,
-        themes(
-          id,
-          name,
-          description,
-          metadata
-        )
-      `)
+      .select('*')
       .eq('custom_domain', domain)
       .single()
 
@@ -314,24 +278,8 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       return { success: false, error: 'Site is not available for viewing' }
     }
 
-    // If no page slug provided, find the homepage
-    let actualPageSlug = pageSlug
-    if (!pageSlug) {
-      const { data: homePage, error: homePageError } = await supabaseAdmin
-        .from('pages')
-        .select('slug')
-        .eq('site_id', site.id)
-        .eq('is_homepage', true)
-        .eq('is_published', true)
-        .single()
-      
-      if (!homePageError && homePage) {
-        actualPageSlug = homePage.slug
-      } else {
-        // Fallback to 'home' if no homepage is set
-        actualPageSlug = 'home'
-      }
-    }
+    // Use homepage slug from site mappings (no database query needed)
+    let actualPageSlug = pageSlug || homepageSlug
 
     // Check if the requested page exists and is published
     const { data: page, error: pageError } = await supabaseAdmin
@@ -434,8 +382,6 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       name: site.name,
       subdomain: site.subdomain,
       custom_domain: site.custom_domain,
-      theme_id: site.theme_id,
-      theme_name: site.theme_name,
       settings: site.settings,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined
