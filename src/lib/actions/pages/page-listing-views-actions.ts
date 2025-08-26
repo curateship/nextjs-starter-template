@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { unstable_cache } from 'next/cache'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +22,70 @@ export interface ListingViewsData {
   currentPage: number
   totalPages: number
 }
+
+// Cached listing data function
+const getCachedListingData = unstable_cache(
+  async (site_id: string, contentType: string, sortBy: string, sortOrder: string, limit: number, offset: number) => {
+    // Map sortBy to database column
+    let orderColumn = 'created_at'
+    if (sortBy === 'title') {
+      orderColumn = 'title'
+    } else if (sortBy === 'display_order') {
+      orderColumn = 'display_order'
+    }
+
+    // Get total count for pagination
+    const { count, error: countError } = await supabaseAdmin
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('site_id', site_id)
+      .eq('is_published', true)
+
+    if (countError) {
+      throw new Error(`Failed to count products: ${countError.message}`)
+    }
+
+    // Get products with pagination
+    const { data: products, error } = await supabaseAdmin
+      .from('products')
+      .select('id, title, slug, created_at, display_order, featured_image, description')
+      .eq('site_id', site_id)
+      .eq('is_published', true)
+      .order(orderColumn, { ascending: sortOrder === 'asc' })
+      .range(offset, offset + limit - 1)
+
+    if (error) {
+      throw new Error(`Failed to load products: ${error.message}`)
+    }
+
+    const totalCount = count || 0
+    const totalPages = Math.ceil(totalCount / limit)
+    const currentPage = Math.floor(offset / limit) + 1
+
+    // Transform products to use database columns directly
+    const transformedProducts = (products || []).map(product => ({
+      id: product.id,
+      title: product.title || 'Untitled',
+      slug: product.slug || '',
+      richText: product.description || '', // Use description as richText
+      featured_image: product.featured_image,
+      created_at: product.created_at,
+      display_order: product.display_order || 0
+    }))
+
+    return {
+      products: transformedProducts,
+      totalCount,
+      currentPage,
+      totalPages
+    }
+  },
+  ['listing-data'],
+  { 
+    revalidate: 3600, // 1-hour cache for product listing data
+    tags: ['listing-views']
+  }
+)
 
 /**
  * Get data for listing views block
@@ -49,57 +114,12 @@ export async function getListingViewsData(params: {
       return { success: false, error: 'Only products content type is supported' }
     }
 
-    // Map sortBy to database column
-    let orderColumn = 'created_at'
-    if (sortBy === 'title') {
-      orderColumn = 'title'
-    } else if (sortBy === 'display_order') {
-      orderColumn = 'display_order'
-    }
-
-    // Get total count for pagination
-    const { count, error: countError } = await supabaseAdmin
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-      .eq('site_id', site_id)
-      .eq('is_published', true)
-
-    if (countError) {
-      return { success: false, error: `Failed to count products: ${countError.message}` }
-    }
-
-    // Get products with pagination
-    const { data: products, error } = await supabaseAdmin
-      .from('products')
-      .select('id, title, slug, created_at, display_order, featured_image, description')
-      .eq('site_id', site_id)
-      .eq('is_published', true)
-      .order(orderColumn, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limit - 1)
-
-    if (error) {
-      return { success: false, error: `Failed to load products: ${error.message}` }
-    }
-
-    const totalCount = count || 0
-    const totalPages = Math.ceil(totalCount / limit)
-    const currentPage = Math.floor(offset / limit) + 1
-
-    // Transform products to use database columns directly
-    const transformedProducts = (products || []).map(product => ({
-      ...product,
-      featured_image: product.featured_image,
-      richText: product.description ? product.description.replace(/<[^>]*>/g, '') : null
-    }))
+    // Get cached listing data
+    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset)
 
     return {
       success: true,
-      data: {
-        products: transformedProducts,
-        totalCount,
-        currentPage,
-        totalPages
-      }
+      data
     }
 
   } catch (error) {

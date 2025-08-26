@@ -3,9 +3,13 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { notFound } from "next/navigation"
 
+async function getHomePageSite() {
+  return await getSiteFromHeaders('home')
+}
+
 export default async function SiteHomePage() {
-  // Get site data from headers set by middleware
-  const { success, site } = await getSiteFromHeaders('home')
+  // Get site data from headers
+  const { success, site } = await getHomePageSite()
   
   if (!success || !site) {
     notFound()
@@ -16,7 +20,7 @@ export default async function SiteHomePage() {
 
 export async function generateMetadata() {
   try {
-    const { success, site } = await getSiteFromHeaders('home')
+    const { success, site } = await getHomePageSite()
     
     if (!success || !site) {
       return {
