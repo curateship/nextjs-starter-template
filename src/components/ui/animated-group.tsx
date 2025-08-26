@@ -81,7 +81,7 @@ const addDefaultVariants = (variants: Variants) => ({
 
 // Static wrapper for when animations are disabled
 function StaticWrapper({ children, className, as = 'div' }: { children: ReactNode, className?: string, as?: string }) {
-  const Component = as as keyof JSX.IntrinsicElements;
+  const Component = as as keyof React.JSX.IntrinsicElements;
   return <Component className={className}>{children}</Component>;
 }
 

@@ -26,7 +26,7 @@ export interface SiteWithBlocks {
 /**
  * Get site data by subdomain for frontend rendering
  */
-export async function getSiteBySubdomain(subdomain: string, pageSlug?: string, homepageSlug: string = 'home'): Promise<{
+export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -52,8 +52,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string, h
       return { success: false, error: 'Site is not available for viewing' }
     }
 
-    // Use homepage slug from site mappings (no database query needed)
-    let actualPageSlug = pageSlug || homepageSlug
+    // Use default 'home' if no page slug provided
+    let actualPageSlug = pageSlug || 'home'
 
     // Check if the requested page exists and is published
     const { data: page, error: pageError } = await supabaseAdmin
@@ -252,7 +252,7 @@ export async function getSitePages(subdomain: string): Promise<{
 /**
  * Get site data by custom domain for subdomain routing
  */
-export async function getSiteByDomain(domain: string, pageSlug?: string, homepageSlug: string = 'home'): Promise<{
+export async function getSiteByDomain(domain: string, pageSlug?: string): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -278,8 +278,8 @@ export async function getSiteByDomain(domain: string, pageSlug?: string, homepag
       return { success: false, error: 'Site is not available for viewing' }
     }
 
-    // Use homepage slug from site mappings (no database query needed)
-    let actualPageSlug = pageSlug || homepageSlug
+    // Use default 'home' if no page slug provided
+    let actualPageSlug = pageSlug || 'home'
 
     // Check if the requested page exists and is published
     const { data: page, error: pageError } = await supabaseAdmin
