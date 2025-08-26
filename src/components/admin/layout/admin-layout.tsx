@@ -1,7 +1,7 @@
 "use client"
 
-import { AdminPageHeader } from "@/components/admin/layout/dashboard/admin-page-header"
-import { AdminCard } from "@/components/admin/layout/dashboard/admin-card"
+import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
+import { AdminCard } from "@/components/admin/layout/dashboard/AdminCard"
 import { BasicBlock } from "@/components/admin/product-builder/blocks/ProductBasicBlock"
 
 interface AdminLayoutProps {
