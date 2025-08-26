@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -19,59 +18,6 @@ export async function middleware(request: NextRequest) {
       }
     }
   )
-
-  // Create regular client for auth checks
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          response = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Check if accessing admin routes
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    // No session = redirect to login
-    if (!session) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    // Expired session = redirect to login
-    if (session.expires_at && new Date(session.expires_at * 1000) < new Date()) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    // Validate user actually exists by checking with server
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (!user || error) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    return response
-  }
 
   // Skip site lookup for static files, API routes, admin routes, and other Next.js internals
   if (
@@ -97,20 +43,32 @@ export async function middleware(request: NextRequest) {
   const isLocalhost = hostname === 'localhost'
   const isCustomDomain = !isLocalhost && !hostname.includes('.localhost') && !hostname.includes('.yourdomain.com')
   
+  // Skip database queries entirely for localhost development
+  if (isLocalhost) {
+    // For localhost, add default site headers without database lookup
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-site-id', process.env.HUB_SITE_ID || 'localhost-default')
+    requestHeaders.set('x-site-subdomain', 'localhost')
+    requestHeaders.set('x-site-domain', '')
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  }
+  
   let siteIdentifier = ''
   
   if (isCustomDomain) {
     // Custom domain - look up by domain
     siteIdentifier = host
-  } else if (!isLocalhost) {
+  } else {
     // Subdomain - extract subdomain
     const parts = hostname.split('.')
     if (parts.length > 1) { // Allow .localhost subdomains
       siteIdentifier = parts[0] // First part is the subdomain
     }
-  } else {
-    // Localhost - always use the full host with port for localhost
-    siteIdentifier = host // Use the full host including port
   }
 
   // Validate and sanitize site identifier before database lookup
