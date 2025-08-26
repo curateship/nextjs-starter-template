@@ -10,6 +10,7 @@ import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actio
 import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { SEOSettingsCard } from "./SEOSettingsCard"
 import { StylingSettingsCard } from "./StylingSettingsCard"
+import { AnimationSettingsCard } from "./AnimationSettingsCard"
 
 interface SiteDashboardProps {
   siteName: string
@@ -285,13 +286,19 @@ export function SiteDashboard({
       fontFamily={fontFamily}
       secondaryFontFamily={secondaryFontFamily}
       favicon={favicon}
-      animations={animations}
       onThemeIdChange={onThemeIdChange}
       onFontFamilyChange={onFontFamilyChange}
       onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
       onFaviconChange={onFaviconChange}
-      onAnimationsChange={onAnimationsChange}
     />
+
+    {/* Animation Settings Card */}
+    {onAnimationsChange && (
+      <AnimationSettingsCard
+        animations={animations}
+        onAnimationsChange={onAnimationsChange}
+      />
+    )}
 
     {/* SEO Settings Card */}
     {(onProductPrefixChange || onPostPrefixChange) && (

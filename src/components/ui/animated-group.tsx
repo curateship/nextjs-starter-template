@@ -10,12 +10,7 @@ export type PresetType =
   | 'slide'
   | 'scale'
   | 'blur'
-  | 'blur-slide'
-  | 'zoom'
-  | 'flip'
-  | 'bounce'
-  | 'rotate'
-  | 'swing';
+  | 'blur-slide';
 
 export type AnimatedGroupProps = {
   children: ReactNode;
@@ -75,61 +70,6 @@ const getPresetVariants = (intensity: 'low' | 'medium' | 'high'): Record<PresetT
         y: 12 * intensityMultiplier 
       },
       visible: { filter: 'blur(0px)', y: 0 },
-    },
-    zoom: {
-      hidden: { scale: 1 - (0.5 * intensityMultiplier) },
-      visible: {
-        scale: 1,
-        transition: { 
-          type: 'spring', 
-          stiffness: 300 / intensityMultiplier, 
-          damping: 20 
-        },
-      },
-    },
-    flip: {
-      hidden: { rotateX: -45 * intensityMultiplier },
-      visible: {
-        rotateX: 0,
-        transition: { 
-          type: 'spring', 
-          stiffness: 300 / intensityMultiplier, 
-          damping: 20 
-        },
-      },
-    },
-    bounce: {
-      hidden: { y: -25 * intensityMultiplier },
-      visible: {
-        y: 0,
-        transition: { 
-          type: 'spring', 
-          stiffness: 400 / intensityMultiplier, 
-          damping: 10 
-        },
-      },
-    },
-    rotate: {
-      hidden: { rotate: -90 * intensityMultiplier },
-      visible: {
-        rotate: 0,
-        transition: { 
-          type: 'spring', 
-          stiffness: 200 / intensityMultiplier, 
-          damping: 15 
-        },
-      },
-    },
-    swing: {
-      hidden: { rotate: -5 * intensityMultiplier },
-      visible: {
-        rotate: 0,
-        transition: { 
-          type: 'spring', 
-          stiffness: 300 / intensityMultiplier, 
-          damping: 8 
-        },
-      },
     },
   };
 };
