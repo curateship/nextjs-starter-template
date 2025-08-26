@@ -6,6 +6,7 @@ interface ProductGridBlockProps {
 
 const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
   <FrontendBlockContainer 
+    id="product-grid"
     className="white"
     header={{
       title: "Latest Products",

@@ -155,7 +155,7 @@ const ProductHeroBlock = ({
   heroImage
 }: ProductHeroBlockProps) => {
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
+    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}
@@ -297,48 +297,68 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
   // Don't render if no buttons have content
   if (!hasPrimaryButton && !hasSecondaryButton) return null
 
-  const handlePrimaryClick = () => {
-    if (primaryButtonLink) return // Let Link handle external links
-    
-    // Scroll to pricing block
-    const pricingElement = document.querySelector('#pricing')
-    if (pricingElement) {
-      pricingElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Enhanced scroll function with offset and strict target validation
+  const scrollToTarget = (targetId: string) => {
+    const targetElement = document.querySelector(targetId)
+    if (!targetElement) {
+      return // Do nothing if target not found
     }
+    
+    // Get scroll offset to account for any fixed navigation
+    const scrollOffset = 80 // Adjust this value as needed
+    const elementTop = targetElement.getBoundingClientRect().top + window.pageYOffset
+    const offsetPosition = elementTop - scrollOffset
+    
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: 'smooth'
+    })
+  }
+
+  const handlePrimaryClick = () => {
+    // If link provided and starts with #, treat as scroll target
+    if (primaryButtonLink && primaryButtonLink.startsWith('#')) {
+      const targetElement = document.querySelector(primaryButtonLink)
+      if (targetElement) {
+        scrollToTarget(primaryButtonLink)
+      }
+    }
+    // If no scroll target specified, do nothing (no scroll)
   }
 
   const handleSecondaryClick = () => {
-    if (secondaryButtonLink) return // Let Link handle external links
-    
-    // Scroll to hotspot block
-    const hotspotElement = document.querySelector('#product-hotspot')
-    if (hotspotElement) {
-      hotspotElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // If link provided and starts with #, treat as scroll target
+    if (secondaryButtonLink && secondaryButtonLink.startsWith('#')) {
+      const targetElement = document.querySelector(secondaryButtonLink)
+      if (targetElement) {
+        scrollToTarget(secondaryButtonLink)
+      }
     }
+    // If no scroll target specified, do nothing (no scroll)
   }
 
   return (
     <div className="mt-8 flex justify-center gap-4 flex-wrap">
       {hasPrimaryButton && (
-        primaryButtonLink ? (
+        primaryButtonLink && !primaryButtonLink.startsWith('#') ? (
           <Link href={primaryButtonLink}>
             <Button size="lg">{primaryButton}</Button>
           </Link>
         ) : (
-          <Button size="lg" onClick={handlePrimaryClick} className="cursor-pointer">
+          <Button size="lg" onClick={handlePrimaryClick}>
             {primaryButton}
           </Button>
         )
       )}
       {hasSecondaryButton && (
-        secondaryButtonLink ? (
+        secondaryButtonLink && !secondaryButtonLink.startsWith('#') ? (
           <Link href={secondaryButtonLink}>
             <Button size="lg" variant="outline">
               {secondaryButton}
             </Button>
           </Link>
         ) : (
-          <Button size="lg" variant="outline" onClick={handleSecondaryClick} className="cursor-pointer">
+          <Button size="lg" variant="outline" onClick={handleSecondaryClick}>
             {secondaryButton}
           </Button>
         )
@@ -364,7 +384,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
         <div className="overflow-hidden md:px-6 sm:mt-8">
           <div
             aria-hidden
-            className="bg-gradient-to-b to-background absolute inset-0 z-10 from-transparent from-70%"
+            className="bg-gradient-to-b to-background absolute inset-0 z-10 from-transparent from-70% pointer-events-none"
           />
           <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
             <Image
@@ -386,7 +406,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
           </div>
         </div>
       </AnimatedGroup>
-      <div className="bg-gradient-to-t absolute bottom-0 h-1/3 w-full from-white/60 to-transparent" />
+      <div className="bg-gradient-to-t absolute bottom-0 h-1/3 w-full from-white/60 to-transparent pointer-events-none" />
     </div>
   );
 }

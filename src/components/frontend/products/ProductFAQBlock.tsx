@@ -56,6 +56,7 @@ const ProductFAQBlock = ({ content }: ProductFAQBlockProps) => {
 
     return (
         <BlockContainer
+            id="faq"
             header={{
                 title: content?.title ?? '',
                 subtitle: content?.subtitle ?? '',

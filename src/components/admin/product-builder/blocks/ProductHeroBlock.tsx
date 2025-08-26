@@ -403,7 +403,7 @@ export function ProductHeroBlock({
                   value={primaryButtonLink}
                   onChange={(e) => validateUrl(e.target.value, onPrimaryButtonLinkChange)}
                   className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="https://example.com or /page"
+                  placeholder="https://example.com, /page, or #faq (scroll target)"
                 />
                 <ButtonStyleSelect value={primaryButtonStyle} onChange={onPrimaryButtonStyleChange} />
               </div>
@@ -421,7 +421,7 @@ export function ProductHeroBlock({
                   value={secondaryButtonLink}
                   onChange={(e) => validateUrl(e.target.value, onSecondaryButtonLinkChange)}
                   className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="https://example.com or /page"
+                  placeholder="https://example.com, /page, or #faq (scroll target)"
                 />
                 <ButtonStyleSelect value={secondaryButtonStyle} onChange={onSecondaryButtonStyleChange} />
               </div>

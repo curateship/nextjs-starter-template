@@ -124,6 +124,31 @@
   }
 }
 
+/* Force hand cursor on all links - outside of Tailwind layers */
+a[href] {
+  cursor: pointer !important;
+}
+
+a {
+  cursor: pointer !important;
+}
+
+/* Force hand cursor on clickable buttons */
+button[onclick], 
+button:hover,
+[role="button"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+* {
+  cursor: auto;
+}
+
+a, a *, button[onclick], button:hover {
+  cursor: pointer !important;
+}
+
 @keyframes rainbow {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }

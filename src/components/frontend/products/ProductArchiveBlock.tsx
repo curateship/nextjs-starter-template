@@ -59,6 +59,7 @@ export const ProductArchiveBlock = () => {
   return (
     <div className="pt-10">
       <BlockContainer
+        id="product-archive"
         header={{
           title: "Our Products",
           subtitle: "Discover our curated collection of high-quality products designed to enhance your lifestyle.",
