@@ -372,7 +372,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
   return (
     <div className="max-w-6xl mx-auto">
       <AnimatedGroup customSettings={{ stagger: 0.05, duration: 1.2 }}>
-        <div className="-mr-56 overflow-hidden px-2 sm:mr-0 sm:mt-8">
+        <div className="overflow-hidden md:px-6 sm:mt-8">
           <div
             aria-hidden
             className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
