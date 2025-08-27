@@ -559,6 +559,9 @@ export async function updateSiteNavigationAction(siteId: string, navigationData:
       return { success: false, error: `Failed to update navigation: ${error.message}` }
     }
 
+    // Invalidate cached site data so changes take effect immediately
+    revalidateTag('site-lookup')
+
     return { success: true, error: null }
   } catch (error) {
     return { 
@@ -618,6 +621,9 @@ export async function updateSiteFooterAction(siteId: string, footerData: Record<
     if (error) {
       return { success: false, error: `Failed to update footer: ${error.message}` }
     }
+
+    // Invalidate cached site data so changes take effect immediately
+    revalidateTag('site-lookup')
 
     return { success: true, error: null }
   } catch (error) {

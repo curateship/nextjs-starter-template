@@ -31,7 +31,7 @@ interface NavBlockProps {
     };
   };
   links?: Array<{ text: string; url: string }>;
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>;
   style?: {
     backgroundColor: string;
     textColor: string;
@@ -382,7 +382,23 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                 <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : 'hidden'} />
               </Link>
 
-              <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
+              <div className="flex items-center gap-2 lg:hidden">
+                {/* Mobile Action Buttons - show buttons marked for mobile */}
+                {buttons && buttons.filter(button => button.showOnMobile && button.text && button.url).map((button, index) => (
+                  <Button
+                    key={`mobile-${index}`}
+                    asChild
+                    size="sm"
+                    variant={button.style === 'primary' ? 'default' : button.style}
+                    className="text-xs px-2 py-1 h-8"
+                  >
+                    <Link href={button.url}>
+                      <span>{button.text}</span>
+                    </Link>
+                  </Button>
+                ))}
+                <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
+              </div>
               <DesktopNav 
                 menuItems={menuItems}
                 dropdownOpen={dropdownOpen}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DndContext,
   closestCenter,
@@ -37,6 +38,7 @@ interface NavigationButton {
   text: string
   url: string
   style: 'primary' | 'outline' | 'ghost'
+  showOnMobile?: boolean
   id?: string
 }
 
@@ -71,7 +73,7 @@ function SortableButtonItem({
 }: {
   button: NavigationButton
   index: number
-  updateButton: (index: number, field: keyof NavigationButton, value: string) => void
+  updateButton: (index: number, field: keyof NavigationButton, value: string | boolean) => void
   removeButton: (index: number) => void
 }) {
   const {
@@ -132,15 +134,26 @@ function SortableButtonItem({
             </SelectContent>
           </Select>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => removeButton(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1">
+            <Checkbox
+              checked={button.showOnMobile || false}
+              onCheckedChange={(checked) => updateButton(index, 'showOnMobile', checked === true)}
+              className="h-4 w-4"
+              title="Show on mobile"
+            />
+            <span className="text-xs text-muted-foreground">Mobile Bar</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => removeButton(index)}
+            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -228,6 +241,7 @@ export function PageNavigationBlock({
   onLinksChange,
   onButtonsChange,
   onStyleChange,
+  siteId,
   siteFavicon,
 }: NavigationBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
@@ -312,7 +326,7 @@ export function PageNavigationBlock({
     onButtonsChange(newButtons)
   }
 
-  const updateButton = (index: number, field: keyof NavigationButton, value: string) => {
+  const updateButton = (index: number, field: keyof NavigationButton, value: string | boolean) => {
     const newButtons = [...buttons]
     newButtons[index] = { ...newButtons[index], [field]: value }
     onButtonsChange(newButtons)
