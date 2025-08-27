@@ -19,7 +19,7 @@ interface SiteLayoutProps {
     logo?: string
     logoUrl?: string
     links?: Array<{ text: string; url: string }>
-    buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
+    buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>
     style?: { backgroundColor: string; textColor: string }
   }
   footer?: {
