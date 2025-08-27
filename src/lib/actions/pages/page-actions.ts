@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { revalidateTag } from 'next/cache'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -761,6 +762,19 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
 
     if (error) {
       return { success: false, error: `Failed to update page blocks: ${error.message}` }
+    }
+
+    // Invalidate page cache since page content blocks have changed
+    revalidateTag('page-lookup')
+
+    // Invalidate listing views cache if this page contains listing-views blocks
+    if (contentBlocks && typeof contentBlocks === 'object') {
+      const hasListingViewsBlock = Object.values(contentBlocks).some(
+        block => block && typeof block === 'object' && 'type' in block && block.type === 'listing-views'
+      )
+      if (hasListingViewsBlock) {
+        revalidateTag('listing-views')
+      }
     }
 
     return { success: true }
