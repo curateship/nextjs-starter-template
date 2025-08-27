@@ -87,6 +87,7 @@ export interface CreateSiteData {
   secondary_font_weights?: string[]
   favicon?: string
   animations?: AnimationSettings
+  tracking_scripts?: string
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -288,9 +289,9 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings, favicon, or animations, merge them into settings
+    // If updating font settings, favicon, animations, or tracking scripts, merge them into settings
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations) {
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined) {
       const { data: currentSite } = await supabaseAdmin
         .from('sites')
         .select('settings')
@@ -306,15 +307,17 @@ export async function updateSiteAction(
         ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
         ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
         ...(updates.animations && { animations: updates.animations }),
+        ...(updates.tracking_scripts !== undefined && { tracking_scripts: updates.tracking_scripts }),
       }
       
-      // Remove font, favicon, and animation properties from top level as they're now in settings
+      // Remove font, favicon, animation, and tracking script properties from top level as they're now in settings
       delete finalUpdates.font_family
       delete finalUpdates.font_weights
       delete finalUpdates.secondary_font_family
       delete finalUpdates.secondary_font_weights
       delete finalUpdates.favicon
       delete finalUpdates.animations
+      delete finalUpdates.tracking_scripts
     }
 
     // If updating name, regenerate subdomain

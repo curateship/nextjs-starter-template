@@ -28,6 +28,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
   const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
+  const [trackingScripts, setTrackingScripts] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +57,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
         setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
+        setTrackingScripts(data.settings?.tracking_scripts || "")
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -100,6 +102,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         secondary_font_family: secondaryFontFamily,
         favicon: favicon === '' ? '' : favicon || undefined,
         animations: animations,
+        tracking_scripts: trackingScripts,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
@@ -219,6 +222,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
             animations={animations}
+            trackingScripts={trackingScripts}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -229,6 +233,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}
             onAnimationsChange={setAnimations}
+            onTrackingScriptsChange={setTrackingScripts}
           />
         </form>
       </div>
