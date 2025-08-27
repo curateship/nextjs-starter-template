@@ -3,7 +3,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { checkSlugConflicts } from '@/lib/utils/url-path-resolver'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -328,15 +327,18 @@ export async function createPageAction(siteId: string, pageData: CreatePageData)
       return { data: null, error: 'This slug is reserved and cannot be used.' }
     }
 
-    // Check if slug conflicts with any existing content (pages, posts, products)
-    const conflictCheck = await checkSlugConflicts(siteId, slug)
+    // Check if slug conflicts with existing pages in this site
+    const { data: existingPage } = await supabaseAdmin
+      .from('pages')
+      .select('title')
+      .eq('site_id', siteId)
+      .eq('slug', slug)
+      .single()
     
-    if (conflictCheck.hasConflict) {
-      const contentType = conflictCheck.conflictType === 'page' ? 'page' : 
-                         conflictCheck.conflictType === 'post' ? 'post' : 'product'
+    if (existingPage) {
       return { 
         data: null, 
-        error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
+        error: `This slug is already used by another page titled "${existingPage.title}". Please choose a different slug.` 
       }
     }
 
@@ -451,34 +453,18 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }
 
-      // Check if slug conflicts with any existing content (excluding current page)
-      const conflictCheck = await checkSlugConflicts(page.site_id, slug)
+      // Check if slug conflicts with other pages (excluding current page)
+      const { data: existingPage } = await supabaseAdmin
+        .from('pages')
+        .select('id')
+        .eq('site_id', page.site_id)
+        .eq('slug', slug)
+        .single()
       
-      // If there's a conflict and it's not with the current page, it's an error
-      if (conflictCheck.hasConflict) {
-        // Double-check if the conflict is with the current page being updated
-        if (conflictCheck.conflictType === 'page') {
-          const { data: conflictingPage } = await supabaseAdmin
-            .from('pages')
-            .select('id')
-            .eq('site_id', page.site_id)
-            .eq('slug', slug)
-            .single()
-          
-          // If the conflicting page is not the current page, it's an error
-          if (conflictingPage && conflictingPage.id !== pageId) {
-            return { 
-              data: null, 
-              error: `This slug is already used by another page titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
-            }
-          }
-        } else {
-          // Conflict with post or product
-          const contentType = conflictCheck.conflictType === 'post' ? 'post' : 'product'
-          return { 
-            data: null, 
-            error: `This slug is already used by a ${contentType} titled "${conflictCheck.conflictTitle}". Please choose a different slug.` 
-          }
+      if (existingPage && existingPage.id !== pageId) {
+        return { 
+          data: null, 
+          error: `A page with the slug "${slug}" already exists. Please choose a different slug.` 
         }
       }
 

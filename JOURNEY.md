@@ -2,7 +2,7 @@
 
 ## Project: NextJS Starter Template - Multi-Tenant Platform Implementation
 
-**Last Updated**: August 25, 2025
+**Last Updated**: August 27, 2025
 
 
 ## Phase 1: Initial Authentication Setup
@@ -5602,3 +5602,45 @@ const isEnabled = settings.enabled && \!shouldRespectReducedMotion
 - Performance warnings for intensive settings
 
 **Result**: Complete global animation system with 30-50% performance improvement, zero-cost when disabled, comprehensive admin controls, and consistent animations across all blocks while respecting accessibility preferences.
+
+---
+
+## Phase 19: URL Resolution System Elimination (August 27, 2025)
+
+**Problem**: Product pages performing 3 parallel database queries (pages, posts, products) on every page load due to ambiguous URL resolution with `[...slug]` dynamic routing.
+
+**Root Cause**: URLs like `/some-product` required database lookups to determine content type - could be a page, post, or product with that slug.
+
+**Solution**: Replaced complex dynamic routing with standard Next.js patterns:
+- `/products/[slug]` → Direct product queries only
+- `/posts/[slug]` → Direct post queries only  
+- `/pages/[slug]` → Direct page queries only
+
+**Implementation**:
+- Deleted `/src/app/[...slug]/page.tsx` 
+- Created dedicated route files for each content type
+- Removed `checkSlugConflicts` cross-table validation
+- Simplified to single-table slug checks
+- Eliminated URL prefix system entirely
+- Updated all admin components to standard routing
+
+**Performance Impact**:
+- **67% reduction** in database queries per page load (3 → 1)
+- Eliminated caching complexity and manifest conflicts
+- Direct table queries with predictable patterns
+
+**Code Simplification**:
+```typescript
+// Before: Complex cross-table checking
+const conflictCheck = await checkSlugConflicts(siteId, slug)
+
+// After: Simple single-table validation  
+const { data: existingProduct } = await supabaseAdmin
+  .from('products')
+  .select('id')
+  .eq('site_id', siteId)
+  .eq('slug', slug)
+  .single()
+```
+
+**Result**: Eliminated architectural complexity causing performance issues. Standard Next.js routing proved simpler and more maintainable than WordPress-style flexible URLs. Perfect example of CLAUDE.md principle: "sometimes the best solution is to remove code rather than add it."

@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createPageAction } from "@/lib/actions/pages/page-actions"
-import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
 import type { Page, CreatePageData } from "@/lib/actions/pages/page-actions"
 
 interface CreatePageModalProps {
@@ -71,23 +70,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
         return
       }
 
-      setCheckingSlug(true)
-      try {
-        const conflictResult = await checkSlugConflicts(siteId, slug)
-        
-        if (conflictResult.hasConflict) {
-          const contentType = conflictResult.conflictType === 'page' ? 'page' :
-                             conflictResult.conflictType === 'post' ? 'post' : 'product'
-          setSlugWarning(`This slug is already used by a ${contentType} titled "${conflictResult.conflictTitle}". Please choose a different slug.`)
-        } else {
-          setSlugWarning(null)
-        }
-      } catch (error) {
-        // Silently fail - don't show error for conflict checking
-        setSlugWarning(null)
-      } finally {
-        setCheckingSlug(false)
-      }
+      // Skip client-side slug checking - server will handle validation
     }
 
     const timeoutId = setTimeout(checkSlugConflict, 500) // 500ms debounce

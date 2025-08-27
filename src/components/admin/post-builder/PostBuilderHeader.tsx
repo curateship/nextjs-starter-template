@@ -41,16 +41,9 @@ export function PostBuilderHeader({
 }: PostBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [urlPrefix, setUrlPrefix] = useState<string>("")
-  const { currentSite, siteSettings } = useSiteContext()
+  const { currentSite } = useSiteContext()
   const currentPost = posts.find(p => p.slug === selectedPost)
   
-  // Get URL prefix from context (cached, no API call needed)
-  useEffect(() => {
-    if (currentSite?.id) {
-      setUrlPrefix(siteSettings?.urlPrefixes?.posts || "")
-    }
-  }, [currentSite?.id, siteSettings?.urlPrefixes?.posts])
   
   // Generate post URL for frontend viewing
   const getPostUrl = () => {
@@ -58,9 +51,8 @@ export function PostBuilderHeader({
       return '#'
     }
     
-    // Use dynamic routing with prefix
-    const prefix = urlPrefix ? `${urlPrefix}/` : ''
-    const url = `http://localhost:3000/${prefix}${currentPost.slug}`
+    // Use dedicated post routing
+    const url = `http://localhost:3000/posts/${currentPost.slug}`
     return url
   }
   

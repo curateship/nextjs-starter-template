@@ -3,22 +3,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { getAllSitesAction, getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 
-interface SiteSettings {
-  urlPrefixes: {
-    posts?: string
-    products?: string
-  }
-}
 
 interface SiteContextType {
   currentSite: SiteWithTheme | null
   sites: SiteWithTheme[]
-  siteSettings: SiteSettings | null
   loading: boolean
   error: string | null
   setCurrentSite: (site: SiteWithTheme | null) => void
   refreshSites: () => Promise<void>
-  refreshSiteSettings: () => Promise<void>
 }
 
 const SiteContext = createContext<SiteContextType | undefined>(undefined)
@@ -26,44 +18,9 @@ const SiteContext = createContext<SiteContextType | undefined>(undefined)
 export function SiteProvider({ children }: { children: ReactNode }) {
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(null)
   const [sites, setSites] = useState<SiteWithTheme[]>([])
-  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshSiteSettings = async () => {
-    if (!currentSite?.id) {
-      setSiteSettings(null)
-      return
-    }
-
-    try {
-      const { data: site } = await getSiteByIdAction(currentSite.id)
-      
-      if (site?.settings?.url_prefixes) {
-        setSiteSettings({
-          urlPrefixes: {
-            posts: site.settings.url_prefixes.posts || '',
-            products: site.settings.url_prefixes.products || ''
-          }
-        })
-      } else {
-        setSiteSettings({
-          urlPrefixes: {
-            posts: '',
-            products: ''
-          }
-        })
-      }
-    } catch (error) {
-      // Silently fail and use empty prefixes
-      setSiteSettings({
-        urlPrefixes: {
-          posts: '',
-          products: ''
-        }
-      })
-    }
-  }
 
   const refreshSites = async () => {
     try {
@@ -98,7 +55,6 @@ export function SiteProvider({ children }: { children: ReactNode }) {
       } else {
         setSites([])
         setCurrentSite(null)
-        setSiteSettings(null)
         localStorage.removeItem('selectedSiteId')
       }
     } catch (err) {
@@ -111,11 +67,6 @@ export function SiteProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshSites()
   }, [])
-
-  // Fetch site settings when currentSite changes
-  useEffect(() => {
-    refreshSiteSettings()
-  }, [currentSite?.id])
 
   const handleSetCurrentSite = (site: SiteWithTheme | null) => {
     setCurrentSite(site)
@@ -131,12 +82,10 @@ export function SiteProvider({ children }: { children: ReactNode }) {
       value={{
         currentSite,
         sites,
-        siteSettings,
         loading,
         error,
         setCurrentSite: handleSetCurrentSite,
-        refreshSites,
-        refreshSiteSettings
+        refreshSites
       }}
     >
       {children}

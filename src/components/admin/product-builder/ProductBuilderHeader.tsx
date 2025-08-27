@@ -42,16 +42,9 @@ export function ProductBuilderHeader({
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [urlPrefix, setUrlPrefix] = useState<string>("")
-  const { currentSite, siteSettings } = useSiteContext()
+  const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
   
-  // Get URL prefix from context (cached, no API call needed)
-  useEffect(() => {
-    if (currentSite?.id) {
-      setUrlPrefix(siteSettings?.urlPrefixes?.products || "")
-    }
-  }, [currentSite?.id, siteSettings?.urlPrefixes?.products])
   
   // Generate product URL for frontend viewing
   const getProductUrl = () => {
@@ -59,9 +52,8 @@ export function ProductBuilderHeader({
       return '#'
     }
     
-    // Use dynamic routing with prefix
-    const prefix = urlPrefix ? `${urlPrefix}/` : ''
-    const url = `http://localhost:3000/${prefix}${currentProduct.slug}`
+    // Use dedicated product routing
+    const url = `http://localhost:3000/products/${currentProduct.slug}`
     return url
   }
   

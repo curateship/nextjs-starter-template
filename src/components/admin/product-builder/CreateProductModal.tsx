@@ -9,7 +9,6 @@ import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
-import { checkSlugConflicts } from "@/lib/utils/url-path-resolver"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product, CreateProductData } from "@/lib/actions/products/product-actions"
 
@@ -19,7 +18,7 @@ interface CreateProductModalProps {
 }
 
 export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalProps) {
-  const { currentSite, siteSettings } = useSiteContext()
+  const { currentSite } = useSiteContext()
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',
     slug: '',
@@ -32,7 +31,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
-  const [urlPrefix, setUrlPrefix] = useState<string>("")
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -76,35 +74,13 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         return
       }
 
-      setCheckingSlug(true)
-      try {
-        const conflictResult = await checkSlugConflicts(currentSite.id, slug)
-        
-        if (conflictResult.hasConflict) {
-          const contentType = conflictResult.conflictType === 'page' ? 'page' :
-                             conflictResult.conflictType === 'post' ? 'post' : 'product'
-          setSlugWarning(`This slug is already used by a ${contentType} titled "${conflictResult.conflictTitle}". Please choose a different slug.`)
-        } else {
-          setSlugWarning(null)
-        }
-      } catch (error) {
-        // Silently fail - don't show error for conflict checking
-        setSlugWarning(null)
-      } finally {
-        setCheckingSlug(false)
-      }
+      // Skip client-side slug checking - server will handle validation
     }
 
     const timeoutId = setTimeout(checkSlugConflict, 500) // 500ms debounce
     return () => clearTimeout(timeoutId)
   }, [formData.slug, currentSite?.id])
 
-  // Get URL prefix from context (cached, no API call needed)
-  useEffect(() => {
-    if (currentSite?.id) {
-      setUrlPrefix(siteSettings?.urlPrefixes?.products || "")
-    }
-  }, [currentSite?.id, siteSettings?.urlPrefixes?.products])
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
@@ -250,7 +226,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           {formData.slug && (
             <p className="text-xs text-blue-600 mt-1">
               📄 Product URL: <strong>
-                /{urlPrefix ? `${urlPrefix}/` : ''}{formData.slug}
+                /products/{formData.slug}
               </strong>
             </p>
           )}

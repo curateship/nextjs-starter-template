@@ -18,7 +18,6 @@ interface SiteEditPageProps {
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
-  const { refreshSiteSettings } = useSiteContext()
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteName, setSiteName] = useState("")
   const [subdomain, setSubdomain] = useState("")
@@ -29,8 +28,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
   const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
-  const [productPrefix, setProductPrefix] = useState("")
-  const [postPrefix, setPostPrefix] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,8 +56,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
         setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
-        setProductPrefix(data.settings?.url_prefixes?.products || "")
-        setPostPrefix(data.settings?.url_prefixes?.posts || "")
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -108,11 +103,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
-          seo_enabled: true,
-          url_prefixes: {
-            products: productPrefix.trim(),
-            posts: postPrefix.trim()
-          }
+          seo_enabled: true
         }
       })
 
@@ -123,7 +114,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
       if (data) {
         // Refresh site settings in context to update cached URL prefixes
-        await refreshSiteSettings()
         // Stay on the same page after successful update
         setSite(prev => prev ? { ...prev, ...data } : null)
         
@@ -229,8 +219,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
             animations={animations}
-            productPrefix={productPrefix}
-            postPrefix={postPrefix}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -241,8 +229,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}
             onAnimationsChange={setAnimations}
-            onProductPrefixChange={setProductPrefix}
-            onPostPrefixChange={setPostPrefix}
           />
         </form>
       </div>
