@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { revalidateTag } from 'next/cache'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -487,6 +488,9 @@ export async function createProductAction(siteId: string, productData: CreatePro
       return { data: null, error: `Failed to create product: ${error.message}` }
     }
 
+    // Invalidate listing views cache since a new product was created
+    revalidateTag('listing-views')
+
     // Featured image usage tracking is now handled in the content_blocks JSON
 
     return { data: data as Product, error: null }
@@ -606,6 +610,9 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: `Failed to update product: ${error.message}` }
     }
 
+    // Invalidate listing views cache since product data may have changed
+    revalidateTag('listing-views')
+
     // Featured image usage tracking is now handled in the content_blocks JSON
 
     return { data: data as Product, error: null }
@@ -668,6 +675,9 @@ export async function deleteProductAction(productId: string): Promise<{ success:
     if (error) {
       return { success: false, error: `Failed to delete product: ${error.message}` }
     }
+
+    // Invalidate listing views cache since a product was deleted
+    revalidateTag('listing-views')
 
     return { success: true, error: null }
   } catch (error) {
@@ -870,6 +880,9 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     if (error) {
       return { success: false, error: `Failed to update product blocks: ${error.message}` }
     }
+
+    // Invalidate listing views cache since product content may have changed
+    revalidateTag('listing-views')
 
     return { success: true }
 
