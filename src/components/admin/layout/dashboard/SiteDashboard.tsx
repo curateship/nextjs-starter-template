@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
-import { SEOSettingsCard } from "./SEOSettingsCard"
 import { StylingSettingsCard } from "./StylingSettingsCard"
 import { AnimationSettingsCard } from "./AnimationSettingsCard"
 
@@ -23,8 +22,6 @@ interface SiteDashboardProps {
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
-  productPrefix?: string
-  postPrefix?: string
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
@@ -34,8 +31,6 @@ interface SiteDashboardProps {
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onAnimationsChange?: (value: AnimationSettings) => void
-  onProductPrefixChange?: (value: string) => void
-  onPostPrefixChange?: (value: string) => void
 }
 
 export function SiteDashboard({
@@ -49,8 +44,6 @@ export function SiteDashboard({
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
-  productPrefix = "",
-  postPrefix = "",
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
@@ -60,8 +53,6 @@ export function SiteDashboard({
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onAnimationsChange,
-  onProductPrefixChange,
-  onPostPrefixChange,
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
@@ -300,16 +291,6 @@ export function SiteDashboard({
       />
     )}
 
-    {/* SEO Settings Card */}
-    {(onProductPrefixChange || onPostPrefixChange) && (
-      <SEOSettingsCard
-        productPrefix={productPrefix}
-        postPrefix={postPrefix}
-        siteDomain={customDomain || `${subdomain}.yourdomain.com`}
-        onProductPrefixChange={onProductPrefixChange}
-        onPostPrefixChange={onPostPrefixChange}
-      />
-    )}
   </div>
   )
 }

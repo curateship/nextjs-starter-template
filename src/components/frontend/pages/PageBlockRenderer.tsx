@@ -88,8 +88,8 @@ export function BlockRenderer({ site }: BlockRendererProps) {
               content={block.content}
               siteId={site.id}
               urlPrefixes={{
-                products: site.settings?.url_prefixes?.products || '',
-                posts: site.settings?.url_prefixes?.posts || ''
+                products: 'products',
+                posts: 'posts'
               }}
               preloadedData={site.listingData?.[block.id]}
             />

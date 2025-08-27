@@ -33,7 +33,7 @@ import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductsPage() {
   const router = useRouter()
-  const { currentSite, siteSettings } = useSiteContext()
+  const { currentSite } = useSiteContext()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,15 +47,7 @@ export default function ProductsPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [urlPrefix, setUrlPrefix] = useState<string>("")
   const filterRef = useRef<HTMLDivElement>(null)
-
-  // Get URL prefix from context (cached, no API call needed)
-  useEffect(() => {
-    if (currentSite?.id) {
-      setUrlPrefix(siteSettings?.urlPrefixes?.products || "")
-    }
-  }, [currentSite?.id, siteSettings?.urlPrefixes?.products])
 
   // Load products
   useEffect(() => {
@@ -364,7 +356,7 @@ export default function ProductsPage() {
                           <div>
                             <h4 className="font-medium hover:underline">{product.title}</h4>
                             <p className="text-sm text-muted-foreground">
-                              /{urlPrefix ? `${urlPrefix}/` : ''}{product.slug}
+                              /products/{product.slug}
                             </p>
                           </div>
                         </Link>
@@ -409,7 +401,7 @@ export default function ProductsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link 
-                                href={`/${urlPrefix ? `${urlPrefix}/` : ''}${product.slug}`}
+                                href={`/products/${product.slug}`}
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="flex items-center"

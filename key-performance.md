@@ -260,3 +260,62 @@ Request → Page → Site Resolver (JSON lookup + Database)
 - **Direct lookups**: Site resolution happens where needed
 - **Cleaner UX**: Single loading state in admin
 - **Simpler codebase**: ~150 lines of code removed
+
+---
+
+## August 27, 2025 - URL Resolution System Elimination
+
+### 🎯 Complete Removal of Dynamic URL Resolution
+
+**Problem**: Every page load performed 3 parallel database queries to determine content type
+- Pages table lookup for `resolveUrlPath()`
+- Posts table lookup for `resolveUrlPath()`
+- Products table lookup for `resolveUrlPath()`
+
+**Root Cause**: The `[...slug]` catch-all routing with URL prefixes created ambiguity - URLs like `/some-product` required database queries to determine if it was a page, post, or product.
+
+**Solution**: Replaced complex dynamic routing with standard Next.js patterns
+- `/products/[slug]` → Direct product table query only
+- `/posts/[slug]` → Direct post table query only
+- `/pages/[slug]` → Direct page table query only
+
+### 📊 Performance Impact
+
+**Database Load**:
+- **Before**: 3 parallel queries per page load
+- **After**: 1 direct query per page load
+- **Result**: **67% reduction in database queries**
+
+**Code Complexity**:
+- Deleted `/src/app/[...slug]/page.tsx` (complex dynamic routing)
+- Removed `checkSlugConflicts` cross-table validation everywhere
+- Eliminated URL prefix system entirely from site settings
+- Simplified from ~500 lines of resolution logic to ~50 lines per route
+
+### 🔑 Implementation Details
+
+**Before** (Complex cross-table checking):
+```typescript
+const conflictCheck = await checkSlugConflicts(siteId, slug)
+if (conflictCheck.hasConflict) {
+  // Complex logic for different content types...
+}
+```
+
+**After** (Simple single-table validation):
+```typescript
+const { data: existingProduct } = await supabaseAdmin
+  .from('products')
+  .select('id')
+  .eq('site_id', siteId)
+  .eq('slug', slug)
+  .single()
+```
+
+### ✅ Results
+
+- **Database performance**: 67% fewer queries per page load
+- **Caching eliminated**: No need for `unstable_cache` complexity
+- **Build conflicts fixed**: No more manifest errors from build/dev switching
+- **Developer experience**: Clear, predictable routing patterns
+- **CLAUDE.md validated**: Perfect example that "the best solution is to remove code"

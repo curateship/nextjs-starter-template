@@ -306,11 +306,6 @@ export async function updateSiteAction(
         ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
         ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
         ...(updates.animations && { animations: updates.animations }),
-        // Preserve existing url_prefixes and merge with new settings
-        url_prefixes: {
-          ...(currentSite?.settings?.url_prefixes || {}),
-          ...(updates.settings?.url_prefixes || {})
-        }
       }
       
       // Remove font, favicon, and animation properties from top level as they're now in settings
