@@ -59,6 +59,7 @@ interface FooterBlockProps {
   onStyleChange: (style: FooterStyle) => void
   siteId: string
   blockId: string
+  siteFavicon?: string
 }
 
 const socialPlatforms = [
@@ -228,6 +229,7 @@ export function PageFooterBlock({
   onLinksChange,
   onSocialLinksChange,
   onStyleChange,
+  siteFavicon,
 }: FooterBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
@@ -365,6 +367,24 @@ export function PageFooterBlock({
                           <div className="text-white text-center">
                             <ImageIcon className="mx-auto h-4 w-4 mb-1" />
                             <p className="text-xs font-medium">Click to change</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : siteFavicon ? (
+                      <div 
+                        className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
+                        onClick={() => setShowPicker(true)}
+                      >
+                        <img
+                          src={siteFavicon}
+                          alt="Site favicon (used as logo)"
+                          className="h-10 w-10 object-contain p-0.5"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                          <div className="text-white text-center">
+                            <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                            <p className="text-xs font-medium">Using favicon - Click to add logo</p>
                           </div>
                         </div>
                       </div>
