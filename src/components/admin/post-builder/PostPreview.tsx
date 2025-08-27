@@ -53,13 +53,15 @@ export function PostPreview({
   className = "",
   blocksLoading = false
 }: PostPreviewProps) {
-  // Convert post blocks to PreviewBlock format for the generic preview system
-  const previewBlocks: PreviewBlock[] = blocks.map(block => ({
-    id: block.id,
-    type: block.type,
-    content: block.content,
-    display_order: 0 // Will be handled by block ordering
-  }))
+  // Convert post blocks to PreviewBlock format for the generic preview system (filter out invalid blocks)
+  const previewBlocks: PreviewBlock[] = blocks
+    .filter(block => block && block.id && block.type)
+    .map(block => ({
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      display_order: 0 // Will be handled by block ordering
+    }))
 
   // Create preview site - navigation and footer will be added from site.settings automatically
   const previewSite = createPreviewSite(previewBlocks, site)
@@ -125,7 +127,16 @@ export function PostPreview({
 
                 {/* Post Content Blocks */}
                 <div className="prose prose-lg max-w-none">
-                  {blocks.map((block) => {
+                  {blocks.map((block, index) => {
+                    // Show corrupted blocks in preview
+                    if (!block || !block.id || !block.type) {
+                      return (
+                        <div key={`corrupted-preview-${index}`} className="not-prose border rounded-lg p-6 my-6 bg-red-50 border-red-300">
+                          <div className="text-red-800 font-semibold">⚠️ Corrupted Block</div>
+                          <div className="text-red-600 text-sm mt-2">This block has invalid data and should be removed.</div>
+                        </div>
+                      )
+                    }
                     if (block.type === 'post-content') {
                       return (
                         <RichTextBlock
@@ -146,7 +157,7 @@ export function PostPreview({
 
                     // Fallback for other block types
                     return (
-                      <div key={block.id} className="border rounded-lg p-6 my-6">
+                      <div key={`${block.type}-${block.id}`} className="border rounded-lg p-6 my-6">
                         <h3 className="text-lg font-semibold mb-2">{block.title}</h3>
                         <div className="text-muted-foreground">
                           {block.type} block preview

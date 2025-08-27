@@ -24,6 +24,7 @@ export interface PostBuilderHookResult {
   handleDeleteBlock: (block: PostBlock) => Promise<void>
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => Promise<void>
   handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => Promise<void>
+  handleCleanupCorrupted: () => Promise<void>
 }
 
 function generatePostBlockId(): string {
@@ -215,6 +216,47 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     }
   }
 
+  // Clean up corrupted blocks
+  const handleCleanupCorrupted = async () => {
+    if (!postId || postId.length === 0) {
+      setSaveMessage('No post selected')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+    
+    try {
+      setSaveMessage('Cleaning up corrupted blocks...')
+
+      // Filter out any corrupted blocks (blocks without id or type)
+      const cleanBlocks: Record<string, PostBlock> = {}
+      Object.entries(blocks).forEach(([key, block]) => {
+        if (block && typeof block === 'object' && block.id && block.type) {
+          cleanBlocks[key] = block
+        }
+      })
+
+      // Update local state
+      setBlocks(cleanBlocks)
+
+      // Save to server
+      const { success, error } = await updatePostBlocksAction(postId, cleanBlocks)
+
+      if (!success || error) {
+        console.error('Error cleaning up blocks:', error)
+        setSaveMessage('Error cleaning up blocks')
+        setTimeout(() => setSaveMessage(''), 3000)
+        return
+      }
+
+      setSaveMessage('Corrupted blocks cleaned up!')
+      setTimeout(() => setSaveMessage(''), 3000)
+    } catch (err) {
+      console.error('Error cleaning up corrupted blocks:', err)
+      setSaveMessage('Error cleaning up blocks')
+      setTimeout(() => setSaveMessage(''), 3000)
+    }
+  }
+
   return {
     blocks,
     selectedBlock,
@@ -224,6 +266,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     handleAddRichTextBlock,
     handleDeleteBlock,
     handleUpdateBlock,
-    handleReorderBlocks
+    handleReorderBlocks,
+    handleCleanupCorrupted
   }
 }
