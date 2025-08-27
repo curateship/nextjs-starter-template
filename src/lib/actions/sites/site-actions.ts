@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { revalidateTag } from 'next/cache'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -372,6 +373,9 @@ export async function updateSiteAction(
       // Database error updating site
       return { data: null, error: `Failed to update site: ${error.message}` }
     }
+
+    // Invalidate cached site data so changes take effect immediately
+    revalidateTag('site-lookup')
 
     // Successfully updated site
     return { data: data as Site, error: null }
