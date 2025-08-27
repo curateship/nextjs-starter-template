@@ -10,6 +10,7 @@ import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actio
 import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { StylingSettingsCard } from "./StylingSettingsCard"
 import { AnimationSettingsCard } from "./AnimationSettingsCard"
+import { TrackingSettingsCard } from "./TrackingSettingsCard"
 
 interface SiteDashboardProps {
   siteName: string
@@ -19,6 +20,7 @@ interface SiteDashboardProps {
   customDomain?: string
   favicon?: string
   animations?: AnimationSettings
+  trackingScripts?: string
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
@@ -31,6 +33,7 @@ interface SiteDashboardProps {
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onAnimationsChange?: (value: AnimationSettings) => void
+  onTrackingScriptsChange?: (value: string) => void
 }
 
 export function SiteDashboard({
@@ -41,6 +44,7 @@ export function SiteDashboard({
   customDomain = "",
   favicon = "",
   animations = { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' },
+  trackingScripts = "",
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
@@ -53,6 +57,7 @@ export function SiteDashboard({
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onAnimationsChange,
+  onTrackingScriptsChange,
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
@@ -288,6 +293,14 @@ export function SiteDashboard({
       <AnimationSettingsCard
         animations={animations}
         onAnimationsChange={onAnimationsChange}
+      />
+    )}
+
+    {/* Tracking Settings Card */}
+    {onTrackingScriptsChange && (
+      <TrackingSettingsCard
+        trackingScripts={trackingScripts}
+        onTrackingScriptsChange={onTrackingScriptsChange}
       />
     )}
 
