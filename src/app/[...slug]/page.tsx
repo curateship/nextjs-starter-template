@@ -32,8 +32,25 @@ export default async function DynamicPage({ params }: PageProps) {
     notFound()
   }
   
+  // Check for URL prefixes and strip them if present
+  let actualPath = urlPath
+  let detectedContentType: 'products' | 'posts' | null = null
+  
+  const urlPrefixes = site.settings?.url_prefixes || {}
+  
+  // Check if path starts with products prefix
+  if (urlPrefixes.products && urlPath.startsWith(urlPrefixes.products + '/')) {
+    actualPath = urlPath.substring(urlPrefixes.products.length + 1)
+    detectedContentType = 'products'
+  }
+  // Check if path starts with posts prefix
+  else if (urlPrefixes.posts && urlPath.startsWith(urlPrefixes.posts + '/')) {
+    actualPath = urlPath.substring(urlPrefixes.posts.length + 1)
+    detectedContentType = 'posts'
+  }
+  
   // Resolve URL path to determine content type
-  const resolution = await resolveUrlPath(site.id, urlPath)
+  const resolution = await resolveUrlPath(site.id, actualPath)
   
   if (!resolution.success || !resolution.resolution) {
     notFound()
@@ -103,8 +120,21 @@ export async function generateMetadata({ params }: PageProps) {
       }
     }
     
+    // Check for URL prefixes and strip them if present
+    let actualPath = urlPath
+    const urlPrefixes = site.settings?.url_prefixes || {}
+    
+    // Check if path starts with products prefix
+    if (urlPrefixes.products && urlPath.startsWith(urlPrefixes.products + '/')) {
+      actualPath = urlPath.substring(urlPrefixes.products.length + 1)
+    }
+    // Check if path starts with posts prefix
+    else if (urlPrefixes.posts && urlPath.startsWith(urlPrefixes.posts + '/')) {
+      actualPath = urlPath.substring(urlPrefixes.posts.length + 1)
+    }
+    
     // Use universal path resolver to find content
-    const resolution = await resolveUrlPath(site.id, urlPath)
+    const resolution = await resolveUrlPath(site.id, actualPath)
     
     if (!resolution.success || !resolution.resolution) {
       return {
