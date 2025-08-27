@@ -83,6 +83,7 @@ export function BlockPropertiesPanel({
                 {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style']) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                siteFavicon={site?.settings?.favicon}
               />
             )}
             {selectedBlock.type === 'rich-text' && (

@@ -1,5 +1,5 @@
-import { Logo } from '@/components/ui/navigation/logo'
 import Link from 'next/link'
+import { Globe } from 'lucide-react'
 import { isSafeUrl } from '@/lib/utils/url-validator'
 
 const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
@@ -76,6 +76,10 @@ interface FooterBlockProps {
     id: string;
     subdomain: string;
     name?: string;
+    settings?: {
+      favicon?: string;
+      [key: string]: any;
+    };
   };
   copyright?: string;
   links?: Array<{ text: string; url: string }>;
@@ -148,13 +152,23 @@ export function FooterBlock({ logo, logoUrl, site, copyright, links, socialLinks
                             alt="Logo" 
                             className="h-8 w-auto mx-auto"
                             onError={(e) => {
-                                // Fallback to default logo on error
+                                // Fallback to favicon or Globe icon on error
                                 e.currentTarget.style.display = 'none';
-                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
                             }}
                         />
-                    ) : null}
-                    <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : ''} />
+                    ) : site?.settings?.favicon ? (
+                        <img 
+                            src={site.settings.favicon} 
+                            alt="Site favicon" 
+                            className="h-10 w-10 object-contain rounded-lg p-0.5 mx-auto"
+                            onError={(e) => {
+                                // Fallback to Globe icon on error
+                                e.currentTarget.style.display = 'none';
+                            }}
+                        />
+                    ) : (
+                        <Globe className="h-8 w-8 mx-auto" style={{ color: style?.textColor || undefined }} />
+                    )}
                 </Link>
 
                 <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
