@@ -128,7 +128,7 @@ function AnimatedGroup({
   };
 
   const itemVariants: Variants = variants?.item || addDefaultVariants(
-    presetVariants[effectivePreset] || presetVariants.fade
+    presetVariants[effectivePreset as PresetType] || presetVariants.fade
   );
 
   // Add duration to all item transitions

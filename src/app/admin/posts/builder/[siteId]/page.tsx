@@ -300,6 +300,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onCleanupCorrupted={builderState.handleCleanupCorrupted}
             deleting={null}
             blocksLoading={loading}
             postData={{

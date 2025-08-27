@@ -355,7 +355,7 @@ export async function createPostAction(siteId: string, postData: CreatePostData)
     let contentBlocks
     if (postData.content && postData.content.trim()) {
       // Convert content field to content_blocks  
-      const blockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
       contentBlocks = {
         [blockId]: {
           id: blockId,
@@ -818,19 +818,27 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
-    // Verify user owns the post
+    // Get the post first
     const { data: post, error: postError } = await supabaseAdmin
       .from('posts')
-      .select('id, site_id, sites!inner(user_id)')
+      .select('id, site_id')
       .eq('id', postId)
       .single()
 
     if (postError || !post) {
-      return { success: false, error: 'Post not found or access denied' }
+      return { success: false, error: 'Post not found' }
     }
 
-    if (post.sites[0]?.user_id !== user.id) {
-      return { success: false, error: 'Access denied - you do not own this post' }
+    // Then verify user owns the site this post belongs to
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', post.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (siteError || !site) {
+      return { success: false, error: 'Site not found or access denied' }
     }
 
     // Update content_blocks directly in the posts table
@@ -871,7 +879,7 @@ export async function addPostBlockAction(
     }
 
     // Create new block
-    const blockId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     const existingBlocks = Object.values(currentBlocks || {})
     const maxOrder = existingBlocks.length > 0 
       ? Math.max(...existingBlocks.map(b => b.display_order))

@@ -47,6 +47,7 @@ interface BlockListPanelProps {
   onSelectBlock: (block: PostBlock | null) => void
   onDeleteBlock: (block: PostBlock) => void
   onReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
+  onCleanupCorrupted?: () => Promise<void>
   deleting: string | null
   blocksLoading?: boolean
   postData?: PostData
@@ -152,6 +153,7 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
+  onCleanupCorrupted,
   deleting,
   blocksLoading = false,
   postData
@@ -264,11 +266,39 @@ export function BlockListPanel({
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={currentPost.blocks.map(block => block.id)}
+                items={currentPost.blocks.filter(block => block && block.id && block.type).map(block => block.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-4">
-                  {currentPost.blocks.map((block) => (
+                  {currentPost.blocks.map((block, index) => {
+                    // Show corrupted blocks visibly but safely
+                    if (!block || !block.id || !block.type) {
+                      return (
+                        <div key={`corrupted-${index}`} className="border rounded-lg p-4 bg-red-50 border-red-300">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="text-red-600">⚠️</div>
+                              <h3 className="font-medium text-red-800">Corrupted Block</h3>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                              onClick={() => {
+                                if (onCleanupCorrupted) {
+                                  onCleanupCorrupted()
+                                }
+                              }}
+                              title="Remove corrupted blocks"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    }
+                    
+                    return (
                     <SortablePostBlockItem
                       key={block.id}
                       block={block}
@@ -281,7 +311,8 @@ export function BlockListPanel({
                       getBlockTypeName={getBlockTypeName}
                       postTitle={postData?.title}
                     />
-                  ))}
+                    )
+                  })}
                 </div>
               </SortableContext>
             </DndContext>
