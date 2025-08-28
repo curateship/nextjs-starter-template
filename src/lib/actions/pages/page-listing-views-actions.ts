@@ -34,10 +34,10 @@ const getCachedListingData = unstable_cache(
       orderColumn = 'display_order'
     }
 
-    // Get total count for pagination
-    const { count, error: countError } = await supabaseAdmin
+    // Get total count for pagination (filter out private products via content_blocks)
+    const { data: allProducts, error: countError } = await supabaseAdmin
       .from('products')
-      .select('*', { count: 'exact', head: true })
+      .select('content_blocks')
       .eq('site_id', site_id)
       .eq('is_published', true)
 
@@ -45,18 +45,29 @@ const getCachedListingData = unstable_cache(
       throw new Error(`Failed to count products: ${countError.message}`)
     }
 
-    // Get products with pagination
-    const { data: products, error } = await supabaseAdmin
+    // Filter out private products from content_blocks
+    const publicProducts = (allProducts || []).filter(p => 
+      p.content_blocks?._settings?.is_private !== true
+    )
+    const count = publicProducts.length
+
+    // Get products with pagination (need to filter private products client-side)
+    const { data: allProductsData, error } = await supabaseAdmin
       .from('products')
-      .select('id, title, slug, created_at, display_order, featured_image, description')
+      .select('id, title, slug, created_at, display_order, featured_image, description, content_blocks')
       .eq('site_id', site_id)
       .eq('is_published', true)
       .order(orderColumn, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limit - 1)
 
     if (error) {
       throw new Error(`Failed to load products: ${error.message}`)
     }
+
+    // Filter out private products and apply pagination
+    const publicProductsData = (allProductsData || []).filter(p => 
+      p.content_blocks?._settings?.is_private !== true
+    )
+    const products = publicProductsData.slice(offset, offset + limit)
 
     const totalCount = count || 0
     const totalPages = Math.ceil(totalCount / limit)

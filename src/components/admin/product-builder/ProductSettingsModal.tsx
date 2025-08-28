@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, Check } from "lucide-react"
@@ -42,6 +43,7 @@ export function ProductSettingsModal({
   const [formData, setFormData] = useState<UpdateProductData>({})
   const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -104,6 +106,9 @@ export function ProductSettingsModal({
         is_published: product.is_published
       })
       
+      // Get is_private from content_blocks
+      setIsPrivate(product.content_blocks?._settings?.is_private === true)
+      
       // Get content from product columns
       setRichTextContent(product.description || '')
       setFeaturedImage(product.featured_image || '')
@@ -136,11 +141,21 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
       
+      // Update content_blocks with is_private setting
+      const updatedContentBlocks = {
+        ...product.content_blocks,
+        _settings: {
+          ...product.content_blocks?._settings,
+          is_private: isPrivate
+        }
+      }
+      
       const draftData = { 
         ...formData, 
         is_published: false,
         featured_image: featuredImage || null,
-        description: richTextContent || null
+        description: richTextContent || null,
+        content_blocks: updatedContentBlocks
       }
       const { data, error: actionError } = await updateProductAction(product.id, draftData)
       
@@ -187,11 +202,21 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
       
+      // Update content_blocks with is_private setting
+      const updatedContentBlocks = {
+        ...product.content_blocks,
+        _settings: {
+          ...product.content_blocks?._settings,
+          is_private: isPrivate
+        }
+      }
+      
       const publishData = { 
         ...formData, 
         is_published: true,
         featured_image: featuredImage || null,
-        description: richTextContent || null
+        description: richTextContent || null,
+        content_blocks: updatedContentBlocks
       }
       const { data, error: actionError } = await updateProductAction(product.id, publishData)
       
@@ -350,6 +375,24 @@ export function ProductSettingsModal({
                 <p className="text-xs text-muted-foreground">
                   Optional featured image for this product
                 </p>
+              </div>
+
+              {/* Privacy Settings */}
+              <div className="space-y-2">
+                <Label>Privacy Settings</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="modal-is-private"
+                    checked={isPrivate}
+                    onCheckedChange={(checked) => {
+                      setIsSaved(false)
+                      setIsPrivate(!!checked)
+                    }}
+                  />
+                  <Label htmlFor="modal-is-private" className="text-sm font-normal">
+                    Private (accessible only via direct URL, hidden from product listings)
+                  </Label>
+                </div>
               </div>
 
               {/* Rich Text Content */}

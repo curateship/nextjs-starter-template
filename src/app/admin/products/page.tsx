@@ -42,6 +42,7 @@ export default function ProductsPage() {
   const [duplicatingProductId, setDuplicatingProductId] = useState<string | null>(null)
   const [settingsProductId, setSettingsProductId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
+  const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -167,6 +168,10 @@ export default function ProductsPage() {
     return <Badge variant="secondary">Draft</Badge>
   }
 
+  const isProductPrivate = (product: Product) => {
+    return product.content_blocks?._settings?.is_private === true
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -183,11 +188,18 @@ export default function ProductsPage() {
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
   }
 
-  // Filter products based on status
+  // Filter products based on status and privacy
   const filteredProducts = products.filter(product => {
-    if (filterStatus === 'published') return product.is_published
-    if (filterStatus === 'draft') return !product.is_published
-    return true // 'all'
+    // Status filter
+    let statusMatch = true
+    if (filterStatus === 'published') statusMatch = product.is_published
+    if (filterStatus === 'draft') statusMatch = !product.is_published
+    
+    // Privacy filter - only filter when "private" is selected
+    let privacyMatch = true
+    if (filterPrivacy === 'private') privacyMatch = isProductPrivate(product)
+    
+    return statusMatch && privacyMatch
   })
 
   // Get counts for each status
@@ -195,6 +207,13 @@ export default function ProductsPage() {
     all: products.length,
     published: products.filter(p => p.is_published).length,
     draft: products.filter(p => !p.is_published).length
+  }
+
+  // Get counts for each privacy level
+  const privacyCounts = {
+    all: products.length,
+    public: products.filter(p => !isProductPrivate(p)).length,
+    private: products.filter(p => isProductPrivate(p)).length
   }
 
   
@@ -219,7 +238,8 @@ export default function ProductsPage() {
                     {loading ? (
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
                     ) : (
-                      `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                      `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' : 
+                        `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
                     )}
                   </div>
                 </div>
@@ -263,6 +283,15 @@ export default function ProductsPage() {
                           }`}
                         >
                           Draft ({statusCounts.draft})
+                        </button>
+                        <div className="border-t my-1"></div>
+                        <button 
+                          onClick={() => { setFilterPrivacy('private'); setIsFilterOpen(false) }}
+                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
+                            filterPrivacy === 'private' ? 'bg-muted font-medium' : ''
+                          }`}
+                        >
+                          Private ({privacyCounts.private})
                         </button>
                       </div>
                     </div>
@@ -326,7 +355,9 @@ export default function ProductsPage() {
                   <p className="text-muted-foreground mb-4">
                     {products.length === 0 
                       ? 'No products found' 
-                      : `No ${filterStatus === 'all' ? '' : filterStatus} products found`
+                      : `No ${filterStatus === 'all' && filterPrivacy === 'all' ? '' : 
+                          `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private ' : ''}`
+                        }products found`
                     }
                   </p>
                   <Button onClick={() => setShowCreateDialog(true)} variant="outline">

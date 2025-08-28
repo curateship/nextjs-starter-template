@@ -45,6 +45,21 @@ async function createServerSupabaseClient() {
   )
 }
 
+// Helper functions to work with is_private in content_blocks
+function getIsPrivateFromContentBlocks(content_blocks: Record<string, any>): boolean {
+  return content_blocks?._settings?.is_private === true
+}
+
+function setIsPrivateInContentBlocks(content_blocks: Record<string, any>, is_private: boolean): Record<string, any> {
+  return {
+    ...content_blocks,
+    _settings: {
+      ...content_blocks._settings,
+      is_private
+    }
+  }
+}
+
 export interface Product {
   id: string
   site_id: string
@@ -70,6 +85,8 @@ export interface CreateProductData {
   title: string
   slug?: string
   is_published?: boolean
+  featured_image?: string | null
+  description?: string | null
   content_blocks?: Record<string, any>
 }
 
@@ -79,6 +96,7 @@ export interface UpdateProductData {
   is_published?: boolean
   featured_image?: string | null
   description?: string | null
+  content_blocks?: Record<string, any>
 }
 
 /**
@@ -479,7 +497,9 @@ export async function createProductAction(siteId: string, productData: CreatePro
         is_homepage: false, // Products never have homepage functionality
         is_published: productData.is_published !== false,
         display_order: nextOrder,
-        content_blocks: {}
+        featured_image: productData.featured_image || null,
+        description: productData.description || null,
+        content_blocks: productData.content_blocks || {}
       }])
       .select()
       .single()
