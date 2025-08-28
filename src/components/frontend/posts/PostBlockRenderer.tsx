@@ -1,16 +1,67 @@
-import type { PostBlock } from '@/lib/actions/posts/post-actions'
+import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { AnimationProvider } from "@/contexts/animation-context"
+import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface PostBlockRendererProps {
-  blocks: Record<string, PostBlock>
+  site: SiteWithBlocks
+  post: {
+    id: string
+    title: string
+    slug: string
+    meta_description?: string | null
+    site_id: string
+    featured_image?: string | null
+    excerpt?: string | null
+    is_published: boolean
+    blocks: Array<{
+      id: string
+      type: string
+      content: Record<string, any>
+      display_order: number
+    }>
+  }
 }
 
-export function PostBlockRenderer({ blocks }: PostBlockRendererProps) {
-  // Sort blocks by display_order
-  const sortedBlocks = Object.values(blocks).sort((a, b) => a.display_order - b.display_order)
+export function PostBlockRenderer({ site, post }: PostBlockRendererProps) {
+  const { blocks: siteBlocks = [] } = site
+  const { blocks: postBlocks = [] } = post
+  
+  // Sort post blocks by display_order
+  const sortedBlocks = postBlocks.sort((a, b) => a.display_order - b.display_order)
+  
+  // Find navigation and footer from site blocks
+  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
+  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
+  
+  // Get animation settings from site settings
+  const animationSettings = site.settings?.animations || {
+    enabled: false,
+    preset: 'fade',
+    duration: 0.6,
+    stagger: 0.1,
+    intensity: 'medium'
+  }
 
   return (
-    <div className="prose prose-lg max-w-none">
-      {sortedBlocks.map((block, index) => (
+    <AnimationProvider settings={animationSettings}>
+      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      
+      {/* Post Header */}
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4">
+            {post.title}
+          </h1>
+          {post.excerpt && (
+            <p className="text-xl text-muted-foreground">
+              {post.excerpt}
+            </p>
+          )}
+        </div>
+
+        {/* Post Content Blocks */}
+        <div className="prose prose-lg max-w-none">
+          {sortedBlocks.map((block, index) => (
         <div key={`${block.type}-${index}`}>
           {block.type === 'rich-text' && (
             <div className="space-y-2">
@@ -63,11 +114,26 @@ export function PostBlockRenderer({ blocks }: PostBlockRendererProps) {
             </blockquote>
           )}
           
-          {block.type === 'divider' && (
-            <hr className="my-8 border-t border-border" />
-          )}
+            {block.type === 'post-content' && (
+              <div className="space-y-2">
+                {block.content.content && (
+                  <div 
+                    className="prose prose-lg max-w-none"
+                    dangerouslySetInnerHTML={{ __html: block.content.content }}
+                  />
+                )}
+              </div>
+            )}
+
+            {block.type === 'divider' && (
+              <hr className="my-8 border-t border-border" />
+            )}
+          </div>
+        ))}
         </div>
-      ))}
-    </div>
+      </div>
+      
+      </SiteLayout>
+    </AnimationProvider>
   )
 }

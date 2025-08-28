@@ -102,7 +102,6 @@ export function BlockPropertiesPanel({
               is_published: currentPost.is_published || false
             } : undefined}
             site={site}
-            siteBlocks={siteBlocks}
             className="h-full"
             blocksLoading={blocksLoading}
           />

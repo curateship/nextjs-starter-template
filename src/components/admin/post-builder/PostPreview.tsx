@@ -1,9 +1,7 @@
 "use client"
 
+import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
-import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
-import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock"
 
 interface PostBlock {
   id: string
@@ -23,49 +21,53 @@ interface Post {
   is_published: boolean
 }
 
-interface Site {
-  id: string
-  name: string
-  subdomain: string
-  settings?: {
-    navigation?: any
-    footer?: any
-  }
-}
-
 interface PostPreviewProps {
   blocks: PostBlock[]
   post?: Post
-  site?: Site
-  siteBlocks?: {
-    navigation?: any
-    footer?: any
-  } | null
+  site?: {
+    id: string
+    name: string
+    subdomain: string
+    settings?: {
+      navigation?: any
+      footer?: any
+      [key: string]: any
+    }
+  }
   className?: string
   blocksLoading?: boolean
 }
 
-export function PostPreview({
-  blocks,
-  post,
-  site,
-  siteBlocks,
-  className = "",
-  blocksLoading = false
-}: PostPreviewProps) {
-  // Convert post blocks to PreviewBlock format for the generic preview system (filter out invalid blocks)
-  const previewBlocks: PreviewBlock[] = blocks
-    .filter(block => block && block.id && block.type)
-    .map(block => ({
-      id: block.id,
-      type: block.type,
-      content: block.content,
-      display_order: 0 // Will be handled by block ordering
-    }))
+export function PostPreview({ blocks, post, site, className = "", blocksLoading = false }: PostPreviewProps) {
+  // Convert post blocks to PreviewBlock format for the generic preview system
+  const previewBlocks: PreviewBlock[] = blocks.map(block => ({
+    id: block.id,
+    type: block.type,
+    content: block.content,
+    display_order: 0 // Will be handled by block ordering
+  }))
 
   // Create preview site - navigation and footer will be added from site.settings automatically
   const previewSite = createPreviewSite(previewBlocks, site)
 
+  // Create mock post data
+  const previewPost = {
+    id: post?.id || 'preview',
+    title: post?.title || 'Preview Post',
+    slug: post?.slug || 'preview',
+    meta_description: post?.meta_description || null,
+    site_id: post?.site_id || 'preview',
+    featured_image: post?.featured_image || null,
+    excerpt: post?.excerpt || null,
+    is_published: post?.is_published || false,
+    blocks: previewBlocks.map(block => ({
+      id: block.id,
+      type: block.type,
+      content: block.content,
+      display_order: block.display_order || 0
+    }))
+  }
+  
   return (
     <div className={`overflow-x-hidden ${className}`}>
       <div 
@@ -107,67 +109,7 @@ export function PostPreview({
               </div>
             </div>
           ) : (
-            <SiteLayout 
-              navigation={site?.settings?.navigation} 
-              footer={site?.settings?.footer}
-              site={previewSite}
-            >
-              {/* Post Header */}
-              <div className="max-w-4xl mx-auto px-6 py-12">
-                <div className="text-center mb-12">
-                  <h1 className="text-4xl font-bold mb-4">
-                    {post?.title || 'Post Preview'}
-                  </h1>
-                  {post?.excerpt && (
-                    <p className="text-xl text-muted-foreground">
-                      {post.excerpt}
-                    </p>
-                  )}
-                </div>
-
-                {/* Post Content Blocks */}
-                <div className="prose prose-lg max-w-none">
-                  {blocks.map((block, index) => {
-                    // Show corrupted blocks in preview
-                    if (!block || !block.id || !block.type) {
-                      return (
-                        <div key={`corrupted-preview-${index}`} className="not-prose border rounded-lg p-6 my-6 bg-red-50 border-red-300">
-                          <div className="text-red-800 font-semibold">⚠️ Corrupted Block</div>
-                          <div className="text-red-600 text-sm mt-2">This block has invalid data and should be removed.</div>
-                        </div>
-                      )
-                    }
-                    if (block.type === 'post-content') {
-                      return (
-                        <RichTextBlock
-                          key={`post-content-${block.id}`}
-                          content={block.content.content || 'Add your post content here...'}
-                        />
-                      )
-                    }
-                    
-                    if (block.type === 'faq') {
-                      return (
-                        <FaqBlock
-                          key={`faq-${block.id}`}
-                          {...block.content}
-                        />
-                      )
-                    }
-
-                    // Fallback for other block types
-                    return (
-                      <div key={`${block.type}-${block.id}`} className="border rounded-lg p-6 my-6">
-                        <h3 className="text-lg font-semibold mb-2">{block.title}</h3>
-                        <div className="text-muted-foreground">
-                          {block.type} block preview
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </SiteLayout>
+            <PostBlockRenderer site={previewSite} post={previewPost} />
           )}
         </div>
       </div>

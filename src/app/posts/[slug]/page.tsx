@@ -44,14 +44,27 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound()
   }
 
-  // Structure post blocks from content_blocks JSON
-  const postBlocks: Record<string, any> = post.content_blocks || {}
+  // Convert post blocks to array format like products
+  let blocks: any[] = []
+  try {
+    const contentBlocks = post.content_blocks || {}
+    blocks = Object.values(contentBlocks).sort((a: any, b: any) => 
+      (a.display_order || 0) - (b.display_order || 0)
+    )
+  } catch (error) {
+    console.warn('Error loading post blocks:', error)
+    blocks = []
+  }
 
-  return (
-    <div className="min-h-screen">
-      <PostBlockRenderer blocks={postBlocks} />
-    </div>
-  )
+  const postWithBlocks = {
+    ...post,
+    blocks
+  }
+
+  return <PostBlockRenderer 
+    site={site} 
+    post={postWithBlocks} 
+  />
 }
 
 export async function generateMetadata({ params }: PostPageProps) {
