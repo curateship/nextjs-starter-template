@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
@@ -24,6 +25,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     slug: '',
     is_published: false
   })
+  const [isPrivate, setIsPrivate] = useState(false)
   const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -108,17 +110,20 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setLoading(true)
       setError(null)
       
-      // Create product with default block containing all core content
+      // Create product with settings only in content_blocks
       const contentBlocks = {
-        'product-default': {
-          title: formData.title,
-          richText: richTextContent || 'Add your product description here...',
-          featuredImage: featuredImage || '',
-          display_order: 0
+        _settings: {
+          is_private: isPrivate
         }
       }
       
-      const draftData = { ...formData, is_published: false, content_blocks: contentBlocks }
+      const draftData = { 
+        ...formData, 
+        is_published: false, 
+        featured_image: featuredImage || null,
+        description: richTextContent || null,
+        content_blocks: contentBlocks 
+      }
       const { data, error: actionError } = await createProductAction(currentSite.id, draftData)
       
       if (actionError) {
@@ -153,17 +158,20 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setLoading(true)
       setError(null)
       
-      // Create product with default block containing all core content
+      // Create product with settings only in content_blocks
       const contentBlocks = {
-        'product-default': {
-          title: formData.title,
-          richText: richTextContent || 'Add your product description here...',
-          featuredImage: featuredImage || '',
-          display_order: 0
+        _settings: {
+          is_private: isPrivate
         }
       }
       
-      const publishData = { ...formData, is_published: true, content_blocks: contentBlocks }
+      const publishData = { 
+        ...formData, 
+        is_published: true, 
+        featured_image: featuredImage || null,
+        description: richTextContent || null,
+        content_blocks: contentBlocks 
+      }
       const { data, error: actionError } = await createProductAction(currentSite.id, publishData)
       
       if (actionError) {
@@ -286,6 +294,21 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         <p className="text-xs text-muted-foreground mt-1">
           Optional featured image for this product
         </p>
+      </div>
+
+      {/* Privacy Settings */}
+      <div className="space-y-3">
+        <Label>Privacy Settings</Label>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="is_private"
+            checked={isPrivate}
+            onCheckedChange={(checked) => setIsPrivate(!!checked)}
+          />
+          <Label htmlFor="is_private" className="text-sm font-normal">
+            Private (accessible only via direct URL, hidden from product listings)
+          </Label>
+        </div>
       </div>
 
       {/* Rich Text Content */}
