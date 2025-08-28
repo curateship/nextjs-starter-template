@@ -32,6 +32,7 @@ interface UseProductBuilderReturn {
   handleAddProductHotspotBlock: () => void
   handleAddProductPricingBlock: () => void
   handleAddProductFAQBlock: () => void
+  handleAddListingViewsBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -209,6 +210,28 @@ export function useProductBuilder({
     })
   }
 
+  const handleAddListingViewsBlock = () => {
+    addBlock('listing-views', 'Product Listings', {
+      title: 'Related Products',
+      subtitle: 'Check out our other products',
+      headerAlign: 'left',
+      contentType: 'products',
+      displayMode: 'grid',
+      itemsToShow: 6,
+      columns: 3,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      showImage: true,
+      showTitle: true,
+      showDescription: true,
+      isPaginated: false,
+      itemsPerPage: 12,
+      viewAllText: '',
+      viewAllLink: '',
+      backgroundColor: '#ffffff'
+    })
+  }
+
   const handleSaveAllBlocks = async () => {
     if (!productId) {
       setSaveMessage("Error: Product ID required")
@@ -262,6 +285,7 @@ export function useProductBuilder({
     handleAddProductHotspotBlock,
     handleAddProductPricingBlock,
     handleAddProductFAQBlock,
+    handleAddListingViewsBlock,
     handleSaveAllBlocks
   }
 }

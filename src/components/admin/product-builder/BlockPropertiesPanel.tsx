@@ -6,6 +6,7 @@ import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/ProductHotspotBlock"
 import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
+import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -204,6 +205,45 @@ export function BlockPropertiesPanel({
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onFaqItemsChange={(faqItems) => updateBlockContent('faqItems', faqItems)}
+              />
+            )}
+            
+            {selectedBlock.type === 'listing-views' && (
+              <ProductListingViewBlock
+                title={selectedBlock.content.title ?? 'Latest Products'}
+                subtitle={selectedBlock.content.subtitle ?? 'Check out our products'}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
+                contentType={selectedBlock.content.contentType ?? 'products'}
+                displayMode={selectedBlock.content.displayMode ?? 'grid'}
+                itemsToShow={selectedBlock.content.itemsToShow ?? 6}
+                columns={selectedBlock.content.columns ?? 3}
+                sortBy={selectedBlock.content.sortBy ?? 'date'}
+                sortOrder={selectedBlock.content.sortOrder ?? 'desc'}
+                showImage={selectedBlock.content.showImage ?? true}
+                showTitle={selectedBlock.content.showTitle ?? true}
+                showDescription={selectedBlock.content.showDescription ?? true}
+                isPaginated={selectedBlock.content.isPaginated ?? false}
+                itemsPerPage={selectedBlock.content.itemsPerPage ?? 12}
+                viewAllText={selectedBlock.content.viewAllText ?? ''}
+                viewAllLink={selectedBlock.content.viewAllLink ?? ''}
+                backgroundColor={selectedBlock.content.backgroundColor ?? '#ffffff'}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
+                onContentTypeChange={(value) => updateBlockContent('contentType', value)}
+                onDisplayModeChange={(value) => updateBlockContent('displayMode', value)}
+                onItemsToShowChange={(value) => updateBlockContent('itemsToShow', value)}
+                onColumnsChange={(value) => updateBlockContent('columns', value)}
+                onSortByChange={(value) => updateBlockContent('sortBy', value)}
+                onSortOrderChange={(value) => updateBlockContent('sortOrder', value)}
+                onShowImageChange={(value) => updateBlockContent('showImage', value)}
+                onShowTitleChange={(value) => updateBlockContent('showTitle', value)}
+                onShowDescriptionChange={(value) => updateBlockContent('showDescription', value)}
+                onIsPaginatedChange={(value) => updateBlockContent('isPaginated', value)}
+                onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
+                onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
+                onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
+                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
               />
             )}
           </div>
