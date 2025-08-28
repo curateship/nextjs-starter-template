@@ -6,6 +6,7 @@ import { ProductFeaturesBlock } from "@/components/frontend/products/ProductFeat
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock"
 import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
+import { ProductListingViewBlock } from "@/components/frontend/products/ProductListingViewBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -118,6 +119,20 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             <ProductFAQBlock
               key={`product-faq-${block.id}`}
               content={block.content}
+            />
+          )
+        }
+        
+        if (block.type === 'listing-views') {
+          return (
+            <ProductListingViewBlock
+              key={`listing-views-${block.id}`}
+              content={block.content}
+              siteId={site.id}
+              urlPrefixes={{
+                products: 'products',
+                posts: 'posts'
+              }}
             />
           )
         }

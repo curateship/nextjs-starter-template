@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle, Info, DollarSign } from "lucide-react"
+import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle, Info, DollarSign, LayoutGrid } from "lucide-react"
 
 interface BlockTypesPanelProps {
   onAddProductDefaultBlock: () => void
@@ -8,6 +8,7 @@ interface BlockTypesPanelProps {
   onAddProductHotspotBlock: () => void
   onAddProductPricingBlock: () => void
   onAddProductFAQBlock: () => void
+  onAddListingViewsBlock: () => void
 }
 
 export function BlockTypesPanel({ 
@@ -16,7 +17,8 @@ export function BlockTypesPanel({
   onAddProductFeaturesBlock,
   onAddProductHotspotBlock,
   onAddProductPricingBlock,
-  onAddProductFAQBlock
+  onAddProductFAQBlock,
+  onAddListingViewsBlock
 }: BlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
@@ -109,6 +111,21 @@ export function BlockTypesPanel({
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
               onClick={onAddProductFAQBlock}
               title="Add product FAQ block"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <LayoutGrid className="w-4 h-4" />
+              <span className="font-medium">Product Listing Views</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+              onClick={onAddListingViewsBlock}
+              title="Add product listing views block"
             >
               <Plus className="w-4 h-4" />
             </Button>

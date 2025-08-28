@@ -30,6 +30,8 @@ export function getProductBlockTitle(blockType: string): string {
       return 'Product Pricing'
     case 'faq':
       return 'FAQ'
+    case 'listing-views':
+      return 'Product Listings'
     default:
       return 'Product Block'
   }
@@ -81,7 +83,7 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
   
   if (contentBlocks && typeof contentBlocks === 'object') {
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-pricing', 'faq']
+    const allowedBlockTypes = ['product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-pricing', 'faq', 'listing-views']
     
     Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
       // SECURITY: Validate block type
