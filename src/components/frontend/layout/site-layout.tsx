@@ -45,7 +45,9 @@ export function SiteLayout({ children, site, navigation, footer }: SiteLayoutPro
       )}
       
       {/* Main content */}
-      {children}
+      <div className={navigation ? "pt-20" : ""}>
+        {children}
+      </div>
       
       {/* Footer - only render if footer data exists */}
       {footer && <FooterBlock {...footer} site={site} />}

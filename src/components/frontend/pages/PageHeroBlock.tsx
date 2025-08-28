@@ -155,7 +155,7 @@ const PageHeroBlock = ({
   heroImage
 }: PageHeroBlockProps) => {
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
+    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-10 overflow-hidden">
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}

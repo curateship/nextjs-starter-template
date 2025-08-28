@@ -100,7 +100,7 @@ function SortableProductBlockItem({
             {...listeners}
             className="flex items-center justify-center w-8 h-8 rounded text-muted-foreground hover:text-foreground hover:bg-gray-100 cursor-grab active:cursor-grabbing"
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-4 h-4 pointer-events-none" />
           </div>
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
