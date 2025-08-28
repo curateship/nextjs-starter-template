@@ -149,6 +149,20 @@ a, a *, button[onclick], button:hover {
   cursor: pointer !important;
 }
 
+/* Override cursor for drag handles - must come after global cursor rules */
+.cursor-grab {
+  cursor: grab !important;
+}
+
+.cursor-grab:active,
+.active\:cursor-grabbing:active {
+  cursor: grabbing !important;
+}
+
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+
 @keyframes rainbow {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }

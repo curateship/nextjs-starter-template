@@ -155,7 +155,7 @@ const ProductHeroBlock = ({
   heroImage
 }: ProductHeroBlockProps) => {
   return (
-    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-30 pb-15 overflow-hidden">
+    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-10 overflow-hidden">
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}
