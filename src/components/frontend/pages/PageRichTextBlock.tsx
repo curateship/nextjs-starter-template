@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockContainer } from "@/components/ui/block-container"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { useEffect, useState } from "react"
 
 interface RichTextBlockProps {
