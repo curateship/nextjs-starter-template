@@ -13,6 +13,7 @@ import {
   BookOpen,
   Settings,
   FolderOpen,
+  Calendar,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/NavMain"
@@ -82,6 +83,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Content creation items
   const contentNavItems = [
     {
+      title: "Posts",
+      url: "/admin/posts",
+      icon: BookOpen,
+      isActive: false,
+    },
+    {
       title: "Products",
       url: "/admin/products",
       icon: Package,
@@ -94,9 +101,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       isActive: false,
     },
     {
-      title: "Posts",
-      url: "/admin/posts",
-      icon: BookOpen,
+      title: "Events",
+      url: "/admin/events",
+      icon: Calendar,
       isActive: false,
     },
   ]
