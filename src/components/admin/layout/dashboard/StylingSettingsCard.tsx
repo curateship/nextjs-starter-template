@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { ImageIcon } from "lucide-react"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
@@ -16,10 +17,14 @@ interface StylingSettingsCardProps {
   fontFamily?: string
   secondaryFontFamily?: string
   favicon?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
   onThemeIdChange: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
+  onSiteWidthChange?: (value: 'full' | 'custom') => void
+  onCustomWidthChange?: (value: number) => void
 }
 
 export function StylingSettingsCard({
@@ -27,10 +32,14 @@ export function StylingSettingsCard({
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
   favicon = "",
+  siteWidth = 'custom',
+  customWidth,
   onThemeIdChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onFaviconChange,
+  onSiteWidthChange,
+  onCustomWidthChange,
 }: StylingSettingsCardProps) {
   const [themes, setThemes] = useState<Theme[]>([])
   const [themesLoading, setThemesLoading] = useState(true)
@@ -131,6 +140,56 @@ export function StylingSettingsCard({
                   />
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Layout Width */}
+          {onCustomWidthChange && (
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700">
+                Layout Width
+              </label>
+              
+              <div className="flex items-center gap-3">
+                {siteWidth !== 'full' && (
+                  <div className="w-32">
+                    <Input
+                      id="width-input"
+                      type="number"
+                      min="320"
+                      max="2560"
+                      value={customWidth || ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === '') {
+                          onCustomWidthChange(undefined)
+                        } else {
+                          const numValue = parseInt(value)
+                          onCustomWidthChange(isNaN(numValue) ? undefined : numValue)
+                        }
+                      }}
+                      placeholder="1152"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="full-width"
+                    checked={siteWidth === 'full'}
+                    onCheckedChange={(checked) => onSiteWidthChange?.(checked ? 'full' : 'custom')}
+                  />
+                  <Label htmlFor="full-width" className="text-sm">
+                    Full Width
+                  </Label>
+                </div>
+              </div>
+              
+              {siteWidth !== 'full' && (
+                <p className="text-xs text-muted-foreground">
+                  Default: 1152px • Range: 320px - 2560px
+                </p>
+              )}
             </div>
           )}
 

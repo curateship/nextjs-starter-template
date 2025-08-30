@@ -29,6 +29,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [favicon, setFavicon] = useState("")
   const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
   const [trackingScripts, setTrackingScripts] = useState("")
+  const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
+  const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +60,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setFavicon(data.settings?.favicon || "")
         setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
         setTrackingScripts(data.settings?.tracking_scripts || "")
+        setSiteWidth(data.settings?.site_width || 'custom')
+        setCustomWidth(data.settings?.custom_width)
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -103,6 +107,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         favicon: favicon === '' ? '' : favicon || undefined,
         animations: animations,
         tracking_scripts: trackingScripts,
+        site_width: siteWidth,
+        custom_width: customWidth,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
@@ -223,6 +229,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             favicon={favicon}
             animations={animations}
             trackingScripts={trackingScripts}
+            siteWidth={siteWidth}
+            customWidth={customWidth}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -234,6 +242,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onFaviconChange={setFavicon}
             onAnimationsChange={setAnimations}
             onTrackingScriptsChange={setTrackingScripts}
+            onSiteWidthChange={setSiteWidth}
+            onCustomWidthChange={setCustomWidth}
           />
         </form>
       </div>

@@ -5,15 +5,19 @@ interface ProductDefaultBlockProps {
   title?: string
   richText?: string
   featuredImage?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
 const ProductDefaultBlock = ({
   title,
   richText,
-  featuredImage
+  featuredImage,
+  siteWidth = 'custom',
+  customWidth
 }: ProductDefaultBlockProps) => {
   return (
-    <BlockContainer id="product-default" className="white">
+    <BlockContainer id="product-default" className="white" siteWidth={siteWidth} customWidth={customWidth}>
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Content Column */}

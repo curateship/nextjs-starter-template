@@ -19,6 +19,8 @@ interface ProductHotspotBlockProps {
   hotspots?: Hotspot[]
   showTooltipsAlways?: boolean
   className?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
 const ProductHotspotBlock = ({
@@ -28,7 +30,9 @@ const ProductHotspotBlock = ({
   backgroundImage = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
   hotspots = [],
   showTooltipsAlways = false,
-  className = "white"
+  className = "white",
+  siteWidth = 'custom',
+  customWidth
 }: ProductHotspotBlockProps) => {
   const [imageLoaded, setImageLoaded] = useState(false)
 
@@ -36,6 +40,8 @@ const ProductHotspotBlock = ({
     <BlockContainer
       id="product-hotspot"
       className={className}
+      siteWidth={siteWidth}
+      customWidth={customWidth}
       header={{
         title,
         subtitle,

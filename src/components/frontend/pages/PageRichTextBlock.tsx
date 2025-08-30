@@ -11,9 +11,11 @@ interface RichTextBlockProps {
     content: string
   }
   className?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
-export function RichTextBlock({ content, className = "" }: RichTextBlockProps) {
+export function RichTextBlock({ content, className = "", siteWidth = 'custom', customWidth }: RichTextBlockProps) {
   const [sanitizedContent, setSanitizedContent] = useState('')
   
   useEffect(() => {
@@ -40,6 +42,8 @@ export function RichTextBlock({ content, className = "" }: RichTextBlockProps) {
         align: content.headerAlign || 'left'
       }}
       className={className}
+      siteWidth={siteWidth}
+      customWidth={customWidth}
     >
       <div 
         className="prose prose-lg max-w-none"

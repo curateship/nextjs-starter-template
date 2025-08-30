@@ -45,6 +45,8 @@ interface ProductPricingBlockProps {
   subtitle?: string
   headerAlign?: 'left' | 'center'
   pricingTiers?: PricingTier[]
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
 const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
@@ -184,7 +186,9 @@ const ProductPricingBlock = ({
   title = '',
   subtitle = '',
   headerAlign = 'center',
-  pricingTiers = []
+  pricingTiers = [],
+  siteWidth = 'custom',
+  customWidth
 }: ProductPricingBlockProps) => {
   // Show default pricing if no tiers configured
   const defaultTiers: PricingTier[] = [
@@ -235,6 +239,8 @@ const ProductPricingBlock = ({
       <BlockContainer
         id="pricing"
         className="white"
+        siteWidth={siteWidth}
+        customWidth={customWidth}
         header={{
           title,
           subtitle,
@@ -251,6 +257,8 @@ const ProductPricingBlock = ({
     <BlockContainer
       id="pricing"
       className="white"
+      siteWidth={siteWidth}
+      customWidth={customWidth}
       header={{
         title,
         subtitle,

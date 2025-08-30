@@ -6,6 +6,8 @@ interface BlockContainerProps {
   className?: string
   container?: boolean
   id?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
   header?: {
     title?: string
     subtitle?: string
@@ -22,11 +24,20 @@ export function BlockContainer({
   className = "",
   container = true,
   id,
+  siteWidth = 'custom',
+  customWidth,
   header,
   animated = true,
   animationPreset,
   customAnimationSettings,
 }: BlockContainerProps) {
+  // Handle width - either full width or custom pixel value
+  const effectiveCustomWidth = customWidth || 1152
+  const containerStyle = siteWidth === 'custom' 
+    ? { maxWidth: `${effectiveCustomWidth}px` }
+    : undefined
+  
+  const containerClass = siteWidth === 'full' ? '' : ''
   const content = (
     <>
       {header && (
@@ -49,7 +60,10 @@ export function BlockContainer({
 
   return (
     <section id={id} className={`py-16 md:py-16 ${className}`}>
-      <div className={container ? "mx-auto max-w-6xl px-6" : ""}>
+      <div 
+        className={container ? `mx-auto ${containerClass} px-6` : ""} 
+        style={containerStyle}
+      >
         {animated ? (
           <AnimatedGroup
             preset={animationPreset}
