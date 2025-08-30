@@ -37,7 +37,7 @@ interface SiteDashboardProps {
   onAnimationsChange?: (value: AnimationSettings) => void
   onTrackingScriptsChange?: (value: string) => void
   onSiteWidthChange?: (value: 'full' | 'custom') => void
-  onCustomWidthChange?: (value: number) => void
+  onCustomWidthChange?: (value: number | undefined) => void
 }
 
 export function SiteDashboard({
