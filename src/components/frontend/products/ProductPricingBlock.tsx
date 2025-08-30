@@ -38,6 +38,8 @@ interface PricingTier {
   features: string[]
   comparison: string
   isPopular?: boolean
+  ribbonText?: string
+  ribbonColor?: 'blue' | 'green' | 'purple' | 'red' | 'yellow'
 }
 
 interface ProductPricingBlockProps {
@@ -50,11 +52,37 @@ interface ProductPricingBlockProps {
 }
 
 const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
+  // Function to get ribbon color classes
+  const getRibbonColorClasses = (color: string) => {
+    switch (color) {
+      case 'blue':
+        return 'bg-blue-500 text-white'
+      case 'green':
+        return 'bg-green-500 text-white'
+      case 'purple':
+        return 'bg-purple-500 text-white'
+      case 'red':
+        return 'bg-red-500 text-white'
+      case 'yellow':
+        return 'bg-yellow-400 text-black'
+      default:
+        return 'bg-blue-500 text-white'
+    }
+  }
+
   return (
     <div className="relative">
       <div className="mx-auto max-w-xl lg:max-w-none">
         <div>
-          <div className="bg-card relative rounded-3xl border shadow-2xl shadow-zinc-950/5">
+          <div className="bg-card relative rounded-3xl border shadow-2xl shadow-zinc-950/5 overflow-hidden">
+            {/* Ribbon */}
+            {tier.ribbonText && (
+              <div className="absolute top-0 right-0 z-10">
+                <div className={`${getRibbonColorClasses(tier.ribbonColor || 'blue')} px-3 py-1 text-sm font-semibold rounded-bl-lg`}>
+                  {sanitizeText(tier.ribbonText)}
+                </div>
+              </div>
+            )}
             <div className="grid items-start gap-12 divide-y p-12 md:grid-cols-2 md:divide-x md:divide-y-0">
               <div className="pb-12 md:pb-0 md:pr-12">
                 <h3 className="text-3xl font-semibold text-left">{sanitizeText(tier.name)}</h3>
@@ -108,13 +136,39 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
 }
 
 const PricingCard = ({ tier }: { tier: PricingTier }) => {
+  // Function to get ribbon color classes
+  const getRibbonColorClasses = (color: string) => {
+    switch (color) {
+      case 'blue':
+        return 'bg-blue-500 text-white'
+      case 'green':
+        return 'bg-green-500 text-white'
+      case 'purple':
+        return 'bg-purple-500 text-white'
+      case 'red':
+        return 'bg-red-500 text-white'
+      case 'yellow':
+        return 'bg-yellow-400 text-black'
+      default:
+        return 'bg-blue-500 text-white'
+    }
+  }
+
   // Determine background class based on isPopular flag
   const bgClass = tier.isPopular 
     ? "bg-card border-2 border-primary/20" 
     : "bg-card"
   
   return (
-    <div className={`flex h-full flex-col rounded-lg shadow-lg ${bgClass}`}>
+    <div className={`relative flex h-full flex-col rounded-lg shadow-lg overflow-hidden ${bgClass}`}>
+      {/* Ribbon */}
+      {tier.ribbonText && (
+        <div className="absolute top-0 right-0 z-10">
+          <div className={`${getRibbonColorClasses(tier.ribbonColor || 'blue')} px-3 py-1 text-sm font-semibold rounded-bl-lg`}>
+            {sanitizeText(tier.ribbonText)}
+          </div>
+        </div>
+      )}
       {/* Card top part with fixed height */}
       <div className="h-[360px] flex-none">
         <div className="flex h-full flex-col">
@@ -266,7 +320,7 @@ const ProductPricingBlock = ({
       }}
     >
       {/* Grid layout for pricing tiers */}
-      <div className="mx-auto grid max-w-xl gap-6 rounded-md lg:max-w-none lg:grid-cols-3">
+      <div className="mx-auto grid max-w-xl gap-8 rounded-md lg:max-w-none lg:grid-cols-3 lg:gap-10">
         {displayTiers.map((tier) => (
           <div key={tier.id} className="h-full">
             <PricingCard tier={tier} />

@@ -111,7 +111,9 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             buttonVariant: 'default' as const,
             features: tier.features || [],
             comparison: '', // Not used in admin
-            isPopular: tier.highlighted || tier.isPopular || false
+            isPopular: tier.highlighted || tier.isPopular || false,
+            ribbonText: tier.ribbonText || '',
+            ribbonColor: tier.ribbonColor || 'blue'
           }))
           
           return (
