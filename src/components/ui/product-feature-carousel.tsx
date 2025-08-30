@@ -19,7 +19,7 @@ import {
 
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { BlockContainer } from "@/components/ui/block-container";
+import { BlockContainer } from "@/components/frontend/layout/block-container";
 import {
   Carousel,
   CarouselContent,

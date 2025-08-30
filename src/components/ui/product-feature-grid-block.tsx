@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { BlockContainer } from '@/components/ui/block-container'
+import { BlockContainer } from '@/components/frontend/layout/block-container'
 
 const ProductFeatureGridBlock = () => {
     return (

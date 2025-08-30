@@ -1,4 +1,4 @@
-import { BlockContainer } from "@/components/ui/block-container";
+import { BlockContainer } from "@/components/frontend/layout/block-container";
 import { ViewAllButton } from "@/components/ui/view-all-button";
 
 interface ProductGridBlockProps {

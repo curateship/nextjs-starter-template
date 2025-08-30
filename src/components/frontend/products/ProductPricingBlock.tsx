@@ -1,6 +1,6 @@
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { BlockContainer } from "@/components/ui/block-container"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 
 // Security utility functions
 const isValidUrl = (url: string): boolean => {

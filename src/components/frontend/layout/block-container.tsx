@@ -1,4 +1,4 @@
-import { AnimatedGroup } from './animated-group'
+import { AnimatedGroup } from '@/components/ui/animated-group'
 import type { AnimationSettings } from '@/lib/actions/sites/site-actions'
 
 interface BlockContainerProps {
