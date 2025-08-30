@@ -21,6 +21,8 @@ interface SiteDashboardProps {
   favicon?: string
   animations?: AnimationSettings
   trackingScripts?: string
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
   isEditMode?: boolean
   fontFamily?: string
   secondaryFontFamily?: string
@@ -34,6 +36,8 @@ interface SiteDashboardProps {
   onSecondaryFontFamilyChange?: (value: string) => void
   onAnimationsChange?: (value: AnimationSettings) => void
   onTrackingScriptsChange?: (value: string) => void
+  onSiteWidthChange?: (value: 'full' | 'custom') => void
+  onCustomWidthChange?: (value: number) => void
 }
 
 export function SiteDashboard({
@@ -45,6 +49,8 @@ export function SiteDashboard({
   favicon = "",
   animations = { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' },
   trackingScripts = "",
+  siteWidth = 'custom',
+  customWidth,
   isEditMode = false,
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
@@ -58,6 +64,8 @@ export function SiteDashboard({
   onSecondaryFontFamilyChange,
   onAnimationsChange,
   onTrackingScriptsChange,
+  onSiteWidthChange,
+  onCustomWidthChange,
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
@@ -282,10 +290,14 @@ export function SiteDashboard({
       fontFamily={fontFamily}
       secondaryFontFamily={secondaryFontFamily}
       favicon={favicon}
+      siteWidth={siteWidth}
+      customWidth={customWidth}
       onThemeIdChange={onThemeIdChange}
       onFontFamilyChange={onFontFamilyChange}
       onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
       onFaviconChange={onFaviconChange}
+      onSiteWidthChange={onSiteWidthChange}
+      onCustomWidthChange={onCustomWidthChange}
     />
 
     {/* Animation Settings Card */}

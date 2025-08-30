@@ -37,6 +37,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
     stagger: 0.1,
     intensity: 'medium'
   };
+
+  // Get site width from site settings
+  const siteWidth = site.settings?.site_width || 'custom';
+  const customWidth = site.settings?.custom_width;
   
   return (
     <AnimationProvider settings={animationSettings}>
@@ -55,6 +59,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               title={product.title}
               richText={product.description || ''}
               featuredImage={product.featured_image || ''}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -73,6 +79,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             <ProductFeaturesBlock
               key={`product-features-${block.id}`}
               {...block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -82,6 +90,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             <ProductHotspotBlock
               key={`product-hotspot-${block.id}`}
               {...block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -110,6 +120,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               title={block.content.headerTitle || block.content.title}
               subtitle={block.content.headerSubtitle || block.content.subtitle}
               pricingTiers={transformedTiers}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -119,6 +131,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             <ProductFAQBlock
               key={`product-faq-${block.id}`}
               content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -133,6 +147,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
                 products: 'products',
                 posts: 'posts'
               }}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }

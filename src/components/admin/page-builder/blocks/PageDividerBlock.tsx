@@ -204,15 +204,18 @@ className="border p-2 rounded-md"
                     id="customWidth"
                     type="number"
                         max="2000"
-                    value={containerWidth === 'full' ? 0 : customWidth}
+                    value={containerWidth === 'full' ? '' : customWidth || ''}
                     onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0
-                      if (value === 0) {
+                      const value = e.target.value
+                      if (value === '' || value === '0') {
                         onContainerWidthChange('full')
                         onCustomWidthChange(0)
                       } else {
-                        onContainerWidthChange('custom')
-                        onCustomWidthChange(value)
+                        const numValue = parseInt(value)
+                        if (!isNaN(numValue) && numValue > 0) {
+                          onContainerWidthChange('custom')
+                          onCustomWidthChange(numValue)
+                        }
                       }
                     }}
                     placeholder="0 = full width"

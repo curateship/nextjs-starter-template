@@ -36,6 +36,10 @@ export function BlockRenderer({ site }: BlockRendererProps) {
     intensity: 'medium'
   };
 
+  // Get site width from site settings
+  const siteWidth = site.settings?.site_width || 'custom';
+  const customWidth = site.settings?.custom_width;
+
   return (
     <AnimationProvider settings={animationSettings}>
       <SiteLayout 
@@ -67,7 +71,9 @@ export function BlockRenderer({ site }: BlockRendererProps) {
                 subtitle: block.content.subtitle,
                 headerAlign: block.content.headerAlign || 'left',
                 content: block.content.content || ''
-              }} 
+              }}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -76,7 +82,9 @@ export function BlockRenderer({ site }: BlockRendererProps) {
           return (
             <FaqBlock 
               key={`faq-${block.id}`}
-              content={block.content} 
+              content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
@@ -92,6 +100,8 @@ export function BlockRenderer({ site }: BlockRendererProps) {
                 posts: 'posts'
               }}
               preloadedData={site.listingData?.[block.id]}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }

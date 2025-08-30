@@ -8,7 +8,8 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
-import { FrontendBlockContainer } from "@/components/ui/frontend-block-container";
+import { BlockContainer } from "@/components/ui/block-container";
+import { ViewAllButton } from "@/components/ui/view-all-button";
 
 interface PostGridBlockProps {
   tagline?: string;
@@ -26,17 +27,20 @@ const PostGridBlock = ({
   buttonUrl = "/posts",
 }: PostGridBlockProps) => {
   return (
-    <FrontendBlockContainer
+    <BlockContainer
       header={{
         title: heading,
         subtitle: description,
         align: 'left'
       }}
-      viewAllButton={{
-        text: buttonText,
-        href: buttonUrl
-      }}
     >
+      {/* ViewAll Button */}
+      <div className="flex justify-end mb-6">
+        <ViewAllButton 
+          text={buttonText}
+          href={buttonUrl}
+        />
+      </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
         <a href="http://localhost:3000/themes/marketplace/posts" className="block">
           <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
@@ -104,7 +108,7 @@ const PostGridBlock = ({
           </Card>
         </a>
       </div>
-    </FrontendBlockContainer>
+    </BlockContainer>
   );
 };
 

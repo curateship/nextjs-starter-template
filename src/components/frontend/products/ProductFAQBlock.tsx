@@ -18,9 +18,11 @@ interface ProductFAQBlockProps {
         headerAlign?: 'left' | 'center'
         faqItems?: FaqItem[]
     }
+    siteWidth?: 'full' | 'custom'
+    customWidth?: number
 }
 
-const ProductFAQBlock = ({ content }: ProductFAQBlockProps) => {
+const ProductFAQBlock = ({ content, siteWidth = 'custom', customWidth }: ProductFAQBlockProps) => {
     const defaultFaqItems = [
         {
             id: 'item-1',
@@ -57,6 +59,8 @@ const ProductFAQBlock = ({ content }: ProductFAQBlockProps) => {
     return (
         <BlockContainer
             id="faq"
+            siteWidth={siteWidth}
+            customWidth={customWidth}
             header={{
                 title: content?.title ?? '',
                 subtitle: content?.subtitle ?? '',

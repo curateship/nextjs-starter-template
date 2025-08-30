@@ -42,12 +42,24 @@ export function PostBlockRenderer({ site, post }: PostBlockRendererProps) {
     intensity: 'medium'
   }
 
+  // Get site width from site settings
+  const siteWidth = site.settings?.site_width || 'custom'
+  const customWidth = site.settings?.custom_width
+  
+  // Handle custom width with CSS custom properties
+  const containerStyle = siteWidth === 'custom' && customWidth 
+    ? { maxWidth: `${customWidth}px` }
+    : { maxWidth: '1152px' } // Default custom width
+
   return (
     <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
       
       {/* Post Header */}
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div 
+        className={`${siteWidth === 'full' ? 'max-w-none' : ''} mx-auto px-6 py-12`}
+        style={containerStyle}
+      >
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">
             {post.title}

@@ -88,6 +88,8 @@ export interface CreateSiteData {
   favicon?: string
   animations?: AnimationSettings
   tracking_scripts?: string
+  site_width?: 'full' | 'custom'
+  custom_width?: number
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -289,9 +291,9 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings, favicon, animations, or tracking scripts, merge them into settings
+    // If updating font settings, favicon, animations, tracking scripts, or site width, merge them into settings
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined) {
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined || updates.site_width || updates.custom_width !== undefined) {
       const { data: currentSite } = await supabaseAdmin
         .from('sites')
         .select('settings')
@@ -308,9 +310,11 @@ export async function updateSiteAction(
         ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
         ...(updates.animations && { animations: updates.animations }),
         ...(updates.tracking_scripts !== undefined && { tracking_scripts: updates.tracking_scripts }),
+        ...(updates.site_width && { site_width: updates.site_width }),
+        ...(updates.custom_width !== undefined && { custom_width: updates.custom_width }),
       }
       
-      // Remove font, favicon, animation, and tracking script properties from top level as they're now in settings
+      // Remove font, favicon, animation, tracking script, and site width properties from top level as they're now in settings
       delete finalUpdates.font_family
       delete finalUpdates.font_weights
       delete finalUpdates.secondary_font_family
@@ -318,6 +322,8 @@ export async function updateSiteAction(
       delete finalUpdates.favicon
       delete finalUpdates.animations
       delete finalUpdates.tracking_scripts
+      delete finalUpdates.site_width
+      delete finalUpdates.custom_width
     }
 
     // If updating name, regenerate subdomain

@@ -18,9 +18,11 @@ interface FaqBlockProps {
         headerAlign?: 'left' | 'center'
         faqItems?: FaqItem[]
     }
+    siteWidth?: 'full' | 'custom'
+    customWidth?: number
 }
 
-const FaqBlock = ({ content }: FaqBlockProps) => {
+const FaqBlock = ({ content, siteWidth = 'custom', customWidth }: FaqBlockProps) => {
     const defaultFaqItems = [
         {
             id: 'item-1',
@@ -61,6 +63,8 @@ const FaqBlock = ({ content }: FaqBlockProps) => {
                 subtitle: content?.subtitle ?? '',
                 align: content?.headerAlign ?? "center"
             }}
+            siteWidth={siteWidth}
+            customWidth={customWidth}
         >
             <div className="mt-12">
                 {!faqItems || faqItems.length === 0 ? (

@@ -14,13 +14,17 @@ interface ProductFeaturesBlockProps {
   headerSubtitle?: string
   headerAlign?: 'left' | 'center'
   features?: Feature[]
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
 const ProductFeaturesBlock = ({
   headerTitle = '',
   headerSubtitle = '',
   headerAlign = "center",
-  features = []
+  features = [],
+  siteWidth = 'custom',
+  customWidth
 }: ProductFeaturesBlockProps) => {
   // Show default features if none provided
   const displayFeatures = features.length > 0 ? features : [
@@ -48,6 +52,8 @@ const ProductFeaturesBlock = ({
     <BlockContainer 
       id="features"
       className="white"
+      siteWidth={siteWidth}
+      customWidth={customWidth}
       header={{
         title: headerTitle,
         subtitle: headerSubtitle,
