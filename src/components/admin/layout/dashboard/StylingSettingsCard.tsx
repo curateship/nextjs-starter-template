@@ -24,7 +24,7 @@ interface StylingSettingsCardProps {
   onSecondaryFontFamilyChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
   onSiteWidthChange?: (value: 'full' | 'custom') => void
-  onCustomWidthChange?: (value: number) => void
+  onCustomWidthChange?: (value: number | undefined) => void
 }
 
 export function StylingSettingsCard({
@@ -121,7 +121,6 @@ export function StylingSettingsCard({
           {/* Font Selectors - Two Column Layout */}
           {(onFontFamilyChange || onSecondaryFontFamilyChange) && (
             <div className="space-y-2">
-              <h3 className="text-sm font-medium text-gray-700">Typography</h3>
               <div className="grid grid-cols-2 gap-4">
                 {onFontFamilyChange && (
                   <FontSelector
@@ -158,14 +157,18 @@ export function StylingSettingsCard({
                       type="number"
                       min="320"
                       max="2560"
-                      value={customWidth || ''}
+                      value={siteWidth === 'full' ? '' : customWidth || ''}
                       onChange={(e) => {
                         const value = e.target.value
-                        if (value === '') {
-                          onCustomWidthChange(1152) // Default to 1152 instead of undefined
+                        if (value === '' || value === '0') {
+                          onSiteWidthChange('full')
+                          onCustomWidthChange(0)
                         } else {
                           const numValue = parseInt(value)
-                          onCustomWidthChange(isNaN(numValue) ? 1152 : numValue)
+                          if (!isNaN(numValue) && numValue > 0) {
+                            onSiteWidthChange('custom')
+                            onCustomWidthChange(numValue)
+                          }
                         }
                       }}
                       placeholder="1152"
@@ -185,11 +188,6 @@ export function StylingSettingsCard({
                 </div>
               </div>
               
-              {siteWidth !== 'full' && (
-                <p className="text-xs text-muted-foreground">
-                  Default: 1152px • Range: 320px - 2560px
-                </p>
-              )}
             </div>
           )}
 
