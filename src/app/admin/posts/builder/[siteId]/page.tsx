@@ -285,8 +285,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             site={{
               id: siteId,
               name: site?.name || 'Post Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
+              subdomain: site?.subdomain || 'preview'
             }}
             siteBlocks={{
               navigation: site?.settings?.navigation,

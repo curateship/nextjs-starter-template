@@ -73,7 +73,7 @@ export default function EventsPage() {
           setError(eventsError)
           setEvents([])
         } else {
-          setEvents(eventsData)
+          setEvents(eventsData || [])
         }
       } catch (err) {
         setError('An unexpected error occurred')

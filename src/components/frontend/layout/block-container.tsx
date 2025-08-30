@@ -15,7 +15,7 @@ interface BlockContainerProps {
   }
   // Animation props
   animated?: boolean
-  animationPreset?: 'fade' | 'slide' | 'scale' | 'blur' | 'blur-slide' | 'zoom' | 'flip' | 'bounce' | 'rotate' | 'swing'
+  animationPreset?: 'fade' | 'slide' | 'scale' | 'blur' | 'blur-slide'
   customAnimationSettings?: Partial<AnimationSettings>
 }
 
