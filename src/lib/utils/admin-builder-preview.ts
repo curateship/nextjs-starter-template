@@ -66,8 +66,6 @@ export function createPreviewSite(
     name: site?.name || 'Preview Site',
     subdomain: site?.subdomain || 'preview',
     custom_domain: null,
-    theme_id: 'default',
-    theme_name: 'Default Theme',
     settings: site?.settings || {},
     blocks: transformAdminBlocksToFrontend(allBlocks)
   }

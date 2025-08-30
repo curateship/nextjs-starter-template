@@ -245,7 +245,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         >
           {/* Custom Header with ViewAll Button */}
           <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : headerAlign === 'right' ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
+            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
               <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
                 {title && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
@@ -299,7 +299,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         >
           {/* Custom Header with ViewAll Button */}
           <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : headerAlign === 'right' ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
+            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
               <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
                 {title && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
@@ -340,7 +340,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
       >
         {/* Custom Header with ViewAll Button */}
         <div className="mb-12">
-          <div className={`${headerAlign === 'left' ? 'text-left' : headerAlign === 'right' ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
+          <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
             <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
               {title && (
                 <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>

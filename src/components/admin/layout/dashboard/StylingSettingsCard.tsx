@@ -162,10 +162,10 @@ export function StylingSettingsCard({
                       onChange={(e) => {
                         const value = e.target.value
                         if (value === '') {
-                          onCustomWidthChange(undefined)
+                          onCustomWidthChange(1152) // Default to 1152 instead of undefined
                         } else {
                           const numValue = parseInt(value)
-                          onCustomWidthChange(isNaN(numValue) ? undefined : numValue)
+                          onCustomWidthChange(isNaN(numValue) ? 1152 : numValue)
                         }
                       }}
                       placeholder="1152"

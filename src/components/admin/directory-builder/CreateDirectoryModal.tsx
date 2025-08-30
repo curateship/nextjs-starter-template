@@ -308,7 +308,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           handleImageChange(imageUrl)
           setShowImagePicker(false)
         }}
-        currentImage={featuredImage || ''}
+        currentImageUrl={featuredImage || ''}
       />
     </form>
   )
