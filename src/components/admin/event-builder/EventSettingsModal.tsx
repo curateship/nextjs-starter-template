@@ -4,47 +4,54 @@ import { useState, useEffect } from "react"
 import { 
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogPortal,
+  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
-import { ImageIcon, X, CheckCircle, Check } from "lucide-react"
+import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { updatePostAction } from "@/lib/actions/posts/post-actions"
-import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { updateEventAction } from "@/lib/actions/events/event-actions"
+import type { Event } from "@/lib/actions/events/event-actions"
 
-interface PostSettingsModalProps {
+interface EventSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  post: Post | null
-  site: SiteWithTheme | null
-  onSuccess?: (updatedPost: Post) => void
+  event: Event | null
+  site: any | null
+  onSuccess?: (updatedEvent: Event) => void
 }
 
-export function PostSettingsModal({ 
+export function EventSettingsModal({ 
   open, 
   onOpenChange, 
-  post, 
+  event, 
   site,
   onSuccess 
-}: PostSettingsModalProps) {
-  const [formData, setFormData] = useState<UpdatePostData>({})
+}: EventSettingsModalProps) {
+  const [formData, setFormData] = useState({
+    title: '',
+    slug: '',
+    description: '',
+    meta_description: ''
+  })
+  const [richTextContent, setRichTextContent] = useState('')
+  const [featuredImage, setFeaturedImage] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
-  const [extractedContent, setExtractedContent] = useState('')
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -58,7 +65,6 @@ export function PostSettingsModal({
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
-    setIsSaved(false)
     setFormData(prev => ({
       ...prev,
       title,
@@ -68,7 +74,6 @@ export function PostSettingsModal({
 
   // Handle manual slug changes
   const handleSlugChange = (slug: string) => {
-    setIsSaved(false)
     if (slug === '') {
       // If user clears the field, reset to auto-generation
       setSlugManuallyEdited(false)
@@ -79,80 +84,57 @@ export function PostSettingsModal({
     }
   }
 
-  // Handle featured image changes
-  const handleImageChange = async (newImageUrl: string) => {
-    setIsSaved(false)
-    setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
+  const handleImageChange = (imageUrl: string) => {
+    setFeaturedImage(imageUrl)
   }
 
-  // Handle removing the featured image
-  const handleRemoveImage = async () => {
-    setIsSaved(false)
-    setFormData(prev => ({ ...prev, featured_image: '' }))
+  const handleRemoveImage = () => {
+    setFeaturedImage('')
   }
 
-
-  // Initialize form data when post changes
+  // Initialize form data
   useEffect(() => {
-    if (post) {
-      // Extract content from content_blocks structure
-      let content = ''
-      if (post.content_blocks && typeof post.content_blocks === 'object') {
-        const blocks = Object.values(post.content_blocks)
-        const firstBlock = blocks.find((block: any) => block.type === 'rich-text')
-        if (firstBlock && firstBlock.content) {
-          content = firstBlock.content.body || firstBlock.content.text || ''
-        }
-      }
-      setExtractedContent(content)
-      
+    if (event) {
       setFormData({
-        title: post.title,
-        slug: post.slug,
-        meta_description: post.meta_description || '',
-        featured_image: post.featured_image || '',
-        excerpt: post.excerpt || '',
-        is_published: post.is_published
+        title: event.title || '',
+        slug: event.slug || '',
+        description: event.description || '',
+        meta_description: event.meta_description || ''
       })
-      
-      // Check if slug was manually edited (different from auto-generated)
-      const autoGeneratedSlug = generateSlug(post.title)
-      setSlugManuallyEdited(post.slug !== autoGeneratedSlug)
-      
-      // Only reset error state, preserve success message if it exists
-      setError(null)
-      // Don't reset saveMessage here as it clears the success message after save
+      setFeaturedImage(event.featured_image || '')
+      setIsPrivate(event.content_blocks?._settings?.is_private === true)
+      setRichTextContent(event.description || '')
+      setSlugManuallyEdited(false)
     }
-  }, [post])
+  }, [event])
 
-  // Clear messages when modal is closed
-  useEffect(() => {
-    if (!open) {
-      setSaveMessage(null)
-      setError(null)
-    }
-  }, [open])
-
-
-  // Handle saving as draft
+  // Save as draft
   const handleSaveDraft = async () => {
-    if (!formData.title?.trim()) {
-      setError('Post title is required')
-      return
-    }
-
-    if (!post) {
-      setError('No post selected')
-      return
-    }
+    if (!event) return
 
     try {
       setSaving(true)
       setError(null)
       setSaveMessage(null)
       
-      const draftData = { ...formData, is_published: false }
-      const { data, error: actionError } = await updatePostAction(post.id, draftData)
+      // Update content_blocks with is_private setting and rich text
+      const updatedContentBlocks = {
+        ...event.content_blocks,
+        _settings: {
+          ...event.content_blocks?._settings,
+          is_private: isPrivate
+        }
+      }
+
+      
+      const draftData = { 
+        ...formData, 
+        description: richTextContent || null,
+        is_published: false,
+        featured_image: featuredImage || null,
+        content_blocks: updatedContentBlocks
+      }
+      const { data, error: actionError } = await updateEventAction(event.id, draftData)
       
       if (actionError) {
         setError(actionError)
@@ -160,46 +142,52 @@ export function PostSettingsModal({
       }
       
       if (data) {
-        setSaveMessage('Post saved as draft')
-        setLastSavedAt(new Date())
-        setIsSaved(true)
+        setSaveMessage('Event saved as draft successfully!')
         
-        // Call success callback
+        // Call success callback with updated event
         if (onSuccess) {
           onSuccess(data)
         }
         
-        // Clear success message after 3 seconds
+        // Clear success message after 3 seconds but keep modal open
         setTimeout(() => {
           setSaveMessage(null)
         }, 3000)
       }
     } catch (err) {
-      setError('Failed to save post as draft')
+      setError('Failed to save event')
     } finally {
       setSaving(false)
     }
   }
 
-  // Handle publishing
+  // Publish event
   const handlePublish = async () => {
-    if (!formData.title?.trim()) {
-      setError('Post title is required')
-      return
-    }
-
-    if (!post) {
-      setError('No post selected')
-      return
-    }
+    if (!event) return
 
     try {
       setSaving(true)
       setError(null)
       setSaveMessage(null)
       
-      const publishData = { ...formData, is_published: true }
-      const { data, error: actionError } = await updatePostAction(post.id, publishData)
+      // Update content_blocks with is_private setting and rich text
+      const updatedContentBlocks = {
+        ...event.content_blocks,
+        _settings: {
+          ...event.content_blocks?._settings,
+          is_private: isPrivate
+        }
+      }
+
+      
+      const publishData = { 
+        ...formData, 
+        description: richTextContent || null,
+        is_published: true,
+        featured_image: featuredImage || null,
+        content_blocks: updatedContentBlocks
+      }
+      const { data, error: actionError } = await updateEventAction(event.id, publishData)
       
       if (actionError) {
         setError(actionError)
@@ -207,25 +195,20 @@ export function PostSettingsModal({
       }
       
       if (data) {
-        setSaveMessage(post?.is_published ? 'Post updated' : 'Post published')
-        setLastSavedAt(new Date())
-        setIsSaved(true)
+        setSaveMessage(event?.is_published ? 'Event saved successfully!' : 'Event published successfully!')
         
-        // Update the form data to reflect the new published state
-        setFormData(prev => ({ ...prev, is_published: true }))
-        
-        // Call success callback
+        // Call success callback with updated event
         if (onSuccess) {
           onSuccess(data)
         }
         
-        // Clear success message after 3 seconds
+        // Clear success message after 3 seconds but keep modal open
         setTimeout(() => {
           setSaveMessage(null)
         }, 3000)
       }
     } catch (err) {
-      setError('Failed to publish post')
+      setError('Failed to publish event')
     } finally {
       setSaving(false)
     }
@@ -237,7 +220,7 @@ export function PostSettingsModal({
     await handleSaveDraft()
   }
 
-  if (!post) {
+  if (!event) {
     return null
   }
 
@@ -253,19 +236,19 @@ export function PostSettingsModal({
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
-            <DialogHeader className="mb-6">
-              <DialogTitle className="flex items-center gap-3">
-                Configure settings for &quot;{post.title}&quot;
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    post?.is_published ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
-                  <span className="text-sm font-medium">
-                    {post?.is_published ? 'Published' : 'Draft'}
-                  </span>
-                </div>
-              </DialogTitle>
-            </DialogHeader>
+        <DialogHeader className="mb-6">
+          <DialogTitle className="flex items-center gap-3">
+            Configure settings for &quot;{event.title}&quot;
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                event?.is_published ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span className="text-sm font-medium">
+                {event?.is_published ? 'Published' : 'Draft'}
+              </span>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -273,34 +256,36 @@ export function PostSettingsModal({
           </div>
         )}
 
-
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
+              <CardDescription>
+                Configure the basic settings for this event
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Post Title */}
+              {/* Event Title */}
               <div className="space-y-2">
-                <Label htmlFor="modal-title">Post Title *</Label>
+                <Label htmlFor="modal-title">Event Title *</Label>
                 <Input
                   id="modal-title"
                   value={formData.title || ''}
                   onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter post title"
+                  placeholder="Enter event title"
                   required
                 />
               </div>
 
-              {/* Post Slug */}
+              {/* Event Slug */}
               <div className="space-y-2">
-                <Label htmlFor="modal-slug">Post URL</Label>
+                <Label htmlFor="modal-slug">Event URL</Label>
                 <Input
                   id="modal-slug"
                   value={formData.slug || ''}
                   onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="post-url-slug"
+                  placeholder="event-url-slug"
                 />
                 <p className="text-xs text-muted-foreground">
                   {slugManuallyEdited 
@@ -313,10 +298,10 @@ export function PostSettingsModal({
               <div className="space-y-2">
                 <Label htmlFor="featured_image">Featured Image</Label>
                 <div className="mt-2">
-                  {formData.featured_image ? (
+                  {featuredImage ? (
                     <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
                       <img 
-                        src={formData.featured_image} 
+                        src={featuredImage} 
                         alt="Featured image preview" 
                         className="w-full h-full object-cover"
                       />
@@ -350,71 +335,65 @@ export function PostSettingsModal({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Optional featured image for this post
+                  Optional featured image for this event
                 </p>
               </div>
 
-              {/* Post Excerpt */}
+              {/* Privacy Settings */}
               <div className="space-y-2">
-                <Label htmlFor="excerpt">Post Excerpt</Label>
-                <Input
-                  id="excerpt"
-                  value={formData.excerpt || ''}
-                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, excerpt: e.target.value })); }}
-                  placeholder="A brief summary of your post content"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Brief summary shown in post listings and previews
-                </p>
+                <Label>Privacy Settings</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="modal-is-private"
+                    checked={isPrivate}
+                    onCheckedChange={(checked) => {
+                      setIsPrivate(!!checked)
+                    }}
+                  />
+                  <Label htmlFor="modal-is-private" className="text-sm font-normal">
+                    Private (accessible only via direct URL, hidden from event listings)
+                  </Label>
+                </div>
               </div>
 
-              {/* Post Content */}
+              {/* Rich Text Content */}
               <div className="space-y-2">
-                <Label htmlFor="content">Post Content</Label>
+                <Label htmlFor="rich_text">Event Description</Label>
                 <PageRichTextEditorBlock
                   content={{
-                    content: extractedContent || '',
+                    content: richTextContent,
                     hideHeader: true,
                     hideEditorHeader: true
                   }}
-                  onContentChange={(content) => { setIsSaved(false); setExtractedContent(content.content); }}
+                  onContentChange={(content) => {
+                    setRichTextContent(content.content)
+                  }}
                   compact={true}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Rich text content for the post body
+                  Rich text content for the event description (will be saved as an event block)
+                </p>
+              </div>
+
+              {/* Meta Description */}
+              <div className="space-y-2">
+                <Label htmlFor="meta_description">Meta Description</Label>
+                <Textarea
+                  id="meta_description"
+                  value={formData.meta_description}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, meta_description: e.target.value }))
+                  }}
+                  placeholder="SEO meta description"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
                 </p>
               </div>
                 
             </CardContent>
           </Card>
-
-          {/* SEO Settings */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>SEO Settings</CardTitle>
-              <CardDescription>
-                Optimize this post for search engines
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Meta Description */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-meta_description">Meta Description</Label>
-                <Input
-                  id="modal-meta_description"
-                  value={formData.meta_description || ''}
-                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, meta_description: e.target.value })); }}
-                  placeholder="A brief description of this post for search engines"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
-                </p>
-              </div>
-
-            </CardContent>
-          </Card>
-
-
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">
@@ -428,9 +407,9 @@ export function PostSettingsModal({
             </Button>
             <div className="flex items-center space-x-2">
               {saveMessage && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
+                <div className="flex items-center space-x-1 text-green-600">
+                  <Check className="h-4 w-4" />
+                  <span className="text-sm font-medium">{saveMessage}</span>
                 </div>
               )}
               <Button 
@@ -438,14 +417,14 @@ export function PostSettingsModal({
                 variant="outline"
                 disabled={saving}
               >
-                {saving ? "Saving..." : "Save as Draft"}
+                {saving ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button 
                 type="button" 
                 onClick={handlePublish}
                 disabled={saving}
               >
-                {saving ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
+                {saving ? 'Saving...' : event?.is_published ? 'Save' : 'Publish'}
               </Button>
             </div>
           </div>
@@ -459,7 +438,7 @@ export function PostSettingsModal({
             handleImageChange(imageUrl)
             setShowImagePicker(false)
           }}
-          currentImageUrl={formData.featured_image || ''}
+          currentImageUrl={featuredImage || ''}
         />
           </div>
         </div>
