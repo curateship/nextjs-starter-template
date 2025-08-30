@@ -259,7 +259,7 @@ export default function ImagesPage() {
                       src={image.public_url}
                       alt={image.alt_text || image.original_name}
                       fill
-                      className="object-cover"
+                      className="object-contain"
                       sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -297,7 +297,7 @@ export default function ImagesPage() {
                         src={image.public_url}
                         alt={image.alt_text || image.original_name}
                         fill
-                        className="object-cover"
+                        className="object-contain"
                         sizes="64px"
                       />
                     </div>

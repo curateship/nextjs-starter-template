@@ -225,12 +225,12 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                 
                 <div className="flex gap-4">
                   {uploadPreview && (
-                    <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white border">
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-muted border">
                       <Image
                         src={uploadPreview}
                         alt="Upload preview"
                         fill
-                        className="object-cover"
+                        className="object-contain"
                         sizes="96px"
                       />
                     </div>
@@ -307,7 +307,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                       <div
                         key={image.id}
                         className={`
-                          relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all
+                          relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all bg-muted
                           ${selectedImage?.id === image.id 
                             ? 'border-primary ring-2 ring-primary/20' 
                             : 'border-transparent hover:border-muted-foreground/20'
@@ -320,7 +320,7 @@ export function ImagePicker({ open, onOpenChange, onSelectImage, currentImageUrl
                           src={image.public_url}
                           alt={image.alt_text || image.original_name}
                           fill
-                          className="object-cover"
+                          className="object-contain"
                           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                         />
                         {currentImageUrl === image.public_url && (
