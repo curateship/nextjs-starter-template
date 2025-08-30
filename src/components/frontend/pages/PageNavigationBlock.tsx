@@ -36,6 +36,8 @@ interface NavBlockProps {
     backgroundColor: string;
     textColor: string;
     blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
+    containerWidth?: 'full' | 'custom';
+    customWidth?: number;
   };
 }
 
@@ -330,6 +332,25 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
     return "/"
   }
 
+  // Get navigation container styles
+  const getNavContainerClass = () => {
+    if (style?.containerWidth === 'full') {
+      return 'w-full px-4 md:px-6'
+    }
+    return 'mx-auto w-full px-4 md:px-6'
+  }
+
+  const getNavContainerStyle = () => {
+    if (style?.containerWidth === 'full') {
+      return undefined // No max-width for full width
+    }
+    if (style?.containerWidth === 'custom' && style.customWidth) {
+      return { maxWidth: `${style.customWidth}px` }
+    }
+    // Default navigation width (can be different from site width)
+    return { maxWidth: '1152px' }
+  }
+
   return (
     <header>
       <nav
@@ -344,7 +365,10 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
           backgroundColor: mounted && scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
         } : undefined}
       >
-        <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
+        <div 
+          className={getNavContainerClass()} 
+          style={getNavContainerStyle()}
+        >
           <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
             
             {/* Logo and navigation */}

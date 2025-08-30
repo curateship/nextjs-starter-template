@@ -20,7 +20,13 @@ interface SiteLayoutProps {
     logoUrl?: string
     links?: Array<{ text: string; url: string }>
     buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>
-    style?: { backgroundColor: string; textColor: string }
+    style?: { 
+      backgroundColor: string
+      textColor: string
+      containerWidth?: 'full' | 'custom'
+      customWidth?: number
+      [key: string]: any // Allow additional properties to pass through
+    }
   }
   footer?: {
     logo?: string

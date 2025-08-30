@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -46,6 +48,8 @@ interface NavigationStyle {
   backgroundColor: string
   textColor: string
   blurEffect: 'none' | 'light' | 'medium' | 'heavy'
+  containerWidth?: 'full' | 'custom'
+  customWidth?: number
 }
 
 interface NavigationBlockProps {
@@ -235,7 +239,7 @@ export function PageNavigationBlock({
   logoUrl,
   links = [],
   buttons = [],
-  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none' },
+  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152 },
   onLogoChange,
   onLogoUrlChange,
   onLinksChange,
@@ -299,7 +303,7 @@ export function PageNavigationBlock({
     onLinksChange(newLinks)
   }
 
-  const updateStyle = (field: keyof NavigationStyle, value: string) => {
+  const updateStyle = (field: keyof NavigationStyle, value: string | number | undefined) => {
     onStyleChange({ ...style, [field]: value })
   }
 
@@ -596,6 +600,59 @@ export function PageNavigationBlock({
                 />
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Navigation Width Settings Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Navigation Width</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-700">
+              Navigation Container Width
+            </label>
+            
+            <div className="flex items-center gap-3">
+              {style.containerWidth !== 'full' && (
+                <div className="w-32">
+                  <Input
+                    type="number"
+                    min="320"
+                    max="2560"
+                    value={style.customWidth || ''}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === '') {
+                        updateStyle('customWidth', undefined)
+                      } else {
+                        const numValue = parseInt(value)
+                        updateStyle('customWidth', isNaN(numValue) ? undefined : numValue)
+                      }
+                    }}
+                    placeholder="1152"
+                  />
+                </div>
+              )}
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={style.containerWidth === 'full'}
+                  onCheckedChange={(checked) => updateStyle('containerWidth', checked ? 'full' : 'custom')}
+                />
+                <Label className="text-sm">
+                  Full Width
+                </Label>
+              </div>
+            </div>
+            
+            {style.containerWidth !== 'full' && (
+              <p className="text-xs text-muted-foreground">
+                Default: 1152px • Range: 320px - 2560px • Navigation content will be contained within this width
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
