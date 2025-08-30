@@ -8,11 +8,11 @@ import {
   Users,
   Palette,
   Image,
-  Wrench,
   FileText,
   Package,
   BookOpen,
   Settings,
+  FolderOpen,
 } from "lucide-react"
 
 import { NavMain } from "@/components/admin/layout/sidebar/NavMain"
@@ -85,6 +85,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Products",
       url: "/admin/products",
       icon: Package,
+      isActive: false,
+    },
+    {
+      title: "Directory",
+      url: "/admin/directories",
+      icon: FolderOpen,
       isActive: false,
     },
     {
