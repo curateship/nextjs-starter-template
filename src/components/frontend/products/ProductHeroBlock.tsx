@@ -388,20 +388,20 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
           />
           <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
             <Image
-              className="bg-background relative hidden h-auto w-full rounded-2xl object-cover dark:block"
+              className="bg-background relative hidden rounded-2xl object-cover dark:block"
               src={heroImage}
               alt="app screen"
               width={1100}
               height={675}
-              style={{ width: '100%', height: 'auto' }}
+              style={{ width: '1100px', height: 'auto' }}
             />
             <Image
-              className="z-2 relative h-auto w-full rounded-2xl object-cover dark:hidden"
+              className="z-2 relative rounded-2xl object-cover dark:hidden"
               src={heroImage}
               alt="app screen"
               width={1100}
               height={675}
-              style={{ width: '100%', height: 'auto' }}
+              style={{ width: '1100px', height: 'auto' }}
             />
           </div>
         </div>

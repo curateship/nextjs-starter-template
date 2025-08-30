@@ -89,7 +89,7 @@ export function ImageBlock({
               <img
                 src={imagePreview}
                 alt="Image preview"
-                className="w-full max-h-96 object-contain rounded-lg border bg-muted/50"
+                className="w-full max-h-96 object-contain rounded-lg border bg-muted"
               />
               <Button
                 type="button"
