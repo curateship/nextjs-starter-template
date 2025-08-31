@@ -230,7 +230,7 @@ export default function EventsPage() {
                   <h3 className="text-lg font-semibold">Events List</h3>
                   <div className="text-sm text-muted-foreground mt-1">
                     {loading ? (
-                      <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
                     ) : (
                       `${filteredEvents.length} ${filteredEvents.length !== 1 ? 'events' : 'event'} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' : 
                         `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
@@ -326,13 +326,13 @@ export default function EventsPage() {
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
-                          <div className="w-16 h-16 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="w-16 h-16 bg-muted rounded animate-pulse"></div>
                           <div className="space-y-2">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse w-48"></div>
-                            <div className="h-3 bg-gray-200 rounded animate-pulse w-32"></div>
+                            <div className="h-4 bg-muted rounded animate-pulse w-48"></div>
+                            <div className="h-3 bg-muted rounded animate-pulse w-32"></div>
                           </div>
                         </div>
-                        <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
                       </div>
                     ))}
                   </div>

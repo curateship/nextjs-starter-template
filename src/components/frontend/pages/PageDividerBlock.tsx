@@ -73,7 +73,7 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
         <div 
           className={cn(
             "border-t w-full",
-            !lineColor && "border-gray-200 dark:border-gray-700"
+            !lineColor && "border-muted"
           )}
           style={{
             borderTopStyle: lineStyles[lineStyle || 'solid'],

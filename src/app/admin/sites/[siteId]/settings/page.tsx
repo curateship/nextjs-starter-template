@@ -160,8 +160,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             <div className="space-y-6">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
-                  <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                  <div className="h-10 bg-muted/60 rounded animate-pulse"></div>
                 </div>
               ))}
             </div>

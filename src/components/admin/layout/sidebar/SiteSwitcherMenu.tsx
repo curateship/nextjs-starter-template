@@ -32,11 +32,11 @@ export function SiteSwitcherMenu() {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" disabled>
-            <div className="bg-gray-200 flex aspect-square size-8 items-center justify-center rounded-lg animate-pulse">
+            <div className="bg-muted flex aspect-square size-8 items-center justify-center rounded-lg animate-pulse">
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <div className="h-4 bg-gray-200 rounded animate-pulse mb-1 w-24"></div>
-              <div className="h-3 bg-gray-100 rounded animate-pulse w-16"></div>
+              <div className="h-4 bg-muted rounded animate-pulse mb-1 w-24"></div>
+              <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
