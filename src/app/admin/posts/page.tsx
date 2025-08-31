@@ -217,7 +217,7 @@ export default function PostsPage() {
                   <h3 className="text-lg font-semibold">Posts List</h3>
                   <div className="text-sm text-muted-foreground mt-1">
                     {loading ? (
-                      <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
                     ) : (
                       `${filteredPosts.length} post${filteredPosts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
                     )}
@@ -290,23 +290,23 @@ export default function PostsPage() {
                       <div className="grid grid-cols-5 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                             <div>
-                              <div className="h-4 bg-gray-200 rounded animate-pulse mb-2 w-32"></div>
-                              <div className="h-3 bg-gray-100 rounded animate-pulse w-24"></div>
+                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
+                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
                             </div>
                           </div>
                         </div>
                         <div>
-                          <div className="h-6 bg-gray-200 rounded-full animate-pulse w-20"></div>
+                          <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
                         </div>
                         <div>
-                          <div className="h-3 bg-gray-100 rounded animate-pulse w-16"></div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                            <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
                           </div>
                         </div>
                       </div>
