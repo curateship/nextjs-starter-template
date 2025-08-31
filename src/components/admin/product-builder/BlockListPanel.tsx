@@ -88,8 +88,8 @@ function SortableProductBlockItem({
       style={style}
       className={`border rounded-lg p-4 transition-colors cursor-pointer ${
         selectedBlock?.id === block.id
-          ? 'border-gray-300 bg-gray-50 shadow-sm'
-          : 'border-border hover:border-gray-300 opacity-60 hover:opacity-90'
+          ? 'border-primary bg-muted shadow-sm'
+          : 'border-border hover:border-muted-foreground opacity-60 hover:opacity-90'
       }`}
       onClick={() => onSelectBlock(block)}
     >
@@ -98,7 +98,7 @@ function SortableProductBlockItem({
           <div
             {...attributes}
             {...listeners}
-            className="flex items-center justify-center w-8 h-8 rounded text-muted-foreground hover:text-foreground hover:bg-gray-100 cursor-grab active:cursor-grabbing"
+            className="flex items-center justify-center w-8 h-8 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-4 h-4 pointer-events-none" />
           </div>
@@ -223,7 +223,7 @@ export function BlockListPanel({
         <div className="max-w-3xl mx-auto">
           {blocksLoading ? (
             <div className="mb-6">
-              <div className="h-7 bg-gray-200 rounded animate-pulse w-1/2"></div>
+              <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
             </div>
           ) : (
             <h2 className="text-xl font-semibold mb-6">
@@ -237,12 +237,12 @@ export function BlockListPanel({
               {[1, 2, 3].map((i) => (
                 <div key={i} className="p-4 border rounded-lg">
                   <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="w-6 h-6 bg-muted rounded animate-pulse"></div>
                     <div className="flex-1">
-                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
-                      <div className="h-3 bg-gray-100 rounded animate-pulse w-2/3"></div>
+                      <div className="h-4 bg-muted rounded animate-pulse mb-2"></div>
+                      <div className="h-3 bg-muted/50 rounded animate-pulse w-2/3"></div>
                     </div>
-                    <div className="w-8 h-8 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="w-8 h-8 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
               ))}

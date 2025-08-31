@@ -62,7 +62,7 @@ export function BlockPropertiesPanel({
                   'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
                   'githubLink', 'showParticles', 'trustedByText', 
                   'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-                  'backgroundPatternOpacity', 'backgroundPatternColor', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
+                  'backgroundPatternOpacity', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
                 ]) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}

@@ -35,7 +35,7 @@ const BackgroundPattern = ({
 
   const patternSize = getPatternSize(size);
   const patternOpacity = getPatternOpacity(opacity);
-  const patternColor = color || '#a3a3a3';
+  const patternColor = color || '#94a3b8';
 
   if (pattern === 'grid') {
     return (
@@ -101,7 +101,6 @@ interface PageHeroBlockProps {
   backgroundPattern?: string;
   backgroundPatternSize?: string;
   backgroundPatternOpacity?: number;
-  backgroundPatternColor?: string;
   heroImage?: string;
 }
 
@@ -145,7 +144,6 @@ const PageHeroBlock = ({
   backgroundPattern,
   backgroundPatternSize,
   backgroundPatternOpacity,
-  backgroundPatternColor,
   heroImage
 }: PageHeroBlockProps) => {
   return (
@@ -157,7 +155,6 @@ const PageHeroBlock = ({
           pattern={backgroundPattern || 'dots'}
           size={backgroundPatternSize || 'medium'}
           opacity={backgroundPatternOpacity || 80}
-          color={backgroundPatternColor || '#a3a3a3'}
         />
         
         {/* Gradient overlays that only affect the background pattern */}
