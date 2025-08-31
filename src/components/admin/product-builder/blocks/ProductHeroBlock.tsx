@@ -49,7 +49,6 @@ interface ProductHeroBlockProps {
   backgroundPattern: string
   backgroundPatternSize: string
   backgroundPatternOpacity: number
-  backgroundPatternColor: string
   heroImage: string
   showHeroImage: boolean
   showTrustedByBadge: boolean
@@ -72,7 +71,6 @@ interface ProductHeroBlockProps {
   onBackgroundPatternChange: (value: string) => void
   onBackgroundPatternSizeChange: (value: string) => void
   onBackgroundPatternOpacityChange: (value: number) => void
-  onBackgroundPatternColorChange: (value: string) => void
   onHeroImageChange: (value: string) => void
   onShowHeroImageChange: (value: boolean) => void
   onShowTrustedByBadgeChange: (value: boolean) => void
@@ -226,7 +224,6 @@ export function ProductHeroBlock({
   backgroundPattern,
   backgroundPatternSize,
   backgroundPatternOpacity,
-  backgroundPatternColor,
   heroImage,
   showHeroImage,
   showTrustedByBadge,
@@ -249,7 +246,6 @@ export function ProductHeroBlock({
   onBackgroundPatternChange,
   onBackgroundPatternSizeChange,
   onBackgroundPatternOpacityChange,
-  onBackgroundPatternColorChange,
   onHeroImageChange,
   onShowHeroImageChange,
   onShowTrustedByBadgeChange,
@@ -590,7 +586,7 @@ export function ProductHeroBlock({
           <CardTitle className="text-base">Background Pattern</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label className="text-xs">Pattern Type</Label>
               <Select
@@ -644,24 +640,6 @@ export function ProductHeroBlock({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs">Color</Label>
-                  <div className="flex items-center space-x-1">
-                    <input
-                      type="color"
-                      value={backgroundPatternColor || '#a3a3a3'}
-                      onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                      className="w-9 h-9 rounded border cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={backgroundPatternColor || '#a3a3a3'}
-                      onChange={(e) => onBackgroundPatternColorChange(e.target.value)}
-                      className="px-2 py-1 border rounded text-xs flex-1"
-                      placeholder="#a3a3a3"
-                    />
-                  </div>
-                </div>
               </>
             )}
           </div>

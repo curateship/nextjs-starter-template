@@ -94,7 +94,6 @@ export function BlockPropertiesPanel({
                 backgroundPattern={selectedBlock.content.backgroundPattern || 'dots'}
                 backgroundPatternSize={selectedBlock.content.backgroundPatternSize || 'medium'}
                 backgroundPatternOpacity={selectedBlock.content.backgroundPatternOpacity || 80}
-                backgroundPatternColor={selectedBlock.content.backgroundPatternColor || '#a3a3a3'}
                 heroImage={selectedBlock.content.heroImage || ''}
                 showHeroImage={selectedBlock.content.showHeroImage || false}
                 showTrustedByBadge={selectedBlock.content.showTrustedByBadge ?? true}
@@ -117,7 +116,6 @@ export function BlockPropertiesPanel({
                 onBackgroundPatternChange={(value) => updateBlockContent('backgroundPattern', value)}
                 onBackgroundPatternSizeChange={(value) => updateBlockContent('backgroundPatternSize', value)}
                 onBackgroundPatternOpacityChange={(value) => updateBlockContent('backgroundPatternOpacity', value)}
-                onBackgroundPatternColorChange={(value) => updateBlockContent('backgroundPatternColor', value)}
                 onHeroImageChange={(value) => updateBlockContent('heroImage', value)}
                 onShowHeroImageChange={(value) => updateBlockContent('showHeroImage', value)}
                 onShowTrustedByBadgeChange={(value) => updateBlockContent('showTrustedByBadge', value)}
