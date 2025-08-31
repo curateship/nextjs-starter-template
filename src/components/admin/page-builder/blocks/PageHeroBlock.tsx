@@ -110,14 +110,12 @@ interface PageHeroBlockProps {
   secondaryButtonLink?: string
   primaryButtonStyle?: 'primary' | 'outline' | 'ghost'
   secondaryButtonStyle?: 'primary' | 'outline' | 'ghost'
-  backgroundColor?: string
   showRainbowButton?: boolean
   rainbowButtonText?: string
   rainbowButtonIcon?: string
   githubLink?: string
   showParticles?: boolean
   trustedByText?: string
-  trustedByTextColor?: string
   trustedByCount?: string
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string; id?: string }>
   backgroundPattern?: string
@@ -135,14 +133,12 @@ interface PageHeroBlockProps {
   onSecondaryButtonLinkChange: (value: string) => void
   onPrimaryButtonStyleChange: (value: 'primary' | 'outline' | 'ghost') => void
   onSecondaryButtonStyleChange: (value: 'primary' | 'outline' | 'ghost') => void
-  onBackgroundColorChange: (value: string) => void
   onShowRainbowButtonChange: (value: boolean) => void
   onRainbowButtonTextChange: (value: string) => void
   onRainbowButtonIconChange: (value: string) => void
   onGithubLinkChange: (value: string) => void
   onShowParticlesChange: (value: boolean) => void
   onTrustedByTextChange: (value: string) => void
-  onTrustedByTextColorChange: (value: string) => void
   onTrustedByCountChange: (value: string) => void
   onTrustedByAvatarsChange: (avatars: Array<{ src: string; alt: string; fallback: string; id?: string }>) => void
   onBackgroundPatternChange: (value: string) => void
@@ -219,14 +215,12 @@ export function PageHeroBlock({
   secondaryButtonLink = "",
   primaryButtonStyle = "primary",
   secondaryButtonStyle = "outline",
-  backgroundColor = "#ffffff",
   showRainbowButton = false,
   rainbowButtonText = "",
   rainbowButtonIcon = "star",
   githubLink = "",
   showParticles = false,
   trustedByText = "",
-  trustedByTextColor = "#6B7280",
   trustedByCount = "",
   trustedByAvatars = [],
   backgroundPattern = "none",
@@ -244,14 +238,12 @@ export function PageHeroBlock({
   onSecondaryButtonLinkChange,
   onPrimaryButtonStyleChange,
   onSecondaryButtonStyleChange,
-  onBackgroundColorChange,
   onShowRainbowButtonChange,
   onRainbowButtonTextChange,
   onRainbowButtonIconChange,
   onGithubLinkChange,
   onShowParticlesChange,
   onTrustedByTextChange,
-  onTrustedByTextColorChange,
   onTrustedByCountChange,
   onTrustedByAvatarsChange,
   onBackgroundPatternChange,
@@ -486,24 +478,6 @@ export function PageHeroBlock({
                   onChange={(e) => onTrustedByTextChange(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md mt-1"
                   placeholder="Badge text (e.g., 'Trusted by developers')"
-                />
-              </div>
-              <div className="flex flex-col items-center">
-                <Label className="text-xs">Text Color</Label>
-                <input
-                  type="color"
-                  value={trustedByTextColor}
-                  onChange={(e) => onTrustedByTextColorChange(e.target.value)}
-                  className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1 mt-1"
-                />
-              </div>
-              <div className="flex flex-col items-center">
-                <Label className="text-xs">BG Color</Label>
-                <input
-                  type="color"
-                  value={backgroundColor}
-                  onChange={(e) => onBackgroundColorChange(e.target.value)}
-                  className="w-12 h-10 rounded cursor-pointer shadow-sm border-0 p-1 mt-1"
                 />
               </div>
             </div>

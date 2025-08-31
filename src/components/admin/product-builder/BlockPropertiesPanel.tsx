@@ -79,14 +79,12 @@ export function BlockPropertiesPanel({
                 secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
                 primaryButtonStyle={selectedBlock.content.primaryButtonStyle || 'primary'}
                 secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
-                backgroundColor={selectedBlock.content.backgroundColor || '#ffffff'}
                 showRainbowButton={selectedBlock.content.showRainbowButton || false}
                 rainbowButtonText={selectedBlock.content.rainbowButtonText || ''}
                 rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
                 githubLink={selectedBlock.content.githubLink || ''}
                 showParticles={selectedBlock.content.showParticles || false}
                 trustedByText={selectedBlock.content.trustedByText || ''}
-                trustedByTextColor={selectedBlock.content.trustedByTextColor || '#6b7280'}
                 trustedByCount={selectedBlock.content.trustedByCount || ''}
                 trustedByAvatars={selectedBlock.content.trustedByAvatars || [
                   { src: "", alt: "User 1", fallback: "U1" },
@@ -108,14 +106,12 @@ export function BlockPropertiesPanel({
                 onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
                 onPrimaryButtonStyleChange={(value) => updateBlockContent('primaryButtonStyle', value)}
                 onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
-                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
                 onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
                 onRainbowButtonTextChange={(value) => updateBlockContent('rainbowButtonText', value)}
                 onRainbowButtonIconChange={(value) => updateBlockContent('rainbowButtonIcon', value)}
                 onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
                 onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
                 onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
-                onTrustedByTextColorChange={(value) => updateBlockContent('trustedByTextColor', value)}
                 onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
                 onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
                 onBackgroundPatternChange={(value) => updateBlockContent('backgroundPattern', value)}
