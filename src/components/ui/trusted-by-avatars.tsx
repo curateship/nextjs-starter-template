@@ -9,8 +9,6 @@ interface TrustedByAvatarsProps {
   text?: string;
   count?: string;
   badgeText?: string;
-  badgeTextColor?: string;
-  backgroundColor?: string;
 }
 
 const defaultAvatars = [
@@ -23,9 +21,7 @@ export function TrustedByAvatars({
   avatars = defaultAvatars, 
   text = "", 
   count = "",
-  badgeText = "",
-  badgeTextColor = "#6b7280",
-  backgroundColor 
+  badgeText = ""
 }: TrustedByAvatarsProps) {
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   
@@ -45,7 +41,6 @@ export function TrustedByAvatars({
     <Badge
       variant="outline"
       className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-2.5 font-normal transition-all ease-in-out hover:gap-2.5"
-      style={backgroundColor ? { backgroundColor } : undefined}
     >
       {displayAvatars.map((avatar, index) => (
         <Avatar 
@@ -61,10 +56,7 @@ export function TrustedByAvatars({
         </Avatar>
       ))}
       {badgeText && (
-        <p 
-          className="ml-5 capitalize tracking-tight text-base md:text-base"
-          style={{ color: badgeTextColor }}
-        >
+        <p className="ml-5 capitalize tracking-tight text-base md:text-base text-muted-foreground">
           {badgeText}
         </p>
       )}

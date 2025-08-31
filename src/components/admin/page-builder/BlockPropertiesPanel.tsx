@@ -59,8 +59,8 @@ export function BlockPropertiesPanel({
                 {...(createCallbacks(updateBlockContent, [
                   'title', 'subtitle', 'primaryButton', 'secondaryButton', 
                   'primaryButtonLink', 'secondaryButtonLink', 'primaryButtonStyle', 'secondaryButtonStyle',
-                  'backgroundColor', 'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
-                  'githubLink', 'showParticles', 'trustedByText', 'trustedByTextColor', 
+                  'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
+                  'githubLink', 'showParticles', 'trustedByText', 
                   'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
                   'backgroundPatternOpacity', 'backgroundPatternColor', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
                 ]) as any)}

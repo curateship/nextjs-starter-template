@@ -92,12 +92,10 @@ interface PageHeroBlockProps {
   secondaryButton?: string;
   primaryButtonLink?: string;
   secondaryButtonLink?: string;
-  backgroundColor?: string;
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
   githubLink?: string;
   trustedByText?: string;
-  trustedByTextColor?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
   backgroundPattern?: string;
@@ -119,17 +117,15 @@ const HeroContent = ({
   rainbowButtonIcon,
   githubLink,
   trustedByText,
-  trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
-  backgroundColor
-}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByTextColor' | 'trustedByCount' | 'trustedByAvatars' | 'backgroundColor'>) => (
+}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
     {rainbowButtonText && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
-    {trustedByAvatars && trustedByAvatars.length > 0 && <SocialProof trustedByText={trustedByText} trustedByTextColor={trustedByTextColor} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} backgroundColor={backgroundColor} />}
+    {trustedByAvatars && trustedByAvatars.length > 0 && <SocialProof trustedByText={trustedByText} trustedByCount={trustedByCount} trustedByAvatars={trustedByAvatars} />}
   </div>
 )
 
@@ -140,12 +136,10 @@ const PageHeroBlock = ({
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
-  backgroundColor = '#ffffff',
   rainbowButtonText,
   rainbowButtonIcon,
   githubLink, 
   trustedByText,
-  trustedByTextColor,
   trustedByCount,
   trustedByAvatars,
   backgroundPattern,
@@ -184,10 +178,8 @@ const PageHeroBlock = ({
             rainbowButtonIcon={rainbowButtonIcon}
             githubLink={githubLink}
             trustedByText={trustedByText}
-            trustedByTextColor={trustedByTextColor}
             trustedByCount={trustedByCount}
             trustedByAvatars={trustedByAvatars}
-            backgroundColor={backgroundColor}
           />
         </AnimatedGroup>
         <HeroImage heroImage={heroImage} />
@@ -359,9 +351,9 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 };
 
 // Social proof section component (animation handled by AnimatedGroup)
-const SocialProof = ({ trustedByText, trustedByTextColor, trustedByCount, trustedByAvatars, backgroundColor }: { trustedByText?: string; trustedByTextColor?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; backgroundColor?: string }) => (
+const SocialProof = ({ trustedByText, trustedByCount, trustedByAvatars }: { trustedByText?: string; trustedByCount?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }> }) => (
   <div className="mt-8 flex justify-center">
-    <TrustedByAvatars badgeText={trustedByText} badgeTextColor={trustedByTextColor} avatars={trustedByAvatars} backgroundColor={backgroundColor} />
+    <TrustedByAvatars badgeText={trustedByText} avatars={trustedByAvatars} />
   </div>
 )
 
