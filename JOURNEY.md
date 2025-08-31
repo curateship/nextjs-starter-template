@@ -5644,3 +5644,101 @@ const { data: existingProduct } = await supabaseAdmin
 ```
 
 **Result**: Eliminated architectural complexity causing performance issues. Standard Next.js routing proved simpler and more maintainable than WordPress-style flexible URLs. Perfect example of CLAUDE.md principle: "sometimes the best solution is to remove code rather than add it."
+
+---
+
+## Phase 20: Dark Mode Theme System (August 31, 2025)
+
+**Problem**: Needed separate dark mode systems for admin dashboard and frontend sites with persistent hydration errors and theme conflicts.
+
+**Initial Issues**:
+- Nested ThemeProviders causing conflicts between admin and frontend themes
+- Persistent hydration mismatches with server/client theme differences
+- Complex custom implementations when next-themes already existed
+- Frontend theme toggle had wrong UI pattern (dropdown instead of single click)
+
+**Root Cause**: Single theme system trying to serve both admin and frontend needs, causing namespace collisions and hydration issues.
+
+**Solution**: Implemented completely separate theme systems using next-themes with different storage keys:
+
+**Architecture**:
+```tsx
+// Admin theme in root layout - admin-theme storage key
+<ThemeProvider
+  attribute="class"
+  defaultTheme="system"
+  storageKey="admin-theme"
+>
+
+// Frontend theme in site layout - site-theme storage key  
+<ThemeProvider
+  attribute="class"
+  defaultTheme={defaultTheme}
+  storageKey="site-theme"
+>
+```
+
+**Frontend Theme Toggle**: Single-click toggle with proper icon switching:
+```tsx
+const toggleTheme = () => {
+  setTheme(theme === 'dark' ? 'light' : 'dark')
+}
+
+<button onClick={toggleTheme}>
+  <Sun className="h-4 w-4 block dark:hidden" />
+  <Moon className="h-4 w-4 hidden dark:block" />
+</button>
+```
+
+**Admin Theme Toggle**: Dropdown in sticky header with Light/Dark/System options:
+```tsx
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" size="icon">
+      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+    </Button>
+  </DropdownMenuTrigger>
+</DropdownMenu>
+```
+
+**Key Improvements**:
+- Eliminated all hydration errors with proper `suppressHydrationWarning` 
+- Separate localStorage keys prevent theme conflicts (`admin-theme` vs `site-theme`)
+- Site owners can configure default theme for their visitors
+- Removed unnecessary blocking scripts - next-themes handles it automatically
+- Theme persistence across sessions with system preference support
+
+**Result**: Clean separation of admin and frontend themes with zero hydration errors. Each system operates independently with appropriate UI patterns - dropdown for admin flexibility, single-click for frontend simplicity. Perfect example of solving problems by using existing solutions (next-themes) instead of building custom implementations.
+
+**Update - Dark Mode Toggle Control**: 
+Added ability to completely disable dark mode on frontend sites through navigation block settings:
+
+**Implementation**:
+```tsx
+// Navigation block setting
+interface NavigationStyle {
+  showDarkModeToggle?: boolean // Controls visibility and theme system
+}
+
+// Conditional theme provider
+export function SiteThemeProvider({ enableThemeToggle = true }) {
+  if (!enableThemeToggle) {
+    return <>{children}</> // No theme scripts injected
+  }
+  // ... ThemeProvider implementation
+}
+```
+
+**Layout Separation Fix**:
+- Moved admin ThemeProvider from root layout to admin-specific layout
+- Prevents admin theme script (`admin-theme`) from appearing on frontend pages
+- Frontend routes now completely clean when dark mode disabled
+
+**Key Improvements**:
+- Site owners can disable dark mode entirely via navigation settings
+- When disabled: No toggle button, no ThemeProvider, no scripts injected
+- Admin dashboard maintains independent dark mode system
+- Zero theme-related code on frontend when feature is off
+
+**Result**: Complete opt-out capability for dark mode. Sites that don't need theme switching get zero overhead - no scripts, no localStorage access, no hydration handling. Clean separation ensures admin functionality remains independent of frontend preferences.

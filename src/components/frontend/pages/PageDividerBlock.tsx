@@ -24,7 +24,7 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     dividerStyle = 'line',
     lineStyle = 'solid',
     lineThickness = 1,
-    lineColor = '#e5e7eb',
+    lineColor = '',
     icon = 'dots',
     containerWidth = 'full',
     customWidth = 1200
@@ -71,11 +71,14 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     return (
       <div>
         <div 
-          className="border-t w-full"
+          className={cn(
+            "border-t w-full",
+            !lineColor && "border-gray-200 dark:border-gray-700"
+          )}
           style={{
             borderTopStyle: lineStyles[lineStyle || 'solid'],
             borderTopWidth: `${lineThickness}px`,
-            borderTopColor: lineColor
+            ...(lineColor && { borderTopColor: lineColor })
           }}
         />
       </div>

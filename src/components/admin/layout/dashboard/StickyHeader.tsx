@@ -7,6 +7,7 @@ import { Search } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
 
 interface StickyHeaderProps {
   className?: string
@@ -46,6 +47,7 @@ export function StickyHeader({
         </div>
         
         <div className="flex items-center gap-2">
+          <AdminThemeToggle />
         </div>
       </div>
     </div>

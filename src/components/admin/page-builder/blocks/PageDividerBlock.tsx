@@ -240,13 +240,22 @@ className="border p-2 rounded-md"
                 
                 <div className="space-y-2">
                   <Label htmlFor="lineColor">Color</Label>
-                  <input
-                    type="color"
-                    id="lineColor"
-                    value={lineColor}
-                    onChange={(e) => onLineColorChange(e.target.value)}
-                    className="h-10 w-full rounded border border-input cursor-pointer"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      id="lineColor"
+                      type="color"
+                      value={lineColor || '#e5e7eb'}
+                      onChange={(e) => onLineColorChange(e.target.value)}
+                      className="w-12 h-9 flex-shrink-0 rounded cursor-pointer shadow-sm border-0 p-1"
+                    />
+                    <input
+                      type="text"
+                      value={lineColor}
+                      onChange={(e) => onLineColorChange(e.target.value)}
+                      className="flex-1 min-w-0 px-2 py-1 border rounded text-sm font-mono"
+                      placeholder="#e5e7eb"
+                    />
+                  </div>
                 </div>
               </div>
             ) : dividerStyle === 'icon' ? (

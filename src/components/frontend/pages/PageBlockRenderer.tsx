@@ -11,9 +11,10 @@ import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
+  isPreview?: boolean
 }
 
-export function BlockRenderer({ site }: BlockRendererProps) {
+export function BlockRenderer({ site, isPreview = false }: BlockRendererProps) {
   const { blocks = [] } = site
   
   // Sort blocks by display_order with proper type handling
@@ -46,6 +47,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         navigation={navigationBlock?.content} 
         footer={footerBlock?.content}
         site={site}
+        isPreview={isPreview}
       >
       {sortedBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
