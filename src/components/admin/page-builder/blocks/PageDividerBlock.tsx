@@ -29,8 +29,8 @@ interface SharedDividerBlockProps {
 }
 
 export function PageDividerBlock({
-  spacingTop = 64,
-  spacingBottom = 64,
+  spacingTop = 0,
+  spacingBottom = 0,
   dividerStyle = 'line',
   lineStyle = 'solid',
   lineWidth = '50',
