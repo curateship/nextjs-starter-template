@@ -19,8 +19,8 @@ interface DividerBlockProps {
 
 export function DividerBlock({ content, className = "" }: DividerBlockProps) {
   const {
-    spacingTop = 64,
-    spacingBottom = 64,
+    spacingTop = 0,
+    spacingBottom = 0,
     dividerStyle = 'line',
     lineStyle = 'solid',
     lineThickness = 1,
