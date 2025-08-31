@@ -2,6 +2,7 @@
 
 import { NavBlock } from "@/components/frontend/pages/PageNavigationBlock"
 import { FooterBlock } from "@/components/frontend/pages/PageFooterBlock"
+import { SiteThemeProvider } from "./site-theme-provider"
 import { type ReactNode } from "react"
 
 interface SiteLayoutProps {
@@ -12,6 +13,7 @@ interface SiteLayoutProps {
     name?: string
     settings?: {
       favicon?: string
+      default_theme?: 'system' | 'light' | 'dark'
       [key: string]: any
     }
   }
@@ -36,11 +38,15 @@ interface SiteLayoutProps {
     socialLinks?: Array<{ platform: string; url: string }>
     style?: { backgroundColor: string; textColor: string }
   }
+  isPreview?: boolean
 }
 
-export function SiteLayout({ children, site, navigation, footer }: SiteLayoutProps) {
+export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
+  // Check if dark mode toggle is enabled in navigation settings
+  const enableThemeToggle = navigation?.style?.showDarkModeToggle !== false
+  
   return (
-    <>
+    <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
         <div className="sticky top-0 z-50">
@@ -57,6 +63,6 @@ export function SiteLayout({ children, site, navigation, footer }: SiteLayoutPro
       
       {/* Footer - only render if footer data exists */}
       {footer && <FooterBlock {...footer} site={site} />}
-    </>
+    </SiteThemeProvider>
   )
 }

@@ -50,6 +50,7 @@ interface NavigationStyle {
   blurEffect: 'none' | 'light' | 'medium' | 'heavy'
   containerWidth?: 'full' | 'custom'
   customWidth?: number
+  showDarkModeToggle?: boolean
 }
 
 interface NavigationBlockProps {
@@ -239,7 +240,7 @@ export function PageNavigationBlock({
   logoUrl,
   links = [],
   buttons = [],
-  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152 },
+  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152, showDarkModeToggle: true },
   onLogoChange,
   onLogoUrlChange,
   onLinksChange,
@@ -599,6 +600,20 @@ export function PageNavigationBlock({
                   placeholder="#000000"
                 />
               </div>
+            </div>
+          </div>
+          
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="showDarkModeToggle">Show Dark Mode Toggle</Label>
+                <p className="text-sm text-muted-foreground">Display a theme switcher button in the navigation</p>
+              </div>
+              <Switch
+                id="showDarkModeToggle"
+                checked={style.showDarkModeToggle !== false}
+                onCheckedChange={(checked) => updateStyle('showDarkModeToggle', checked)}
+              />
             </div>
           </div>
         </CardContent>

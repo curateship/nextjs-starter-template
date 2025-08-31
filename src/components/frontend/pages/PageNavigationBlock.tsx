@@ -8,6 +8,7 @@ import { useMemo, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils/tailwind-class-merger'
 import { useScroll } from 'motion/react'
 import { isSafeUrl } from '@/lib/utils/url-validator'
+import { SiteThemeToggle } from '@/components/frontend/ui/site-theme-toggle'
 
 // Navigation menu item interface
 interface MenuItem {
@@ -38,6 +39,7 @@ interface NavBlockProps {
     blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
     containerWidth?: 'full' | 'custom';
     customWidth?: number;
+    showDarkModeToggle?: boolean;
   };
 }
 
@@ -205,11 +207,19 @@ const MobileMenuButton = ({
 )
 
 // Call-to-action buttons component
-const CTAButtons = ({ buttons }: { buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }> }) => {
+const CTAButtons = ({ buttons, showDarkModeToggle = true }: { 
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>,
+  showDarkModeToggle?: boolean 
+}) => {
   // Default button if no buttons provided
   if (!buttons || buttons.length === 0) {
     return (
       <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+        {showDarkModeToggle && (
+          <div className="flex justify-center sm:justify-start">
+            <SiteThemeToggle />
+          </div>
+        )}
         <Button asChild size="sm">
           <Link href="#">
             <span>All Access</span>
@@ -221,6 +231,11 @@ const CTAButtons = ({ buttons }: { buttons?: Array<{ text: string; url: string; 
 
   return (
     <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+      {showDarkModeToggle && (
+        <div className="flex justify-center sm:justify-start">
+          <SiteThemeToggle />
+        </div>
+      )}
       {buttons.filter(button => button && button.text && button.url).map((button, index) => (
         <Button 
           key={index}
@@ -242,16 +257,18 @@ const MobileMenuPanel = ({
   menuItems, 
   menuState,
   buttons,
-  textColor 
+  textColor,
+  showDarkModeToggle 
 }: { 
   menuItems: MenuItem[];
   menuState: boolean;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
   textColor?: string;
+  showDarkModeToggle?: boolean;
 }) => (
   <div className="bg-background in-data-[state=active]:block lg:in-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
     <MobileNav menuItems={menuItems} textColor={textColor} />
-    <CTAButtons buttons={buttons} />
+    <CTAButtons buttons={buttons} showDarkModeToggle={showDarkModeToggle} />
   </div>
 )
 
@@ -432,7 +449,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
               />
             </div>
 
-            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} textColor={style?.textColor} />
+            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} textColor={style?.textColor} showDarkModeToggle={style?.showDarkModeToggle} />
           </div>
         </div>
       </nav>
