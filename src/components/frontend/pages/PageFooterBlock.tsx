@@ -81,7 +81,6 @@ interface FooterBlockProps {
       [key: string]: any;
     };
   };
-  copyright?: string;
   links?: Array<{ text: string; url: string }>;
   socialLinks?: Array<{ platform: string; url: string }>;
   style?: {
@@ -117,7 +116,7 @@ const defaultLinks = [
     },
 ]
 
-export function FooterBlock({ logo, logoUrl, site, copyright, links, socialLinks, style }: FooterBlockProps) {
+export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: FooterBlockProps) {
     const footerLinks = links && links.length > 0 ? links : defaultLinks
     
     // Determine logo URL with smart defaults
@@ -133,6 +132,11 @@ export function FooterBlock({ logo, logoUrl, site, copyright, links, socialLinks
         // Final fallback to home page
         return "/"
     }
+
+    // Generate auto copyright text
+    const currentYear = new Date().getFullYear()
+    const siteName = site?.name || "Your Site"
+    const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
     return (
         <footer 
             className="py-1"
@@ -189,7 +193,7 @@ export function FooterBlock({ logo, logoUrl, site, copyright, links, socialLinks
                     </div>
                 )}
                 <span className="text-muted-foreground block text-center text-sm">
-                    {copyright || `© ${new Date().getFullYear()} Tailark, All rights reserved`}
+                    {copyrightText}
                 </span>
             </div>
         </footer>
