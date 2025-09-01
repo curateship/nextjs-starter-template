@@ -60,7 +60,7 @@ const ProductFeaturesBlock = ({
         align: headerAlign
       }}
     >
-      <div className="mt-8 grid gap-6 sm:grid-cols-2 md:mt-16 md:grid-cols-3 md:gap-8">
+      <div className="mt-8 grid gap-8 sm:grid-cols-2 md:mt-16 md:grid-cols-3 md:gap-12">
         {displayFeatures.map((feature, index) => (
           <div key={feature.id} className="space-y-4">
             <Card
@@ -72,8 +72,9 @@ const ProductFeaturesBlock = ({
                   <Image
                     src={feature.image}
                     alt={feature.title}
-                    fill
-                    className="object-cover"
+                    width={800}
+                    height={450}
+                    className="w-full h-auto object-cover object-top"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                 </div>

@@ -40,7 +40,7 @@ export function TrustedByAvatars({
   return (
     <Badge
       variant="outline"
-      className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-2.5 font-normal transition-all ease-in-out hover:gap-2.5 bg-muted/50"
+      className="mx-auto mb-6 flex w-fit items-center justify-center rounded-full border py-1 pl-2 pr-2.5 font-normal transition-all ease-in-out hover:gap-2.5 bg-muted/50 shadow-xs"
     >
       {displayAvatars.map((avatar, index) => (
         <Avatar 
