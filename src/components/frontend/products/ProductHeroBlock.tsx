@@ -93,7 +93,7 @@ interface ProductHeroBlockProps {
   secondaryButtonLink?: string;
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
-  githubLink?: string;
+  rainbowButtonLink?: string;
   trustedByText?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
@@ -113,13 +113,13 @@ const HeroContent = ({
   secondaryButtonLink,
   rainbowButtonText,
   rainbowButtonIcon,
-  githubLink,
+  rainbowButtonLink,
   trustedByText,
   trustedByCount,
   trustedByAvatars
-}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
+}: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'rainbowButtonLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
-    {rainbowButtonText && rainbowButtonText.trim() && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
+    {rainbowButtonText && rainbowButtonText.trim() && <RainbowButton rainbowButtonLink={rainbowButtonLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
@@ -137,7 +137,7 @@ const ProductHeroBlock = ({
   secondaryButtonLink,
   rainbowButtonText,
   rainbowButtonIcon,
-  githubLink, 
+  rainbowButtonLink, 
   trustedByText,
   trustedByCount,
   trustedByAvatars,
@@ -173,7 +173,7 @@ const ProductHeroBlock = ({
           secondaryButtonLink={secondaryButtonLink}
           rainbowButtonText={rainbowButtonText}
           rainbowButtonIcon={rainbowButtonIcon}
-          githubLink={githubLink}
+          rainbowButtonLink={rainbowButtonLink}
           trustedByText={trustedByText}
           trustedByCount={trustedByCount}
           trustedByAvatars={trustedByAvatars}
@@ -203,7 +203,7 @@ const GradientOverlays = () => (
 )
 
 // Rainbow gradient button component
-const RainbowButton = ({ githubLink, buttonText, buttonIcon }: { githubLink?: string; buttonText?: string; buttonIcon?: string }) => (
+const RainbowButton = ({ rainbowButtonLink, buttonText, buttonIcon }: { rainbowButtonLink?: string; buttonText?: string; buttonIcon?: string }) => (
   <button
     className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
@@ -219,7 +219,7 @@ const RainbowButton = ({ githubLink, buttonText, buttonIcon }: { githubLink?: st
     }}
   >
     <Link
-      href={githubLink || "https://github.com/ruixenui/ruixen-free-components"}
+      href={rainbowButtonLink || "#"}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
@@ -370,32 +370,21 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
   return (
     <div className="max-w-6xl mx-auto">
       <AnimatedGroup customSettings={{ stagger: 0.05, duration: 1.2 }}>
-        <div className="overflow-hidden md:px-6 sm:mt-8">
-          <div
-            aria-hidden
-            className="bg-gradient-to-b to-background absolute inset-0 z-10 from-transparent from-70% pointer-events-none"
-          />
-          <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
-            <Image
-              className="bg-background relative hidden rounded-2xl object-cover dark:block"
+        <div className="overflow-hidden md:px-8 sm:mt-8 pb-8">
+          <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15">
+            <img
+              className="bg-background hidden rounded-2xl object-cover dark:block w-full h-auto"
               src={heroImage}
               alt="app screen"
-              width={1100}
-              height={675}
-              style={{ width: '1100px', height: 'auto' }}
             />
-            <Image
-              className="z-2 relative rounded-2xl object-cover dark:hidden"
+            <img
+              className="rounded-2xl object-cover dark:hidden w-full h-auto"
               src={heroImage}
               alt="app screen"
-              width={1100}
-              height={675}
-              style={{ width: '1100px', height: 'auto' }}
             />
           </div>
         </div>
       </AnimatedGroup>
-      <div className="bg-gradient-to-t absolute bottom-0 h-1/3 w-full from-white/60 to-transparent pointer-events-none" />
     </div>
   );
 }

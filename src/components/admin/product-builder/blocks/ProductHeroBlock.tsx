@@ -486,8 +486,8 @@ export function ProductHeroBlock({
         </CardContent>
       </Card>
 
-      {/* Hero Image & Rainbow Button Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Hero Image, Rainbow Button & Background Pattern Cards */}
+      <div className="grid grid-cols-3 gap-4">
         {/* Hero Image Card */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -578,73 +578,77 @@ export function ProductHeroBlock({
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Background Pattern Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Background Pattern</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <Label className="text-xs">Pattern Type</Label>
-              <Select
-                value={backgroundPattern || 'none'}
-                onValueChange={onBackgroundPatternChange}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Background</SelectItem>
-                  <SelectItem value="dots">Dots</SelectItem>
-                  <SelectItem value="grid">Grid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Background Pattern Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Background Pattern</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Pattern Type</Label>
+                <Select
+                  value={backgroundPattern || 'none'}
+                  onValueChange={onBackgroundPatternChange}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Background</SelectItem>
+                    <SelectItem value="dots">Dots</SelectItem>
+                    <SelectItem value="grid">Grid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {backgroundPattern !== 'none' && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-xs">Size</Label>
-                  <Select
-                    value={backgroundPatternSize || 'medium'}
-                    onValueChange={onBackgroundPatternSizeChange}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="small">Small</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="large">Large</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Opacity</Label>
-                  <div className="flex items-center space-x-1 h-9">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={backgroundPatternOpacity || 80}
-                      onChange={(e) => onBackgroundPatternOpacityChange(parseInt(e.target.value))}
-                      className="flex-1 h-2"
-                    />
-                    <span className="text-xs text-muted-foreground w-8 text-right">
-                      {backgroundPatternOpacity || 80}%
-                    </span>
+              {backgroundPattern !== 'none' && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Size</Label>
+                    <Select
+                      value={backgroundPatternSize || 'medium'}
+                      onValueChange={onBackgroundPatternSizeChange}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="large">Large</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
 
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Opacity</Label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={backgroundPatternOpacity || 80}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (!isNaN(value) && value >= 0 && value <= 100) {
+                            onBackgroundPatternOpacityChange(value);
+                          }
+                        }}
+                        className="w-20 px-2 py-1 border rounded-md text-sm"
+                        placeholder="80"
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  </div>
+
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Image Picker Modal for Avatars */}
       <ImagePicker

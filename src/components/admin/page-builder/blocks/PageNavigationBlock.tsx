@@ -352,93 +352,167 @@ export function PageNavigationBlock({
 
   return (
     <div className="space-y-4">
-      {/* Logo Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Logo</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                {logo && logo !== '/images/logo.png' ? (
-                  <div 
-                    className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setShowPicker(true)}
-                  >
-                    <img
-                      src={logo}
-                      alt="Logo"
-                      className="h-full w-full object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                        <p className="text-xs font-medium">Click to change</p>
+      {/* Top row with 3 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Logo Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Logo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  {logo && logo !== '/images/logo.png' ? (
+                    <div 
+                      className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setShowPicker(true)}
+                    >
+                      <img
+                        src={logo}
+                        alt="Logo"
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                        <div className="text-white text-center">
+                          <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                          <p className="text-xs font-medium">Click to change</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : siteFavicon ? (
-                  <div 
-                    className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
-                    onClick={() => setShowPicker(true)}
-                  >
-                    <img
-                      src={siteFavicon}
-                      alt="Site favicon (used as logo)"
-                      className="h-10 w-10 object-contain p-0.5"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                        <p className="text-xs font-medium">Using favicon - Click to add logo</p>
+                  ) : siteFavicon ? (
+                    <div 
+                      className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
+                      onClick={() => setShowPicker(true)}
+                    >
+                      <img
+                        src={siteFavicon}
+                        alt="Site favicon (used as logo)"
+                        className="h-10 w-10 object-contain p-0.5"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                        <div className="text-white text-center">
+                          <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                          <p className="text-xs font-medium">Using favicon - Click to add logo</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div 
-                    className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                    onClick={() => setShowPicker(true)}
-                  >
-                    <div className="text-center">
-                      <Globe className="mx-auto w-4 h-4 text-muted-foreground/50" />
-                      <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                  ) : (
+                    <div 
+                      className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      onClick={() => setShowPicker(true)}
+                    >
+                      <div className="text-center">
+                        <Globe className="mx-auto w-4 h-4 text-muted-foreground/50" />
+                        <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+                
+                <div className="flex-1">
+                  <input
+                    id="logoUrl"
+                    type="text"
+                    value={logoUrl || ''}
+                    onChange={(e) => onLogoUrlChange(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    placeholder="https://example.com (leave empty for site homepage)"
+                  />
+                </div>
               </div>
               
-              <div className="flex-1">
-                <input
-                  id="logoUrl"
-                  type="text"
-                  value={logoUrl || ''}
-                  onChange={(e) => onLogoUrlChange(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                  placeholder="https://example.com (leave empty for site homepage)"
+            </div>
+            
+            {/* Image Picker Modal */}
+            <ImagePicker
+              open={showPicker}
+              onOpenChange={setShowPicker}
+              onSelectImage={(imageUrl) => {
+                onLogoChange(imageUrl)
+                setShowPicker(false)
+              }}
+              currentImageUrl={logo}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Navigation Width Settings Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Navigation Width</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                {style.containerWidth !== 'full' && (
+                  <div className="w-32">
+                    <Input
+                      type="number"
+                      min="320"
+                      max="2560"
+                      value={style.customWidth || ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === '') {
+                          updateStyle('customWidth', undefined)
+                        } else {
+                          const numValue = parseInt(value)
+                          updateStyle('customWidth', isNaN(numValue) ? undefined : numValue)
+                        }
+                      }}
+                      placeholder="1152"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={style.containerWidth === 'full'}
+                    onCheckedChange={(checked) => updateStyle('containerWidth', checked ? 'full' : 'custom')}
+                  />
+                  <Label className="text-sm">
+                    Full Width
+                  </Label>
+                </div>
+              </div>
+              
+              {style.containerWidth !== 'full' && (
+                <p className="text-xs text-muted-foreground">
+                  Default: 1152px • Range: 320-2560px
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dark Mode Settings Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Dark Mode</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="showDarkModeToggle">Show Toggle</Label>
+                  <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+                </div>
+                <Switch
+                  id="showDarkModeToggle"
+                  checked={style.showDarkModeToggle !== false}
+                  onCheckedChange={(checked) => updateStyle('showDarkModeToggle', checked)}
                 />
               </div>
             </div>
-            
-          </div>
-          
-          {/* Image Picker Modal */}
-          <ImagePicker
-            open={showPicker}
-            onOpenChange={setShowPicker}
-            onSelectImage={(imageUrl) => {
-              onLogoChange(imageUrl)
-              setShowPicker(false)
-            }}
-            currentImageUrl={logo}
-          />
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Navigation Links Card */}
       <Card className="shadow-sm">
@@ -542,7 +616,6 @@ export function PageNavigationBlock({
           <CardTitle className="text-base">Styling</CardTitle>
         </CardHeader>
         <CardContent>
-          
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="navBgColor">Background Color</Label>
@@ -601,73 +674,6 @@ export function PageNavigationBlock({
                 />
               </div>
             </div>
-          </div>
-          
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="showDarkModeToggle">Show Dark Mode Toggle</Label>
-                <p className="text-sm text-muted-foreground">Display a theme switcher button in the navigation</p>
-              </div>
-              <Switch
-                id="showDarkModeToggle"
-                checked={style.showDarkModeToggle !== false}
-                onCheckedChange={(checked) => updateStyle('showDarkModeToggle', checked)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Navigation Width Settings Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Navigation Width</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-gray-700">
-              Navigation Container Width
-            </label>
-            
-            <div className="flex items-center gap-3">
-              {style.containerWidth !== 'full' && (
-                <div className="w-32">
-                  <Input
-                    type="number"
-                    min="320"
-                    max="2560"
-                    value={style.customWidth || ''}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      if (value === '') {
-                        updateStyle('customWidth', undefined)
-                      } else {
-                        const numValue = parseInt(value)
-                        updateStyle('customWidth', isNaN(numValue) ? undefined : numValue)
-                      }
-                    }}
-                    placeholder="1152"
-                  />
-                </div>
-              )}
-              
-              <div className="flex items-center space-x-2">
-                <Switch
-                  checked={style.containerWidth === 'full'}
-                  onCheckedChange={(checked) => updateStyle('containerWidth', checked ? 'full' : 'custom')}
-                />
-                <Label className="text-sm">
-                  Full Width
-                </Label>
-              </div>
-            </div>
-            
-            {style.containerWidth !== 'full' && (
-              <p className="text-xs text-muted-foreground">
-                Default: 1152px • Range: 320px - 2560px • Navigation content will be contained within this width
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>

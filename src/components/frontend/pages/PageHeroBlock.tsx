@@ -94,7 +94,7 @@ interface PageHeroBlockProps {
   secondaryButtonLink?: string;
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
-  githubLink?: string;
+  rainbowButtonLink?: string;
   trustedByText?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
@@ -114,13 +114,13 @@ const HeroContent = ({
   secondaryButtonLink,
   rainbowButtonText,
   rainbowButtonIcon,
-  githubLink,
+  rainbowButtonLink,
   trustedByText,
   trustedByCount,
   trustedByAvatars,
-}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'githubLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
+}: Pick<PageHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'rainbowButtonLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
-    {rainbowButtonText && <RainbowButton githubLink={githubLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
+    {rainbowButtonText && <RainbowButton rainbowButtonLink={rainbowButtonLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
@@ -137,7 +137,7 @@ const PageHeroBlock = ({
   secondaryButtonLink,
   rainbowButtonText,
   rainbowButtonIcon,
-  githubLink, 
+  rainbowButtonLink, 
   trustedByText,
   trustedByCount,
   trustedByAvatars,
@@ -173,7 +173,7 @@ const PageHeroBlock = ({
             secondaryButtonLink={secondaryButtonLink}
             rainbowButtonText={rainbowButtonText}
             rainbowButtonIcon={rainbowButtonIcon}
-            githubLink={githubLink}
+            rainbowButtonLink={rainbowButtonLink}
             trustedByText={trustedByText}
             trustedByCount={trustedByCount}
             trustedByAvatars={trustedByAvatars}
@@ -203,7 +203,7 @@ const GradientOverlays = () => (
 )
 
 // Rainbow gradient button component
-const RainbowButton = ({ githubLink, buttonText, buttonIcon }: { githubLink?: string; buttonText?: string; buttonIcon?: string }) => (
+const RainbowButton = ({ rainbowButtonLink, buttonText, buttonIcon }: { rainbowButtonLink?: string; buttonText?: string; buttonIcon?: string }) => (
   <button
     className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
       focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
@@ -219,7 +219,7 @@ const RainbowButton = ({ githubLink, buttonText, buttonIcon }: { githubLink?: st
     }}
   >
     <Link
-      href={githubLink || "https://github.com/ruixenui/ruixen-free-components"}
+      href={rainbowButtonLink || "#"}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
