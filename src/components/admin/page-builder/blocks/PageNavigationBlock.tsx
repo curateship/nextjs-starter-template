@@ -24,6 +24,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
   useSortable,
@@ -100,36 +101,36 @@ function SortableButtonItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
     >
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-1 items-center">
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <div className="grid grid-cols-3 gap-2 flex-1 min-w-0">
+        <div className="flex gap-1">
           <input
             type="text"
             value={button.text}
             onChange={(e) => updateButton(index, 'text', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 border rounded-md text-sm"
             placeholder="Button Text"
           />
           <input
             type="text"
             value={button.url}
             onChange={(e) => updateButton(index, 'url', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-28 px-3 py-2 border rounded-md text-sm"
             placeholder="URL"
           />
           <Select
             value={button.style}
             onValueChange={(value) => updateButton(index, 'style', value)}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -147,16 +148,16 @@ function SortableButtonItem({
               className="h-4 w-4"
               title="Show on mobile"
             />
-            <span className="text-xs text-muted-foreground">Mobile Bar</span>
+            <span className="text-xs text-muted-foreground">Mobile</span>
           </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => removeButton(index)}
-            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-2.5 w-2.5" />
           </Button>
         </div>
       </div>
@@ -195,29 +196,29 @@ function SortableLinkItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
     >
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-1 items-center">
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
+        <div className="flex gap-1">
           <input
             type="text"
             value={link.text}
             onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 border rounded-md text-sm"
             placeholder="Link Text"
           />
           <input
             type="text"
             value={link.url}
             onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 border rounded-md text-sm"
             placeholder="URL"
           />
         </div>
@@ -226,9 +227,9 @@ function SortableLinkItem({
           variant="ghost"
           size="sm"
           onClick={() => removeLink(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-2.5 w-2.5" />
         </Button>
       </div>
     </div>
@@ -538,9 +539,9 @@ export function PageNavigationBlock({
           >
             <SortableContext
               items={(links || []).map(l => l.id || '')}
-              strategy={verticalListSortingStrategy}
+              strategy={horizontalListSortingStrategy}
             >
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {(links || []).map((link, index) => (
                   <SortableLinkItem
                     key={link.id || `nav-link-${index}`}
@@ -555,7 +556,7 @@ export function PageNavigationBlock({
           </DndContext>
 
           {links.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
               No navigation links. Click + to add one.
             </div>
           )}
@@ -586,9 +587,9 @@ export function PageNavigationBlock({
           >
             <SortableContext
               items={(buttons || []).map(b => b.id || '')}
-              strategy={verticalListSortingStrategy}
+              strategy={horizontalListSortingStrategy}
             >
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
                 {(buttons || []).map((button, index) => (
                   <SortableButtonItem
                     key={button.id || `nav-button-${index}`}
@@ -603,7 +604,7 @@ export function PageNavigationBlock({
           </DndContext>
 
           {buttons.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4">
+            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
               No action buttons. Click + to add one.
             </div>
           )}

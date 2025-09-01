@@ -21,6 +21,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
   useSortable,
@@ -47,19 +48,18 @@ interface FooterStyle {
 interface FooterBlockProps {
   logo: string
   logoUrl: string
-  copyright: string
   links: FooterLink[]
   socialLinks: SocialLink[]
   style: FooterStyle
   onLogoChange: (value: string) => void
   onLogoUrlChange: (value: string) => void
-  onCopyrightChange: (value: string) => void
   onLinksChange: (links: FooterLink[]) => void
   onSocialLinksChange: (socialLinks: SocialLink[]) => void
   onStyleChange: (style: FooterStyle) => void
   siteId: string
   blockId: string
   siteFavicon?: string
+  siteName?: string
 }
 
 const socialPlatforms = [
@@ -97,29 +97,29 @@ function SortableFooterLinkItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
     >
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-1 items-center">
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
+        <div className="flex gap-1">
           <input
             type="text"
             value={link.text}
             onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 border rounded-md text-sm"
             placeholder="Link Text"
           />
           <input
             type="text"
             value={link.url}
             onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 border rounded-md text-sm"
             placeholder="URL"
           />
         </div>
@@ -128,9 +128,9 @@ function SortableFooterLinkItem({
           variant="ghost"
           size="sm"
           onClick={() => removeLink(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-2.5 w-2.5" />
         </Button>
       </div>
     </div>
@@ -168,22 +168,22 @@ function SortableSocialLinkItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-3 bg-background hover:border-muted-foreground/50 transition-colors"
+      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
     >
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-1 items-center">
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 p-1 -m-1"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
+        <div className="flex gap-1">
           <Select
             value={socialLink.platform}
             onValueChange={(value) => updateSocialLink(index, 'platform', value)}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-24">
               <SelectValue placeholder="Platform" />
             </SelectTrigger>
             <SelectContent>
@@ -198,7 +198,7 @@ function SortableSocialLinkItem({
             type="text"
             value={socialLink.url}
             onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-            className="w-full px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 border rounded-md text-sm"
             placeholder="Social URL"
           />
         </div>
@@ -207,9 +207,9 @@ function SortableSocialLinkItem({
           variant="ghost"
           size="sm"
           onClick={() => removeSocialLink(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-2.5 w-2.5" />
         </Button>
       </div>
     </div>
@@ -219,17 +219,16 @@ function SortableSocialLinkItem({
 export function PageFooterBlock({
   logo,
   logoUrl,
-  copyright,
   links = [],
   socialLinks = [],
   style = { backgroundColor: '#ffffff', textColor: '#000000' },
   onLogoChange,
   onLogoUrlChange,
-  onCopyrightChange,
   onLinksChange,
   onSocialLinksChange,
   onStyleChange,
   siteFavicon,
+  siteName = "Your Site",
 }: FooterBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   
@@ -334,6 +333,10 @@ export function PageFooterBlock({
     onStyleChange({ ...style, [field]: value })
   }
 
+  // Generate auto copyright text
+  const currentYear = new Date().getFullYear()
+  const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
+
   return (
     <div className="space-y-4">
       {/* Logo & Copyright and Styling Cards */}
@@ -414,17 +417,6 @@ export function PageFooterBlock({
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="copyright">Copyright Text</Label>
-                <input
-                  id="copyright"
-                  type="text"
-                  value={copyright}
-                  onChange={(e) => onCopyrightChange(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                  placeholder="© 2024 Your Company. All rights reserved."
-                />
-              </div>
             </div>
             
             {/* Image Picker Modal */}
@@ -491,104 +483,101 @@ export function PageFooterBlock({
         </Card>
       </div>
 
-      {/* Footer Links & Social Links Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Footer Links Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Footer Links</CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addLink}
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleLinkDragEnd}
+      {/* Footer Links Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Footer Links</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addLink}
+              className="h-8 w-8 p-0"
             >
-              <SortableContext
-                items={(links || []).map(l => l.id || '')}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {(links || []).map((link, index) => (
-                    <SortableFooterLinkItem
-                      key={link.id || `footer-link-${index}`}
-                      link={link}
-                      index={index}
-                      updateLink={updateLink}
-                      removeLink={removeLink}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {links.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                No footer links. Click + to add one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Social Links Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Social Links</CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addSocialLink}
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleSocialLinkDragEnd}
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleLinkDragEnd}
+          >
+            <SortableContext
+              items={(links || []).map(l => l.id || '')}
+              strategy={horizontalListSortingStrategy}
             >
-              <SortableContext
-                items={(socialLinks || []).map(l => l.id || '')}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {(socialLinks || []).map((socialLink, index) => (
-                    <SortableSocialLinkItem
-                      key={socialLink.id || `social-link-${index}`}
-                      socialLink={socialLink}
-                      index={index}
-                      updateSocialLink={updateSocialLink}
-                      removeSocialLink={removeSocialLink}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {socialLinks.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                No social links. Click + to add one.
+              <div className="flex flex-wrap gap-2">
+                {(links || []).map((link, index) => (
+                  <SortableFooterLinkItem
+                    key={link.id || `footer-link-${index}`}
+                    link={link}
+                    index={index}
+                    updateLink={updateLink}
+                    removeLink={removeLink}
+                  />
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </SortableContext>
+          </DndContext>
+
+          {links.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+              No footer links. Click + to add one.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Social Links Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Social Links</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addSocialLink}
+              className="h-8 w-8 p-0"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleSocialLinkDragEnd}
+          >
+            <SortableContext
+              items={(socialLinks || []).map(l => l.id || '')}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex flex-wrap gap-2">
+                {(socialLinks || []).map((socialLink, index) => (
+                  <SortableSocialLinkItem
+                    key={socialLink.id || `social-link-${index}`}
+                    socialLink={socialLink}
+                    index={index}
+                    updateSocialLink={updateSocialLink}
+                    removeSocialLink={removeSocialLink}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {socialLinks.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+              No social links. Click + to add one.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
