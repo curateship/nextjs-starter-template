@@ -5,10 +5,13 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Lazy-initialize Supabase client to avoid build-time issues
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // Create authenticated Supabase client for server actions
 async function createSupabaseServerClient() {
@@ -97,7 +100,7 @@ export async function uploadImageAction(
     const fileBuffer = await file.arrayBuffer()
     
     // Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    const { data: uploadData, error: uploadError } = await getSupabaseAdmin().storage
       .from('site-images')
       .upload(storagePath, fileBuffer, {
         contentType: file.type,
@@ -109,13 +112,13 @@ export async function uploadImageAction(
     }
 
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
+    const { data: urlData } = getSupabaseAdmin().storage
       .from('site-images')
       .getPublicUrl(storagePath)
 
 
     // Save metadata to database
-    const { data: imageData, error: dbError } = await supabaseAdmin
+    const { data: imageData, error: dbError } = await getSupabaseAdmin()
       .from('images')
       .insert({
         user_id: user.id,
@@ -131,7 +134,7 @@ export async function uploadImageAction(
 
     if (dbError) {
       // Clean up uploaded file if database save fails
-      await supabaseAdmin.storage
+      await getSupabaseAdmin().storage
         .from('site-images')
         .remove([storagePath])
       
@@ -163,7 +166,7 @@ export async function getImagesAction(): Promise<{ data: ImageData[] | null; err
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: images, error } = await supabaseAdmin
+    const { data: images, error } = await getSupabaseAdmin()
       .from('images')
       .select('*')
       .eq('user_id', user.id)
@@ -197,7 +200,7 @@ export async function updateImageAction(
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: imageData, error } = await supabaseAdmin
+    const { data: imageData, error } = await getSupabaseAdmin()
       .from('images')
       .update({
         ...updates,
@@ -238,7 +241,7 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
     }
 
     // Get image data first
-    const { data: image, error: fetchError } = await supabaseAdmin
+    const { data: image, error: fetchError } = await getSupabaseAdmin()
       .from('images')
       .select('storage_path')
       .eq('id', imageId)
@@ -250,7 +253,7 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
     }
 
     // Delete from database
-    const { error: dbError } = await supabaseAdmin
+    const { error: dbError } = await getSupabaseAdmin()
       .from('images')
       .delete()
       .eq('id', imageId)
@@ -261,7 +264,7 @@ export async function deleteImageAction(imageId: string): Promise<{ success: boo
     }
 
     // Delete from storage
-    const { error: storageError } = await supabaseAdmin.storage
+    const { error: storageError } = await getSupabaseAdmin().storage
       .from('site-images')
       .remove([image.storage_path])
 
@@ -297,7 +300,7 @@ export async function getImageByUrlAction(publicUrl: string): Promise<{ data: st
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: image, error } = await supabaseAdmin
+    const { data: image, error } = await getSupabaseAdmin()
       .from('images')
       .select('id')
       .eq('public_url', publicUrl)
