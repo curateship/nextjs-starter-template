@@ -8,7 +8,7 @@ import { useMemo, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils/tailwind-class-merger'
 import { useScroll } from 'motion/react'
 import { isSafeUrl } from '@/lib/utils/url-validator'
-import { SiteThemeToggle } from '@/components/frontend/ui/site-theme-toggle'
+import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 
 // Navigation menu item interface
 interface MenuItem {
