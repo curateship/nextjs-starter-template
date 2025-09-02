@@ -28,6 +28,7 @@ interface NavBlockProps {
     name?: string;
     settings?: {
       favicon?: string;
+      default_theme?: 'system' | 'light' | 'dark';
       [key: string]: any;
     };
   };
@@ -207,19 +208,13 @@ const MobileMenuButton = ({
 )
 
 // Call-to-action buttons component
-const CTAButtons = ({ buttons, showDarkModeToggle = true }: { 
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>,
-  showDarkModeToggle?: boolean 
+const CTAButtons = ({ buttons }: { 
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
 }) => {
   // Default button if no buttons provided
   if (!buttons || buttons.length === 0) {
     return (
       <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-        {showDarkModeToggle && (
-          <div className="flex justify-center sm:justify-start">
-            <SiteThemeToggle />
-          </div>
-        )}
         <Button asChild size="sm">
           <Link href="#">
             <span>All Access</span>
@@ -231,11 +226,6 @@ const CTAButtons = ({ buttons, showDarkModeToggle = true }: {
 
   return (
     <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      {showDarkModeToggle && (
-        <div className="flex justify-center sm:justify-start">
-          <SiteThemeToggle />
-        </div>
-      )}
       {buttons.filter(button => button && button.text && button.url).map((button, index) => (
         <Button 
           key={index}
@@ -255,20 +245,25 @@ const CTAButtons = ({ buttons, showDarkModeToggle = true }: {
 // Mobile menu panel component
 const MobileMenuPanel = ({ 
   menuItems, 
-  menuState,
   buttons,
   textColor,
-  showDarkModeToggle 
+  showDarkModeToggle,
+  defaultTheme = 'system'
 }: { 
   menuItems: MenuItem[];
-  menuState: boolean;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
   textColor?: string;
   showDarkModeToggle?: boolean;
+  defaultTheme?: 'system' | 'light' | 'dark';
 }) => (
-  <div className="bg-background in-data-[state=active]:block lg:in-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none dark:shadow-none dark:lg:bg-transparent">
+  <div className="bg-background in-data-[state=active]:block mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 lg:hidden">
     <MobileNav menuItems={menuItems} textColor={textColor} />
-    <CTAButtons buttons={buttons} showDarkModeToggle={showDarkModeToggle} />
+    <div className="flex flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+      <CTAButtons buttons={buttons} />
+      {showDarkModeToggle && (
+        <SiteThemeToggle defaultTheme={defaultTheme} />
+      )}
+    </div>
   </div>
 )
 
@@ -449,7 +444,21 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
               />
             </div>
 
-            <MobileMenuPanel menuItems={menuItems} menuState={menuState} buttons={buttons} textColor={style?.textColor} showDarkModeToggle={style?.showDarkModeToggle} />
+            {/* Desktop Actions - CTA Buttons and Theme Toggle */}
+            <div className="hidden lg:flex items-center gap-3">
+              <CTAButtons buttons={buttons} />
+              {style?.showDarkModeToggle && (
+                <SiteThemeToggle defaultTheme={site?.settings?.default_theme} />
+              )}
+            </div>
+
+            <MobileMenuPanel 
+              menuItems={menuItems} 
+              buttons={buttons} 
+              textColor={style?.textColor} 
+              showDarkModeToggle={style?.showDarkModeToggle}
+              defaultTheme={site?.settings?.default_theme}
+            />
           </div>
         </div>
       </nav>

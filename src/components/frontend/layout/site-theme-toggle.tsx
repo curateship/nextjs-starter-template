@@ -4,16 +4,25 @@ import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
-export function SiteThemeToggle() {
+interface SiteThemeToggleProps {
+  defaultTheme?: 'system' | 'light' | 'dark'
+}
+
+export function SiteThemeToggle({ defaultTheme = 'system' }: SiteThemeToggleProps) {
   const [mounted, setMounted] = React.useState(false)
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
 
   React.useEffect(() => {
     setMounted(true)
   }, [])
 
   const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
+    // Simple toggle between light and dark
+    if (theme === 'system') {
+      setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+    } else {
+      setTheme(theme === 'dark' ? 'light' : 'dark')
+    }
   }
 
   // Don't render until mounted to avoid hydration issues

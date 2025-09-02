@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { ImageIcon } from "lucide-react"
+import { ImageIcon, Sun, Moon, Monitor } from "lucide-react"
 import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
 import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
 import type { Theme } from "@/lib/supabase/themes"
@@ -19,12 +19,14 @@ interface StylingSettingsCardProps {
   favicon?: string
   siteWidth?: 'full' | 'custom'
   customWidth?: number
+  defaultTheme?: 'system' | 'light' | 'dark'
   onThemeIdChange: (value: string) => void
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
   onSiteWidthChange?: (value: 'full' | 'custom') => void
   onCustomWidthChange?: (value: number | undefined) => void
+  onDefaultThemeChange?: (value: 'system' | 'light' | 'dark') => void
 }
 
 export function StylingSettingsCard({
@@ -34,12 +36,14 @@ export function StylingSettingsCard({
   favicon = "",
   siteWidth = 'custom',
   customWidth,
+  defaultTheme = 'system',
   onThemeIdChange,
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onFaviconChange,
   onSiteWidthChange,
   onCustomWidthChange,
+  onDefaultThemeChange,
 }: StylingSettingsCardProps) {
   const [themes, setThemes] = useState<Theme[]>([])
   const [themesLoading, setThemesLoading] = useState(true)
@@ -78,7 +82,7 @@ export function StylingSettingsCard({
         <CardContent className="space-y-6">
           {/* Theme Selection */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Theme</label>
+            <label className="text-sm font-medium text-gray-700">Visual Theme</label>
             <Select value={themeId} onValueChange={onThemeIdChange}>
               <SelectTrigger>
                 <SelectValue placeholder={themesLoading ? "Loading themes..." : "Select a theme"} />
@@ -117,6 +121,41 @@ export function StylingSettingsCard({
               </div>
             )}
           </div>
+
+          {/* Default Theme (Light/Dark Mode) */}
+          {onDefaultThemeChange && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Default Color Mode</label>
+              <Select value={defaultTheme} onValueChange={onDefaultThemeChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">
+                    <div className="flex items-center space-x-2">
+                      <Monitor className="h-4 w-4" />
+                      <span>System</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="light">
+                    <div className="flex items-center space-x-2">
+                      <Sun className="h-4 w-4" />
+                      <span>Light</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <div className="flex items-center space-x-2">
+                      <Moon className="h-4 w-4" />
+                      <span>Dark</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">
+                <p>Default color mode for visitors. Users can override this with the theme toggle if enabled in navigation settings.</p>
+              </div>
+            </div>
+          )}
 
           {/* Font Selectors - Two Column Layout */}
           {(onFontFamilyChange || onSecondaryFontFamilyChange) && (

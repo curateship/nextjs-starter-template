@@ -5742,3 +5742,43 @@ export function SiteThemeProvider({ enableThemeToggle = true }) {
 - Zero theme-related code on frontend when feature is off
 
 **Result**: Complete opt-out capability for dark mode. Sites that don't need theme switching get zero overhead - no scripts, no localStorage access, no hydration handling. Clean separation ensures admin functionality remains independent of frontend preferences.
+
+---
+
+## September 2, 2025 - Navigation Theme Toggle Refactoring
+
+**Problem**: Theme toggle was incorrectly mixed with CTA buttons component, violating separation of concerns. MobileMenuPanel displayed on both mobile and desktop, causing duplicate buttons.
+
+**Solution**: Clean architectural separation of navigation components:
+
+**Implementation**:
+```tsx
+// Separated CTA buttons (user actions only)
+const CTAButtons = ({ buttons }) => (
+  <div className="flex gap-3">
+    {buttons?.map(button => <Button key={button.text}>{button.text}</Button>)}
+  </div>
+)
+
+// Desktop actions section
+<div className="hidden lg:flex items-center gap-3">
+  <CTAButtons buttons={buttons} />
+  {showDarkModeToggle && <SiteThemeToggle />}
+</div>
+
+// Mobile panel (mobile-only)
+<div className="bg-background in-data-[state=active]:block mb-6 hidden lg:hidden">
+  <MobileNav />
+  <CTAButtons buttons={buttons} />
+  {showDarkModeToggle && <SiteThemeToggle />}
+</div>
+```
+
+**Key Improvements**:
+- CTAButtons component now purely handles action buttons (no theme-related props)
+- Theme toggle separated as independent site functionality component  
+- Desktop navigation has dedicated actions section with proper responsive layout
+- MobileMenuPanel truly mobile-only (added `lg:hidden`, removed desktop classes)
+- Eliminated duplicate buttons/toggles on desktop view
+
+**Result**: Clean separation of concerns with no duplicate components. CTA buttons handle user actions, theme toggle handles site functionality, responsive layout works correctly across all breakpoints.

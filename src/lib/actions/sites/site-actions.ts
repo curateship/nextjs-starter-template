@@ -90,6 +90,7 @@ export interface CreateSiteData {
   tracking_scripts?: string
   site_width?: 'full' | 'custom'
   custom_width?: number
+  default_theme?: 'system' | 'light' | 'dark'
 }
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
@@ -291,9 +292,9 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings, favicon, animations, tracking scripts, or site width, merge them into settings
+    // If updating font settings, favicon, animations, tracking scripts, site width, or default theme, merge them into settings
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined || updates.site_width || updates.custom_width !== undefined) {
+    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined || updates.site_width || updates.custom_width !== undefined || updates.default_theme) {
       const { data: currentSite } = await supabaseAdmin
         .from('sites')
         .select('settings')
@@ -312,9 +313,10 @@ export async function updateSiteAction(
         ...(updates.tracking_scripts !== undefined && { tracking_scripts: updates.tracking_scripts }),
         ...(updates.site_width && { site_width: updates.site_width }),
         ...(updates.custom_width !== undefined && { custom_width: updates.custom_width }),
+        ...(updates.default_theme && { default_theme: updates.default_theme }),
       }
       
-      // Remove font, favicon, animation, tracking script, and site width properties from top level as they're now in settings
+      // Remove font, favicon, animation, tracking script, site width, and default theme properties from top level as they're now in settings
       delete finalUpdates.font_family
       delete finalUpdates.font_weights
       delete finalUpdates.secondary_font_family
@@ -324,6 +326,7 @@ export async function updateSiteAction(
       delete finalUpdates.tracking_scripts
       delete finalUpdates.site_width
       delete finalUpdates.custom_width
+      delete finalUpdates.default_theme
     }
 
     // If updating name, regenerate subdomain
