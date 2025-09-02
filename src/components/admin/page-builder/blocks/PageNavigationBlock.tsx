@@ -305,7 +305,7 @@ export function PageNavigationBlock({
     onLinksChange(newLinks)
   }
 
-  const updateStyle = (field: keyof NavigationStyle, value: string | number | undefined) => {
+  const updateStyle = (field: keyof NavigationStyle, value: string | number | boolean | undefined) => {
     onStyleChange({ ...style, [field]: value })
   }
 
