@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
+import { useEffect, useRef } from "react"
 import {
   DndContext,
   closestCenter,
@@ -116,11 +117,21 @@ function SortablePricingTierItem({
     isDragging,
   } = useSortable({ id: tier.id })
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+
+  // Auto-resize textarea on initial load and when features change
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    }
+  }, [tier.features])
 
   return (
     <div
@@ -201,6 +212,7 @@ function SortablePricingTierItem({
         <div>
           <Label htmlFor={`tier-features-${tierIndex}`}>Features (one per line)</Label>
           <Textarea
+            ref={textareaRef}
             id={`tier-features-${tierIndex}`}
             value={tier.features.join('\n')}
             onChange={(e) => {

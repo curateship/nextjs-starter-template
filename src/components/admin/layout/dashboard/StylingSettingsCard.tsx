@@ -196,17 +196,17 @@ export function StylingSettingsCard({
                       type="number"
                       min="320"
                       max="2560"
-                      value={siteWidth === 'full' ? '' : customWidth || ''}
+                      value={siteWidth === 'custom' ? customWidth || '' : ''}
                       onChange={(e) => {
                         const value = e.target.value
                         if (value === '' || value === '0') {
-                          onSiteWidthChange('full')
-                          onCustomWidthChange(0)
+                          onSiteWidthChange?.('full')
+                          onCustomWidthChange?.(0)
                         } else {
                           const numValue = parseInt(value)
                           if (!isNaN(numValue) && numValue > 0) {
-                            onSiteWidthChange('custom')
-                            onCustomWidthChange(numValue)
+                            onSiteWidthChange?.('custom')
+                            onCustomWidthChange?.(numValue)
                           }
                         }
                       }}
