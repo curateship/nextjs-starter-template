@@ -31,6 +31,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [trackingScripts, setTrackingScripts] = useState("")
   const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
   const [customWidth, setCustomWidth] = useState<number | undefined>()
+  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +63,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setTrackingScripts(data.settings?.tracking_scripts || "")
         setSiteWidth(data.settings?.site_width || 'custom')
         setCustomWidth(data.settings?.custom_width)
+        setDefaultTheme(data.settings?.default_theme || 'system')
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -109,6 +111,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         tracking_scripts: trackingScripts,
         site_width: siteWidth,
         custom_width: customWidth,
+        default_theme: defaultTheme,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
@@ -231,6 +234,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             trackingScripts={trackingScripts}
             siteWidth={siteWidth}
             customWidth={customWidth}
+            defaultTheme={defaultTheme}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -244,6 +248,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onTrackingScriptsChange={setTrackingScripts}
             onSiteWidthChange={setSiteWidth}
             onCustomWidthChange={setCustomWidth}
+            onDefaultThemeChange={setDefaultTheme}
           />
         </form>
       </div>
