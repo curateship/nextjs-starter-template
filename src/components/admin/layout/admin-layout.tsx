@@ -18,10 +18,10 @@ export function AdminLayout({
 }: AdminLayoutProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     async function checkAuth() {
+      const supabase = createClient()
       const { data: { session }, error } = await supabase.auth.getSession()
       
       if (error || !session) {
@@ -46,7 +46,7 @@ export function AdminLayout({
     }
 
     checkAuth()
-  }, [supabase, router])
+  }, [router])
 
   // Don't render anything while checking auth to avoid double loading states
   if (isAuthenticated === null) {
