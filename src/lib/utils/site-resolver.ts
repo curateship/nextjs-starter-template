@@ -14,11 +14,16 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   const siteSubdomain = headersList.get('x-site-subdomain')
   const customDomain = headersList.get('x-custom-domain')
   
-  
-  // If middleware identified a custom domain, use direct domain lookup
-  if (customDomain) {
-    // Use the custom domain directly for lookup since that's what we know works
-    return await getSiteByDomain(customDomain, pageSlug)
+  // If middleware identified a custom domain, try subdomain lookup first
+  if (customDomain && siteSubdomain) {
+    const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
+    
+    // If subdomain lookup fails, fallback to domain lookup
+    if (!result.success) {
+      return await getSiteByDomain(customDomain, pageSlug)
+    }
+    
+    return result
   }
   
   // If middleware identified a subdomain site, use it
