@@ -25,14 +25,14 @@ export async function middleware(request: NextRequest) {
 
   // Check if this is a custom domain
   try {
-    const { data: site } = await supabaseAdmin
+    const { data: site, error } = await supabaseAdmin
       .from('sites')
       .select('id, subdomain, custom_domain, status')
       .eq('custom_domain', hostname)
       .eq('status', 'active')
       .single()
 
-    if (site) {
+    if (site && !error) {
       // Custom domain found - rewrite the request
       // This makes the app think it's being accessed via subdomain
       const rewriteUrl = new URL(url)
@@ -75,7 +75,6 @@ export async function middleware(request: NextRequest) {
 
   } catch (error) {
     // If database query fails, let the request continue
-    console.error('Middleware error:', error)
   }
 
   // Default: let the request continue normally

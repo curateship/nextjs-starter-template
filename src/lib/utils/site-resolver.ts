@@ -16,12 +16,26 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   
   // If middleware identified a custom domain, use subdomain routing
   if (siteSubdomain && customDomain) {
-    return await getSiteBySubdomain(siteSubdomain, pageSlug)
+    const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
+    
+    // If page not found but this is home page, try without specific page
+    if (!result.success && pageSlug === 'home') {
+      return await getSiteBySubdomain(siteSubdomain)
+    }
+    
+    return result
   }
   
   // If middleware identified a subdomain site, use it
   if (siteSubdomain) {
-    return await getSiteBySubdomain(siteSubdomain, pageSlug)
+    const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
+    
+    // If page not found but this is home page, try without specific page
+    if (!result.success && pageSlug === 'home') {
+      return await getSiteBySubdomain(siteSubdomain)
+    }
+    
+    return result
   }
   
   // For localhost:3000 root domain, use the HUB_SITE_ID to find subdomain
