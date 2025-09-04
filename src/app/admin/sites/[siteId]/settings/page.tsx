@@ -101,7 +101,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       const { data, error } = await updateSiteAction(siteId, {
         name: siteName.trim(),
         subdomain: subdomain.trim(),
-        custom_domain: customDomain.trim() || undefined,
+        custom_domain: customDomain.trim() || null,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
