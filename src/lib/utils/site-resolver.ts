@@ -16,11 +16,15 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   
   // If middleware identified a custom domain, try subdomain lookup first
   if (customDomain && siteSubdomain) {
+    console.log('[SITE-RESOLVER] Custom domain detected:', { customDomain, siteSubdomain, pageSlug })
     const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
+    console.log('[SITE-RESOLVER] Subdomain lookup result:', { success: result.success, error: result.error })
     
     // If subdomain lookup fails, fallback to domain lookup
     if (!result.success) {
-      return await getSiteByDomain(customDomain, pageSlug)
+      const domainResult = await getSiteByDomain(customDomain, pageSlug)
+      console.log('[SITE-RESOLVER] Domain lookup result:', { success: domainResult.success, error: domainResult.error })
+      return domainResult
     }
     
     return result
