@@ -77,7 +77,7 @@ export interface AnimationSettings {
 export interface CreateSiteData {
   name: string
   subdomain?: string
-  custom_domain?: string
+  custom_domain?: string | null
   theme_id: string
   status?: 'active' | 'inactive' | 'draft'
   settings?: Record<string, any>
