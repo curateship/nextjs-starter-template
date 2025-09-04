@@ -322,6 +322,24 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
     }, 150) // 150ms delay to prevent flickering
   }
 
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    if (!menuState) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const nav = target.closest('nav')
+      const isMenuButton = target.closest('button[aria-label*="Menu"]')
+      
+      if (!nav && !isMenuButton) {
+        setMenuState(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuState])
+
   const blurEffect = style?.blurEffect || 'medium'
   const blurClass = {
     'none': '',

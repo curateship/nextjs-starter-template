@@ -11,6 +11,11 @@ interface Site {
  * Generate the correct URL for a site
  */
 export function getSiteUrl(site: Site): string {
+  // In development, always use localhost regardless of custom domain settings
+  if (process.env.NODE_ENV === 'development') {
+    return `http://${site.subdomain}.localhost:3000`
+  }
+
   // If custom domain is set, use it
   if (site.custom_domain) {
     // Add protocol if not present
@@ -20,19 +25,16 @@ export function getSiteUrl(site: Site): string {
     return `http://${site.custom_domain}`
   }
 
-  // Use subdomain URLs
-  // Local development: subdomain.localhost:3000
-  // Production: subdomain.yourapp.vercel.app (update domain as needed)
-  return `http://${site.subdomain}.localhost:3000`
+  // Fallback for production without custom domain
+  // Update this domain as needed for your production deployment
+  const productionDomain = process.env.NEXT_PUBLIC_APP_URL || 'yourapp.vercel.app'
+  return `https://${site.subdomain}.${productionDomain}`
 }
 
 /**
  * Get the display URL for showing to users (without protocol)
  */
 export function getSiteDisplayUrl(site: Site): string {
-  if (site.custom_domain) {
-    return site.custom_domain.replace(/^https?:\/\//, '')
-  }
-
-  return `${site.subdomain}.localhost:3000`
+  const url = getSiteUrl(site)
+  return url.replace(/^https?:\/\//, '')
 }
