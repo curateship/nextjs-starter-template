@@ -4,10 +4,25 @@ import { createClient } from '@supabase/supabase-js'
 
 /**
  * Get site data by querying database directly with host
+ * Enhanced to work with middleware for custom domains
  */
 export async function getSiteFromHeaders(pageSlug?: string) {
   const headersList = await headers()
   const host = headersList.get('host') || 'localhost:3000'
+  
+  // Check if middleware has already identified the site (for custom domains)
+  const siteSubdomain = headersList.get('x-site-subdomain')
+  const customDomain = headersList.get('x-custom-domain')
+  
+  // If middleware identified a custom domain, use subdomain routing
+  if (siteSubdomain && customDomain) {
+    return await getSiteBySubdomain(siteSubdomain, pageSlug)
+  }
+  
+  // If middleware identified a subdomain site, use it
+  if (siteSubdomain) {
+    return await getSiteBySubdomain(siteSubdomain, pageSlug)
+  }
   
   // For localhost:3000 root domain, use the HUB_SITE_ID to find subdomain
   if (host === 'localhost:3000') {
@@ -34,7 +49,7 @@ export async function getSiteFromHeaders(pageSlug?: string) {
     return await getSiteByDomain('localhost:3000', pageSlug)
   }
   
-  // For other hosts, try domain lookup first, then subdomain
+  // Legacy fallback: try domain lookup first, then subdomain
   const domainResult = await getSiteByDomain(host, pageSlug)
   if (domainResult.success) {
     return domainResult
