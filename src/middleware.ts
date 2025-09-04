@@ -25,15 +25,17 @@ export async function middleware(request: NextRequest) {
 
   // Check if this is a custom domain
   try {
+    // Remove www. prefix if present for consistent lookups
+    const domainToCheck = hostname.replace(/^www\./, '')
+    
     const { data: site, error } = await supabaseAdmin
       .from('sites')
       .select('id, subdomain, custom_domain, status')
-      .eq('custom_domain', hostname)
+      .or(`custom_domain.eq.${hostname},custom_domain.eq.${domainToCheck}`)
       .eq('status', 'active')
       .single()
 
     if (site && !error) {
-      console.log('[MIDDLEWARE] Custom domain found:', { hostname, subdomain: site.subdomain, siteId: site.id })
       // Custom domain found - rewrite the request
       // This makes the app think it's being accessed via subdomain
       const rewriteUrl = new URL(url)
@@ -45,8 +47,6 @@ export async function middleware(request: NextRequest) {
       response.headers.set('x-site-subdomain', site.subdomain)
       
       return response
-    } else {
-      console.log('[MIDDLEWARE] No site found for custom domain:', { hostname, error: error?.message })
     }
 
     // If not a custom domain, check if it's a subdomain
