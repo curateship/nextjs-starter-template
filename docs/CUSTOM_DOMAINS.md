@@ -8,6 +8,7 @@ This application now supports automatic custom domain routing without manual Ver
 2. **Database Lookup**: Fast indexed query to find site by custom_domain
 3. **Automatic Routing**: Seamlessly serves the correct site content
 4. **No Manual Setup**: New custom domains work instantly after DNS propagation
+5. **Free Wildcard Support**: Uses Vercel's built-in `*.yourproject.vercel.app` wildcard (no Pro plan required)
 
 ## Setup Instructions
 
@@ -19,12 +20,11 @@ Run the migration to add performance indexes:
 ```
 
 ### 2. Vercel Configuration
-In your Vercel project settings:
+**ZERO configuration needed!** Vercel automatically provides:
+- Main app: `yourproject.vercel.app`
+- Wildcard support: `*.yourproject.vercel.app`
 
-1. Go to **Domains** section
-2. Add your main domain: `yoursaas.com`
-3. Add wildcard domain: `*.yoursaas.com` (Pro plan required)
-4. Configure DNS as instructed by Vercel
+Your middleware will automatically handle all custom domains pointing to your Vercel app.
 
 ### 3. Environment Variables
 Ensure these are set in Vercel:
@@ -45,25 +45,25 @@ When a customer wants to use their custom domain:
 ### 2. DNS Configuration (Customer does this)
 Customer needs to add DNS record at their registrar:
 
-**For Root Domain (example.com):**
+**Option A - CNAME (Recommended, easiest):**
+```
+Type: CNAME
+Name: @ (or blank)
+Value: yourproject.vercel.app
+```
+
+**Option B - A Record (if CNAME not supported for root):**
 ```
 Type: A
 Name: @ (or blank)
 Value: 76.76.21.21
 ```
 
-**For WWW (www.example.com):**
+**For WWW subdomain (optional):**
 ```
 Type: CNAME  
 Name: www
-Value: cname.vercel-dns.com
-```
-
-**Alternative (easier for customers):**
-```
-Type: CNAME
-Name: @ (or blank)  
-Value: yoursaas.com
+Value: yourproject.vercel.app
 ```
 
 ### 3. Verification
@@ -129,6 +129,22 @@ Custom domains won't work locally, but you can test:
 - **Database**: Indexed queries handle 1000s of domains efficiently
 - **Memory**: Middleware is stateless, scales with Vercel
 - **SSL**: Vercel handles unlimited SSL certificates automatically
-- **Rate Limits**: No Vercel API rate limits with this approach
+- **Cost**: FREE - no Pro plan required, uses Vercel's built-in wildcard support
+- **Rate Limits**: No API calls needed, no rate limits
 
-This setup scales to unlimited custom domains without manual intervention.
+## Setup Summary (TL;DR)
+
+**For You:**
+1. Run database migration
+2. Deploy your app to Vercel
+3. Done! Zero additional configuration needed
+
+**For Customers:**
+1. Add custom domain in your admin panel
+2. Point their DNS to `yourproject.vercel.app`
+3. Wait for DNS propagation
+4. Their domain works automatically with SSL!
+
+**Total Setup Time: 5 minutes**
+
+This setup scales to unlimited custom domains without manual intervention and costs nothing extra!
