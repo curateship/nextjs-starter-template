@@ -17,6 +17,7 @@ export async function middleware(request: NextRequest) {
     url.pathname.startsWith('/api/') ||        // API routes
     url.pathname.startsWith('/admin/') ||      // Admin panel
     url.pathname.includes('.') ||              // Static files (images, css, js)
+    hostname.includes('vercel.app') ||         // Vercel preview URLs
     hostname.includes('localhost')             // Local development
   ) {
     return NextResponse.next()
