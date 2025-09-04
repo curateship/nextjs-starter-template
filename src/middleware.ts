@@ -33,6 +33,7 @@ export async function middleware(request: NextRequest) {
       .single()
 
     if (site && !error) {
+      console.log('[MIDDLEWARE] Custom domain found:', { hostname, subdomain: site.subdomain, siteId: site.id })
       // Custom domain found - rewrite the request
       // This makes the app think it's being accessed via subdomain
       const rewriteUrl = new URL(url)
@@ -44,6 +45,8 @@ export async function middleware(request: NextRequest) {
       response.headers.set('x-site-subdomain', site.subdomain)
       
       return response
+    } else {
+      console.log('[MIDDLEWARE] No site found for custom domain:', { hostname, error: error?.message })
     }
 
     // If not a custom domain, check if it's a subdomain
