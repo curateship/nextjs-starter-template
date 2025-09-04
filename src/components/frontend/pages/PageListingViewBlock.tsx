@@ -41,6 +41,7 @@ interface ListingViewsBlockProps {
   customWidth?: number
 }
 
+
 export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes, preloadedData, siteWidth = 'custom', customWidth }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,6 +70,40 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     viewAllLink = '',
     backgroundColor = '#ffffff'
   } = content
+
+  // Extract repeated conditions
+  const hasViewAll = viewAllText && viewAllLink && !isPaginated
+  const centerAlign = headerAlign === 'center' || !headerAlign
+  const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
+  const subtitleClasses = `mt-4 text-lg text-muted-foreground max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
+
+  // Single header render function to avoid duplication
+  const renderHeader = () => (
+    <div className="mb-12">
+      <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
+        <div className={hasViewAll ? 'md:flex-1' : ''}>
+          {title && (
+            <h2 className={titleClasses}>
+              {title}
+            </h2>
+          )}
+          {subtitle && (
+            <p className={subtitleClasses}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {hasViewAll && (
+          <div className="mt-6 md:mt-0 md:ml-8 flex-shrink-0">
+            <ViewAllButton
+              text={viewAllText}
+              href={viewAllLink}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
 
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.products || ""
@@ -243,32 +278,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           siteWidth={siteWidth}
           customWidth={customWidth}
         >
-          {/* Custom Header with ViewAll Button */}
-          <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-              <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
-                {title && (
-                  <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                    {title}
-                  </h2>
-                )}
-                {subtitle && (
-                  <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                    {subtitle}
-                  </p>
-                )}
-              </div>
-              {viewAllText && viewAllLink && !isPaginated && (
-                <div className="flex-shrink-0 ml-8">
-                  <ViewAllButton 
-                    text={viewAllText}
-                    href={siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink}
-                    className="mt-0"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          {renderHeader()}
           
           <div className={`grid ${gridColumns} gap-8`}>
             {Array.from({ length: itemsToShow }, (_, i) => (
@@ -297,32 +307,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           siteWidth={siteWidth}
           customWidth={customWidth}
         >
-          {/* Custom Header with ViewAll Button */}
-          <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-              <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
-                {title && (
-                  <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                    {title}
-                  </h2>
-                )}
-                {subtitle && (
-                  <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                    {subtitle}
-                  </p>
-                )}
-              </div>
-              {viewAllText && viewAllLink && !isPaginated && (
-                <div className="flex-shrink-0 ml-8">
-                  <ViewAllButton 
-                    text={viewAllText}
-                    href={siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink}
-                    className="mt-0"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          {renderHeader()}
           
           <p className="text-muted-foreground text-center py-8">
             No products available at the moment.
@@ -338,36 +323,23 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         siteWidth={siteWidth}
         customWidth={customWidth}
       >
-        {/* Custom Header with ViewAll Button */}
-        <div className="mb-12">
-          <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-            <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
-              {title && (
-                <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                  {title}
-                </h2>
-              )}
-              {subtitle && (
-                <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            {viewAllText && viewAllLink && !isPaginated && (
-              <div className="flex-shrink-0 ml-8">
-                <ViewAllButton 
-                  text={viewAllText}
-                  href={siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink}
-                  className="mt-0"
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        {renderHeader()}
         
         <div className={`grid ${gridColumns} gap-8`}>
           {data.products.map(renderProduct)}
         </div>
+        
+        {/* Mobile View All Button */}
+        {hasViewAll && (
+          <div className="flex justify-center mt-8 md:hidden">
+            <ViewAllButton 
+              text={viewAllText}
+              href={siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink}
+              className="mt-0"
+            />
+          </div>
+        )}
+        
         {renderPagination()}
       </BlockContainer>
     </div>

@@ -256,7 +256,10 @@ const MobileMenuPanel = ({
   showDarkModeToggle?: boolean;
   defaultTheme?: 'system' | 'light' | 'dark';
 }) => (
-  <div className="bg-background in-data-[state=active]:block mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 lg:hidden">
+  <div 
+    data-mobile-menu-content
+    className="bg-background in-data-[state=active]:block mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 lg:hidden"
+  >
     <MobileNav menuItems={menuItems} textColor={textColor} />
     <div className="flex flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
       <CTAButtons buttons={buttons} />
@@ -322,7 +325,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
     }, 150) // 150ms delay to prevent flickering
   }
 
-  // Close mobile menu when clicking outside
+  // Close mobile menu when clicking outside or in empty areas
   useEffect(() => {
     if (!menuState) return
 
@@ -330,8 +333,16 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
       const target = event.target as HTMLElement
       const nav = target.closest('nav')
       const isMenuButton = target.closest('button[aria-label*="Menu"]')
+      const isMobileMenuContent = target.closest('[data-mobile-menu-content]')
       
+      // Close if clicking outside nav entirely
       if (!nav && !isMenuButton) {
+        setMenuState(false)
+        return
+      }
+      
+      // Close if clicking inside nav but outside the mobile menu content area
+      if (nav && !isMenuButton && !isMobileMenuContent) {
         setMenuState(false)
       }
     }
