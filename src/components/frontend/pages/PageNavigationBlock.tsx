@@ -368,7 +368,7 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
       <nav
         data-state={menuState && 'active'}
         className={cn(
-          'fixed z-20 w-full border-b transition-colors duration-150',
+          'fixed top-0 z-50 w-full border-b transition-colors duration-150',
           !style && 'bg-background',
           mounted && scrolled && !style && 'bg-background/50 backdrop-blur-xl',
           mounted && scrolled && style && blurEffect !== 'none' && blurClass

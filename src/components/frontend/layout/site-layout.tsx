@@ -49,15 +49,11 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
-        <div className="sticky top-0 z-50">
-          <div>
-            <NavBlock {...navigation} site={site} />
-          </div>
-        </div>
+        <NavBlock {...navigation} site={site} />
       )}
       
       {/* Main content */}
-      <div className={navigation ? "pt-20" : ""}>
+      <div className={navigation ? "pt-16" : ""}>
         {children}
       </div>
       
