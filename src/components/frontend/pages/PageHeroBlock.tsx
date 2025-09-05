@@ -147,7 +147,7 @@ const PageHeroBlock = ({
   heroImage
 }: PageHeroBlockProps) => {
   return (
-    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-10 overflow-hidden">
+    <section className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-4 md:pb-10 overflow-hidden">
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}
@@ -261,7 +261,7 @@ const HeroTitle = ({ title }: { title?: string }) => {
   if (!title || !title.trim()) return null
   
   return (
-    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight">
+    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-2 md:py-5 leading-none tracking-tight">
       {title}
     </h1>
   )

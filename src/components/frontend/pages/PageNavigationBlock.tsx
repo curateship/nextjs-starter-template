@@ -399,11 +399,11 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
         className={cn(
           'fixed top-0 z-50 w-full border-b transition-colors duration-150',
           !style && 'bg-background',
-          mounted && scrolled && !style && 'bg-background/50 backdrop-blur-xl',
-          mounted && scrolled && style && blurEffect !== 'none' && blurClass
+          mounted && (scrolled || menuState) && !style && 'bg-background/50 backdrop-blur-xl',
+          mounted && (scrolled || menuState) && style && blurEffect !== 'none' && blurClass
         )}
         style={style ? {
-          backgroundColor: mounted && scrolled && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
+          backgroundColor: mounted && (scrolled || menuState) && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
         } : undefined}
       >
         <div 
