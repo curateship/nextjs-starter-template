@@ -147,7 +147,7 @@ const ProductHeroBlock = ({
   heroImage
 }: ProductHeroBlockProps) => {
   return (
-    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-10 overflow-hidden">
+    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-4 md:pb-10 overflow-hidden">
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}
@@ -370,7 +370,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
   return (
     <div className="max-w-6xl mx-auto">
       <AnimatedGroup customSettings={{ stagger: 0.05, duration: 1.2 }}>
-        <div className="overflow-hidden md:px-8 sm:mt-8 pb-8">
+        <div className="overflow-hidden md:px-8 sm:mt-8 pb-4 md:pb-8">
           <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15">
             <img
               className="bg-background hidden rounded-2xl object-cover dark:block w-full h-auto"
