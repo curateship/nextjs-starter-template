@@ -75,35 +75,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
   const hasViewAll = viewAllText && viewAllLink && !isPaginated
   const centerAlign = headerAlign === 'center' || !headerAlign
   const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
-  const subtitleClasses = `mt-4 text-lg text-muted-foreground max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
+  const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
 
-  // Single header render function to avoid duplication
-  const renderHeader = () => (
-    <div className="mb-12">
-      <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
-        <div className={hasViewAll ? 'md:flex-1' : ''}>
-          {title && (
-            <h2 className={titleClasses}>
-              {title}
-            </h2>
-          )}
-          {subtitle && (
-            <p className={subtitleClasses}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-        {hasViewAll && (
-          <div className="mt-6 md:mt-0 md:ml-8 flex-shrink-0">
-            <ViewAllButton
-              text={viewAllText}
-              href={viewAllLink}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  )
 
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.products || ""
@@ -278,9 +251,22 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           siteWidth={siteWidth}
           customWidth={customWidth}
         >
-          {renderHeader()}
+          <div className="mb-6 md:mb-12">
+            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'}`}>
+              {title && (
+                <h2 className={titleClasses}>
+                  {title}
+                </h2>
+              )}
+              {subtitle && (
+                <p className={subtitleClasses}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
           
-          <div className={`grid ${gridColumns} gap-8`}>
+          <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
             {Array.from({ length: itemsToShow }, (_, i) => (
               <div key={i} className="animate-pulse">
                 {showImage && (
@@ -307,7 +293,20 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           siteWidth={siteWidth}
           customWidth={customWidth}
         >
-          {renderHeader()}
+          <div className="mb-6 md:mb-12">
+            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'}`}>
+              {title && (
+                <h2 className={titleClasses}>
+                  {title}
+                </h2>
+              )}
+              {subtitle && (
+                <p className={subtitleClasses}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
           
           <p className="text-muted-foreground text-center py-8">
             No products available at the moment.
@@ -323,7 +322,30 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         siteWidth={siteWidth}
         customWidth={customWidth}
       >
-        {renderHeader()}
+        <div className="mb-12">
+          <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
+            <div className={hasViewAll ? 'md:flex-1' : ''}>
+              {title && (
+                <h2 className={titleClasses}>
+                  {title}
+                </h2>
+              )}
+              {subtitle && (
+                <p className={subtitleClasses}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            {hasViewAll && (
+              <div className="mt-6 md:mt-0 md:ml-8 flex-shrink-0 hidden md:block">
+                <ViewAllButton
+                  text={viewAllText}
+                  href={viewAllLink}
+                />
+              </div>
+            )}
+          </div>
+        </div>
         
         <div className={`grid ${gridColumns} gap-8`}>
           {data.products.map(renderProduct)}
@@ -331,11 +353,10 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         
         {/* Mobile View All Button */}
         {hasViewAll && (
-          <div className="flex justify-center mt-8 md:hidden">
+          <div className="flex justify-center mt-6 md:mt-8 md:hidden">
             <ViewAllButton 
               text={viewAllText}
-              href={siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink}
-              className="mt-0"
+              href={viewAllLink}
             />
           </div>
         )}
