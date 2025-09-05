@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { Logo } from '@/components/ui/navigation/logo'
 import { Menu, X, ChevronDown, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState, useRef, useEffect } from 'react'
@@ -444,7 +443,6 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
                 ) : (
                   <Globe className="h-8 w-8" style={{ color: style?.textColor || undefined }} />
                 )}
-                <Logo className={logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? 'hidden' : 'hidden'} />
               </Link>
 
               <div className="flex items-center gap-2 lg:hidden">
