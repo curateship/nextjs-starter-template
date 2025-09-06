@@ -237,54 +237,19 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 }
 
 const ProductPricingBlock = ({
-  title = '',
-  subtitle = '',
+  title,
+  subtitle,
   headerAlign = 'center',
   pricingTiers = [],
   siteWidth = 'custom',
   customWidth
 }: ProductPricingBlockProps) => {
-  // Show default pricing if no tiers configured
-  const defaultTiers: PricingTier[] = [
-    {
-      id: "free",
-      name: "Free",
-      description: "For personal use only with limited features and support",
-      price: "0",
-      interval: "Includes 1 user.",
-      buttonText: "Get Started",
-      buttonUrl: "",
-      buttonVariant: "outline",
-      features: ["Live Collaboration", "1 GB Storage", "2 Projects", "Basic Support"],
-      comparison: "Features",
-    },
-    {
-      id: "pro",
-      name: "Pro",
-      description: "For small businesses with all the features and support",
-      price: "29",
-      interval: "Per user, per month.",
-      buttonText: "Purchase",
-      buttonUrl: "",
-      buttonVariant: "default",
-      features: ["2 Team Members", "10 GB Storage", "10 Projects", "Priority Support"],
-      comparison: "Everything in Free, and:",
-    },
-    {
-      id: "premium",
-      name: "Premium",
-      description: "For teams and organizations with advanced features and support",
-      price: "59",
-      interval: "Per user, per month.",
-      buttonText: "Purchase",
-      buttonUrl: "",
-      buttonVariant: "outline",
-      features: ["5 Team Members", "50 GB Storage", "50 Projects", "Dedicated Support"],
-      comparison: "Everything in Pro, and:",
-    }
-  ]
+  // Don't render anything if no pricing tiers are provided
+  if (!pricingTiers || pricingTiers.length === 0) {
+    return null
+  }
 
-  const displayTiers = pricingTiers.length > 0 ? pricingTiers : defaultTiers
+  const displayTiers = pricingTiers
 
   // Use single pricing layout when there's only one tier
   if (displayTiers.length === 1) {
@@ -295,11 +260,11 @@ const ProductPricingBlock = ({
         className="white"
         siteWidth={siteWidth}
         customWidth={customWidth}
-        header={{
-          title,
-          subtitle,
+        header={(title || subtitle) ? {
+          title: title,
+          subtitle: subtitle,
           align: headerAlign
-        }}
+        } : undefined}
       >
         <SinglePricingCard tier={singleTier} />
       </BlockContainer>
@@ -313,11 +278,11 @@ const ProductPricingBlock = ({
       className="white"
       siteWidth={siteWidth}
       customWidth={customWidth}
-      header={{
-        title,
-        subtitle,
+      header={(title || subtitle) ? {
+        title: title,
+        subtitle: subtitle,
         align: headerAlign
-      }}
+      } : undefined}
     >
       {/* Grid layout for pricing tiers */}
       <div className="mx-auto grid max-w-xl gap-8 rounded-md lg:max-w-none lg:grid-cols-3 lg:gap-10">

@@ -178,8 +178,8 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'product-pricing' && (
               <ProductPricingBlock
-                headerTitle={selectedBlock.content.headerTitle ?? 'Pricing'}
-                headerSubtitle={selectedBlock.content.headerSubtitle ?? 'Check out our affordable pricing plans below and choose the one that suits you best.'}
+                headerTitle={selectedBlock.content.headerTitle ?? ''}
+                headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 tiers={selectedBlock.content.tiers || []}
                 onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}

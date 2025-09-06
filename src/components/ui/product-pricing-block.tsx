@@ -162,11 +162,6 @@ const ProductPricingBlock = () => {
     <BlockContainer
       id="pricing"
       className="white"
-      header={{
-        title: "Pricing",
-        subtitle: "Check out our affordable pricing plans below and choose the one that suits you best. If you need a custom plan, please contact us.",
-        align: "center"
-      }}
     >
       {/* Grid layout for pricing tiers */}
       <div className="mx-auto grid max-w-xl gap-6 rounded-md lg:max-w-none lg:grid-cols-3">
