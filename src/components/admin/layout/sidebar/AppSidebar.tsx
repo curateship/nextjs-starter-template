@@ -116,8 +116,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: FileText,
     },
     {
-      name: "Image Library",
-      url: "/admin/images",
+      name: "Media Library",
+      url: "/admin/media",
       icon: Image,
     },
     {

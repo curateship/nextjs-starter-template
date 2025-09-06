@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Grid, List, Image as ImageIcon, Trash2, Edit } from "lucide-react"
-import { getImagesAction, deleteImageAction, updateImageAction } from "@/lib/actions/images/image-actions"
-import type { ImageData } from "@/lib/actions/images/image-actions"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, Play, VideoIcon, Filter } from "lucide-react"
+import { getMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
+import type { MediaData } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
 import { 
@@ -18,13 +18,20 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 
 export default function ImagesPage() {
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery')
-  const [images, setImages] = useState<ImageData[]>([])
+  const [images, setImages] = useState<MediaData[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  // Removed usage-based filtering
-  const [editingImage, setEditingImage] = useState<ImageData | null>(null)
+  const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
+  const [editingImage, setEditingImage] = useState<MediaData | null>(null)
   const [editAltText, setEditAltText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
 
@@ -36,7 +43,7 @@ export default function ImagesPage() {
   const loadImages = async () => {
     try {
       setIsLoading(true)
-      const { data, error } = await getImagesAction()
+      const { data, error } = await getMediaAction()
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {
@@ -49,7 +56,7 @@ export default function ImagesPage() {
     }
   }
 
-  const handleDeleteImage = async (image: ImageData) => {
+  const handleDeleteImage = async (image: MediaData) => {
     if (!confirm(`Are you sure you want to delete "${image.original_name}"? This action cannot be undone.`)) {
       return
     }
@@ -67,7 +74,7 @@ export default function ImagesPage() {
     }
   }
 
-  const handleEditImage = (image: ImageData) => {
+  const handleEditImage = (image: MediaData) => {
     setEditingImage(image)
     setEditAltText(image.alt_text || '')
   }
@@ -97,17 +104,23 @@ export default function ImagesPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    // Validate file type 
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
+    const allowedTypes = [...imageTypes, ...videoTypes]
+    
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.')
+      toast.error('Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.')
       return
     }
+    
+    const fileType = imageTypes.includes(file.type) ? 'image' : 'video'
 
-    // Validate file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024 // 10MB
+    // Validate file size (10MB for images, 100MB for videos)
+    const maxSize = fileType === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024
+    const maxSizeLabel = fileType === 'image' ? '10MB' : '100MB'
     if (file.size > maxSize) {
-      toast.error('File size too large. Maximum size is 10MB.')
+      toast.error(`File size too large. Maximum size is ${maxSizeLabel}.`)
       return
     }
 
@@ -144,7 +157,10 @@ export default function ImagesPage() {
     }
   }
 
-  const filteredImages = images
+  const filteredImages = images.filter((media) => {
+    if (filterType === 'all') return true
+    return media.file_type === filterType
+  })
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -158,10 +174,10 @@ export default function ImagesPage() {
     <AdminLayout>
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
-          title="Image Library"
-          subtitle="Manage images for all your sites"
+          title="Media Library"
+          subtitle="Manage images and videos for all your sites"
           primaryAction={{
-            label: isUploading ? "Uploading..." : "Upload Image",
+            label: isUploading ? "Uploading..." : "Upload Media",
             onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
           }}
         />
@@ -170,7 +186,7 @@ export default function ImagesPage() {
         <input
           id="image-upload-input"
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime"
           onChange={handleImageUpload}
           className="hidden"
         />
@@ -181,9 +197,32 @@ export default function ImagesPage() {
               {isLoading ? (
                 <div className="h-6 bg-muted rounded animate-pulse w-48"></div>
               ) : (
-                <h3 className="text-lg font-semibold">Images Library ({filteredImages.length})</h3>
+                <h3 className="text-lg font-semibold">Media Library ({filteredImages.length})</h3>
               )}
               <div className="flex items-center space-x-4">
+                {/* Filter Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Filter className="w-4 h-4 mr-2" />
+                      {filterType === 'all' ? 'All Media' : filterType === 'image' ? 'Images' : 'Videos'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => setFilterType('all')}>
+                      All Media
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterType('image')}>
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Images Only
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterType('video')}>
+                      <VideoIcon className="w-4 h-4 mr-2" />
+                      Videos Only
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {/* View Mode Toggle */}
                 <div className="flex items-center border rounded-md">
                   <Button
@@ -241,33 +280,52 @@ export default function ImagesPage() {
           ) : filteredImages.length === 0 ? (
             <div className="p-6 text-center">
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-2">No images found</p>
+              <p className="text-lg font-medium mb-2">No media found</p>
               <p className="text-muted-foreground mb-4">
-                You haven&apos;t uploaded any images yet.
+                You haven&apos;t uploaded any images or videos yet.
               </p>
               <Button onClick={() => document.getElementById('image-upload-input')?.click()}>
-                Upload Your First Image
+                Upload Your First Media File
               </Button>
             </div>
           ) : viewMode === 'gallery' ? (
             // Gallery View
             <div className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredImages.map((image) => (
-                  <div key={image.id} className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
-                    <Image
-                      src={image.public_url}
-                      alt={image.alt_text || image.original_name}
-                      fill
-                      className="object-contain"
-                      sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
-                    />
+                {filteredImages.map((media) => (
+                  <div key={media.id} className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
+                    {media.file_type === 'video' ? (
+                      <div className="relative w-full h-full bg-black">
+                        <video 
+                          key={media.id}
+                          src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                          className="w-full h-full object-contain"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          onLoadedMetadata={(e) => {
+                            e.currentTarget.currentTime = 0.1;
+                          }}
+                        />
+                        <div className="absolute top-2 left-2">
+                          <VideoIcon className="w-4 h-4 text-white drop-shadow-lg" />
+                        </div>
+                      </div>
+                    ) : (
+                      <Image
+                        src={media.public_url}
+                        alt={media.alt_text || media.original_name}
+                        fill
+                        className="object-contain"
+                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
+                      />
+                    )}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="flex justify-center space-x-2">
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => handleEditImage(image)}
+                          onClick={() => handleEditImage(media)}
                           className="cursor-pointer"
                         >
                           <Edit className="w-3 h-3" />
@@ -275,7 +333,7 @@ export default function ImagesPage() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleDeleteImage(image)}
+                          onClick={() => handleDeleteImage(media)}
                           className="cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -289,22 +347,34 @@ export default function ImagesPage() {
           ) : (
             // List View
             <div className="divide-y">
-              {filteredImages.map((image) => (
-                <div key={image.id} className="p-6 flex items-center justify-between">
+              {filteredImages.map((media) => (
+                <div key={media.id} className="p-6 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden relative">
-                      <Image
-                        src={image.public_url}
-                        alt={image.alt_text || image.original_name}
-                        fill
-                        className="object-contain"
-                        sizes="64px"
-                      />
+                      {media.file_type === 'video' ? (
+                        <video 
+                          src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                          className="w-full h-full object-contain"
+                          muted
+                          preload="metadata"
+                          onLoadedMetadata={(e) => {
+                            e.currentTarget.currentTime = 0.1;
+                          }}
+                        />
+                      ) : (
+                        <Image
+                          src={media.public_url}
+                          alt={media.alt_text || media.original_name}
+                          fill
+                          className="object-contain"
+                          sizes="64px"
+                        />
+                      )}
                     </div>
                     <div>
-                      <h4 className="font-medium">{image.original_name}</h4>
+                      <h4 className="font-medium">{media.original_name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {formatFileSize(image.file_size)}
+                        {formatFileSize(media.file_size)}
                       </p>
                     </div>
                   </div>
@@ -312,7 +382,7 @@ export default function ImagesPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleEditImage(image)}
+                      onClick={() => handleEditImage(media)}
                       className="cursor-pointer"
                     >
                       <Edit className="w-4 h-4 mr-2" />
@@ -321,7 +391,7 @@ export default function ImagesPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDeleteImage(image)}
+                      onClick={() => handleDeleteImage(media)}
                       className="cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -338,28 +408,42 @@ export default function ImagesPage() {
         <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Image</DialogTitle>
+              <DialogTitle>{editingImage?.file_type === 'video' ? 'Edit Video' : 'Edit Image'}</DialogTitle>
             </DialogHeader>
             {editingImage && (
               <div className="space-y-4">
                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                  <Image
-                    src={editingImage.public_url}
-                    alt={editingImage.alt_text || editingImage.original_name}
-                    fill
-                    className="object-contain"
-                  />
+                  {editingImage.file_type === 'video' ? (
+                    <video
+                      src={`/api/media/proxy?url=${encodeURIComponent(editingImage.public_url)}`}
+                      className="w-full h-full object-contain"
+                      controls
+                      muted
+                    />
+                  ) : (
+                    <Image
+                      src={editingImage.public_url}
+                      alt={editingImage.alt_text || editingImage.original_name}
+                      fill
+                      className="object-contain"
+                    />
+                  )}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-alt-text">Alt Text</Label>
+                  <Label htmlFor="edit-alt-text">
+                    {editingImage.file_type === 'video' ? 'Description' : 'Alt Text'}
+                  </Label>
                   <Input
                     id="edit-alt-text"
                     value={editAltText}
                     onChange={(e) => setEditAltText(e.target.value)}
-                    placeholder="Describe this image for accessibility"
+                    placeholder={editingImage.file_type === 'video' ? 'Describe this video...' : 'Describe this image for accessibility'}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Alt text helps screen readers and improves SEO
+                    {editingImage.file_type === 'video' 
+                      ? 'Description helps with organization and accessibility'
+                      : 'Alt text helps screen readers and improves SEO'
+                    }
                   </p>
                 </div>
               </div>

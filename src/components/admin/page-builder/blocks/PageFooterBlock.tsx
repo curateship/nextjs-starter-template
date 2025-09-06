@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
+import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import {
   DndContext,
