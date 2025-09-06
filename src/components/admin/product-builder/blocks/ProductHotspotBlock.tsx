@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/ProductHotspotBlock"
@@ -300,14 +300,14 @@ export function ProductHotspotBlock({
 
 
       {/* Image Picker Modal */}
-      <ImagePicker
+      <MediaPicker
         open={showImagePicker}
         onOpenChange={setShowImagePicker}
-        onSelectImage={(imageUrl) => {
+        onSelectMedia={(imageUrl) => {
           handleBackgroundImageChange(imageUrl)
           setShowImagePicker(false)
         }}
-        currentImageUrl={backgroundImage}
+        currentMediaUrl={backgroundImage}
       />
 
       {/* Fixed position tooltip for editing hotspots */}

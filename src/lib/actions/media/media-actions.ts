@@ -345,7 +345,7 @@ export async function getMediaByUrlAction(publicUrl: string): Promise<{ data: st
 
 // Legacy function exports for backward compatibility
 export const uploadImageAction = uploadMediaAction
-export const getImagesAction = async () => getMediaAction('image')
+export const getImagesAction = async () => await getMediaAction('image')
 export const updateImageAction = updateMediaAction
 export const deleteImageAction = deleteMediaAction
 export const getImageByUrlAction = getMediaByUrlAction

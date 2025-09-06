@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -444,14 +444,14 @@ export function DirectorySettingsModal({
         </form>
 
         {/* Image Picker Modal */}
-        <ImagePicker
+        <MediaPicker
           open={showImagePicker}
           onOpenChange={setShowImagePicker}
-          onSelectImage={(imageUrl) => {
-            handleImageChange(imageUrl)
+          onSelectMedia={(mediaUrl) => {
+            handleImageChange(mediaUrl)
             setShowImagePicker(false)
           }}
-          currentImageUrl={featuredImage || ''}
+          currentMediaUrl={featuredImage || ''}
         />
           </div>
         </div>
