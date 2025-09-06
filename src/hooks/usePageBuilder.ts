@@ -172,56 +172,48 @@ export function usePageBuilder({
 
   // Handle block reordering
   const handleReorderBlocks = async (reorderedBlocks: any[]) => {
-    try {
-      // Get current blocks to preserve protected ones that might not be in reorderedBlocks
-      const currentBlocks = blocks[selectedPage] || []
-      const protectedBlocks = currentBlocks.filter(block => 
-        isBlockTypeProtected(block.type)
-      )
-      
-      // Combine protected blocks with reordered blocks, maintaining proper order
-      // Navigation should be first, footer should be last
-      const navigationBlocks = protectedBlocks.filter(b => b.type === 'navigation')
-      const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
-      const reorderableBlocks = reorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
-      
-      // Build final blocks array with updated display_order
-      const finalBlocks = [
-        ...navigationBlocks,
-        ...reorderableBlocks,
-        ...footerBlocks
-      ].map((block, index) => ({
-        ...block,
-        display_order: index
-      }))
-      
-      // Update local state immediately for responsive UX
-      const updatedBlocks = { ...blocks }
-      updatedBlocks[selectedPage] = finalBlocks
-      setBlocks(updatedBlocks)
+    // Store original state for rollback
+    const originalBlocks = { ...blocks }
+    
+    // Get current blocks to preserve protected ones that might not be in reorderedBlocks
+    const currentBlocks = blocks[selectedPage] || []
+    const protectedBlocks = currentBlocks.filter(block => 
+      isBlockTypeProtected(block.type)
+    )
+    
+    // Combine protected blocks with reordered blocks, maintaining proper order
+    // Navigation should be first, footer should be last
+    const navigationBlocks = protectedBlocks.filter(b => b.type === 'navigation')
+    const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
+    const reorderableBlocks = reorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
+    
+    // Build final blocks array with updated display_order
+    const finalBlocks = [
+      ...navigationBlocks,
+      ...reorderableBlocks,
+      ...footerBlocks
+    ].map((block, index) => ({
+      ...block,
+      display_order: index
+    }))
+    
+    // Update local state immediately for responsive UX
+    const updatedBlocks = { ...blocks }
+    updatedBlocks[selectedPage] = finalBlocks
+    setBlocks(updatedBlocks)
 
-      // Save to database
-      const currentPage = pages.find(p => p.slug === selectedPage)
-      if (currentPage) {
-        const jsonBlocks = convertPageBlocksToJson(finalBlocks)
-        const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
-        
-        if (error) {
-          // Rollback on error
-          const originalBlocks = { ...blocks }
-          setBlocks(originalBlocks)
-          setSaveMessage(`Error reordering blocks: ${error}`)
-          setTimeout(() => setSaveMessage(""), 5000)
-          return
-        }
+    // Save to database
+    const currentPage = pages.find(p => p.slug === selectedPage)
+    if (currentPage) {
+      const jsonBlocks = convertPageBlocksToJson(finalBlocks)
+      const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+      
+      if (error) {
+        // Rollback to original state
+        setBlocks(originalBlocks)
+        setSaveMessage(`Error reordering blocks: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
       }
-    } catch (err) {
-      console.error('Error reordering blocks:', err)
-      // Rollback on error
-      const originalBlocks = { ...blocks }
-      setBlocks(originalBlocks)
-      setSaveMessage("Error reordering blocks")
-      setTimeout(() => setSaveMessage(""), 5000)
     }
   }
 
