@@ -5,8 +5,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, GripVertical, ImageIcon } from "lucide-react"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { Plus, Trash2, GripVertical, ImageIcon, VideoIcon, Play } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   DndContext,
@@ -28,11 +28,24 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Helper function to detect media type from URL
+const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
+  if (!url) return 'unknown'
+  const ext = url.split('.').pop()?.toLowerCase()
+  const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+  
+  if (videoExts.includes(ext || '')) return 'video'
+  if (imageExts.includes(ext || '')) return 'image'
+  return 'unknown'
+}
+
 interface Feature {
   id: string
   image: string
   title: string
   description: string
+  mediaType?: 'image' | 'video'
 }
 
 interface ProductFeaturesBlockProps {
@@ -98,11 +111,30 @@ function SortableFeatureItem({
               onClick={() => onOpenImagePicker(index)}
             >
               {feature.image ? (
-                <img
-                  src={feature.image}
-                  alt={feature.title}
-                  className="w-12 h-12 object-cover rounded-lg border"
-                />
+                getMediaType(feature.image) === 'video' ? (
+                  <div className="relative w-12 h-12 rounded-lg border bg-black overflow-hidden">
+                    <video 
+                      src={`/api/media/proxy?url=${encodeURIComponent(feature.image)}`}
+                      className="w-full h-full object-cover"
+                      muted
+                      preload="metadata"
+                      onLoadedMetadata={(e) => {
+                        e.currentTarget.currentTime = 0.1;
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-black/60 rounded-full p-1">
+                        <Play className="w-2 h-2 text-white fill-white" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <img
+                    src={feature.image}
+                    alt={feature.title}
+                    className="w-12 h-12 object-cover rounded-lg border"
+                  />
+                )
               ) : (
                 <div className="w-12 h-12 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center hover:bg-muted/70 hover:border-muted-foreground/40 transition-all">
                   <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
@@ -204,8 +236,8 @@ export function ProductFeaturesBlock({
     }
   }
 
-  const handleSelectImage = (imageUrl: string, index: number) => {
-    updateFeature(index, 'image', imageUrl)
+  const handleSelectMedia = (mediaUrl: string, index: number) => {
+    updateFeature(index, 'image', mediaUrl)
     setShowPicker(null)
   }
 
@@ -303,12 +335,13 @@ export function ProductFeaturesBlock({
         </CardContent>
       </Card>
 
-      {/* Image Picker Modal */}
-      <ImagePicker
+      {/* Media Picker Modal */}
+      <MediaPicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
-        onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
-        currentImageUrl={showPicker !== null ? features[showPicker]?.image : undefined}
+        onSelectMedia={(mediaUrl) => showPicker !== null && handleSelectMedia(mediaUrl, showPicker)}
+        currentMediaUrl={showPicker !== null ? features[showPicker]?.image : undefined}
+        showVideos={true}
       />
     </div>
   )

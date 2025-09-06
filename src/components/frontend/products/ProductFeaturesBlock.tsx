@@ -2,11 +2,24 @@ import { Card } from '@/components/ui/card'
 import { BlockContainer } from '@/components/frontend/layout/block-container'
 import Image from 'next/image'
 
+// Helper function to detect media type from URL
+const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
+  if (!url) return 'unknown'
+  const ext = url.split('.').pop()?.toLowerCase()
+  const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
+  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+  
+  if (videoExts.includes(ext || '')) return 'video'
+  if (imageExts.includes(ext || '')) return 'image'
+  return 'unknown'
+}
+
 interface Feature {
   id: string
   image: string
   title: string
   description: string
+  mediaType?: 'image' | 'video'
 }
 
 interface ProductFeaturesBlockProps {
@@ -61,7 +74,7 @@ const ProductFeaturesBlock = ({
       }}
     >
       <div className="mt-8 grid gap-8 sm:grid-cols-2 md:mt-16 md:grid-cols-3 md:gap-12">
-        {displayFeatures.map((feature, index) => (
+        {displayFeatures.map((feature) => (
           <div key={feature.id} className="space-y-4">
             <Card
               className="aspect-video overflow-hidden px-6"
@@ -69,14 +82,26 @@ const ProductFeaturesBlock = ({
             >
               {feature.image ? (
                 <div className="h-full translate-y-6 rounded-md overflow-hidden">
-                  <Image
-                    src={feature.image}
-                    alt={feature.title}
-                    width={800}
-                    height={450}
-                    className="w-full h-auto object-cover object-top"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  />
+                  {getMediaType(feature.image) === 'video' ? (
+                    <video
+                      src={`/api/media/proxy?url=${encodeURIComponent(feature.image)}`}
+                      className="w-full h-full object-cover object-top"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="auto"
+                    />
+                  ) : (
+                    <Image
+                      src={feature.image}
+                      alt={feature.title}
+                      width={800}
+                      height={450}
+                      className="w-full h-auto object-cover object-top"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
+                  )}
                 </div>
               ) : (
                 <Card className="h-full translate-y-6" />
