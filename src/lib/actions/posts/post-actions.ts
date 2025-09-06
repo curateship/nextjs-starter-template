@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getImageByUrlAction } from '../images/image-actions'
+import { getImageByUrlAction } from '../media/media-actions'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(

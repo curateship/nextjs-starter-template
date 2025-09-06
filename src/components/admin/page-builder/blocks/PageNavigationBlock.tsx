@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { ImagePicker } from "@/components/admin/image-library/ImagePicker"
+import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
