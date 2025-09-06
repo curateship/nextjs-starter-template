@@ -6,8 +6,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createPageAction } from "@/lib/actions/pages/page-actions"
-import type { Page, CreatePageData } from "@/lib/actions/pages/page-actions"
+import type { Page } from "@/lib/actions/pages/page-actions"
+
+interface CreatePageData {
+  title: string
+  slug: string
+  meta_description: string
+  is_homepage: boolean
+  is_published: boolean
+}
 
 interface CreatePageModalProps {
   siteId: string
@@ -88,16 +95,29 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
       setLoading(true)
       setError(null)
       
-      const draftData = { ...formData, is_published: false }
-      const { data, error: actionError } = await createPageAction(siteId, draftData)
+      const draftData = { 
+        ...formData, 
+        site_id: siteId,
+        is_published: false 
+      }
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/pages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create page')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       setError('Failed to save page as draft')
@@ -117,16 +137,29 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
       setLoading(true)
       setError(null)
       
-      const publishData = { ...formData, is_published: true }
-      const { data, error: actionError } = await createPageAction(siteId, publishData)
+      const publishData = { 
+        ...formData, 
+        site_id: siteId,
+        is_published: true 
+      }
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/pages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create page')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       setError('Failed to publish page')

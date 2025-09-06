@@ -8,9 +8,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createPostAction } from "@/lib/actions/posts/post-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Post, CreatePostData } from "@/lib/actions/posts/post-actions"
+import type { Post } from "@/lib/actions/posts/post-actions"
+
+interface CreatePostData {
+  title: string
+  slug: string
+  meta_description: string
+  featured_image: string
+  excerpt: string
+  content: string
+  is_published: boolean
+}
 
 interface CreatePostModalProps {
   onSuccess: (post: Post) => void
@@ -113,21 +122,33 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       const draftData = { 
         title: formData.title,
         slug: formData.slug,
+        site_id: currentSite.id,
         meta_description: formData.meta_description,
-        featured_image: formData.featured_image,
-        excerpt: formData.excerpt,
-        content: formData.content, // Send content field
-        is_published: false 
+        featured_image: formData.featured_image || null,
+        excerpt: formData.excerpt || null,
+        is_published: false,
+        content_blocks: {
+          content: formData.content || ''
+        }
       }
-      const { data, error: actionError } = await createPostAction(currentSite.id, draftData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create post')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       setError('Failed to save post as draft')
@@ -155,21 +176,33 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       const publishData = { 
         title: formData.title,
         slug: formData.slug,
+        site_id: currentSite.id,
         meta_description: formData.meta_description,
-        featured_image: formData.featured_image,
-        excerpt: formData.excerpt,
-        content: formData.content, // Send content field
-        is_published: true 
+        featured_image: formData.featured_image || null,
+        excerpt: formData.excerpt || null,
+        is_published: true,
+        content_blocks: {
+          content: formData.content || ''
+        }
       }
-      const { data, error: actionError } = await createPostAction(currentSite.id, publishData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create post')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       setError('Failed to publish post')

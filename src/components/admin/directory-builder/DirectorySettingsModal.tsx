@@ -3,24 +3,19 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
-  DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogPortal,
-  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 interface DirectorySettingsModalProps {
@@ -137,22 +132,29 @@ export function DirectorySettingsModal({
       const draftData = { 
         ...formData, 
         is_published: false,
-        featured_image: featuredImage || null,
-        content_blocks: updatedContentBlocks
+        featured_image: featuredImage || null
       }
-      const { data, error: actionError } = await updateDirectoryAction(directory.id, draftData)
+      const response = await fetch(`/api/directories/${directory.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to save directory as draft')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage('Directory saved as draft successfully!')
         
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -196,22 +198,29 @@ export function DirectorySettingsModal({
       const publishData = { 
         ...formData, 
         is_published: true,
-        featured_image: featuredImage || null,
-        content_blocks: updatedContentBlocks
+        featured_image: featuredImage || null
       }
-      const { data, error: actionError } = await updateDirectoryAction(directory.id, publishData)
+      const response = await fetch(`/api/directories/${directory.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to publish directory')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage(directory?.is_published ? 'Directory saved successfully!' : 'Directory published successfully!')
         
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open

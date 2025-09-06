@@ -9,9 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import type { Product, CreateProductData } from "@/lib/actions/products/product-actions"
+import type { Product } from "@/lib/actions/products/product-actions"
+
+interface CreateProductData {
+  title: string
+  slug?: string
+  is_published: boolean
+}
 
 interface CreateProductModalProps {
   onSuccess: (product: Product) => void
@@ -119,20 +124,30 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       
       const draftData = { 
         ...formData, 
+        site_id: currentSite.id,
         is_published: false, 
         featured_image: featuredImage || null,
         description: richTextContent || null,
         content_blocks: contentBlocks 
       }
-      const { data, error: actionError } = await createProductAction(currentSite.id, draftData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create product')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       console.error('Error saving product as draft:', err)
@@ -167,20 +182,30 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       
       const publishData = { 
         ...formData, 
+        site_id: currentSite.id,
         is_published: true, 
         featured_image: featuredImage || null,
         description: richTextContent || null,
         content_blocks: contentBlocks 
       }
-      const { data, error: actionError } = await createProductAction(currentSite.id, publishData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create product')
         return
       }
       
-      if (data) {
-        onSuccess(data)
+      if (result.data) {
+        onSuccess(result.data)
       }
     } catch (err) {
       console.error('Error publishing product:', err)

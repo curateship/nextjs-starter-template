@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogPortal,
@@ -12,12 +11,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
-import { ImageIcon, X, CheckCircle, Check } from "lucide-react"
+import { ImageIcon, X, CheckCircle } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { updatePostAction } from "@/lib/actions/posts/post-actions"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -25,7 +22,7 @@ interface PostSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   post: Post | null
-  site: SiteWithTheme | null
+  _site: SiteWithTheme | null
   onSuccess?: (updatedPost: Post) => void
 }
 
@@ -33,17 +30,15 @@ export function PostSettingsModal({
   open, 
   onOpenChange, 
   post, 
-  site,
+  _site,
   onSuccess 
 }: PostSettingsModalProps) {
   const [formData, setFormData] = useState<UpdatePostData>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
   const [extractedContent, setExtractedContent] = useState('')
 
   // Generate slug from title
@@ -58,7 +53,6 @@ export function PostSettingsModal({
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
-    setIsSaved(false)
     setFormData(prev => ({
       ...prev,
       title,
@@ -68,7 +62,6 @@ export function PostSettingsModal({
 
   // Handle manual slug changes
   const handleSlugChange = (slug: string) => {
-    setIsSaved(false)
     if (slug === '') {
       // If user clears the field, reset to auto-generation
       setSlugManuallyEdited(false)
@@ -81,13 +74,11 @@ export function PostSettingsModal({
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
-    setIsSaved(false)
     setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
   }
 
   // Handle removing the featured image
   const handleRemoveImage = async () => {
-    setIsSaved(false)
     setFormData(prev => ({ ...prev, featured_image: '' }))
   }
 
@@ -152,21 +143,27 @@ export function PostSettingsModal({
       setSaveMessage(null)
       
       const draftData = { ...formData, is_published: false }
-      const { data, error: actionError } = await updatePostAction(post.id, draftData)
+      const response = await fetch(`/api/posts/${post.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to save post as draft')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage('Post saved as draft')
-        setLastSavedAt(new Date())
-        setIsSaved(true)
         
         // Call success callback
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds
@@ -199,24 +196,30 @@ export function PostSettingsModal({
       setSaveMessage(null)
       
       const publishData = { ...formData, is_published: true }
-      const { data, error: actionError } = await updatePostAction(post.id, publishData)
+      const response = await fetch(`/api/posts/${post.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to publish post')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage(post?.is_published ? 'Post updated' : 'Post published')
-        setLastSavedAt(new Date())
-        setIsSaved(true)
         
         // Update the form data to reflect the new published state
         setFormData(prev => ({ ...prev, is_published: true }))
         
         // Call success callback
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds
@@ -360,7 +363,7 @@ export function PostSettingsModal({
                 <Input
                   id="excerpt"
                   value={formData.excerpt || ''}
-                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, excerpt: e.target.value })); }}
+                  onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
                   placeholder="A brief summary of your post content"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -377,7 +380,7 @@ export function PostSettingsModal({
                     hideHeader: true,
                     hideEditorHeader: true
                   }}
-                  onContentChange={(content) => { setIsSaved(false); setExtractedContent(content.content); }}
+                  onContentChange={(content) => setExtractedContent(content.content)}
                   compact={true}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -403,7 +406,7 @@ export function PostSettingsModal({
                 <Input
                   id="modal-meta_description"
                   value={formData.meta_description || ''}
-                  onChange={(e) => { setIsSaved(false); setFormData(prev => ({ ...prev, meta_description: e.target.value })); }}
+                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="A brief description of this post for search engines"
                 />
                 <p className="text-xs text-muted-foreground">

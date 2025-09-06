@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createEventAction, updateEventAction } from "@/lib/actions/events/event-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Event } from "@/lib/actions/events/event-actions"
 
@@ -87,12 +86,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       return
     }
 
-    console.log('=== EVENT CREATION DEBUG ===')
-    console.log('richTextContent:', richTextContent)
-    console.log('richTextContent type:', typeof richTextContent)
-    console.log('richTextContent length:', richTextContent.length)
-    console.log('richTextContent || null:', richTextContent || null)
-    
     setLoading(true)
     setError(null)
 
@@ -100,6 +93,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       const eventData = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
+        site_id: currentSite.id,
         description: richTextContent || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
@@ -107,27 +101,29 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         content_blocks: isPrivate ? { _settings: { is_private: true } } : {}
       }
       
-      console.log('Event data being sent to createEventAction:', eventData)
-      
-      // Create the event
-      const { data: newEvent, error: createError } = await createEventAction(currentSite.id, eventData)
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventData),
+      })
 
-      if (createError) {
-        setError(createError)
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create event')
         setLoading(false)
         return
       }
 
-      if (!newEvent) {
+      if (!result.data) {
         setError("Failed to create event")
         setLoading(false)
         return
       }
 
-      console.log('Created event:', newEvent)
-      console.log('Created event description:', newEvent.description)
-
-      onSuccess(newEvent)
+      onSuccess(result.data)
     } catch (err) {
       setError("Failed to create event")
       setLoading(false)

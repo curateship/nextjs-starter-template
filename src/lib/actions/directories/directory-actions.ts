@@ -45,20 +45,6 @@ async function createServerSupabaseClient() {
   )
 }
 
-// Helper functions to work with is_private in content_blocks
-function getIsPrivateFromContentBlocks(content_blocks: Record<string, any>): boolean {
-  return content_blocks?._settings?.is_private === true
-}
-
-function setIsPrivateInContentBlocks(content_blocks: Record<string, any>, is_private: boolean): Record<string, any> {
-  return {
-    ...content_blocks,
-    _settings: {
-      ...content_blocks._settings,
-      is_private
-    }
-  }
-}
 
 export interface Directory {
   id: string
@@ -81,15 +67,6 @@ export interface DirectoryWithDetails extends Directory {
   user_id: string
 }
 
-export interface CreateDirectoryData {
-  title: string
-  slug?: string
-  is_published?: boolean
-  featured_image?: string | null
-  description?: string | null
-  meta_description?: string | null
-  content_blocks?: Record<string, any>
-}
 
 export interface UpdateDirectoryData {
   title?: string
@@ -153,88 +130,6 @@ export async function getSiteDirectoriesAction(siteId: string) {
   }
 }
 
-export async function createDirectoryAction(siteId: string, data: CreateDirectoryData) {
-  try {
-    const supabase = await createServerSupabaseClient()
-    
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Verify user owns the site using admin client
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
-
-    if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
-    }
-
-    if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    // Generate slug if not provided
-    const slug = data.slug || generateSlug(data.title)
-
-    // Check if slug is already taken for this site
-    const { data: existingDirectory } = await supabaseAdmin
-      .from('directory')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (existingDirectory) {
-      return { data: null, error: 'A directory with this slug already exists' }
-    }
-
-    // Get the highest display_order for this site
-    const { data: maxOrderDirectory } = await supabaseAdmin
-      .from('directory')
-      .select('display_order')
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .limit(1)
-      .single()
-
-    const nextDisplayOrder = maxOrderDirectory ? maxOrderDirectory.display_order + 1 : 0
-
-    // Create the directory using admin client
-    const { data: newDirectory, error: createError } = await supabaseAdmin
-      .from('directory')
-      .insert({
-        site_id: siteId,
-        title: data.title,
-        slug,
-        is_published: data.is_published ?? false,
-        featured_image: data.featured_image || null,
-        description: data.description || null,
-        meta_description: data.meta_description || null,
-        content_blocks: data.content_blocks || {},
-        display_order: nextDisplayOrder
-      })
-      .select()
-      .single()
-
-    if (createError) {
-      return { data: null, error: createError.message }
-    }
-
-    // Revalidate cache
-    revalidateTag('directory')
-    revalidateTag(`site-${siteId}`)
-
-    return { data: newDirectory as Directory, error: null }
-  } catch (error) {
-    console.error('Error creating directory:', error)
-    return { data: null, error: 'Failed to create directory' }
-  }
-}
 
 export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryData) {
   try {

@@ -45,20 +45,6 @@ async function createServerSupabaseClient() {
   )
 }
 
-// Helper functions to work with is_private in content_blocks
-function getIsPrivateFromContentBlocks(content_blocks: Record<string, any>): boolean {
-  return content_blocks?._settings?.is_private === true
-}
-
-function setIsPrivateInContentBlocks(content_blocks: Record<string, any>, is_private: boolean): Record<string, any> {
-  return {
-    ...content_blocks,
-    _settings: {
-      ...content_blocks._settings,
-      is_private
-    }
-  }
-}
 
 export interface Event {
   id: string
@@ -81,15 +67,6 @@ export interface EventWithDetails extends Event {
   user_id: string
 }
 
-export interface CreateEventData {
-  title: string
-  slug?: string
-  is_published?: boolean
-  featured_image?: string | null
-  description?: string | null
-  meta_description?: string | null
-  content_blocks?: Record<string, any>
-}
 
 export interface UpdateEventData {
   title?: string
@@ -153,88 +130,6 @@ export async function getSiteEventsAction(siteId: string) {
   }
 }
 
-export async function createEventAction(siteId: string, data: CreateEventData) {
-  try {
-    const supabase = await createServerSupabaseClient()
-    
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Verify user owns the site using admin client
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
-
-    if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
-    }
-
-    if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    // Generate slug if not provided
-    const slug = data.slug || generateSlug(data.title)
-
-    // Check if slug is already taken for this site
-    const { data: existingEvent } = await supabaseAdmin
-      .from('events')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (existingEvent) {
-      return { data: null, error: 'An event with this slug already exists' }
-    }
-
-    // Get the highest display_order for this site
-    const { data: maxOrderEvent } = await supabaseAdmin
-      .from('events')
-      .select('display_order')
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .limit(1)
-      .single()
-
-    const nextDisplayOrder = maxOrderEvent ? maxOrderEvent.display_order + 1 : 0
-
-    // Create the event using admin client
-    const { data: newEvent, error: createError } = await supabaseAdmin
-      .from('events')
-      .insert({
-        site_id: siteId,
-        title: data.title,
-        slug,
-        is_published: data.is_published ?? false,
-        featured_image: data.featured_image || null,
-        description: data.description || null,
-        meta_description: data.meta_description || null,
-        content_blocks: data.content_blocks || {},
-        display_order: nextDisplayOrder
-      })
-      .select()
-      .single()
-
-    if (createError) {
-      return { data: null, error: createError.message }
-    }
-
-    // Revalidate cache
-    revalidateTag('events')
-    revalidateTag(`site-${siteId}`)
-
-    return { data: newEvent as Event, error: null }
-  } catch (error) {
-    console.error('Error creating event:', error)
-    return { data: null, error: 'Failed to create event' }
-  }
-}
 
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {

@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
-import { createDirectoryAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -91,49 +90,50 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setError(null)
 
     try {
-      // Create the directory
-      const { data: newDirectory, error: createError } = await createDirectoryAction(currentSite.id, {
+      const contentBlocks = {
+        ...(isPrivate ? { _settings: { is_private: true } } : {}),
+        ...(richTextContent.trim() ? {
+          richText: {
+            content: richTextContent,
+            display_order: 0
+          }
+        } : {})
+      }
+
+      const directoryData = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
+        site_id: currentSite.id,
         description: formData.description.trim() || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         is_published: publish,
-        content_blocks: isPrivate ? { _settings: { is_private: true } } : {}
+        content_blocks: contentBlocks
+      }
+      
+      const response = await fetch('/api/directories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(directoryData),
       })
 
-      if (createError) {
-        setError(createError)
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create directory')
         setLoading(false)
         return
       }
 
-      if (!newDirectory) {
+      if (!result.data) {
         setError("Failed to create directory")
         setLoading(false)
         return
       }
 
-      // If there's rich text content, add it as a block
-      if (richTextContent.trim()) {
-        const updatedContentBlocks = {
-          ...newDirectory.content_blocks,
-          richText: {
-            content: richTextContent,
-            display_order: 0
-          }
-        }
-
-        const { error: updateError } = await updateDirectoryAction(newDirectory.id, {
-          content_blocks: updatedContentBlocks
-        })
-
-        if (updateError) {
-          console.warn('Failed to add rich text content:', updateError)
-        }
-      }
-
-      onSuccess(newDirectory)
+      onSuccess(result.data)
     } catch (err) {
       setError("Failed to create directory")
       setLoading(false)

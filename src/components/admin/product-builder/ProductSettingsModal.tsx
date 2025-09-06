@@ -3,25 +3,19 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
-  DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogPortal,
-  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import Link from "next/link"
-import { updateProductAction } from "@/lib/actions/products/product-actions"
 import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -50,6 +44,7 @@ export function ProductSettingsModal({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
+
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -141,36 +136,35 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting
-      const updatedContentBlocks = {
-        ...product.content_blocks,
-        _settings: {
-          ...product.content_blocks?._settings,
-          is_private: isPrivate
-        }
-      }
-      
       const draftData = { 
         ...formData, 
         is_published: false,
         featured_image: featuredImage || null,
-        description: richTextContent || null,
-        content_blocks: updatedContentBlocks
+        description: richTextContent || null
       }
-      const { data, error: actionError } = await updateProductAction(product.id, draftData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to save product as draft')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage('Product saved as draft successfully!')
         setIsSaved(true)
         
         // Call success callback with updated product
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -202,36 +196,35 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting
-      const updatedContentBlocks = {
-        ...product.content_blocks,
-        _settings: {
-          ...product.content_blocks?._settings,
-          is_private: isPrivate
-        }
-      }
-      
       const publishData = { 
         ...formData, 
         is_published: true,
         featured_image: featuredImage || null,
-        description: richTextContent || null,
-        content_blocks: updatedContentBlocks
+        description: richTextContent || null
       }
-      const { data, error: actionError } = await updateProductAction(product.id, publishData)
       
-      if (actionError) {
-        setError(actionError)
+      const response = await fetch(`/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to publish product')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage(product?.is_published ? 'Product saved successfully!' : 'Product published successfully!')
         setIsSaved(true)
         
         // Call success callback with updated product
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open

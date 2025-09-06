@@ -3,31 +3,26 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
-  DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogPortal,
-  DialogOverlay,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { updateEventAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface EventSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   event: Event | null
-  site: any | null
+  _site: any | null
   onSuccess?: (updatedEvent: Event) => void
 }
 
@@ -35,7 +30,7 @@ export function EventSettingsModal({
   open, 
   onOpenChange, 
   event, 
-  site,
+  _site,
   onSuccess 
 }: EventSettingsModalProps) {
   const [formData, setFormData] = useState({
@@ -117,36 +112,35 @@ export function EventSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting and rich text
-      const updatedContentBlocks = {
-        ...event.content_blocks,
-        _settings: {
-          ...event.content_blocks?._settings,
-          is_private: isPrivate
-        }
-      }
 
       
       const draftData = { 
         ...formData, 
         description: richTextContent || null,
         is_published: false,
-        featured_image: featuredImage || null,
-        content_blocks: updatedContentBlocks
+        featured_image: featuredImage || null
       }
-      const { data, error: actionError } = await updateEventAction(event.id, draftData)
+      const response = await fetch(`/api/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to save event as draft')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage('Event saved as draft successfully!')
         
         // Call success callback with updated event
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -170,36 +164,35 @@ export function EventSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting and rich text
-      const updatedContentBlocks = {
-        ...event.content_blocks,
-        _settings: {
-          ...event.content_blocks?._settings,
-          is_private: isPrivate
-        }
-      }
 
       
       const publishData = { 
         ...formData, 
         description: richTextContent || null,
         is_published: true,
-        featured_image: featuredImage || null,
-        content_blocks: updatedContentBlocks
+        featured_image: featuredImage || null
       }
-      const { data, error: actionError } = await updateEventAction(event.id, publishData)
+      const response = await fetch(`/api/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(publishData),
+      })
       
-      if (actionError) {
-        setError(actionError)
+      const result = await response.json()
+      
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to publish event')
         return
       }
       
-      if (data) {
+      if (result.data) {
         setSaveMessage(event?.is_published ? 'Event saved successfully!' : 'Event published successfully!')
         
         // Call success callback with updated event
         if (onSuccess) {
-          onSuccess(data)
+          onSuccess(result.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -378,10 +371,11 @@ export function EventSettingsModal({
               {/* Meta Description */}
               <div className="space-y-2">
                 <Label htmlFor="meta_description">Meta Description</Label>
-                <Textarea
+                <textarea
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   id="meta_description"
                   value={formData.meta_description}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                     setFormData(prev => ({ ...prev, meta_description: e.target.value }))
                   }}
                   placeholder="SEO meta description"
