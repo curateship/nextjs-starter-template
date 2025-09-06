@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ImageIcon, Sun, Moon, Monitor } from "lucide-react"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { getActiveThemesAction } from "@/lib/actions/themes/theme-actions"
 import type { Theme } from "@/lib/supabase/themes"
 import { FontSelector } from "@/components/admin/page-builder/FontSelector"
@@ -277,14 +277,14 @@ export function StylingSettingsCard({
 
       {/* Favicon Image Picker Modal */}
       {onFaviconChange && (
-        <ImagePicker
+        <MediaPicker
           open={showFaviconPicker}
           onOpenChange={setShowFaviconPicker}
-          onSelectImage={(imageUrl) => {
+          onSelectMedia={(imageUrl) => {
             onFaviconChange(imageUrl)
             setShowFaviconPicker(false)
           }}
-          currentImageUrl={favicon}
+          currentMediaUrl={favicon}
         />
       )}
     </>

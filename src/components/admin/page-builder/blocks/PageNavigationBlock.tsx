@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -431,14 +431,14 @@ export function PageNavigationBlock({
             </div>
             
             {/* Image Picker Modal */}
-            <ImagePicker
+            <MediaPicker
               open={showPicker}
               onOpenChange={setShowPicker}
-              onSelectImage={(imageUrl) => {
+              onSelectMedia={(imageUrl) => {
                 onLogoChange(imageUrl)
                 setShowPicker(false)
               }}
-              currentImageUrl={logo}
+              currentMediaUrl={logo}
             />
           </CardContent>
         </Card>

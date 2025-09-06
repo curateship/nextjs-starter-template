@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createProductAction, updateProductBlocksAction } from "@/lib/actions/products/product-actions"
@@ -354,14 +354,14 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       </div>
 
       {/* Image Picker Modal */}
-      <ImagePicker
+      <MediaPicker
         open={showImagePicker}
         onOpenChange={setShowImagePicker}
-        onSelectImage={(imageUrl) => {
+        onSelectMedia={(imageUrl) => {
           handleImageChange(imageUrl)
           setShowImagePicker(false)
         }}
-        currentImageUrl={featuredImage || ''}
+        currentMediaUrl={featuredImage || ''}
       />
     </form>
   )

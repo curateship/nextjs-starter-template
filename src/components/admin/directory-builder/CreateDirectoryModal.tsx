@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X } from "lucide-react"
 import { createDirectoryAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
@@ -300,15 +300,15 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         </div>
       </div>
 
-      {/* Image Picker Modal */}
-      <ImagePicker
+      {/* Media Picker Modal */}
+      <MediaPicker
         open={showImagePicker}
         onOpenChange={setShowImagePicker}
-        onSelectImage={(imageUrl) => {
-          handleImageChange(imageUrl)
+        onSelectMedia={(mediaUrl) => {
+          handleImageChange(mediaUrl)
           setShowImagePicker(false)
         }}
-        currentImageUrl={featuredImage || ''}
+        currentMediaUrl={featuredImage || ''}
       />
     </form>
   )

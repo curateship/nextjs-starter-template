@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, CheckCircle, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -452,14 +452,14 @@ export function PostSettingsModal({
         </form>
 
         {/* Image Picker Modal */}
-        <ImagePicker
+        <MediaPicker
           open={showImagePicker}
           onOpenChange={setShowImagePicker}
-          onSelectImage={(imageUrl) => {
+          onSelectMedia={(imageUrl) => {
             handleImageChange(imageUrl)
             setShowImagePicker(false)
           }}
-          currentImageUrl={formData.featured_image || ''}
+          currentMediaUrl={formData.featured_image || ''}
         />
           </div>
         </div>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ImagePicker } from "@/components/admin/media-library/MediaPicker"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
@@ -646,22 +646,22 @@ export function PageHeroBlock({
       </div>
 
       {/* Image Picker Modal for Avatars */}
-      <ImagePicker
+      <MediaPicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
-        onSelectImage={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
-        currentImageUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
+        onSelectMedia={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
+        currentMediaUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
       />
       
       {/* Image Picker Modal for Hero Image */}
-      <ImagePicker
+      <MediaPicker
         open={showHeroImagePicker}
         onOpenChange={setShowHeroImagePicker}
-        onSelectImage={(imageUrl) => {
+        onSelectMedia={(imageUrl) => {
           handleHeroImageChange(imageUrl)
           setShowHeroImagePicker(false)
         }}
-        currentImageUrl={heroImage}
+        currentMediaUrl={heroImage}
       />
     </div>
   )
