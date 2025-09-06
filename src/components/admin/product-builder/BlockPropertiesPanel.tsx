@@ -44,6 +44,10 @@ interface BlockPropertiesPanelProps {
   // allBlocks removed - navigation/footer now come from site.settings
   blocksLoading?: boolean
   onOpenProductSettings?: () => void
+  onTitleChange?: (title: string) => void
+  onDescriptionChange?: (description: string) => void
+  onFeaturedImageChange?: (featuredImage: string) => void
+  onStatusChange?: (status: string) => void
 }
 
 export function BlockPropertiesPanel({
@@ -53,7 +57,11 @@ export function BlockPropertiesPanel({
   currentProduct,
   site,
   blocksLoading = false,
-  onOpenProductSettings
+  onOpenProductSettings,
+  onTitleChange,
+  onDescriptionChange,
+  onFeaturedImageChange,
+  onStatusChange
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -65,6 +73,11 @@ export function BlockPropertiesPanel({
                 title={currentProduct?.title || currentProduct?.name || ''}
                 richText={currentProduct?.description || ''}
                 featuredImage={currentProduct?.featured_image || ''}
+                status={currentProduct?.is_published ? 'published' : 'draft'}
+                onTitleChange={onTitleChange}
+                onRichTextChange={onDescriptionChange}
+                onFeaturedImageChange={onFeaturedImageChange}
+                onStatusChange={onStatusChange}
                 onOpenSettings={onOpenProductSettings}
               />
             )}

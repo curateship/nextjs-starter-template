@@ -1,11 +1,22 @@
+"use client"
+
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, Settings } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ImageIcon } from "lucide-react"
+import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 
 interface ProductDefaultBlockProps {
   title: string
   richText: string
   featuredImage: string
+  status?: string
+  onTitleChange?: (value: string) => void
+  onRichTextChange?: (value: string) => void
+  onFeaturedImageChange?: (value: string) => void
+  onStatusChange?: (value: string) => void
   onOpenSettings?: () => void
 }
 
@@ -13,100 +24,112 @@ export function ProductDefaultBlock({
   title,
   richText,
   featuredImage,
+  status = 'draft',
+  onTitleChange,
+  onRichTextChange,
+  onFeaturedImageChange,
+  onStatusChange,
   onOpenSettings
 }: ProductDefaultBlockProps) {
-  
+  const [showImagePicker, setShowImagePicker] = useState(false)
+
+  const handleImageChange = (imageUrl: string) => {
+    if (onFeaturedImageChange) {
+      onFeaturedImageChange(imageUrl)
+    }
+    setShowImagePicker(false)
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Header with View-Only Info */}
-      <Card className="shadow-sm border-blue-200 bg-blue-50/30 dark:bg-blue-900/10 dark:border-blue-800">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Eye className="h-4 w-4 text-blue-600" />
-              <CardTitle className="text-base text-blue-700 dark:text-blue-300">Product Information (View Only)</CardTitle>
-            </div>
-            {onOpenSettings && (
-              <Button 
-                onClick={onOpenSettings}
-                variant="outline" 
-                size="sm"
-                className="text-xs"
-              >
-                <Settings className="h-3 w-3 mr-1" />
-                Edit in Settings
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-blue-600 dark:text-blue-400">
-            This block displays your product&apos;s information from the product settings. 
-            To edit the title, description, or featured image, use the Product Settings modal.
-          </p>
-        </CardContent>
-      </Card>
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>Product Information</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Title */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Product Title</label>
+          <Input
+            value={title}
+            onChange={(e) => onTitleChange?.(e.target.value)}
+            placeholder="Enter product title"
+            required
+          />
+        </div>
 
-      {/* Product Title Display */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Product Title</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="p-3 bg-muted/50 rounded-lg">
-            <p className="text-sm font-medium">{title || 'No title set'}</p>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Rich Text Editor */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Product Description</label>
+          <PageRichTextEditorBlock
+            content={{
+              content: richText || '',
+              hideHeader: true,
+              hideEditorHeader: true
+            }}
+            onContentChange={(content) => onRichTextChange?.(content.content)}
+          />
+        </div>
 
-      {/* Product Description Display */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Product Description</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="p-3 bg-muted/50 rounded-lg min-h-[120px]">
-            {richText && richText.trim() !== '' ? (
-              <div 
-                className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: richText }}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No description set</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        {/* Status */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Status</label>
+          <Select value={status} onValueChange={onStatusChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="published">Published</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Featured Image Display */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Featured Image</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
+
+        {/* Product Image */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Featured Image</label>
+          <div className="relative">
             {featuredImage ? (
-              <div className="rounded-lg overflow-hidden bg-muted">
+              <div 
+                className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setShowImagePicker(true)}
+              >
                 <img 
                   src={featuredImage} 
-                  alt="Featured image preview" 
+                  alt="Product preview" 
                   className="w-full h-48 object-cover"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                  <div className="text-white text-center">
+                    <ImageIcon className="mx-auto h-6 w-6 mb-1" />
+                    <p className="text-xs font-medium">Click to change image</p>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50">
+              <div 
+                className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                onClick={() => setShowImagePicker(true)}
+              >
                 <div className="text-center">
-                  <Eye className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                  <p className="mt-2 text-sm text-muted-foreground">No featured image set</p>
+                  <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                  <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
                 </div>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              Featured image for this product
-            </p>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+      
+      {/* Image Picker Modal */}
+      <MediaPicker
+        open={showImagePicker}
+        onOpenChange={setShowImagePicker}
+        onSelectMedia={handleImageChange}
+        currentMediaUrl={featuredImage}
+        showVideos={false}
+      />
+    </Card>
   )
 }

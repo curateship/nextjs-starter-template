@@ -13,7 +13,7 @@ import { ProductBuilderHeader } from "@/components/admin/product-builder/Product
 import { BlockPropertiesPanel } from "@/components/admin/product-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/product-builder/BlockListPanel"
 import { BlockTypesPanel } from "@/components/admin/product-builder/BlockTypesPanel"
-import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
+import { getSiteProductsAction, updateProductAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
@@ -141,6 +141,40 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     }
   }
 
+  // Handle product information updates
+  const updateCurrentProduct = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+    if (!currentProductData?.id) return
+    
+    try {
+      const { data, error } = await updateProductAction(currentProductData.id, updates)
+      if (error) {
+        console.error('Failed to update product:', error)
+        return
+      }
+      if (data) {
+        handleProductUpdated(data)
+      }
+    } catch (error) {
+      console.error('Failed to update product:', error)
+    }
+  }
+
+  const handleTitleChange = (title: string) => {
+    updateCurrentProduct({ title })
+  }
+
+  const handleDescriptionChange = (description: string) => {
+    updateCurrentProduct({ description })
+  }
+
+  const handleFeaturedImageChange = (featured_image: string) => {
+    updateCurrentProduct({ featured_image })
+  }
+
+  const handleStatusChange = (status: string) => {
+    updateCurrentProduct({ is_published: status === 'published' })
+  }
+
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
@@ -206,6 +240,10 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               settings: site?.settings
             }}
             blocksLoading={blocksLoading}
+            onTitleChange={handleTitleChange}
+            onDescriptionChange={handleDescriptionChange}
+            onFeaturedImageChange={handleFeaturedImageChange}
+            onStatusChange={handleStatusChange}
           />
           
           <BlockListPanel
