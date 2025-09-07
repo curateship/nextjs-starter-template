@@ -15,6 +15,7 @@ interface UseProductBuilderParams {
   productId?: string
   currentProduct?: {
     title?: string
+    content_blocks?: Record<string, any>
   }
 }
 
@@ -205,14 +206,26 @@ export function useProductBuilder({
 
     const currentBlocks = blocks[selectedProduct] || []
     
+    // Get existing content blocks from the currentProduct to preserve settings
+    const existingContentBlocks = currentProduct?.content_blocks || {}
+    
     // Convert blocks array to JSON object format
-    const contentBlocks: Record<string, any> = {}
+    const newContentBlocks: Record<string, any> = {}
     currentBlocks.forEach((block, index) => {
-      contentBlocks[block.type] = {
+      newContentBlocks[block.type] = {
         ...block.content,
         display_order: index
       }
     })
+    
+    // Preserve existing _settings and merge with new blocks
+    const contentBlocks: Record<string, any> = {
+      ...newContentBlocks,
+      // Preserve _settings if it exists (including privacy setting)
+      ...(existingContentBlocks._settings && {
+        _settings: existingContentBlocks._settings
+      })
+    }
     
     setIsSaving(true)
     setSaveMessage("Saving...")

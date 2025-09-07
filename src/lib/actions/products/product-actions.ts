@@ -640,7 +640,7 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     }
 
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-pricing', 'faq', 'listing-views']
+    const allowedBlockTypes = ['product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-pricing', 'faq', 'listing-views', '_settings']
     for (const blockType of Object.keys(contentBlocks)) {
       if (!allowedBlockTypes.includes(blockType)) {
         return { success: false, error: `Invalid block type: ${blockType}` }
