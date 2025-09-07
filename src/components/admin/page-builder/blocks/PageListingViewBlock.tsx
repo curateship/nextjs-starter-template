@@ -8,6 +8,7 @@ interface SharedListingViewsBlockProps {
   title?: string
   subtitle?: string
   headerAlign?: 'left' | 'center'
+  mobileHeaderAlign?: 'left' | 'center'
   contentType?: 'products'
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
@@ -25,6 +26,7 @@ interface SharedListingViewsBlockProps {
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
+  onMobileHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: 'products') => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
@@ -45,6 +47,7 @@ export function PageListingViewBlock({
   title = 'Latest Products',
   subtitle = 'Check out our products',
   headerAlign = 'left',
+  mobileHeaderAlign = 'left',
   contentType = 'products',
   displayMode = 'grid',
   itemsToShow = 6,
@@ -62,6 +65,7 @@ export function PageListingViewBlock({
   onTitleChange,
   onSubtitleChange,
   onHeaderAlignChange,
+  onMobileHeaderAlignChange,
   onContentTypeChange,
   onDisplayModeChange,
   onItemsToShowChange,
@@ -84,7 +88,7 @@ export function PageListingViewBlock({
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
               <Input
@@ -109,6 +113,19 @@ export function PageListingViewBlock({
               <Label htmlFor="headerAlign">Header Alignment</Label>
               <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
                 <SelectTrigger id="headerAlign">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mobileHeaderAlign">Mobile Header Alignment</Label>
+              <Select value={mobileHeaderAlign} onValueChange={onMobileHeaderAlignChange}>
+                <SelectTrigger id="mobileHeaderAlign">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

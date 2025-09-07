@@ -202,32 +202,30 @@ const GradientOverlays = () => (
   </>
 )
 
-// Rainbow gradient button component
+// Rainbow gradient button component - simplified version matching old working code
 const RainbowButton = ({ rainbowButtonLink, buttonText, buttonIcon }: { rainbowButtonLink?: string; buttonText?: string; buttonIcon?: string }) => (
-  <button
-    className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
-      focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
-      before:absolute before:bottom-[-20%] before:left-1/2 before:z-0 before:h-1/5 before:w-3/5 before:-translate-x-1/2 before:animate-[rainbow_3s_linear_infinite] before:bg-[linear-gradient(90deg,var(--color-1),var(--color-2),var(--color-3),var(--color-4),var(--color-5))] before:bg-[length:200%] before:[filter:blur(12px)]
-      bg-white dark:bg-black"
-    style={{
-      // CSS custom properties for rainbow gradient colors
-      ['--color-1' as any]: 'hsl(210, 100%, 60%)', // Blue
-      ['--color-2' as any]: 'hsl(280, 80%, 65%)',  // Purple
-      ['--color-3' as any]: 'hsl(330, 100%, 65%)', // Pink
-      ['--color-4' as any]: 'hsl(20, 100%, 60%)',  // Orange
-      ['--color-5' as any]: 'hsl(140, 70%, 50%)',  // Green
-    }}
+  <Link
+    href={rainbowButtonLink || "#"}
+    target="_blank"
+    rel="noopener noreferrer"
   >
-    <Link
-      href={rainbowButtonLink || "#"}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center text-black dark:text-white font-medium bg-transparent"
+    <button
+      className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent]
+        focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50
+        before:absolute before:bottom-[-20%] before:left-1/2 before:z-0 before:h-1/5 before:w-3/5 before:-translate-x-1/2 before:animate-[rainbow_3s_linear_infinite] before:bg-[linear-gradient(90deg,var(--color-1),var(--color-2),var(--color-3),var(--color-4),var(--color-5))] before:bg-[length:200%] before:[filter:blur(12px)]
+        bg-white dark:bg-black border px-3 py-2 rounded-2xl"
+      style={{
+        ['--color-1' as any]: 'hsl(210, 100%, 60%)', // Blue
+        ['--color-2' as any]: 'hsl(280, 80%, 65%)',  // Purple
+        ['--color-3' as any]: 'hsl(330, 100%, 65%)', // Pink
+        ['--color-4' as any]: 'hsl(20, 100%, 60%)',  // Orange
+        ['--color-5' as any]: 'hsl(140, 70%, 50%)',  // Green
+      }}
     >
       {getButtonIcon(buttonIcon)}
       {buttonText || "Get Access to Everything"}
-    </Link>
-  </button>
+    </button>
+  </Link>
 )
 
 // Helper function to get icon component based on string value

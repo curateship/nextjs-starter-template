@@ -15,6 +15,7 @@ interface ListingViewsBlockProps {
     title?: string
     subtitle?: string
     headerAlign?: 'left' | 'center'
+    mobileHeaderAlign?: 'left' | 'center'
     contentType?: 'products'
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
@@ -55,6 +56,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     title = '',
     subtitle = '',
     headerAlign = 'left',
+    mobileHeaderAlign = 'left',
     contentType = 'products',
     displayMode = 'grid',
     itemsToShow = 6,
@@ -73,9 +75,22 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
 
   // Extract repeated conditions
   const hasViewAll = viewAllText && viewAllLink && !isPaginated
-  const centerAlign = headerAlign === 'center' || !headerAlign
-  const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
-  const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${centerAlign ? 'mx-auto' : ''}`
+  
+  // Create responsive alignment classes
+  const getResponsiveAlignmentClass = () => {
+    const mobileClass = mobileHeaderAlign === 'center' ? 'text-center' : 'text-left'
+    const desktopClass = headerAlign === 'center' ? 'md:text-center' : 'md:text-left'
+    return `${mobileClass} ${desktopClass}`
+  }
+
+  const getResponsiveMarginClass = () => {
+    const mobileClass = mobileHeaderAlign === 'center' ? 'mx-auto' : ''
+    const desktopClass = headerAlign === 'center' ? 'md:mx-auto' : mobileHeaderAlign === 'center' ? 'md:mx-0' : ''
+    return `${mobileClass} ${desktopClass}`.trim()
+  }
+
+  const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${getResponsiveMarginClass()}`
+  const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${getResponsiveMarginClass()}`
 
 
   // Get URL prefix from props (passed from parent, no API call needed)
@@ -252,7 +267,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           customWidth={customWidth}
         >
           <div className="mb-6 md:mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'}`}>
+            <div className={getResponsiveAlignmentClass()}>
               {title && (
                 <h2 className={titleClasses}>
                   {title}
@@ -294,7 +309,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           customWidth={customWidth}
         >
           <div className="mb-6 md:mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'}`}>
+            <div className={getResponsiveAlignmentClass()}>
               {title && (
                 <h2 className={titleClasses}>
                   {title}
@@ -323,7 +338,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         customWidth={customWidth}
       >
         <div className="mb-12">
-          <div className={`${headerAlign === 'left' ? 'text-left' : 'text-center'} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
+          <div className={`${getResponsiveAlignmentClass()} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
             <div className={hasViewAll ? 'md:flex-1' : ''}>
               {title && (
                 <h2 className={titleClasses}>

@@ -120,7 +120,7 @@ export function BlockPropertiesPanel({
               <PageListingViewBlock
                 {...selectedBlock.content}
                 {...(createCallbacks(updateBlockContent, [
-                  'title', 'subtitle', 'headerAlign', 'contentType', 'displayMode',
+                  'title', 'subtitle', 'headerAlign', 'mobileHeaderAlign', 'contentType', 'displayMode',
                   'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
                   'showViewAll', 'viewAllText', 'viewAllLink', 'backgroundColor'

@@ -49,7 +49,7 @@ const ProductHotspotBlock = ({
       }}
     >
       <div className="flex flex-col items-center">
-        <div className="relative mt-8 w-full">
+        <div className="relative w-full">
           {backgroundImage && (
             <img
               src={backgroundImage}
