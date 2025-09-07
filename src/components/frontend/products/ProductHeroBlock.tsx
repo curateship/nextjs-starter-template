@@ -222,7 +222,7 @@ const RainbowButton = ({ rainbowButtonLink, buttonText, buttonIcon }: { rainbowB
       href={rainbowButtonLink || "#"}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex border px-3 py-2 rounded-2xl items-center text-black dark:text-white font-medium"
+      className="inline-flex items-center text-black dark:text-white font-medium bg-transparent"
     >
       {getButtonIcon(buttonIcon)}
       {buttonText || "Get Access to Everything"}
@@ -261,7 +261,7 @@ const HeroTitle = ({ title }: { title?: string }) => {
   if (!title || !title.trim()) return null
   
   return (
-    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-5 leading-none tracking-tight">
+    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-2 md:py-5 leading-none tracking-tight">
       {title}
     </h1>
   )
