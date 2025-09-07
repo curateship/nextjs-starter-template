@@ -22,7 +22,7 @@ interface PostSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   post: Post | null
-  _site: SiteWithTheme | null
+  site: SiteWithTheme | null
   onSuccess?: (updatedPost: Post) => void
 }
 
@@ -30,7 +30,7 @@ export function PostSettingsModal({
   open, 
   onOpenChange, 
   post, 
-  _site,
+  site,
   onSuccess 
 }: PostSettingsModalProps) {
   const [formData, setFormData] = useState<UpdatePostData>({})

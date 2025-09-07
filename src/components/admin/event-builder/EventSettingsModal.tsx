@@ -22,7 +22,7 @@ interface EventSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   event: Event | null
-  _site: any | null
+  site: any | null
   onSuccess?: (updatedEvent: Event) => void
 }
 
@@ -30,7 +30,7 @@ export function EventSettingsModal({
   open, 
   onOpenChange, 
   event, 
-  _site,
+  site,
   onSuccess 
 }: EventSettingsModalProps) {
   const [formData, setFormData] = useState({
