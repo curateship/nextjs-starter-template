@@ -59,6 +59,9 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               title={product.title}
               richText={product.description || ''}
               featuredImage={product.featured_image || ''}
+              downloadButtonText={block.content?.downloadButtonText}
+              downloadButtonStyle={block.content?.downloadButtonStyle}
+              downloadButtonUrl={block.content?.downloadButtonUrl}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />

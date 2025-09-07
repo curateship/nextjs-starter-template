@@ -74,10 +74,16 @@ export function BlockPropertiesPanel({
                 richText={currentProduct?.description || ''}
                 featuredImage={currentProduct?.featured_image || ''}
                 status={currentProduct?.is_published ? 'published' : 'draft'}
+                downloadButtonText={selectedBlock.content.downloadButtonText || ''}
+                downloadButtonStyle={selectedBlock.content.downloadButtonStyle || 'black'}
+                downloadButtonUrl={selectedBlock.content.downloadButtonUrl || ''}
                 onTitleChange={onTitleChange}
                 onRichTextChange={onDescriptionChange}
                 onFeaturedImageChange={onFeaturedImageChange}
                 onStatusChange={onStatusChange}
+                onDownloadButtonTextChange={(value) => updateBlockContent('downloadButtonText', value)}
+                onDownloadButtonStyleChange={(value) => updateBlockContent('downloadButtonStyle', value)}
+                onDownloadButtonUrlChange={(value) => updateBlockContent('downloadButtonUrl', value)}
                 onOpenSettings={onOpenProductSettings}
               />
             )}
