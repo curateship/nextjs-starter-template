@@ -140,7 +140,14 @@ export function ProductSettingsModal({
         ...formData, 
         is_published: false,
         featured_image: featuredImage || null,
-        description: richTextContent || null
+        description: richTextContent || null,
+        content_blocks: {
+          ...product.content_blocks,
+          _settings: {
+            ...product.content_blocks?._settings,
+            is_private: isPrivate
+          }
+        }
       }
       
       const response = await fetch(`/api/products/${product.id}`, {
@@ -200,7 +207,14 @@ export function ProductSettingsModal({
         ...formData, 
         is_published: true,
         featured_image: featuredImage || null,
-        description: richTextContent || null
+        description: richTextContent || null,
+        content_blocks: {
+          ...product.content_blocks,
+          _settings: {
+            ...product.content_blocks?._settings,
+            is_private: isPrivate
+          }
+        }
       }
       
       const response = await fetch(`/api/products/${product.id}`, {

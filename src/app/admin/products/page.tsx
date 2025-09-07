@@ -162,9 +162,29 @@ export default function ProductsPage() {
   }
 
   const getStatusBadge = (product: Product) => {
+    const isPrivate = isProductPrivate(product)
+    
     if (product.is_published) {
+      if (isPrivate) {
+        return (
+          <div className="flex gap-1">
+            <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+            <Badge variant="outline" className="border-amber-200 text-amber-700">Private</Badge>
+          </div>
+        )
+      }
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
     }
+    
+    if (isPrivate) {
+      return (
+        <div className="flex gap-1">
+          <Badge variant="secondary">Draft</Badge>
+          <Badge variant="outline" className="border-amber-200 text-amber-700">Private</Badge>
+        </div>
+      )
+    }
+    
     return <Badge variant="secondary">Draft</Badge>
   }
 
