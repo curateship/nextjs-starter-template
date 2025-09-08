@@ -398,7 +398,7 @@ export default function ProductsPage() {
                               <img 
                                 src={product.featured_image} 
                                 alt={product.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <Package className="h-6 w-6 text-muted-foreground" />

@@ -378,7 +378,7 @@ export default function DirectoriesPage() {
                               <img 
                                 src={directory.featured_image} 
                                 alt={directory.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <FolderOpen className="h-6 w-6 text-muted-foreground" />

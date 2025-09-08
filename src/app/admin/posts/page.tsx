@@ -347,7 +347,7 @@ export default function PostsPage() {
                               <img 
                                 src={post.featured_image} 
                                 alt={post.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <BookOpen className="h-6 w-6 text-muted-foreground" />

@@ -375,7 +375,7 @@ export default function EventsPage() {
                               <img 
                                 src={event.featured_image} 
                                 alt={event.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <Calendar className="h-6 w-6 text-muted-foreground" />
