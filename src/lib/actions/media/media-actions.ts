@@ -167,6 +167,15 @@ export async function uploadMediaAction(
   }
 }
 
+// Pagination response interface
+export interface PaginatedMediaResponse {
+  data: MediaData[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 /**
  * Get all media files for the current user
  */
@@ -197,6 +206,79 @@ export async function getMediaAction(
     }
 
     return { data: media as MediaData[], error: null }
+
+  } catch (error) {
+    return { 
+      data: null, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
+/**
+ * Get paginated media files for the current user
+ */
+export async function getPaginatedMediaAction(
+  page: number = 1,
+  pageSize: number = 20,
+  fileType?: 'image' | 'video'
+): Promise<{ data: PaginatedMediaResponse | null; error: string | null }> {
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    // Build base query for count
+    let countQuery = supabaseAdmin
+      .from('media')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    
+    if (fileType) {
+      countQuery = countQuery.eq('file_type', fileType)
+    }
+
+    // Get total count
+    const { count: total, error: countError } = await countQuery
+
+    if (countError) {
+      return { data: null, error: `Failed to count media: ${countError.message}` }
+    }
+
+    // Calculate pagination
+    const totalCount = total || 0
+    const totalPages = Math.ceil(totalCount / pageSize)
+    const offset = (page - 1) * pageSize
+
+    // Build data query
+    let dataQuery = supabaseAdmin
+      .from('media')
+      .select('*')
+      .eq('user_id', user.id)
+    
+    if (fileType) {
+      dataQuery = dataQuery.eq('file_type', fileType)
+    }
+    
+    const { data: media, error } = await dataQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+
+    if (error) {
+      return { data: null, error: `Failed to fetch media: ${error.message}` }
+    }
+
+    const response: PaginatedMediaResponse = {
+      data: media as MediaData[],
+      total: totalCount,
+      page,
+      pageSize,
+      totalPages
+    }
+
+    return { data: response, error: null }
 
   } catch (error) {
     return { 
@@ -334,6 +416,44 @@ export async function getMediaByUrlAction(publicUrl: string): Promise<{ data: st
     }
 
     return { data: media.id, error: null }
+
+  } catch (error) {
+    return { 
+      data: null, 
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    }
+  }
+}
+
+/**
+ * Get full media data by public URL (optimized for single lookups)
+ */
+export async function getMediaDataByUrlAction(publicUrl: string): Promise<{ data: MediaData | null; error: string | null }> {
+  try {
+    if (!publicUrl) {
+      return { data: null, error: 'No URL provided' }
+    }
+
+    const supabase = await createSupabaseServerClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    // Use a more efficient query with minimal auth overhead
+    const { data: media, error } = await supabaseAdmin
+      .from('media')
+      .select('*')
+      .eq('public_url', publicUrl)
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle() // Returns null if not found instead of error
+
+    if (error) {
+      return { data: null, error: `Database error: ${error.message}` }
+    }
+
+    return { data: media as MediaData | null, error: null }
 
   } catch (error) {
     return { 

@@ -5,8 +5,8 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, Play, VideoIcon, Filter } from "lucide-react"
-import { getMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
-import type { MediaData } from "@/lib/actions/media/media-actions"
+import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
+import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
 import { 
@@ -24,36 +24,51 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 
 
 export default function ImagesPage() {
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery')
-  const [images, setImages] = useState<MediaData[]>([])
+  const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
   const [editingImage, setEditingImage] = useState<MediaData | null>(null)
   const [editAltText, setEditAltText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(20)
 
-  // Load images on mount
+  // Load images when page, pageSize, or filterType changes
   useEffect(() => {
     loadImages()
-  }, [])
+  }, [currentPage, pageSize, filterType])
 
   const loadImages = async () => {
     try {
       setIsLoading(true)
-      const { data, error } = await getMediaAction()
+      const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {
-        setImages(data || [])
+        setPaginatedData(data)
       }
     } catch (error) {
       toast.error('Failed to load images')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Reset to first page when filter changes
+  const handleFilterChange = (newFilter: 'all' | 'image' | 'video') => {
+    setFilterType(newFilter)
+    setCurrentPage(1)
+  }
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
   }
 
   const handleDeleteImage = async (image: MediaData) => {
@@ -67,7 +82,8 @@ export default function ImagesPage() {
         toast.error(`Failed to delete image: ${error}`)
       } else {
         toast.success('Image deleted successfully')
-        setImages(images.filter(img => img.id !== image.id))
+        // Reload the current page to refresh data
+        loadImages()
       }
     } catch (error) {
       toast.error('Failed to delete image')
@@ -91,7 +107,13 @@ export default function ImagesPage() {
         toast.error(`Failed to update image: ${error}`)
       } else {
         toast.success('Image updated successfully')
-        setImages(images.map(img => img.id === editingImage.id ? data! : img))
+        // Update the item in current page data
+        if (paginatedData) {
+          setPaginatedData({
+            ...paginatedData,
+            data: paginatedData.data.map(img => img.id === editingImage.id ? data! : img)
+          })
+        }
         setEditingImage(null)
         setEditAltText('')
       }
@@ -157,10 +179,8 @@ export default function ImagesPage() {
     }
   }
 
-  const filteredImages = images.filter((media) => {
-    if (filterType === 'all') return true
-    return media.file_type === filterType
-  })
+  // Get current images from paginated data
+  const images = paginatedData?.data || []
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -197,7 +217,9 @@ export default function ImagesPage() {
               {isLoading ? (
                 <div className="h-6 bg-muted rounded animate-pulse w-48"></div>
               ) : (
-                <h3 className="text-lg font-semibold">Media Library ({filteredImages.length})</h3>
+                <h3 className="text-lg font-semibold">
+                  Media Library ({paginatedData?.total || 0})
+                </h3>
               )}
               <div className="flex items-center space-x-4">
                 {/* Filter Dropdown */}
@@ -209,14 +231,14 @@ export default function ImagesPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => setFilterType('all')}>
+                    <DropdownMenuItem onClick={() => handleFilterChange('all')}>
                       All Media
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterType('image')}>
+                    <DropdownMenuItem onClick={() => handleFilterChange('image')}>
                       <ImageIcon className="w-4 h-4 mr-2" />
                       Images Only
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setFilterType('video')}>
+                    <DropdownMenuItem onClick={() => handleFilterChange('video')}>
                       <VideoIcon className="w-4 h-4 mr-2" />
                       Videos Only
                     </DropdownMenuItem>
@@ -277,7 +299,7 @@ export default function ImagesPage() {
                 ))}
               </div>
             )
-          ) : filteredImages.length === 0 ? (
+          ) : images.length === 0 ? (
             <div className="p-6 text-center">
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium mb-2">No media found</p>
@@ -292,7 +314,7 @@ export default function ImagesPage() {
             // Gallery View
             <div className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredImages.map((media) => (
+                {images.map((media) => (
                   <div key={media.id} className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
                     {media.file_type === 'video' ? (
                       <div className="relative w-full h-full bg-black">
@@ -347,7 +369,7 @@ export default function ImagesPage() {
           ) : (
             // List View
             <div className="divide-y">
-              {filteredImages.map((media) => (
+              {images.map((media) => (
                 <div key={media.id} className="p-6 flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden relative">
@@ -403,6 +425,22 @@ export default function ImagesPage() {
             </div>
           )}
         </AdminCard>
+
+        {/* Pagination Controls */}
+        {paginatedData && paginatedData.totalPages > 1 && (
+          <div className="mt-6 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <PaginationInfo
+              currentPage={currentPage}
+              pageSize={pageSize}
+              total={paginatedData.total}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={paginatedData.totalPages}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        )}
 
         {/* Edit Image Dialog */}
         <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>

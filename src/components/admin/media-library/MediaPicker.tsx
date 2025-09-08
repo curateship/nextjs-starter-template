@@ -23,8 +23,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getMediaAction } from "@/lib/actions/media/media-actions"
-import type { MediaData } from "@/lib/actions/media/media-actions"
+import { getPaginatedMediaAction } from "@/lib/actions/media/media-actions"
+import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import Image from "next/image"
 import { Search, ImageIcon, VideoIcon, Upload, X, Play, Filter } from "lucide-react"
 import { toast } from "sonner"
@@ -49,11 +50,13 @@ export function MediaPicker({
   currentImageUrl, 
   showVideos = true 
 }: MediaPickerProps) {
-  const [mediaFiles, setMediaFiles] = useState<MediaData[]>([])
+  const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMedia, setSelectedMedia] = useState<MediaData | null>(null)
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(12) // Smaller page size for modal
   
   // Support legacy props
   const actualCurrentUrl = currentMediaUrl || currentImageUrl
@@ -65,21 +68,27 @@ export function MediaPicker({
   const [altText, setAltText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
 
-  // Load images when dialog opens
+  // Load images when dialog opens or pagination/filter changes
   useEffect(() => {
     if (open) {
       loadImages()
+    } else {
+      // Reset state when dialog closes
+      setCurrentPage(1)
+      setSearchQuery('')
+      setSelectedMedia(null)
     }
-  }, [open])
+  }, [open, currentPage, pageSize, filterType])
 
   const loadImages = async () => {
     try {
       setIsLoading(true)
-      const { data, error } = await getMediaAction()
+      const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
       if (error) {
         toast.error(`Failed to load media: ${error}`)
       } else {
-        setMediaFiles(data || [])
+        setPaginatedData(data)
       }
     } catch (error) {
       toast.error('Failed to load media')
@@ -88,13 +97,15 @@ export function MediaPicker({
     }
   }
 
+  // Get current media from paginated data and apply search filtering
+  const mediaFiles = paginatedData?.data || []
   const filteredMedia = mediaFiles
     .filter(media => {
-      // Filter by type
+      // Filter by video support
       if (!showVideos && media.file_type === 'video') return false
-      if (filterType !== 'all' && media.file_type !== filterType) return false
       
-      // Filter by search query
+      // Filter by search query (client-side for now)
+      if (!searchQuery) return true
       return media.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (media.alt_text && media.alt_text.toLowerCase().includes(searchQuery.toLowerCase()))
     })
@@ -109,8 +120,6 @@ export function MediaPicker({
     if (selectedMedia && actualOnSelect) {
       actualOnSelect(selectedMedia.public_url, selectedMedia.alt_text || undefined)
       onOpenChange(false)
-      setSelectedMedia(null)
-      setSearchQuery('')
     }
   }
 
@@ -118,9 +127,18 @@ export function MediaPicker({
     if (actualOnSelect) {
       actualOnSelect('', undefined)
       onOpenChange(false)
-      setSelectedMedia(null)
-      setSearchQuery('')
     }
+  }
+
+  // Handle filter change - reset to page 1
+  const handleFilterChange = (newFilter: 'all' | 'image' | 'video') => {
+    setFilterType(newFilter)
+    setCurrentPage(1)
+  }
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,8 +217,6 @@ export function MediaPicker({
       
       // Close dialog
       onOpenChange(false)
-      setSelectedMedia(null)
-      setSearchQuery('')
 
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Upload failed')
@@ -244,14 +260,14 @@ export function MediaPicker({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setFilterType('all')}>
+                  <DropdownMenuItem onClick={() => handleFilterChange('all')}>
                     All Media
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterType('image')}>
+                  <DropdownMenuItem onClick={() => handleFilterChange('image')}>
                     <ImageIcon className="w-4 h-4 mr-2" />
                     Images Only
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterType('video')}>
+                  <DropdownMenuItem onClick={() => handleFilterChange('video')}>
                     <VideoIcon className="w-4 h-4 mr-2" />
                     Videos Only
                   </DropdownMenuItem>
@@ -451,6 +467,24 @@ export function MediaPicker({
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {paginatedData && paginatedData.totalPages > 1 && (
+              <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
+                <PaginationInfo
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={paginatedData.total}
+                  className="text-sm"
+                />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={paginatedData.totalPages}
+                  onPageChange={handlePageChange}
+                  maxVisiblePages={5}
+                />
+              </div>
+            )}
         </div>
 
 
