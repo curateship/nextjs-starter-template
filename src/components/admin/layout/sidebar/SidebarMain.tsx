@@ -20,7 +20,7 @@ import {
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
 
-export function NavMain({
+export function SidebarMain({
   items,
 }: {
   items: {

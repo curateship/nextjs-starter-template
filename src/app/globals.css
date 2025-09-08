@@ -118,6 +118,7 @@
   }
   * {
     @apply border-border;
+    outline: none;
   }
   
   /* Only apply outline to specific elements that need it */

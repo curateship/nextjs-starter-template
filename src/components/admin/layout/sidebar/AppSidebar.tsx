@@ -16,9 +16,9 @@ import {
   Calendar,
 } from "lucide-react"
 
-import { NavMain } from "@/components/admin/layout/sidebar/NavMain"
-import { NavProjects } from "@/components/admin/layout/sidebar/NavProjects"
-import { NavUser } from "@/components/admin/layout/sidebar/NavUser"
+import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
+import { SidebarDropdown } from "@/components/admin/layout/sidebar/SidebarDropdown"
+import { SidebarUserAdmin } from "@/components/admin/layout/sidebar/SidebarUserAdmin"
 import { SiteSwitcherMenu } from "@/components/admin/layout/sidebar/SiteSwitcherMenu"
 import {
   Sidebar,
@@ -152,12 +152,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SiteSwitcherMenu />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={contentNavItems} />
-        <NavProjects title="Site Management" projects={siteManagementProjects} />
-        <NavProjects title="Platform Management" projects={platformProjects} />
+        <SidebarMain items={contentNavItems} />
+        <SidebarDropdown title="Site Management" projects={siteManagementProjects} />
+        <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
-        {!loading && user && <NavUser user={user} />}
+        {!loading && user && <SidebarUserAdmin user={user} />}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -33,7 +33,7 @@ import {
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
 
-export function NavUser({
+export function SidebarUserAdmin({
   user,
 }: {
   user: {
