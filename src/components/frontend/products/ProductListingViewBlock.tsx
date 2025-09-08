@@ -28,7 +28,6 @@ interface ProductListingViewBlockProps {
     itemsPerPage?: number
     viewAllText?: string
     viewAllLink?: string
-    backgroundColor?: string
   }
   siteId: string
   siteSubdomain?: string
@@ -67,7 +66,6 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     itemsPerPage = 12,
     viewAllText = '',
     viewAllLink = '',
-    backgroundColor = '#ffffff'
   } = content
 
   // Get URL prefix from props (passed from parent, no API call needed)
@@ -231,14 +229,10 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     )
   }
 
-  // Create inline style for background color
-  const backgroundStyle = backgroundColor && backgroundColor !== '#ffffff' 
-    ? { backgroundColor } 
-    : undefined
 
   if (loading) {
     return (
-      <div style={backgroundStyle}>
+      <div >
         <BlockContainer
           siteWidth={siteWidth}
           customWidth={customWidth}
@@ -292,7 +286,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
 
   if (!data || !data.products || data.products.length === 0) {
     return (
-      <div style={backgroundStyle}>
+      <div >
         <BlockContainer
           siteWidth={siteWidth}
           customWidth={customWidth}
@@ -333,7 +327,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   }
 
   return (
-    <div style={backgroundStyle}>
+    <div >
       <BlockContainer
         siteWidth={siteWidth}
         customWidth={customWidth}

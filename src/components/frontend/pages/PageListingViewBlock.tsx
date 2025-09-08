@@ -29,7 +29,6 @@ interface ListingViewsBlockProps {
     itemsPerPage?: number
     viewAllText?: string
     viewAllLink?: string
-    backgroundColor?: string
   }
   siteId: string
   siteSubdomain?: string
@@ -70,7 +69,6 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     itemsPerPage = 12,
     viewAllText = '',
     viewAllLink = '',
-    backgroundColor = '#ffffff'
   } = content
 
   // Extract repeated conditions
@@ -254,14 +252,10 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     )
   }
 
-  // Create inline style for background color
-  const backgroundStyle = backgroundColor && backgroundColor !== '#ffffff' 
-    ? { backgroundColor } 
-    : undefined
 
   if (loading) {
     return (
-      <div style={backgroundStyle}>
+      <div >
         <BlockContainer
           siteWidth={siteWidth}
           customWidth={customWidth}
@@ -303,7 +297,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
 
   if (!data || !data.products || data.products.length === 0) {
     return (
-      <div style={backgroundStyle}>
+      <div >
         <BlockContainer
           siteWidth={siteWidth}
           customWidth={customWidth}
@@ -332,7 +326,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
   }
 
   return (
-    <div style={backgroundStyle}>
+    <div >
       <BlockContainer
         siteWidth={siteWidth}
         customWidth={customWidth}

@@ -123,7 +123,7 @@ export function BlockPropertiesPanel({
                   'title', 'subtitle', 'headerAlign', 'mobileHeaderAlign', 'contentType', 'displayMode',
                   'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
-                  'showViewAll', 'viewAllText', 'viewAllLink', 'backgroundColor'
+                  'showViewAll', 'viewAllText', 'viewAllLink'
                 ]) as any)}
               />
             )}

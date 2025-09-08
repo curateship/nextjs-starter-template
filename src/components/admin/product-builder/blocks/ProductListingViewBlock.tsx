@@ -21,7 +21,6 @@ interface ProductListingViewBlockProps {
   itemsPerPage?: number
   viewAllText?: string
   viewAllLink?: string
-  backgroundColor?: string
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
@@ -38,7 +37,6 @@ interface ProductListingViewBlockProps {
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
-  onBackgroundColorChange: (value: string) => void
 }
 
 export function ProductListingViewBlock({
@@ -58,7 +56,6 @@ export function ProductListingViewBlock({
   itemsPerPage = 12,
   viewAllText = '',
   viewAllLink = '',
-  backgroundColor = '#ffffff',
   onTitleChange,
   onSubtitleChange,
   onHeaderAlignChange,
@@ -75,7 +72,6 @@ export function ProductListingViewBlock({
   onItemsPerPageChange,
   onViewAllTextChange,
   onViewAllLinkChange,
-  onBackgroundColorChange,
 }: ProductListingViewBlockProps) {
   return (
     <div className="space-y-4">
@@ -116,27 +112,6 @@ export function ProductListingViewBlock({
                   <SelectItem value="center">Center</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="backgroundColor">Background Color</Label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  id="backgroundColor"
-                  value={backgroundColor}
-                  onChange={(e) => onBackgroundColorChange(e.target.value)}
-                  className="h-10 w-20 rounded border border-input cursor-pointer"
-                />
-                <Input
-                  value={backgroundColor}
-                  onChange={(e) => onBackgroundColorChange(e.target.value)}
-                  placeholder="#ffffff"
-                  className="flex-1"
-                />
-              </div>
             </div>
           </div>
           

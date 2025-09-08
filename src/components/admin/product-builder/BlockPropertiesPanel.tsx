@@ -239,7 +239,6 @@ export function BlockPropertiesPanel({
                 itemsPerPage={selectedBlock.content.itemsPerPage ?? 12}
                 viewAllText={selectedBlock.content.viewAllText ?? ''}
                 viewAllLink={selectedBlock.content.viewAllLink ?? ''}
-                backgroundColor={selectedBlock.content.backgroundColor ?? '#ffffff'}
                 onTitleChange={(value) => updateBlockContent('title', value)}
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
@@ -256,7 +255,6 @@ export function BlockPropertiesPanel({
                 onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
                 onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
                 onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
-                onBackgroundColorChange={(value) => updateBlockContent('backgroundColor', value)}
               />
             )}
           </div>
