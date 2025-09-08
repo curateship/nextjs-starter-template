@@ -71,7 +71,7 @@ export function SiteSwitcherMenu() {
           <Link href={currentSite ? `/admin/sites/${currentSite.id}/dashboard` : "/admin"} className="flex-1">
             <SidebarMenuButton
               size="lg"
-              className="w-full cursor-pointer"
+              className="w-full cursor-pointer group-data-[collapsible=icon]:justify-center"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
                 {currentSite?.settings?.favicon ? (
@@ -86,7 +86,7 @@ export function SiteSwitcherMenu() {
                   </div>
                 )}
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-medium">
                   {currentSite ? currentSite.name : "Select Site"}
                 </span>
@@ -98,7 +98,7 @@ export function SiteSwitcherMenu() {
           </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-2 hover:bg-muted rounded-md">
+              <button className="p-4 hover:bg-muted rounded-md">
                 <ChevronsUpDown className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>

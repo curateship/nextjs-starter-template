@@ -117,7 +117,14 @@
     scroll-behavior: smooth;
   }
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+  
+  /* Only apply outline to specific elements that need it */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
