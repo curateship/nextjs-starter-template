@@ -26,6 +26,10 @@ interface BlockPropertiesPanelProps {
     id: string
     name: string
     subdomain: string
+    settings?: {
+      favicon?: string
+      [key: string]: any
+    }
   }
   siteBlocks?: {
     navigation?: any
@@ -100,6 +104,7 @@ export function BlockPropertiesPanel({
             site={site ? {
               ...site,
               settings: {
+                ...site.settings, // preserve favicon and others
                 navigation: siteBlocks?.navigation,
                 footer: siteBlocks?.footer,
                 show_featured_image: siteBlocks?.show_featured_image

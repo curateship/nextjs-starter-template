@@ -17,6 +17,7 @@ interface Post {
   meta_description?: string | null
   site_id: string
   featured_image?: string | null
+  show_featured_image?: boolean
   excerpt?: string | null
   is_published: boolean
 }
