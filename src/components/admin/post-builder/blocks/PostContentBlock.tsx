@@ -1,9 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -25,15 +22,9 @@ import {
 interface PostContentBlockProps {
   block: PostBlock
   onContentChange: (content: Record<string, any>) => void
-  postData?: {
-    title?: string
-    meta_description?: string
-    excerpt?: string
-  }
-  isDefaultBlock?: boolean
 }
 
-export function PostContentBlock({ block, onContentChange, postData, isDefaultBlock = false }: PostContentBlockProps) {
+export function PostContentBlock({ block, onContentChange }: PostContentBlockProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -65,52 +56,16 @@ export function PostContentBlock({ block, onContentChange, postData, isDefaultBl
         editor.commands.setContent(content)
       }
     }
-  }, [block.id, block.content, editor, isDefaultBlock, postData])
+  }, [block.id, block.content, editor])
 
-  const handleTitleChange = (title: string) => {
-    onContentChange({
-      ...block.content,
-      title,
-    })
-  }
-
-  
   if (!editor) {
     return <div>Loading editor...</div>
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Content Block</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Title Field */}
-        {isDefaultBlock ? (
-          <div>
-            <Label>Post Title</Label>
-            <div className="mt-1 px-3 py-2 border border-input bg-muted/50 rounded-md text-sm">
-              {postData?.title || 'Untitled Post'}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              This title is managed in the post settings, not in the content block.
-            </p>
-          </div>
-        ) : (
-          <div>
-            <Label htmlFor="block-title">Title</Label>
-            <Input
-              id="block-title"
-              value={block.content?.title || ''}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter block title..."
-              className="mt-1"
-            />
-          </div>
-        )}
-
-        {/* TipTap Toolbar */}
-        <div className="border rounded-t-lg bg-muted/30 p-2 flex flex-wrap gap-1">
+    <div className="space-y-4">
+      {/* TipTap Toolbar */}
+        <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
           <Button
             size="sm"
             variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
@@ -217,11 +172,10 @@ export function PostContentBlock({ block, onContentChange, postData, isDefaultBl
           </Button>
         </div>
 
-        {/* TipTap Editor */}
-        <div className="border rounded-b-lg bg-background">
-          <EditorContent editor={editor} />
-        </div>
-      </CardContent>
-    </Card>
+      {/* TipTap Editor */}
+      <div className="bg-background">
+        <EditorContent editor={editor} />
+      </div>
+    </div>
   )
 }

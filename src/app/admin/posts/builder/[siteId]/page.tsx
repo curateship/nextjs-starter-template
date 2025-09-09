@@ -177,7 +177,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onPostUpdated={handlePostUpdated}
           saveMessage={builderState.saveMessage}
           isSaving={false}
-          onSave={() => {}}
+          onSave={builderState.handleSaveAllBlocks}
           onPreviewPost={() => builderState.setSelectedBlock(null)}
           postsLoading={loading}
         />

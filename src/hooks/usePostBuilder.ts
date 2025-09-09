@@ -25,6 +25,7 @@ export interface PostBuilderHookResult {
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => Promise<void>
   handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => Promise<void>
   handleCleanupCorrupted: () => Promise<void>
+  handleSaveAllBlocks: () => Promise<void>
 }
 
 function generatePostBlockId(): string {
@@ -122,51 +123,26 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     }
   }
 
-  // Update a block
+  // Update a block (local state only, like page builder)
   const handleUpdateBlock = async (blockId: string, updates: Partial<PostBlock>) => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
-      return
+    const currentBlock = blocks[blockId]
+    if (!currentBlock) return
+
+    const updatedBlock = {
+      ...currentBlock,
+      ...updates,
+      updated_at: new Date().toISOString()
     }
-    
-    try {
-      const currentBlock = blocks[blockId]
-      if (!currentBlock) return
 
-      const updatedBlock = {
-        ...currentBlock,
-        ...updates,
-        updated_at: new Date().toISOString()
-      }
+    // Update local state only - no immediate server save
+    setBlocks(prev => ({
+      ...prev,
+      [blockId]: updatedBlock
+    }))
 
-      // Update local state immediately
-      setBlocks(prev => ({
-        ...prev,
-        [blockId]: updatedBlock
-      }))
-
-      // Update selected block if it's the one being updated
-      if (selectedBlock?.id === blockId) {
-        setSelectedBlock(updatedBlock)
-      }
-
-      // Save to server - need to get current blocks state
-      const { success, error } = await updatePostBlocksAction(postId, blocks)
-
-      if (!success || error) {
-        console.error('Error updating block:', error)
-        // Revert handled by parent component
-        if (selectedBlock?.id === blockId) {
-          setSelectedBlock(currentBlock)
-        }
-        setSaveMessage('Error saving block')
-        setTimeout(() => setSaveMessage(''), 3000)
-      }
-    } catch (err) {
-      console.error('Error updating block:', err)
-      setSaveMessage('Error saving block')
-      setTimeout(() => setSaveMessage(''), 3000)
+    // Update selected block if it's the one being updated
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(updatedBlock)
     }
   }
 
@@ -182,22 +158,21 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       setSaveMessage('Reordering blocks...')
 
       // Update local state with new order
-      setBlocks(prev => {
-        const updated = { ...prev }
-        newOrder.forEach(({ id, display_order }) => {
-          if (updated[id]) {
-            updated[id] = {
-              ...updated[id],
-              display_order,
-              updated_at: new Date().toISOString()
-            }
+      const updated = { ...blocks }
+      newOrder.forEach(({ id, display_order }) => {
+        if (updated[id]) {
+          updated[id] = {
+            ...updated[id],
+            display_order,
+            updated_at: new Date().toISOString()
           }
-        })
-        return updated
+        }
       })
+      
+      setBlocks(updated)
 
-      // Save to server - need to get current blocks state
-      const { success, error } = await updatePostBlocksAction(postId, blocks)
+      // Save to server - use updated blocks state
+      const { success, error } = await updatePostBlocksAction(postId, updated)
 
       if (!success || error) {
         console.error('Error reordering blocks:', error)
@@ -257,6 +232,35 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     }
   }
 
+  // Save all blocks to server (like page builder)
+  const handleSaveAllBlocks = async () => {
+    if (!postId || postId.length === 0) {
+      setSaveMessage('No post selected')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+    
+    try {
+      setSaveMessage('Saving blocks...')
+
+      const { success, error } = await updatePostBlocksAction(postId, blocks)
+
+      if (!success || error) {
+        console.error('Error saving blocks:', error)
+        setSaveMessage('Error saving blocks')
+        setTimeout(() => setSaveMessage(''), 3000)
+        return
+      }
+
+      setSaveMessage('All blocks saved!')
+      setTimeout(() => setSaveMessage(''), 3000)
+    } catch (err) {
+      console.error('Error saving blocks:', err)
+      setSaveMessage('Error saving blocks')
+      setTimeout(() => setSaveMessage(''), 3000)
+    }
+  }
+
   return {
     blocks,
     selectedBlock,
@@ -267,6 +271,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     handleDeleteBlock,
     handleUpdateBlock,
     handleReorderBlocks,
-    handleCleanupCorrupted
+    handleCleanupCorrupted,
+    handleSaveAllBlocks
   }
 }
