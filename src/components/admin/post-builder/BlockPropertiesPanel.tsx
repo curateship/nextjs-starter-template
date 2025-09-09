@@ -30,6 +30,7 @@ interface BlockPropertiesPanelProps {
   siteBlocks?: {
     navigation?: any
     footer?: any
+    show_featured_image?: boolean
   } | null
   blocksLoading?: boolean
   onOpenPostSettings?: () => void
@@ -92,6 +93,7 @@ export function BlockPropertiesPanel({
               meta_description: currentPost.meta_description,
               site_id: currentPost.site_id || siteId,
               featured_image: currentPost.featured_image || null,
+              show_featured_image: (currentPost as any)?.show_featured_image !== false,
               excerpt: currentPost.excerpt || null,
               is_published: currentPost.is_published || false
             } : undefined}
@@ -99,7 +101,8 @@ export function BlockPropertiesPanel({
               ...site,
               settings: {
                 navigation: siteBlocks?.navigation,
-                footer: siteBlocks?.footer
+                footer: siteBlocks?.footer,
+                show_featured_image: siteBlocks?.show_featured_image
               }
             } : undefined}
             className="h-full"

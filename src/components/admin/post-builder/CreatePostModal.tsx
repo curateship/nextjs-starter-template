@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
@@ -42,6 +43,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
+  const [showFeaturedImage, setShowFeaturedImage] = useState(true)
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -128,7 +130,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         excerpt: formData.excerpt || null,
         is_published: false,
         content_blocks: {
-          content: formData.content || ''
+          content: formData.content || '',
+          show_featured_image: showFeaturedImage
         }
       }
       
@@ -182,7 +185,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         excerpt: formData.excerpt || null,
         is_published: true,
         content_blocks: {
-          content: formData.content || ''
+          content: formData.content || '',
+          show_featured_image: showFeaturedImage
         }
       }
       
@@ -315,6 +319,23 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         <p className="text-xs text-muted-foreground mt-1">
           Optional featured image for this post
         </p>
+
+        {/* Show Featured Image Toggle */}
+        {formData.featured_image && (
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="show_featured_image">Show featured image on post page</Label>
+              <p className="text-xs text-muted-foreground">
+                Control whether the featured image appears at the top of the post page
+              </p>
+            </div>
+            <Switch
+              id="show_featured_image"
+              checked={showFeaturedImage}
+              onCheckedChange={setShowFeaturedImage}
+            />
+          </div>
+        )}
       </div>
 
       {/* Post Excerpt */}

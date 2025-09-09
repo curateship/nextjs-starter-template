@@ -46,9 +46,16 @@ export default async function PostPage({ params }: PostPageProps) {
 
   // Convert post blocks to array format like products
   let blocks: any[] = []
+  let showFeaturedImage = true // Default to true
   try {
     const contentBlocks = post.content_blocks || {}
-    blocks = Object.values(contentBlocks).sort((a: any, b: any) => 
+    // Extract show_featured_image setting
+    showFeaturedImage = contentBlocks.show_featured_image !== false
+    // Filter out the show_featured_image setting and get only actual blocks
+    const blockValues = Object.values(contentBlocks).filter((block: any) => 
+      block && typeof block === 'object' && block.type
+    )
+    blocks = blockValues.sort((a: any, b: any) => 
       (a.display_order || 0) - (b.display_order || 0)
     )
   } catch (error) {
@@ -58,7 +65,8 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const postWithBlocks = {
     ...post,
-    blocks
+    blocks,
+    show_featured_image: showFeaturedImage
   }
 
   return <PostBlockRenderer 

@@ -50,6 +50,9 @@ export function PostPreview({ blocks, post, site, className = "", blocksLoading 
   // Create preview site - navigation and footer will be added from site.settings automatically
   const previewSite = createPreviewSite(previewBlocks, site)
 
+  // Extract show_featured_image setting from site.settings (which contains content_blocks)
+  const showFeaturedImage = site?.settings?.show_featured_image !== false
+
   // Create mock post data
   const previewPost = {
     id: post?.id || 'preview',
@@ -58,6 +61,7 @@ export function PostPreview({ blocks, post, site, className = "", blocksLoading 
     meta_description: post?.meta_description || null,
     site_id: post?.site_id || 'preview',
     featured_image: post?.featured_image || null,
+    show_featured_image: showFeaturedImage,
     excerpt: post?.excerpt || null,
     is_published: post?.is_published || false,
     blocks: previewBlocks.map(block => ({

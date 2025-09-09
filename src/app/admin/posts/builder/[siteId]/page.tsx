@@ -7,7 +7,6 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePostBuilder } from "@/hooks/usePostBuilder"
-import type { PostBlock as DBPostBlock } from "@/lib/actions/posts/post-actions"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostBuilderHeader } from "@/components/admin/post-builder/PostBuilderHeader"
@@ -27,6 +26,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [localBlocks, setLocalBlocks] = useState<Record<string, any>>({})
+
   
   // Get initial post from URL params or default to first post
   const initialPost = searchParams.get('post') || ''
@@ -90,7 +90,15 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Update local blocks when post data changes
   useEffect(() => {
     if (currentPostData?.content_blocks) {
-      setLocalBlocks(currentPostData.content_blocks)
+      // Filter out settings like show_featured_image and keep only actual blocks
+      const actualBlocks: Record<string, any> = {}
+      Object.entries(currentPostData.content_blocks).forEach(([key, value]) => {
+        // Only include items that have block properties (id, type, content)
+        if (value && typeof value === 'object' && 'type' in value && 'id' in value) {
+          actualBlocks[key] = value
+        }
+      })
+      setLocalBlocks(actualBlocks)
     } else {
       setLocalBlocks({})
     }
@@ -106,7 +114,16 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const currentPost = {
     slug: selectedPost,
     name: currentPostData?.title || selectedPost,
-    blocks: Object.values(builderState.blocks).sort((a, b) => a.display_order - b.display_order) as any
+    blocks: Object.values(builderState.blocks).sort((a, b) => a.display_order - b.display_order) as any,
+    id: currentPostData?.id,
+    title: currentPostData?.title,
+    meta_description: currentPostData?.meta_description || undefined,
+    site_id: currentPostData?.site_id,
+    featured_image: currentPostData?.featured_image,
+    show_featured_image: (currentPostData as any)?.show_featured_image,
+    excerpt: currentPostData?.excerpt,
+    is_published: currentPostData?.is_published,
+    content_blocks: currentPostData?.content_blocks
   }
   
   // Handle post change with URL update
@@ -187,15 +204,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.handleUpdateBlock}
             siteId={siteId}
-            currentPost={{
-              ...currentPost,
-              id: currentPostData?.id,
-              title: currentPostData?.title,
-              meta_description: currentPostData?.meta_description || undefined,
-              site_id: currentPostData?.site_id,
-              featured_image: currentPostData?.featured_image || undefined,
-              excerpt: currentPostData?.excerpt || undefined
-            }}
+            currentPost={currentPost}
             site={{
               id: siteId,
               name: site?.name || 'Post Site',
@@ -203,7 +212,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             }}
             siteBlocks={{
               navigation: site?.settings?.navigation,
-              footer: site?.settings?.footer
+              footer: site?.settings?.footer,
+              show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image
             }}
             blocksLoading={loading}
           />

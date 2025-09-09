@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
@@ -31,7 +32,7 @@ export function PostSettingsModal({
   onOpenChange, 
   post, 
   site,
-  onSuccess 
+  onSuccess
 }: PostSettingsModalProps) {
   const [formData, setFormData] = useState<UpdatePostData>({})
   const [saving, setSaving] = useState(false)
@@ -40,6 +41,7 @@ export function PostSettingsModal({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [extractedContent, setExtractedContent] = useState('')
+  const [showFeaturedImage, setShowFeaturedImage] = useState(true)
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -97,6 +99,10 @@ export function PostSettingsModal({
       }
       setExtractedContent(content)
       
+      // Get show_featured_image from content_blocks
+      const showFeaturedImageSetting = post.content_blocks?.show_featured_image !== false
+      setShowFeaturedImage(showFeaturedImageSetting)
+      
       setFormData({
         title: post.title,
         slug: post.slug,
@@ -142,7 +148,14 @@ export function PostSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      const draftData = { ...formData, is_published: false }
+      const draftData = { 
+        ...formData, 
+        is_published: false,
+        content_blocks: {
+          ...post.content_blocks,
+          show_featured_image: showFeaturedImage
+        }
+      }
       const response = await fetch(`/api/posts/${post.id}`, {
         method: 'PUT',
         headers: {
@@ -166,10 +179,8 @@ export function PostSettingsModal({
           onSuccess(result.data)
         }
         
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        // Close modal after successful save
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to save post as draft')
@@ -195,7 +206,14 @@ export function PostSettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      const publishData = { ...formData, is_published: true }
+      const publishData = { 
+        ...formData, 
+        is_published: true,
+        content_blocks: {
+          ...post.content_blocks,
+          show_featured_image: showFeaturedImage
+        }
+      }
       const response = await fetch(`/api/posts/${post.id}`, {
         method: 'PUT',
         headers: {
@@ -222,10 +240,8 @@ export function PostSettingsModal({
           onSuccess(result.data)
         }
         
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        // Close modal after successful save
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to publish post')
@@ -356,6 +372,25 @@ export function PostSettingsModal({
                   Optional featured image for this post
                 </p>
               </div>
+
+              {/* Show Featured Image Toggle */}
+              {formData.featured_image && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="show_featured_image">Show featured image on post page</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Control whether the featured image appears at the top of the post page
+                      </p>
+                    </div>
+                    <Switch
+                      id="show_featured_image"
+                      checked={showFeaturedImage}
+                      onCheckedChange={setShowFeaturedImage}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Post Excerpt */}
               <div className="space-y-2">

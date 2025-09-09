@@ -11,6 +11,7 @@ interface PostContentBlockProps {
     title: string
     excerpt?: string | null
     featured_image?: string | null
+    show_featured_image?: boolean
     created_at: string
   }
   siteWidth?: 'full' | 'custom'
@@ -55,7 +56,7 @@ export function PostContentBlock({
               <span className="ml-1">on {format(new Date(post.created_at), "MMMM d, yyyy")}</span>
             </span>
           </div>
-          {post.featured_image && (
+          {post.featured_image && post.show_featured_image !== false && (
             <img
               src={post.featured_image}
               alt="Featured image"
