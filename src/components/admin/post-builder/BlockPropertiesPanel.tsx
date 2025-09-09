@@ -95,7 +95,13 @@ export function BlockPropertiesPanel({
               excerpt: currentPost.excerpt || null,
               is_published: currentPost.is_published || false
             } : undefined}
-            site={site}
+            site={site ? {
+              ...site,
+              settings: {
+                navigation: siteBlocks?.navigation,
+                footer: siteBlocks?.footer
+              }
+            } : undefined}
             className="h-full"
             blocksLoading={blocksLoading}
           />
