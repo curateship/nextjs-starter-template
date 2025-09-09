@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import Image from '@tiptap/extension-image'
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { 
   Bold, 
   Italic, 
@@ -16,7 +18,8 @@ import {
   Heading3,
   Undo,
   Redo,
-  Code
+  Code,
+  ImageIcon
 } from 'lucide-react'
 
 interface PostContentBlockProps {
@@ -25,11 +28,18 @@ interface PostContentBlockProps {
 }
 
 export function PostContentBlock({ block, onContentChange }: PostContentBlockProps) {
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
+  
   const editor = useEditor({
     extensions: [
       StarterKit,
       Placeholder.configure({
         placeholder: 'Write your post content here...',
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'rounded-lg max-w-full h-auto',
+        },
       }),
     ],
     content: block.content?.body || block.content?.text || '',
@@ -57,6 +67,12 @@ export function PostContentBlock({ block, onContentChange }: PostContentBlockPro
       }
     }
   }, [block.id, block.content, editor])
+
+  const handleImageSelect = (imageUrl: string, altText?: string) => {
+    if (editor) {
+      editor.chain().focus().setImage({ src: imageUrl, alt: altText || '' }).run()
+    }
+  }
 
   if (!editor) {
     return <div>Loading editor...</div>
@@ -153,6 +169,18 @@ export function PostContentBlock({ block, onContentChange }: PostContentBlockPro
           <Button
             size="sm"
             variant="ghost"
+            onClick={() => setIsImagePickerOpen(true)}
+            className="h-8 w-8 p-0"
+            type="button"
+          >
+            <ImageIcon className="h-4 w-4" />
+          </Button>
+          
+          <div className="w-px h-8 bg-border mx-1" />
+          
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().chain().focus().undo().run()}
             className="h-8 w-8 p-0"
@@ -176,6 +204,14 @@ export function PostContentBlock({ block, onContentChange }: PostContentBlockPro
       <div className="bg-background">
         <EditorContent editor={editor} />
       </div>
+      
+      {/* Image Picker Modal */}
+      <MediaPicker
+        open={isImagePickerOpen}
+        onOpenChange={setIsImagePickerOpen}
+        onSelectMedia={handleImageSelect}
+        showVideos={false}
+      />
     </div>
   )
 }
