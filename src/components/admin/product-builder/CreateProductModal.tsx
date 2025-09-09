@@ -285,7 +285,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               <img 
                 src={featuredImage} 
                 alt="Featured image preview" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
               <button
