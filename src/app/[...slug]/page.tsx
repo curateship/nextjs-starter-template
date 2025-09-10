@@ -1,7 +1,7 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { createClient } from '@supabase/supabase-js'
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 
 // Create admin client for direct database queries
 const supabaseAdmin = createClient(
@@ -46,6 +46,4 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     return <BlockRenderer site={site} />
   }
   
-  // If not a page, assume it's a product and redirect to /products/[slug]
-  redirect(`/products/${fullSlug}`)
 }
