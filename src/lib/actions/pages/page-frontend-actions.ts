@@ -9,48 +9,66 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Cached site lookup functions
-const getCachedSiteByDomain = unstable_cache(
-  async (domain: string) => {
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('custom_domain', domain)
-      .single()
+// Cached site lookup functions (include parameter in cache key)
+async function getCachedSiteByDomain(domain: string) {
+  return unstable_cache(
+    async () => {
+      const { data: site, error: siteError } = await supabaseAdmin
+        .from('sites')
+        .select('*')
+        .eq('custom_domain', domain)
+        .single()
 
-    if (siteError || !site) {
-      return null
-    }
+      if (siteError || !site) {
+        return null
+      }
 
-    return site
-  },
-  ['site-by-domain'],
-  { 
-    revalidate: false,
-    tags: ['site-lookup']
+      return site
+    },
+    ['site-by-domain', domain],
+    { revalidate: false, tags: ['site-lookup'] }
+  )()
+}
+
+async function getCachedSiteBySubdomain(subdomain: string) {
+  return unstable_cache(
+    async () => {
+      const { data: site, error: siteError } = await supabaseAdmin
+        .from('sites')
+        .select('*')
+        .eq('subdomain', subdomain)
+        .single()
+
+      if (siteError || !site) {
+        return null
+      }
+
+      return site
+    },
+    ['site-by-subdomain', subdomain],
+    { revalidate: false, tags: ['site-lookup'] }
+  )()
+}
+
+export async function resolveSiteByHost(hostname: string) {
+  const host = hostname.replace(/^www\./, '')
+  // Try custom domain
+  const byDomain = await getCachedSiteByDomain(host)
+  if (byDomain && (byDomain.status === 'active' || byDomain.status === 'draft')) {
+    return { id: byDomain.id, subdomain: byDomain.subdomain, custom_domain: byDomain.custom_domain }
   }
-)
-
-const getCachedSiteBySubdomain = unstable_cache(
-  async (subdomain: string) => {
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('subdomain', subdomain)
-      .single()
-
-    if (siteError || !site) {
-      return null
+  // Try subdomain (skip common system subdomains)
+  if (host.includes('.')) {
+    const sub = host.split('.')[0]
+    if (!['www', 'api', 'admin', 'app'].includes(sub)) {
+      const bySub = await getCachedSiteBySubdomain(sub)
+      if (bySub && (bySub.status === 'active' || bySub.status === 'draft')) {
+        return { id: bySub.id, subdomain: bySub.subdomain, custom_domain: bySub.custom_domain }
+      }
     }
-
-    return site
-  },
-  ['site-by-subdomain'],
-  { 
-    revalidate: false,
-    tags: ['site-lookup']
   }
-)
+  return null
+}
 
 // Cached page lookup function
 const getCachedPage = unstable_cache(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 
 // Create Supabase client for middleware
 const supabaseAdmin = createClient(
@@ -23,61 +24,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check if this is a custom domain
+  // Resolve site via cached action
   try {
-    // Remove www. prefix if present for consistent lookups
-    const domainToCheck = hostname.replace(/^www\./, '')
-    
-    const { data: site, error } = await supabaseAdmin
-      .from('sites')
-      .select('id, subdomain, custom_domain, status')
-      .or(`custom_domain.eq.${hostname},custom_domain.eq.${domainToCheck}`)
-      .eq('status', 'active')
-      .single()
-
-    if (site && !error) {
-      // Custom domain found - rewrite the request
-      // This makes the app think it's being accessed via subdomain
+    const resolved = await resolveSiteByHost(hostname)
+    if (resolved) {
       const rewriteUrl = new URL(url)
-      
-      // Add custom headers to identify the site
       const response = NextResponse.rewrite(rewriteUrl)
-      response.headers.set('x-custom-domain', hostname)
-      response.headers.set('x-site-id', site.id)
-      response.headers.set('x-site-subdomain', site.subdomain)
-      
+      if (resolved.custom_domain) {
+        response.headers.set('x-custom-domain', hostname)
+      }
+      response.headers.set('x-site-id', resolved.id)
+      response.headers.set('x-site-subdomain', resolved.subdomain)
       return response
     }
-
-    // If not a custom domain, check if it's a subdomain
-    if (hostname.includes('.')) {
-      const subdomain = hostname.split('.')[0]
-      
-      // Skip if it's a known system subdomain
-      if (['www', 'api', 'admin', 'app'].includes(subdomain)) {
-        return NextResponse.next()
-      }
-
-      // Check if subdomain exists
-      const { data: subdomainSite } = await supabaseAdmin
-        .from('sites')
-        .select('id, subdomain, status')
-        .eq('subdomain', subdomain)
-        .eq('status', 'active')
-        .single()
-
-      if (subdomainSite) {
-        // Subdomain found - add headers
-        const response = NextResponse.next()
-        response.headers.set('x-site-id', subdomainSite.id)
-        response.headers.set('x-site-subdomain', subdomainSite.subdomain)
-        
-        return response
-      }
-    }
-
-  } catch (error) {
-    // If database query fails, let the request continue
+  } catch (_) {
+    // If resolution fails, continue
   }
 
   // Default: let the request continue normally
