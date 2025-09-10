@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { getSiteBySubdomain, getSiteByDomain } from '@/lib/actions/pages/page-frontend-actions'
+import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 import { createClient } from '@supabase/supabase-js'
 
 /**
@@ -10,31 +11,30 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   const headersList = await headers()
   const host = headersList.get('host') || 'localhost:3000'
   
-  // Check if middleware has already identified the site (for custom domains)
-  const siteSubdomain = headersList.get('x-site-subdomain')
-  const customDomain = headersList.get('x-custom-domain')
-  
-  // If middleware identified a custom domain, try subdomain lookup first
-  if (customDomain && siteSubdomain) {
-    const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
-    
-    // If subdomain lookup fails, fallback to domain lookup
-    if (!result.success) {
-      return await getSiteByDomain(customDomain, pageSlug)
+  // Prefer cached resolver (works regardless of middleware headers)
+  const resolved = await resolveSiteByHost(host)
+  if (resolved) {
+    const result = await getSiteBySubdomain(resolved.subdomain, pageSlug)
+    if (!result.success && pageSlug === 'home') {
+      return await getSiteBySubdomain(resolved.subdomain)
     }
-    
+    if (!result.success && resolved.custom_domain) {
+      return await getSiteByDomain(resolved.custom_domain, pageSlug)
+    }
     return result
   }
-  
-  // If middleware identified a subdomain site, use it
+
+  // Fallback: legacy header-based flow
+  const siteSubdomain = headersList.get('x-site-subdomain')
+  const customDomain = headersList.get('x-custom-domain')
+  if (customDomain && siteSubdomain) {
+    const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
+    if (!result.success) return await getSiteByDomain(customDomain, pageSlug)
+    return result
+  }
   if (siteSubdomain) {
     const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
-    
-    // If page not found but this is home page, try without specific page
-    if (!result.success && pageSlug === 'home') {
-      return await getSiteBySubdomain(siteSubdomain)
-    }
-    
+    if (!result.success && pageSlug === 'home') return await getSiteBySubdomain(siteSubdomain)
     return result
   }
   
