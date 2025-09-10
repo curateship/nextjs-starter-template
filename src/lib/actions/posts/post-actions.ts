@@ -687,11 +687,40 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
       return { success: false, error: 'Site not found or access denied' }
     }
 
+    // Get current content_blocks to preserve settings like show_featured_image
+    const { data: currentPost } = await supabaseAdmin
+      .from('posts')
+      .select('content_blocks')
+      .eq('id', postId)
+      .single()
+
+    // Preserve non-block settings and merge with updated blocks
+    const currentContentBlocks = currentPost?.content_blocks || {}
+    const preservedSettings: Record<string, any> = {}
+    
+    // Extract non-block settings (primitive values and objects without block structure)
+    Object.entries(currentContentBlocks as Record<string, any>).forEach(([key, value]) => {
+      // Preserve primitive values (like show_featured_image: boolean)
+      if (typeof value !== 'object' || value === null) {
+        preservedSettings[key] = value
+      }
+      // For objects, check if they're NOT blocks (don't have block structure)
+      else if (typeof value === 'object' && !('id' in value && 'type' in value && 'content' in value)) {
+        preservedSettings[key] = value
+      }
+    })
+
+    const updatedContentBlocks = {
+      ...preservedSettings,
+      ...blocks
+    }
+
+
     // Update content_blocks directly in the posts table
     const { error: updateError } = await supabaseAdmin
       .from('posts')
       .update({ 
-        content_blocks: blocks,
+        content_blocks: updatedContentBlocks,
         updated_at: new Date().toISOString()
       })
       .eq('id', postId)
