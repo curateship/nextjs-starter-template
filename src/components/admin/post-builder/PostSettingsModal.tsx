@@ -100,7 +100,7 @@ export function PostSettingsModal({
       setExtractedContent(content)
       
       // Get show_featured_image from content_blocks
-      const showFeaturedImageSetting = post.content_blocks?.show_featured_image !== false
+      const showFeaturedImageSetting = (post.content_blocks as any)?.show_featured_image ?? true
       setShowFeaturedImage(showFeaturedImageSetting)
       
       setFormData({
