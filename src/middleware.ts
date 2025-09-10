@@ -28,11 +28,17 @@ export async function middleware(request: NextRequest) {
   try {
     const resolved = await resolveSiteByHost(hostname)
     if (resolved) {
-      const rewriteUrl = new URL(url)
-      const response = NextResponse.rewrite(rewriteUrl)
       if (resolved.custom_domain) {
+        // Custom domain: rewrite so app treats it like subdomain routing
+        const rewriteUrl = new URL(url)
+        const response = NextResponse.rewrite(rewriteUrl)
         response.headers.set('x-custom-domain', hostname)
+        response.headers.set('x-site-id', resolved.id)
+        response.headers.set('x-site-subdomain', resolved.subdomain)
+        return response
       }
+      // Subdomain: just continue the request and attach headers (no rewrite)
+      const response = NextResponse.next()
       response.headers.set('x-site-id', resolved.id)
       response.headers.set('x-site-subdomain', resolved.subdomain)
       return response
