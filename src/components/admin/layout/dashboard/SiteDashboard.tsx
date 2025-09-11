@@ -9,6 +9,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { StylingSettingsCard } from "./StylingSettingsCard"
+import { CacheSettingsCard } from "./CacheSettingsCard"
 import { AnimationSettingsCard } from "./AnimationSettingsCard"
 import { TrackingSettingsCard } from "./TrackingSettingsCard"
 
@@ -321,6 +322,9 @@ export function SiteDashboard({
         onTrackingScriptsChange={onTrackingScriptsChange}
       />
     )}
+
+    {/* Cache Settings Card */}
+    <CacheSettingsCard />
 
   </div>
   )

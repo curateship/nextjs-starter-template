@@ -93,6 +93,21 @@ export interface CreateSiteData {
   default_theme?: 'system' | 'light' | 'dark'
 }
 
+function sanitizeCustomDomain(input?: string | null): string | null {
+  if (!input) return null
+  let d = String(input).trim().toLowerCase()
+  if (!d) return null
+  // Remove protocol if present
+  d = d.replace(/^https?:\/\//, '')
+  // Remove any leading //
+  d = d.replace(/^\/+/, '')
+  // Strip path/query/fragment
+  d = d.split('/')[0].split('?')[0].split('#')[0]
+  // Empty after cleaning -> null
+  if (!d) return null
+  return d
+}
+
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
   try {
     // Server action: Fetching all sites with theme info
@@ -233,6 +248,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         user_id: actualUserId,
         subdomain,
         status: siteData.status || 'draft',
+        custom_domain: sanitizeCustomDomain(siteData.custom_domain ?? null),
         settings
       }])
       .select()
@@ -361,9 +377,9 @@ export async function updateSiteAction(
       finalUpdates.subdomain = subdomain
     }
     
-    // Convert empty strings to null for database constraints
-    if (finalUpdates.hasOwnProperty('custom_domain') && (finalUpdates.custom_domain === '' || finalUpdates.custom_domain === undefined)) {
-      finalUpdates.custom_domain = null
+    // Normalize custom_domain (strip protocol, paths, empty -> null)
+    if (finalUpdates.hasOwnProperty('custom_domain')) {
+      finalUpdates.custom_domain = sanitizeCustomDomain(finalUpdates.custom_domain as any)
     }
     
     const { data, error } = await supabaseAdmin

@@ -26,7 +26,7 @@ async function getCachedSiteByDomain(domain: string) {
       return site
     },
     ['site-by-domain', domain],
-    { revalidate: false, tags: ['site-lookup'] }
+    { revalidate: false, tags: ['site-lookup', 'all'] }
   )()
 }
 
@@ -46,7 +46,7 @@ async function getCachedSiteBySubdomain(subdomain: string) {
       return site
     },
     ['site-by-subdomain', subdomain],
-    { revalidate: false, tags: ['site-lookup'] }
+    { revalidate: false, tags: ['site-lookup', 'all'] }
   )()
 }
 
@@ -90,7 +90,7 @@ const getCachedPage = unstable_cache(
   ['page-lookup'],
   { 
     revalidate: false,
-    tags: ['page-lookup']
+    tags: ['page-lookup', 'all']
   }
 )
 

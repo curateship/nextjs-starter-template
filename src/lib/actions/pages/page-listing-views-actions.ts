@@ -94,7 +94,7 @@ const getCachedListingData = unstable_cache(
   ['listing-data'],
   { 
     revalidate: 3600, // 1-hour cache for product listing data
-    tags: ['listing-views']
+    tags: ['listing-views', 'all']
   }
 )
 
