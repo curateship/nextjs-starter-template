@@ -129,8 +129,20 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-secondary);
   }
 }
+
+/* Heading font uses primary */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Font utility classes for explicit overrides */
+.font-primary { font-family: var(--font-primary); }
+.font-secondary { font-family: var(--font-secondary); }
 
 /* Force hand cursor on all links - outside of Tailwind layers */
 a[href] {

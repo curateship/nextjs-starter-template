@@ -1,4 +1,5 @@
-import { getFontByValue, getGoogleFontUrl, getFontFamily } from "@/lib/utils/font-config"
+import { getFontByValue, getGoogleFontUrl, getFontFamily, defaultFont } from "@/lib/utils/font-config"
+import { useLayoutEffect } from "react"
 
 interface FontProviderProps {
   fontFamily?: string
@@ -10,67 +11,32 @@ interface FontProviderProps {
 export function FontProvider({ 
   fontFamily = 'playfair-display', 
   fontWeights,
-  secondaryFontFamily = 'inter',
+  secondaryFontFamily = defaultFont.value,
   secondaryFontWeights 
 }: FontProviderProps) {
-  const primaryFont = getFontByValue(fontFamily)
-  const secondaryFont = getFontByValue(secondaryFontFamily)
-  
-  if (!primaryFont) {
-    return null
-  }
+  const primary = getFontByValue(fontFamily) ?? defaultFont
+  const secondary = getFontByValue(secondaryFontFamily) ?? primary
 
-  const primaryFontUrl = getGoogleFontUrl(fontFamily, fontWeights)
-  const primaryFontFamilyValue = getFontFamily(fontFamily)
+  const primaryFontUrl = getGoogleFontUrl(primary.value, fontWeights)
+  const primaryFontFamilyValue = getFontFamily(primary.value)
   
-  const secondaryFontUrl = secondaryFont ? getGoogleFontUrl(secondaryFontFamily, secondaryFontWeights) : null
-  const secondaryFontFamilyValue = secondaryFont ? getFontFamily(secondaryFontFamily) : primaryFontFamilyValue
+  const secondaryFontUrl = getGoogleFontUrl(secondary.value, secondaryFontWeights)
+  const secondaryFontFamilyValue = getFontFamily(secondary.value)
 
-  // Generate inline styles for font application
-  const fontStyles = `
-    :root {
-      --font-primary: ${primaryFontFamilyValue};
-      --font-secondary: ${secondaryFontFamilyValue};
-    }
-    
-    body {
-      font-family: var(--font-secondary) !important;
-    }
-    
-    /* Apply PRIMARY font to headings */
-    h1, h2, h3, h4, h5, h6 {
-      font-family: var(--font-primary) !important;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-    
-    /* Keep SECONDARY font for body text */
-    p, span, div, li, td, th, label, input, textarea, select {
-      font-family: var(--font-secondary) !important;
-    }
-    
-    /* Special classes for overrides */
-    .font-primary {
-      font-family: var(--font-primary) !important;
-    }
-    
-    .font-secondary {
-      font-family: var(--font-secondary) !important;
-    }
-    
-    /* Button text should use secondary font */
-    button, .btn, [role="button"] {
-      font-family: var(--font-secondary) !important;
-    }
-    
-    /* Navigation items use secondary font */
-    nav, .nav-link {
-      font-family: var(--font-secondary) !important;
-    }
-  `
+  // Set CSS variables for fonts without injecting inline style blocks
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    root.style.setProperty('--font-primary', primaryFontFamilyValue)
+    root.style.setProperty('--font-secondary', secondaryFontFamilyValue)
+    // Ensure Tailwind's font-sans utility uses the dynamic secondary font
+    root.style.setProperty('--font-sans', secondaryFontFamilyValue)
+  }, [primaryFontFamilyValue, secondaryFontFamilyValue])
 
   return (
     <>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link 
         href={primaryFontUrl}
         rel="stylesheet"
@@ -83,7 +49,6 @@ export function FontProvider({
           crossOrigin="anonymous"
         />
       )}
-      <style dangerouslySetInnerHTML={{ __html: fontStyles }} />
     </>
   )
 }
