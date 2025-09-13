@@ -25,7 +25,15 @@ export async function generateMetadata(): Promise<Metadata> {
     if (success && site && site.settings?.favicon) {
       return {
         icons: {
-          icon: site.settings.favicon
+          icon: site.settings.favicon,
+          apple: site.settings.favicon,
+          other: [
+            {
+              rel: 'apple-touch-icon',
+              url: site.settings.favicon,
+              sizes: '180x180'
+            }
+          ]
         }
       };
     }
