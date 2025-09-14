@@ -21,9 +21,10 @@ export function TrustedByAvatars({
   badgeText = ""
 }: TrustedByAvatarsProps) {
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   
   const validAvatars = avatars.filter(avatar => 
-    avatar.src && avatar.src.trim() !== ''
+    avatar.src && avatar.src.trim() !== '' && !failedImages.has(avatar.src)
   );
   
   const handleImageError = (src: string) => {
@@ -53,12 +54,15 @@ export function TrustedByAvatars({
       ) : (
         // Real avatars
         <>
-          {validAvatars.map((avatar, index) => (
+          {validAvatars.map((avatar, index) => {
+            const isFailed = failedImages.has(avatar.src)
+            const isLoaded = loadedImages.has(avatar.src)
+            return (
             <Avatar 
               key={index} 
               className="relative -mr-4 overflow-hidden rounded-full border size-7 md:size-8"
             >
-              {!failedImages.has(avatar.src) && (
+              {!isFailed && (
                 <Image
                   src={avatar.src}
                   alt={avatar.alt}
@@ -66,13 +70,16 @@ export function TrustedByAvatars({
                   sizes="(min-width: 768px) 32px, 28px"
                   className="object-cover rounded-full"
                   onError={() => handleImageError(avatar.src)}
+                  onLoadingComplete={() => setLoadedImages(prev => new Set([...prev, avatar.src]))}
                 />
               )}
-              <AvatarFallback className="text-sm">
-                <div className="size-full rounded-full bg-muted animate-pulse" />
-              </AvatarFallback>
+              {(!isLoaded || isFailed) && (
+                <AvatarFallback className="text-sm">
+                  <div className="size-full rounded-full bg-muted animate-pulse" />
+                </AvatarFallback>
+              )}
             </Avatar>
-          ))}
+          )})}
           {badgeText && (
             <p className="ml-5 capitalize tracking-tight text-base md:text-base text-muted-foreground">
               {badgeText}
