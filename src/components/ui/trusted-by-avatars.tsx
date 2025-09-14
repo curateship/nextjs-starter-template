@@ -1,8 +1,9 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import Image from "next/image";
 
 interface TrustedByAvatarsProps {
   avatars?: Array<{ src: string; alt: string; fallback: string }>;
@@ -22,7 +23,7 @@ export function TrustedByAvatars({
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   
   const validAvatars = avatars.filter(avatar => 
-    avatar.src && avatar.src.trim() !== '' && !failedImages.has(avatar.src)
+    avatar.src && avatar.src.trim() !== ''
   );
   
   const handleImageError = (src: string) => {
@@ -57,11 +58,16 @@ export function TrustedByAvatars({
               key={index} 
               className="relative -mr-4 overflow-hidden rounded-full border size-7 md:size-8"
             >
-              <AvatarImage 
-                src={avatar.src} 
-                alt={avatar.alt}
-                onError={() => handleImageError(avatar.src)}
-              />
+              {!failedImages.has(avatar.src) && (
+                <Image
+                  src={avatar.src}
+                  alt={avatar.alt}
+                  fill
+                  sizes="(min-width: 768px) 32px, 28px"
+                  className="object-cover rounded-full"
+                  onError={() => handleImageError(avatar.src)}
+                />
+              )}
               <AvatarFallback className="text-sm">
                 <div className="size-full rounded-full bg-muted animate-pulse" />
               </AvatarFallback>
