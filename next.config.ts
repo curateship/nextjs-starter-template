@@ -30,9 +30,9 @@ const securityHeaders = [
     value: `
       default-src 'self';
       script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co;
-      style-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' blob: data: https:;
-      font-src 'self' data:;
+      font-src 'self' data: https://fonts.gstatic.com;
       connect-src 'self' https://*.supabase.co wss://*.supabase.co;
       object-src 'none';
       frame-ancestors 'none';
