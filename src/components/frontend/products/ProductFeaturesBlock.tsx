@@ -96,8 +96,8 @@ const ProductFeaturesBlock = ({
                     <Image
                       src={feature.image}
                       alt={feature.title}
-                      width={800}
-                      height={450}
+                      width={400}
+                      height={225}
                       className="w-full h-auto object-cover object-top"
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     />

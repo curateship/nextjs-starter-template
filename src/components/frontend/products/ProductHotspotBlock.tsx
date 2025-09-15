@@ -3,6 +3,7 @@
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useState } from "react"
+import Image from "next/image"
 
 interface Hotspot {
   id: string
@@ -51,10 +52,12 @@ const ProductHotspotBlock = ({
       <div className="flex flex-col items-center">
         <div className="relative w-full">
           {backgroundImage && (
-            <img
+            <Image
               src={backgroundImage}
               alt={title}
-              className="w-full rounded-lg border shadow-lg transition-opacity duration-300"
+              width={1200}
+              height={800}
+              className="w-full h-auto rounded-lg border shadow-lg transition-opacity duration-300"
               style={{
                 objectFit: "contain",
                 opacity: imageLoaded ? 1 : 0.8
