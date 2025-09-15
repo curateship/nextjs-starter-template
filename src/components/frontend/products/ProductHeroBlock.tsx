@@ -363,24 +363,16 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
   if (!heroImage) return null;
   
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="w-full max-w-[1100px] mx-auto">
       <AnimatedGroup customSettings={{ stagger: 0.05, duration: 1.2 }}>
-        <div className="overflow-hidden md:px-8 sm:mt-8 pb-4 md:pb-8">
+        <div className="overflow-hidden sm:mt-8 pb-4 md:pb-8">
           <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15">
             <Image
-              className="bg-background hidden rounded-2xl object-cover dark:block w-full h-auto"
+              className="bg-background rounded-2xl w-full h-auto"
               src={heroImage}
               alt="app screen"
-              width={1200}
-              height={800}
-              priority
-            />
-            <Image
-              className="rounded-2xl object-cover dark:hidden w-full h-auto"
-              src={heroImage}
-              alt="app screen"
-              width={1200}
-              height={800}
+              width={1608}
+              height={1002}
               priority
             />
           </div>
