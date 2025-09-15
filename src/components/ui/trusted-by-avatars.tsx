@@ -59,7 +59,7 @@ export function TrustedByAvatars({
             const isLoaded = loadedImages.has(avatar.src)
             return (
             <Avatar 
-              key={index} 
+              key={avatar.src || index} 
               className="relative -mr-4 overflow-hidden rounded-full border size-7 md:size-8"
             >
               {!isFailed && (
