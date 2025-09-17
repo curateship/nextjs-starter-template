@@ -70,7 +70,7 @@ export function TrustedByAvatars({
                   sizes="(min-width: 768px) 32px, 28px"
                   className="object-cover rounded-full"
                   onError={() => handleImageError(avatar.src)}
-                  onLoadingComplete={() => setLoadedImages(prev => new Set([...prev, avatar.src]))}
+                  onLoad={() => setLoadedImages(prev => new Set([...prev, avatar.src]))}
                 />
               )}
               {(!isLoaded || isFailed) && (
