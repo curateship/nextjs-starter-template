@@ -30,8 +30,8 @@ export function PostBlockRenderer({ site, post }: PostBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: postBlocks = [] } = post
   
-  // Sort post blocks by display_order
-  const sortedBlocks = postBlocks.sort((a, b) => a.display_order - b.display_order)
+  // Sort post blocks by display_order (force numerical sorting)
+  const sortedBlocks = postBlocks.sort((a, b) => Number(a.display_order) - Number(b.display_order))
   
   // Find navigation and footer from site blocks
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')

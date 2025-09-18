@@ -21,6 +21,7 @@ export interface PostBuilderHookResult {
   loading: boolean
   saveMessage: string
   handleAddRichTextBlock: () => Promise<void>
+  handleAddPostInformationBlock: () => Promise<void>
   handleDeleteBlock: (block: PostBlock) => Promise<void>
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => Promise<void>
   handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => Promise<void>
@@ -42,6 +43,46 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
   useEffect(() => {
     setSelectedBlock(null)
   }, [selectedPost])
+
+  // Add a new post information block
+  const handleAddPostInformationBlock = async () => {
+    if (!postId || postId.length === 0) {
+      setSaveMessage('No post selected')
+      setTimeout(() => setSaveMessage(''), 3000)
+      return
+    }
+
+    try {
+      setSaveMessage('Adding block...')
+
+      const { data: newBlock, error } = await addPostBlockAction(
+        postId,
+        'post-information',
+        { showAuthor: true, showDate: true }
+      )
+
+      if (error || !newBlock) {
+        console.error('Error adding post information block:', error)
+        setSaveMessage('Error adding block')
+        setTimeout(() => setSaveMessage(''), 3000)
+        return
+      }
+
+      // Update blocks using setBlocks
+      setBlocks(prev => ({
+        ...prev,
+        [newBlock.id]: newBlock
+      }))
+
+      setSelectedBlock(newBlock)
+      setSaveMessage('Block added!')
+      setTimeout(() => setSaveMessage(''), 3000)
+    } catch (err) {
+      console.error('Error adding post information block:', err)
+      setSaveMessage('Error adding block')
+      setTimeout(() => setSaveMessage(''), 3000)
+    }
+  }
 
   // Add a new rich text block
   const handleAddRichTextBlock = async () => {
@@ -268,6 +309,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     loading,
     saveMessage,
     handleAddRichTextBlock,
+    handleAddPostInformationBlock,
     handleDeleteBlock,
     handleUpdateBlock,
     handleReorderBlocks,

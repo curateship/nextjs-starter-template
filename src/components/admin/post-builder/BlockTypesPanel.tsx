@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Plus, FileText, Image as ImageIcon, Code, Quote, Minus } from "lucide-react"
+import { Plus, FileText, Image as ImageIcon, Code, Quote, Minus, Info } from "lucide-react"
 
 interface PostBlock {
   id: string
@@ -14,16 +14,18 @@ interface BlockTypesPanelProps {
   onAddCodeBlock?: () => void
   onAddQuoteBlock?: () => void
   onAddDividerBlock?: () => void
+  onAddPostInformationBlock?: () => void
   currentBlocks?: PostBlock[]
 }
 
-export function BlockTypesPanel({ 
+export function BlockTypesPanel({
   onAddPostContentBlock,
   onAddRichTextBlock,
   onAddImageBlock,
   onAddCodeBlock,
   onAddQuoteBlock,
   onAddDividerBlock,
+  onAddPostInformationBlock,
   currentBlocks = []
 }: BlockTypesPanelProps) {
   // Check if default block already exists
@@ -36,6 +38,25 @@ export function BlockTypesPanel({
         <h3 className="font-semibold mb-4">Post Blocks</h3>
         <div className="space-y-2 text-sm text-muted-foreground">
           
+          {/* Post Information Block */}
+          {onAddPostInformationBlock && (
+            <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Info className="w-4 h-4" />
+                <span className="font-medium">Post Information</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+                onClick={onAddPostInformationBlock}
+                title="Add post information block"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
           {/* Content Block */}
           {onAddPostContentBlock && (
             <div className="p-3 rounded-lg border bg-background flex items-center justify-between">

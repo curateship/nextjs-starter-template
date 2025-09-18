@@ -1,4 +1,5 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import { PostInformationBlock } from "@/components/admin/post-builder/blocks/PostInformationBlock"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -38,6 +39,7 @@ interface BlockPropertiesPanelProps {
   } | null
   blocksLoading?: boolean
   onOpenPostSettings?: () => void
+  onPostTitleChange?: (title: string) => void
 }
 
 export function BlockPropertiesPanel({
@@ -48,7 +50,8 @@ export function BlockPropertiesPanel({
   site,
   siteBlocks,
   blocksLoading = false,
-  onOpenPostSettings
+  onOpenPostSettings,
+  onPostTitleChange
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
@@ -58,9 +61,19 @@ export function BlockPropertiesPanel({
             {(selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content') && (
               <PostContentBlock
                 block={selectedBlock as any}
-                onContentChange={(content: Record<string, any>) => 
+                onContentChange={(content: Record<string, any>) =>
                   updateBlockContent(selectedBlock.id, { content })
                 }
+              />
+            )}
+            {selectedBlock.type === 'post-information' && (
+              <PostInformationBlock
+                block={selectedBlock as any}
+                onContentChange={(content: Record<string, any>) =>
+                  updateBlockContent(selectedBlock.id, { content })
+                }
+                postData={currentPost}
+                onPostTitleChange={onPostTitleChange}
               />
             )}
             {/* Future block types can be added here */}

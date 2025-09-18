@@ -13,7 +13,7 @@ import { PostBuilderHeader } from "@/components/admin/post-builder/PostBuilderHe
 import { BlockPropertiesPanel } from "@/components/admin/post-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/post-builder/BlockListPanel"
 import { BlockTypesPanel } from "@/components/admin/post-builder/BlockTypesPanel"
-import { getSitePostsAction } from "@/lib/actions/posts/post-actions"
+import { getSitePostsAction, updatePostAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
@@ -145,12 +145,31 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Handle post updates
   const handlePostUpdated = (updatedPost: Post) => {
     setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
-    
+
     // If the slug changed, update selected post and URL
     const currentPost = posts.find(p => p.id === updatedPost.id)
     if (currentPost && currentPost.slug !== updatedPost.slug) {
       setSelectedPost(updatedPost.slug)
       router.replace(`/admin/posts/builder/${siteId}?post=${updatedPost.slug}`)
+    }
+  }
+
+  // Handle post title changes
+  const handlePostTitleChange = async (title: string) => {
+    if (!currentPostId || !title.trim()) return
+
+    try {
+      const { data: updatedPost, error } = await updatePostAction(currentPostId, { title })
+
+      if (error || !updatedPost) {
+        console.error('Error updating post title:', error)
+        return
+      }
+
+      // Update local posts state
+      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
+    } catch (err) {
+      console.error('Error updating post title:', err)
     }
   }
 
@@ -217,6 +236,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
               show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image
             }}
             blocksLoading={loading}
+            onPostTitleChange={handlePostTitleChange}
           />
           
           <BlockListPanel
@@ -237,6 +257,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           
           <BlockTypesPanel
             onAddRichTextBlock={builderState.handleAddRichTextBlock}
+            onAddPostInformationBlock={builderState.handleAddPostInformationBlock}
             currentBlocks={Object.values(builderState.blocks)}
           />
         </div>

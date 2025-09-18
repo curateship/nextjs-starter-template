@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, FileText } from "lucide-react"
+import { Trash2, GripVertical, FileText, Info } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -205,11 +205,12 @@ export function BlockListPanel({
 
   const getBlockTypeName = (block: PostBlock) => {
     if (block.type === 'post-content' || block.type === 'rich-text') return 'Rich Text Editor'
+    if (block.type === 'post-information') return 'Post Information'
     return 'Block'
   }
 
   const isDefaultBlock = (block: PostBlock) => {
-    return block.type === 'post-content' || block.type === 'rich-text'
+    return block.type === 'post-content'
   }
 
   const getBlockIcon = (blockType: string) => {
@@ -217,6 +218,8 @@ export function BlockListPanel({
       case 'post-content':
       case 'rich-text':
         return <FileText className="w-4 h-4" />
+      case 'post-information':
+        return <Info className="w-4 h-4" />
       default:
         return <div className="w-4 h-4" />
     }
