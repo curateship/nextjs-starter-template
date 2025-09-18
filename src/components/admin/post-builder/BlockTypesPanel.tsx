@@ -61,7 +61,7 @@ export function BlockTypesPanel({
           }`}>
             <div className="flex items-center space-x-2">
               <FileText className="w-4 h-4" />
-              <span className="font-medium">Default Block</span>
+              <span className="font-medium">Rich Text Editor</span>
             </div>
             {!hasDefaultBlock ? (
               <Button

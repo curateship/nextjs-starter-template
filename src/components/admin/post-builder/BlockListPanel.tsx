@@ -113,7 +113,7 @@ function SortablePostBlockItem({
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
             <h3 className="font-medium">
-              {isDefaultBlock(block) ? postTitle || 'Untitled Post' : (block.content?.title || getBlockTypeName(block))}
+              {isDefaultBlock(block) ? 'Rich Text Editor' : (block.content?.title || getBlockTypeName(block))}
             </h3>
           </div>
         </div>
@@ -204,7 +204,7 @@ export function BlockListPanel({
   }
 
   const getBlockTypeName = (block: PostBlock) => {
-    if (block.type === 'post-content' || block.type === 'rich-text') return 'Default Block'
+    if (block.type === 'post-content' || block.type === 'rich-text') return 'Rich Text Editor'
     return 'Block'
   }
 
