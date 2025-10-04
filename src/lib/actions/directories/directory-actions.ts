@@ -334,7 +334,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
 export async function getDirectoryBySlugAction(siteId: string, slug: string) {
   try {
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -368,5 +368,57 @@ export async function getDirectoryBySlugAction(siteId: string, slug: string) {
   } catch (error) {
     console.error('Error fetching directory:', error)
     return { data: null, error: 'Failed to fetch directory' }
+  }
+}
+
+export async function updateDirectoryBlocksAction(directoryId: string, contentBlocks: Record<string, any>) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the directory to verify ownership
+    const { data: directory, error: directoryError } = await supabaseAdmin
+      .from('directory')
+      .select('*, sites!inner(user_id)')
+      .eq('id', directoryId)
+      .single()
+
+    if (directoryError || !directory) {
+      return { success: false, error: 'Directory not found' }
+    }
+
+    if (directory.sites.user_id !== user.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    // Update the directory blocks
+    const { data: updatedDirectory, error: updateError } = await supabaseAdmin
+      .from('directory')
+      .update({
+        content_blocks: contentBlocks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', directoryId)
+      .select()
+      .single()
+
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+
+    // Revalidate cache
+    revalidateTag('directory')
+    revalidateTag(`directory-${directoryId}`)
+    revalidateTag(`site-${directory.site_id}`)
+
+    return { success: true, error: null }
+  } catch (error) {
+    console.error('Error updating directory blocks:', error)
+    return { success: false, error: 'Failed to update directory blocks' }
   }
 }
