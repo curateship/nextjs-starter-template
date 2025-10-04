@@ -16,7 +16,7 @@ export default function Pricing() {
                                 <h3 className="text-2xl font-semibold">Suite Enterprise</h3>
                                 <p className="mt-2 text-lg">For your company of any size</p>
                                 <span className="mb-6 mt-12 inline-block text-6xl font-bold">
-                                    <span className="text-4xl">$</span>234
+                                    234
                                 </span>
 
                                 <div className="flex justify-center">

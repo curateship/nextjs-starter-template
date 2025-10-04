@@ -89,7 +89,7 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
                 <p className="mt-6 text-lg text-left">{sanitizeText(tier.description)}</p>
                 <div className="text-center">
                   <span className="mb-6 mt-12 inline-block text-6xl font-bold">
-                    <span className="text-4xl">$</span>{sanitizeText(tier.price)}
+                    {sanitizeText(tier.price)}
                   </span>
 
                   <div className="flex justify-center">
@@ -190,7 +190,6 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
               <div className="mb-4 flex items-start justify-center">
                 <div className="text-center">
                   <div className="flex items-start justify-center">
-                    <span className="mt-2 text-lg font-semibold">$</span>
                     <span className="text-6xl font-semibold">{sanitizeText(tier.price)}</span>
                   </div>
                   {tier.interval && (
