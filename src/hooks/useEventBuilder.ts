@@ -1,0 +1,167 @@
+import { useState, useEffect } from "react"
+import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
+
+interface EventBlock {
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+}
+
+interface UseEventBuilderParams {
+  blocks: Record<string, EventBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, EventBlock[]>>>
+  selectedEvent: string
+  eventId?: string
+  currentEvent?: {
+    title?: string
+    content_blocks?: Record<string, any>
+  }
+}
+
+interface UseEventBuilderReturn {
+  selectedBlock: EventBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<EventBlock | null>>
+  isSaving: boolean
+  saveMessage: string
+  updateBlockContent: (field: string, value: any) => void
+  handleDeleteBlock: (block: EventBlock) => void
+  handleReorderBlocks: (blocks: EventBlock[]) => void
+  handleAddEventDefaultBlock: () => void
+  handleSaveAllBlocks: () => void
+}
+
+export function useEventBuilder({
+  blocks,
+  setBlocks,
+  selectedEvent,
+  eventId,
+  currentEvent
+}: UseEventBuilderParams): UseEventBuilderReturn {
+  const [selectedBlock, setSelectedBlock] = useState<EventBlock | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
+
+  useEffect(() => {
+    setSelectedBlock(null)
+  }, [selectedEvent])
+
+  const updateBlockContent = (field: string, value: any) => {
+    if (!selectedBlock) return
+
+    const updatedBlocks = { ...blocks }
+    const blockIndex = updatedBlocks[selectedEvent].findIndex(b => b.id === selectedBlock.id)
+    if (blockIndex !== -1) {
+      updatedBlocks[selectedEvent][blockIndex] = {
+        ...updatedBlocks[selectedEvent][blockIndex],
+        content: {
+          ...updatedBlocks[selectedEvent][blockIndex].content,
+          [field]: value
+        }
+      }
+      setBlocks(updatedBlocks)
+      setSelectedBlock(updatedBlocks[selectedEvent][blockIndex])
+    }
+  }
+
+  const handleDeleteBlock = (block: EventBlock) => {
+    const updatedBlocks = { ...blocks }
+    updatedBlocks[selectedEvent] = updatedBlocks[selectedEvent].filter(b => b.id !== block.id)
+    setBlocks(updatedBlocks)
+
+    if (selectedBlock?.id === block.id) {
+      setSelectedBlock(null)
+    }
+  }
+
+  const handleReorderBlocks = (reorderedBlocks: EventBlock[]) => {
+    const updatedBlocks = { ...blocks }
+    updatedBlocks[selectedEvent] = reorderedBlocks
+    setBlocks(updatedBlocks)
+  }
+
+  const addBlock = (type: string, title: string, defaultContent: Record<string, any>) => {
+    const newBlock: EventBlock = {
+      id: `${type}-${Date.now()}`,
+      type,
+      title,
+      content: defaultContent
+    }
+
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedEvent] || []
+    updatedBlocks[selectedEvent] = [...currentBlocks, newBlock]
+
+    setBlocks(updatedBlocks)
+    setSelectedBlock(newBlock)
+  }
+
+  const handleAddEventDefaultBlock = () => {
+    addBlock('event-default', 'Event Information', {
+      viewOnly: true
+    })
+  }
+
+  const handleSaveAllBlocks = async () => {
+    if (!eventId) {
+      setSaveMessage("Error: Event ID required")
+      setTimeout(() => setSaveMessage(""), 3000)
+      return
+    }
+
+    const currentBlocks = blocks[selectedEvent] || []
+
+    // Get existing content blocks from the currentEvent to preserve settings
+    const existingContentBlocks = currentEvent?.content_blocks || {}
+
+    // Convert blocks array to JSON object format
+    const newContentBlocks: Record<string, any> = {}
+    currentBlocks.forEach((block, index) => {
+      newContentBlocks[block.type] = {
+        ...block.content,
+        display_order: index
+      }
+    })
+
+    // Preserve existing _settings and merge with new blocks
+    const contentBlocks: Record<string, any> = {
+      ...newContentBlocks,
+      // Preserve _settings if it exists (including privacy setting)
+      ...(existingContentBlocks._settings && {
+        _settings: existingContentBlocks._settings
+      })
+    }
+
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const result = await updateEventBlocksAction(eventId, contentBlocks)
+
+      if (result.success) {
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      } else {
+        setSaveMessage(`Error: ${result.error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+      }
+    } catch (error) {
+      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return {
+    selectedBlock,
+    setSelectedBlock,
+    isSaving,
+    saveMessage,
+    updateBlockContent,
+    handleDeleteBlock,
+    handleReorderBlocks,
+    handleAddEventDefaultBlock,
+    handleSaveAllBlocks
+  }
+}

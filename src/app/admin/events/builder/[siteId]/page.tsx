@@ -1,0 +1,267 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { use } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { useEventData } from "@/hooks/useEventData"
+import { useEventBuilder } from "@/hooks/useEventBuilder"
+import { useSiteContext } from "@/contexts/site-context"
+import { EventBuilderHeader } from "@/components/admin/event-builder/EventBuilderHeader"
+import { BlockPropertiesPanel } from "@/components/admin/event-builder/BlockPropertiesPanel"
+import { BlockListPanel } from "@/components/admin/event-builder/BlockListPanel"
+import { BlockTypesPanel } from "@/components/admin/event-builder/BlockTypesPanel"
+import { getSiteEventsAction, updateEventAction } from "@/lib/actions/events/event-actions"
+import type { Event } from "@/lib/actions/events/event-actions"
+
+export default function EventBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
+  const { siteId } = use(params)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { currentSite } = useSiteContext()
+  const [events, setDirectories] = useState<Event[]>([])
+  const [eventsLoading, setDirectoriesLoading] = useState(true)
+  const [eventsError, setDirectoriesError] = useState<string | null>(null)
+  // Get initial event from URL params or default to first event
+  const initialEvent = searchParams.get('event') || ''
+  const [selectedEvent, setSelectedEvent] = useState(initialEvent)
+
+  // Redirect when site changes in sidebar
+  useEffect(() => {
+    if (currentSite && currentSite.id !== siteId) {
+      router.push(`/admin/events/builder/${currentSite.id}`)
+    }
+  }, [currentSite, siteId, router])
+
+  // Load events data
+  useEffect(() => {
+    async function loadDirectories() {
+      try {
+        setDirectoriesLoading(true)
+        setDirectoriesError(null)
+        const { data, error } = await getSiteEventsAction(siteId)
+        if (error) {
+          setDirectoriesError(error)
+          return
+        }
+        setDirectories(data || [])
+
+        // If initial event doesn't exist, redirect to first event
+        if (data && data.length > 0) {
+          const eventExists = data.some(d => d.slug === initialEvent)
+          if (!eventExists) {
+            const firstEvent = data[0]
+            setSelectedEvent(firstEvent.slug)
+            router.replace(`/admin/events/builder/${siteId}?event=${firstEvent.slug}`)
+          }
+        }
+      } catch (err) {
+        setDirectoriesError('Failed to load events')
+      } finally {
+        setDirectoriesLoading(false)
+      }
+    }
+
+    loadDirectories()
+  }, [siteId, initialEvent, router])
+
+  // Custom hooks for data and state management
+  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
+  const [localBlocks, setLocalBlocks] = useState(blocks)
+
+  // Update local blocks when server blocks change
+  useEffect(() => {
+    setLocalBlocks(blocks)
+  }, [blocks])
+
+  const builderState = useEventBuilder({
+    blocks: localBlocks,
+    setBlocks: setLocalBlocks,
+    selectedEvent,
+    eventId: events.find(d => d.slug === selectedEvent)?.id,
+    currentEvent: events.find(d => d.slug === selectedEvent)
+  })
+
+  // Current event data with staged deletions filtered out
+  const currentEventData = events.find(d => d.slug === selectedEvent)
+  const currentEvent = {
+    slug: selectedEvent,
+    name: currentEventData?.title || selectedEvent,
+    blocks: localBlocks[selectedEvent] || []
+  }
+
+  // Handle event change with URL update
+  const handleEventChange = (eventSlug: string) => {
+    if (eventSlug !== selectedEvent) {
+      setSelectedEvent(eventSlug)
+      // Ensure blocks array exists for this event
+      setLocalBlocks(prev => ({
+        ...prev,
+        [eventSlug]: prev[eventSlug] || []
+      }))
+      router.replace(`/admin/events/builder/${siteId}?event=${eventSlug}`)
+    }
+  }
+
+  // Handle event creation
+  const handleEventCreated = (newEvent: Event) => {
+    setDirectories(prev => [...prev, newEvent])
+    // Initialize blocks array for the new event
+    setLocalBlocks(prev => ({
+      ...prev,
+      [newEvent.slug]: []
+    }))
+    // Switch to the newly created event
+    setSelectedEvent(newEvent.slug)
+    router.replace(`/admin/events/builder/${siteId}?event=${newEvent.slug}`)
+  }
+
+  // Handle event updates
+  const handleEventUpdated = (updatedEvent: Event) => {
+    setDirectories(prev => prev.map(d => d.id === updatedEvent.id ? updatedEvent : d))
+
+    // If the slug changed, we need to update our local blocks and URL
+    const currentEvent = events.find(d => d.id === updatedEvent.id)
+    if (currentEvent && currentEvent.slug !== updatedEvent.slug) {
+      // Move blocks from old slug to new slug
+      setLocalBlocks(prev => {
+        const blocksForEvent = prev[currentEvent.slug] || []
+        const { [currentEvent.slug]: removed, ...rest } = prev
+        return {
+          ...rest,
+          [updatedEvent.slug]: blocksForEvent
+        }
+      })
+
+      // Update selected event and URL
+      setSelectedEvent(updatedEvent.slug)
+      router.replace(`/admin/events/builder/${siteId}?event=${updatedEvent.slug}`)
+    }
+  }
+
+  // Handle event information updates
+  const updateCurrentEvent = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+    if (!currentEventData?.id) return
+
+    try {
+      const { data, error } = await updateEventAction(currentEventData.id, updates)
+      if (error) {
+        console.error('Failed to update event:', error)
+        return
+      }
+      if (data) {
+        handleEventUpdated(data)
+      }
+    } catch (error) {
+      console.error('Failed to update event:', error)
+    }
+  }
+
+  const handleTitleChange = (title: string) => {
+    updateCurrentEvent({ title })
+  }
+
+  const handleDescriptionChange = (description: string) => {
+    updateCurrentEvent({ description })
+  }
+
+  const handleFeaturedImageChange = (featured_image: string) => {
+    updateCurrentEvent({ featured_image })
+  }
+
+  const handleStatusChange = (status: string) => {
+    updateCurrentEvent({ is_published: status === 'published' })
+  }
+
+  // Only show loading state for critical errors (not during normal loading)
+  if (!site && siteError) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-red-600 mb-2">{siteError}</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Site ID: <code>{siteId}</code>
+            </p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Please go to Sites page to get a valid site ID, or create a new site.
+            </p>
+            <div className="space-x-2">
+              <Button asChild>
+                <Link href="/admin/sites">Go to Sites</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/admin/sites/new">Create New Site</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    )
+  }
+
+
+  return (
+    <AdminLayout>
+      <div className="flex flex-col -m-4 -mt-6 h-full">
+        <EventBuilderHeader
+          events={events}
+          selectedEvent={selectedEvent}
+          onEventChange={handleEventChange}
+          onEventCreated={handleEventCreated}
+          onEventUpdated={handleEventUpdated}
+          saveMessage={builderState.saveMessage}
+          isSaving={builderState.isSaving}
+          onSave={builderState.handleSaveAllBlocks}
+          onPreviewEvent={() => builderState.setSelectedBlock(null)}
+          eventsLoading={eventsLoading}
+        />
+
+        <div className="flex-1 flex">
+          <BlockPropertiesPanel
+            selectedBlock={builderState.selectedBlock}
+            updateBlockContent={builderState.updateBlockContent}
+            siteId={siteId}
+            currentEvent={{
+              ...currentEvent,
+              id: currentEventData?.id,
+              title: currentEventData?.title,
+              meta_description: currentEventData?.meta_description || undefined,
+              site_id: currentEventData?.site_id,
+              featured_image: currentEventData?.featured_image,
+              description: currentEventData?.description
+            }}
+            site={{
+              id: siteId,
+              name: site?.name || 'Event Site',
+              subdomain: site?.subdomain || 'preview',
+              settings: site?.settings
+            }}
+            siteBlocks={siteBlocks}
+            blocksLoading={blocksLoading}
+            onTitleChange={handleTitleChange}
+            onDescriptionChange={handleDescriptionChange}
+            onFeaturedImageChange={handleFeaturedImageChange}
+            onStatusChange={handleStatusChange}
+          />
+
+          <BlockListPanel
+            currentEvent={currentEvent}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            deleting={null}
+            blocksLoading={blocksLoading}
+          />
+
+          <BlockTypesPanel
+            onAddEventDefaultBlock={builderState.handleAddEventDefaultBlock}
+          />
+        </div>
+      </div>
+    </AdminLayout>
+  )
+}

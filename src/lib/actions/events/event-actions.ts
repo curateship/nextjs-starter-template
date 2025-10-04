@@ -370,3 +370,55 @@ export async function getEventBySlugAction(siteId: string, slug: string) {
     return { data: null, error: 'Failed to fetch event' }
   }
 }
+
+export async function updateEventBlocksAction(eventId: string, contentBlocks: Record<string, any>) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the event to verify ownership
+    const { data: event, error: eventError } = await supabaseAdmin
+      .from('events')
+      .select('*, sites!inner(user_id)')
+      .eq('id', eventId)
+      .single()
+
+    if (eventError || !event) {
+      return { success: false, error: 'Event not found' }
+    }
+
+    if (event.sites.user_id !== user.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    // Update the event blocks
+    const { data: updatedEvent, error: updateError } = await supabaseAdmin
+      .from('events')
+      .update({
+        content_blocks: contentBlocks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', eventId)
+      .select()
+      .single()
+
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+
+    // Revalidate cache
+    revalidateTag('events')
+    revalidateTag(`event-${eventId}`)
+    revalidateTag(`site-${event.site_id}`)
+
+    return { success: true, error: null }
+  } catch (error) {
+    console.error('Error updating event blocks:', error)
+    return { success: false, error: 'Failed to update event blocks' }
+  }
+}
