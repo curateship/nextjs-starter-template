@@ -14,9 +14,6 @@ export default function MaintenancePage() {
         <p className="text-muted-foreground">
           This site is currently undergoing maintenance. Please check back in a little while.
         </p>
-        <div>
-          <Link href="/" className="text-sm underline">Go to home</Link>
-        </div>
       </div>
     </div>
   )

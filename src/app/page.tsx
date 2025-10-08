@@ -2,9 +2,20 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { notFound, redirect } from "next/navigation"
+import { cookies } from "next/headers"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
+}
+
+async function checkAuth() {
+  // Check for Supabase auth cookie without hitting the database
+  // This is much faster than calling getUser()
+  const cookieStore = await cookies()
+  const authCookies = cookieStore.getAll().filter(cookie =>
+    cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
+  )
+  return authCookies.length > 0 && authCookies.some(c => c.value && c.value.length > 0)
 }
 
 export default async function SiteHomePage() {
@@ -15,9 +26,12 @@ export default async function SiteHomePage() {
     notFound()
   }
 
-  // Check maintenance mode
+  // Check maintenance mode - only redirect if not logged in
   if (site.settings?.maintenance?.enabled === true) {
-    redirect('/maintenance')
+    const isLoggedIn = await checkAuth()
+    if (!isLoggedIn) {
+      redirect('/maintenance')
+    }
   }
 
   return <BlockRenderer site={site} />

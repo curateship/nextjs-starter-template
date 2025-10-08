@@ -2,6 +2,7 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { createClient } from '@supabase/supabase-js'
 import { notFound, redirect } from "next/navigation"
+import { cookies } from "next/headers"
 
 // Create admin client for direct database queries
 const supabaseAdmin = createClient(
@@ -14,6 +15,16 @@ const supabaseAdmin = createClient(
     }
   }
 )
+
+async function checkAuth() {
+  // Check for Supabase auth cookie without hitting the database
+  // This is much faster than calling getUser()
+  const cookieStore = await cookies()
+  const authCookies = cookieStore.getAll().filter(cookie =>
+    cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
+  )
+  return authCookies.length > 0 && authCookies.some(c => c.value && c.value.length > 0)
+}
 
 interface CatchAllPageProps {
   params: Promise<{ 
@@ -32,9 +43,12 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     notFound()
   }
 
-  // Check maintenance mode
+  // Check maintenance mode - only redirect if not logged in
   if (site.settings?.maintenance?.enabled === true) {
-    redirect('/maintenance')
+    const isLoggedIn = await checkAuth()
+    if (!isLoggedIn) {
+      redirect('/maintenance')
+    }
   }
 
   // First check if this is a page
