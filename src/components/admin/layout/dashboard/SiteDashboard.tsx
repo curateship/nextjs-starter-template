@@ -12,6 +12,7 @@ import { StylingSettingsCard } from "./StylingSettingsCard"
 import { CacheSettingsCard } from "./CacheSettingsCard"
 import { AnimationSettingsCard } from "./AnimationSettingsCard"
 import { TrackingSettingsCard } from "./TrackingSettingsCard"
+import { Switch } from "@/components/ui/switch"
 
 interface SiteDashboardProps {
   siteName: string
@@ -28,6 +29,7 @@ interface SiteDashboardProps {
   fontFamily?: string
   secondaryFontFamily?: string
   defaultTheme?: 'system' | 'light' | 'dark'
+  maintenanceEnabled?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
@@ -41,6 +43,7 @@ interface SiteDashboardProps {
   onSiteWidthChange?: (value: 'full' | 'custom') => void
   onCustomWidthChange?: (value: number | undefined) => void
   onDefaultThemeChange?: (value: 'system' | 'light' | 'dark') => void
+  onMaintenanceChange?: (value: boolean) => void
 }
 
 export function SiteDashboard({
@@ -58,6 +61,7 @@ export function SiteDashboard({
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
   defaultTheme = 'system',
+  maintenanceEnabled = false,
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
@@ -71,6 +75,7 @@ export function SiteDashboard({
   onSiteWidthChange,
   onCustomWidthChange,
   onDefaultThemeChange,
+  onMaintenanceChange,
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
@@ -193,6 +198,20 @@ export function SiteDashboard({
             This will be the name of your site
           </p>
         </div>
+
+        {/* Maintenance Mode */}
+        {onMaintenanceChange && (
+          <div className="space-y-2">
+            <Label htmlFor="maintenance">Maintenance Mode</Label>
+            <div className="flex items-center justify-between border rounded-md p-3">
+              <div>
+                <p className="text-sm font-medium">Enable maintenance mode</p>
+                <p className="text-xs text-muted-foreground">Redirects visitors to the maintenance page. Admin routes unaffected.</p>
+              </div>
+              <Switch id="maintenance" checked={!!maintenanceEnabled} onCheckedChange={onMaintenanceChange} />
+            </div>
+          </div>
+        )}
 
         {/* Site Subdomain */}
         {onSubdomainChange && (

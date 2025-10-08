@@ -308,42 +308,8 @@ export async function updateSiteAction(
       }
     }
 
-    // If updating font settings, favicon, animations, tracking scripts, site width, or default theme, merge them into settings
+    // Prepare updates
     let finalUpdates: any = { ...updates }
-    if (updates.font_family || updates.font_weights || updates.secondary_font_family || updates.secondary_font_weights || updates.favicon !== undefined || updates.animations || updates.tracking_scripts !== undefined || updates.site_width || updates.custom_width !== undefined || updates.default_theme) {
-      const { data: currentSite } = await supabaseAdmin
-        .from('sites')
-        .select('settings')
-        .eq('id', siteId)
-        .single()
-      
-      finalUpdates.settings = {
-        ...(currentSite?.settings || {}),
-        ...(updates.settings || {}),
-        ...(updates.font_family && { font_family: updates.font_family }),
-        ...(updates.font_weights && { font_weights: updates.font_weights }),
-        ...(updates.secondary_font_family && { secondary_font_family: updates.secondary_font_family }),
-        ...(updates.secondary_font_weights && { secondary_font_weights: updates.secondary_font_weights }),
-        ...(updates.favicon !== undefined && { favicon: updates.favicon || null }),
-        ...(updates.animations && { animations: updates.animations }),
-        ...(updates.tracking_scripts !== undefined && { tracking_scripts: updates.tracking_scripts }),
-        ...(updates.site_width && { site_width: updates.site_width }),
-        ...(updates.custom_width !== undefined && { custom_width: updates.custom_width }),
-        ...(updates.default_theme && { default_theme: updates.default_theme }),
-      }
-      
-      // Remove font, favicon, animation, tracking script, site width, and default theme properties from top level as they're now in settings
-      delete finalUpdates.font_family
-      delete finalUpdates.font_weights
-      delete finalUpdates.secondary_font_family
-      delete finalUpdates.secondary_font_weights
-      delete finalUpdates.favicon
-      delete finalUpdates.animations
-      delete finalUpdates.tracking_scripts
-      delete finalUpdates.site_width
-      delete finalUpdates.custom_width
-      delete finalUpdates.default_theme
-    }
 
     // If updating name, regenerate subdomain
     if (updates.name) {

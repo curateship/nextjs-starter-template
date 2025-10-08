@@ -32,6 +32,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
   const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +65,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSiteWidth(data.settings?.site_width || 'custom')
         setCustomWidth(data.settings?.custom_width)
         setDefaultTheme(data.settings?.default_theme || 'system')
+        setMaintenanceEnabled(!!data.settings?.maintenance?.enabled)
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -104,18 +106,19 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         custom_domain: customDomain.trim() || null,
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
-        font_family: fontFamily,
-        secondary_font_family: secondaryFontFamily,
-        favicon: favicon === '' ? '' : favicon || undefined,
-        animations: animations,
-        tracking_scripts: trackingScripts,
-        site_width: siteWidth,
-        custom_width: customWidth,
-        default_theme: defaultTheme,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
-          seo_enabled: true
+          seo_enabled: true,
+          maintenance: { enabled: maintenanceEnabled },
+          font_family: fontFamily,
+          secondary_font_family: secondaryFontFamily,
+          favicon: favicon === '' ? '' : favicon || undefined,
+          animations: animations,
+          tracking_scripts: trackingScripts,
+          site_width: siteWidth,
+          custom_width: customWidth,
+          default_theme: defaultTheme
         }
       })
 
@@ -235,6 +238,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             siteWidth={siteWidth}
             customWidth={customWidth}
             defaultTheme={defaultTheme}
+            maintenanceEnabled={maintenanceEnabled}
             isEditMode={true}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
@@ -249,6 +253,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onSiteWidthChange={setSiteWidth}
             onCustomWidthChange={setCustomWidth}
             onDefaultThemeChange={setDefaultTheme}
+            onMaintenanceChange={setMaintenanceEnabled}
           />
         </form>
       </div>
