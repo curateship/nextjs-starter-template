@@ -207,29 +207,28 @@ const MobileMenuButton = ({
 )
 
 // Call-to-action buttons component
-const CTAButtons = ({ buttons }: { 
+const CTAButtons = ({ buttons }: {
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
 }) => {
-  // Default button if no buttons provided
+  // Don't render anything if no buttons provided
   if (!buttons || buttons.length === 0) {
-    return (
-      <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-        <Button asChild size="sm">
-          <Link href="#">
-            <span>All Access</span>
-          </Link>
-        </Button>
-      </div>
-    )
+    return null
+  }
+
+  const validButtons = buttons.filter(button => button && button.text && button.url)
+
+  // Don't render anything if all buttons are invalid
+  if (validButtons.length === 0) {
+    return null
   }
 
   return (
     <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      {buttons.filter(button => button && button.text && button.url).map((button, index) => (
-        <Button 
+      {validButtons.map((button, index) => (
+        <Button
           key={index}
-          asChild 
-          size="sm" 
+          asChild
+          size="sm"
           variant={button.style === 'primary' ? 'default' : button.style}
         >
           <Link href={button.url}>
