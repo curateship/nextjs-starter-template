@@ -4,6 +4,7 @@ import { BlockContainer } from "@/components/frontend/layout/block-container"
 
 interface PostContentBlockProps {
   blocks: Array<{
+    id: string
     type: string
     content: Record<string, any>
   }>
