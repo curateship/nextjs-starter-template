@@ -107,6 +107,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         settings: {
+          ...site?.settings, // Preserve existing settings like navigation and footer
           site_title: siteName.trim(),
           analytics_enabled: false,
           seo_enabled: true,

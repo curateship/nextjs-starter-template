@@ -1,7 +1,7 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -10,11 +10,16 @@ async function getHomePageSite() {
 export default async function SiteHomePage() {
   // Get site data from headers
   const { success, site } = await getHomePageSite()
-  
+
   if (!success || !site) {
     notFound()
   }
-  
+
+  // Check maintenance mode
+  if (site.settings?.maintenance?.enabled === true) {
+    redirect('/maintenance')
+  }
+
   return <BlockRenderer site={site} />
 }
 

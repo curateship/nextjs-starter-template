@@ -29,28 +29,28 @@ export function usePageData(siteId: string): UsePageDataReturn {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
-    
+
     try {
       // Load site and pages in parallel for speed
       const [siteResult, pagesResult] = await Promise.all([
         getSiteByIdAction(siteId),
         getSitePagesAction(siteId)
       ])
-      
+
       if (siteResult.data) {
         setSite(siteResult.data)
       } else {
         setSiteError(siteResult.error || 'Failed to load site')
       }
-      
+
       if (pagesResult.data) {
         setPages(pagesResult.data)
-        
+
         // Convert JSON content_blocks to blocks format for each page
         const blocksData: Record<string, any[]> = {}
         pagesResult.data.forEach(page => {
           const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
-          
+
           // Add navigation and footer from site data to each page
           // This maintains the UI illusion that nav/footer are page blocks
           const siteBlocks = []
@@ -66,13 +66,13 @@ export function usePageData(siteId: string): UsePageDataReturn {
           if (siteResult.data?.settings?.footer) {
             siteBlocks.push({
               id: 'site-footer',
-              type: 'footer', 
+              type: 'footer',
               title: 'Footer',
               content: siteResult.data.settings.footer,
               display_order: 999 // Show at bottom
             })
           }
-          
+
           // Combine and sort all blocks by display_order
           const allBlocks = [...siteBlocks, ...pageBlocks]
           allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
@@ -86,7 +86,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
       setSiteError('Failed to load data')
       console.error('Error loading site and pages:', error)
     }
-    
+
     setSiteLoading(false)
     setBlocksLoading(false)
   }

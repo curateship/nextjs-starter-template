@@ -1,7 +1,7 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { createClient } from '@supabase/supabase-js'
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 // Create admin client for direct database queries
 const supabaseAdmin = createClient(
@@ -24,14 +24,19 @@ interface CatchAllPageProps {
 export default async function CatchAllPage({ params }: CatchAllPageProps) {
   const { slug } = await params
   const fullSlug = slug.join('/')
-  
+
   // Get site data from headers with page slug to load page data
   const { success: siteSuccess, site } = await getSiteFromHeaders(fullSlug)
-  
+
   if (!siteSuccess || !site) {
     notFound()
   }
-  
+
+  // Check maintenance mode
+  if (site.settings?.maintenance?.enabled === true) {
+    redirect('/maintenance')
+  }
+
   // First check if this is a page
   const { data: page } = await supabaseAdmin
     .from('pages')

@@ -1,37 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-export async function middleware(request: NextRequest) {
-  const url = request.nextUrl
-
-  if (
-    url.pathname.startsWith('/_next/') ||
-    url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/admin/') ||
-    url.pathname.includes('.') ||
-    url.pathname.startsWith('/maintenance')
-  ) {
-    return NextResponse.next()
-  }
-
-  try {
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id, settings')
-      .eq('settings->maintenance->enabled', true)
-
-    if (sites && sites.length > 0) {
-      return NextResponse.redirect(new URL('/maintenance', url))
-    }
-  } catch (error) {
-    // Continue if error
-  }
-
+export async function middleware() {
+  // Middleware is intentionally minimal to avoid unnecessary database calls
+  // Site-specific logic (like maintenance mode) is handled in page components
+  // where site data is already being loaded
   return NextResponse.next()
 }
 
