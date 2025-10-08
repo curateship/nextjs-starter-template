@@ -47,7 +47,7 @@ async function createServerSupabaseClient() {
 
 export interface PostBlock {
   id: string
-  type: 'rich-text' | 'post-content' | 'image' | 'code' | 'quote' | 'divider'
+  type: 'rich-text' | 'post-content' | 'image' | 'code' | 'quote' | 'divider' | 'post-information'
   content: Record<string, any>
   display_order: number
   created_at?: string
