@@ -2,6 +2,7 @@
 
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface DirectoryWithBlocks {
@@ -35,13 +36,7 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
   // Get animation settings from site settings
-  const animationSettings = site.settings?.animations || {
-    enabled: false,
-    preset: 'fade',
-    duration: 0.6,
-    stagger: 0.1,
-    intensity: 'medium'
-  };
+  const animationSettings = site.settings?.animations;
 
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
@@ -51,24 +46,26 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
     <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
         {/* Directory Header */}
-        <div className="py-12 px-4">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl font-bold mb-4">{directory.title}</h1>
-            {directory.description && (
-              <div
-                className="prose prose-sm max-w-none mb-6"
-                dangerouslySetInnerHTML={{ __html: directory.description }}
-              />
-            )}
-            {directory.featured_image && (
-              <img
-                src={directory.featured_image}
-                alt={directory.title}
-                className="w-full h-64 object-cover rounded-lg"
-              />
-            )}
+        <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+          <div className="py-12 px-4">
+            <div className="max-w-4xl mx-auto">
+              <h1 className="text-4xl font-bold mb-4">{directory.title}</h1>
+              {directory.description && (
+                <div
+                  className="prose prose-sm max-w-none mb-6 dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: directory.description }}
+                />
+              )}
+              {directory.featured_image && (
+                <img
+                  src={directory.featured_image}
+                  alt={directory.title}
+                  className="w-full h-64 object-cover rounded-lg"
+                />
+              )}
+            </div>
           </div>
-        </div>
+        </BlockContainer>
 
         {/* Directory Blocks */}
         {sortedBlocks.map((block) => {
@@ -80,16 +77,22 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
           // Render directory-specific blocks here
           if (block.type === 'directory-default') {
             return (
-              <div key={`directory-default-${block.id}`} className="py-8 px-4">
-                <div className="max-w-4xl mx-auto">
-                  <div className="border rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-2">Directory Information</h3>
-                    <p className="text-sm text-muted-foreground">
-                      This is a directory default block
-                    </p>
+              <BlockContainer
+                key={`directory-default-${block.id}`}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              >
+                <div className="py-8 px-4">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="border rounded-lg p-6 bg-card text-card-foreground">
+                      <h3 className="text-lg font-semibold mb-2">Directory Information</h3>
+                      <p className="text-sm text-muted-foreground">
+                        This is a directory default block. Additional content can be added here.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </BlockContainer>
             )
           }
 

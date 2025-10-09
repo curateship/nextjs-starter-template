@@ -89,35 +89,8 @@ interface FooterBlockProps {
   };
 }
 
-const defaultLinks = [
-    {
-        text: 'Features',
-        url: '#',
-    },
-    {
-        text: 'Solution',
-        url: '#',
-    },
-    {
-        text: 'Customers',
-        url: '#',
-    },
-    {
-        text: 'Pricing',
-        url: '#',
-    },
-    {
-        text: 'Help',
-        url: '#',
-    },
-    {
-        text: 'About',
-        url: '#',
-    },
-]
-
 export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: FooterBlockProps) {
-    const footerLinks = links && links.length > 0 ? links : defaultLinks
+    const footerLinks = links && links.length > 0 ? links : []
     
     // Determine logo URL with smart defaults
     const getLogoUrl = () => {
@@ -175,16 +148,18 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: 
                     )}
                 </Link>
 
-                <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
-                    {footerLinks.map((link, index) => (
-                        <Link
-                            key={index}
-                            href={link.url}
-                            className="text-muted-foreground hover:text-primary block duration-150">
-                            <span>{link.text}</span>
-                        </Link>
-                    ))}
-                </div>
+                {footerLinks.length > 0 && (
+                    <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
+                        {footerLinks.map((link, index) => (
+                            <Link
+                                key={index}
+                                href={link.url}
+                                className="text-muted-foreground hover:text-primary block duration-150">
+                                <span>{link.text}</span>
+                            </Link>
+                        ))}
+                    </div>
+                )}
 {socialLinks && socialLinks.length > 0 && (
                     <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
                         {socialLinks.map((social, index) => (

@@ -35,13 +35,7 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
   // Get animation settings from site settings
-  const animationSettings = site.settings?.animations || {
-    enabled: false,
-    preset: 'fade',
-    duration: 0.6,
-    stagger: 0.1,
-    intensity: 'medium'
-  };
+  const animationSettings = site.settings?.animations;
 
   return (
     <AnimationProvider settings={animationSettings}>
