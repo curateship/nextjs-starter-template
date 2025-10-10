@@ -311,35 +311,35 @@ export async function updateSiteAction(
     // Prepare updates
     let finalUpdates: any = { ...updates }
 
-    // If updating name, regenerate subdomain
-    if (updates.name) {
+    // If updating name but subdomain was NOT explicitly provided, regenerate subdomain
+    if (updates.name && !updates.subdomain) {
       let subdomain = updates.name.toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '')
-      
+
       // Check if subdomain is available (excluding current site)
       let subdomainSuffix = ''
       let attempts = 0
       while (attempts < 10) {
         const testSubdomain = subdomain + subdomainSuffix
-        
+
         const { data: existing } = await supabaseAdmin
           .from('sites')
           .select('id')
           .eq('subdomain', testSubdomain)
           .neq('id', siteId) // Exclude current site
           .single()
-        
+
         if (!existing) {
           subdomain = testSubdomain
           break
         }
-        
+
         attempts++
         subdomainSuffix = `-${attempts}`
       }
-      
+
       finalUpdates.subdomain = subdomain
     }
     
