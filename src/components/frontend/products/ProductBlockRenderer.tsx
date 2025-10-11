@@ -8,6 +8,7 @@ import { ProductPricingBlock } from "@/components/frontend/products/ProductPrici
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/ProductListingViewBlock"
 import { ProductRichTextBlock } from "@/components/frontend/products/ProductRichTextBlock"
+import { ProductVideoBlock } from "@/components/frontend/products/ProductVideoBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -157,6 +158,17 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductRichTextBlock
               key={`rich-text-${block.id}`}
+              content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
+            />
+          )
+        }
+
+        if (block.type === 'product-video') {
+          return (
+            <ProductVideoBlock
+              key={`product-video-${block.id}`}
               content={block.content}
               siteWidth={siteWidth}
               customWidth={customWidth}

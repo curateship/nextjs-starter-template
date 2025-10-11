@@ -8,6 +8,7 @@ import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/P
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/ProductRichTextEditorBlock"
+import { ProductVideoBlock } from "@/components/admin/product-builder/blocks/ProductVideoBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -275,6 +276,29 @@ export function BlockPropertiesPanel({
                   updateBlockContent('headerAlign', contentObj.headerAlign)
                   updateBlockContent('content', contentObj.content)
                 }}
+              />
+            )}
+
+            {selectedBlock.type === 'product-video' && (
+              <ProductVideoBlock
+                title={selectedBlock.content.title ?? ''}
+                subtitle={selectedBlock.content.subtitle ?? ''}
+                headerAlign={selectedBlock.content.headerAlign ?? 'left'}
+                videoUrl={selectedBlock.content.videoUrl || ''}
+                coverImage={selectedBlock.content.coverImage || ''}
+                autoplay={selectedBlock.content.autoplay ?? false}
+                loop={selectedBlock.content.loop ?? false}
+                muted={selectedBlock.content.muted ?? false}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
+                onVideoUrlChange={(value) => updateBlockContent('videoUrl', value)}
+                onCoverImageChange={(value) => updateBlockContent('coverImage', value)}
+                onAutoplayChange={(value) => updateBlockContent('autoplay', value)}
+                onLoopChange={(value) => updateBlockContent('loop', value)}
+                onMutedChange={(value) => updateBlockContent('muted', value)}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
           </div>

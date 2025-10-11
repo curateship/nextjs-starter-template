@@ -35,6 +35,7 @@ interface UseProductBuilderReturn {
   handleAddProductFAQBlock: () => void
   handleAddListingViewsBlock: () => void
   handleAddProductRichTextBlock: () => void
+  handleAddProductVideoBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -204,6 +205,19 @@ export function useProductBuilder({
     })
   }
 
+  const handleAddProductVideoBlock = () => {
+    addBlock('product-video', 'Product Video', {
+      title: 'Watch Our Product in Action',
+      subtitle: 'See how our product works',
+      headerAlign: 'left',
+      videoUrl: '',
+      coverImage: '',
+      autoplay: false,
+      loop: false,
+      muted: false
+    })
+  }
+
   const handleSaveAllBlocks = async () => {
     if (!productId) {
       setSaveMessage("Error: Product ID required")
@@ -271,6 +285,7 @@ export function useProductBuilder({
     handleAddProductFAQBlock,
     handleAddListingViewsBlock,
     handleAddProductRichTextBlock,
+    handleAddProductVideoBlock,
     handleSaveAllBlocks
   }
 }

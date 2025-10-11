@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText } from "lucide-react"
+import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -190,7 +190,8 @@ export function BlockListPanel({
            block.type === 'product-pricing' ? 'Product Pricing' :
            block.type === 'faq' ? 'Product FAQ' :
            block.type === 'listing-views' ? 'Product Listing Views' :
-           block.type === 'rich-text' ? 'Rich Text' : 'Block'
+           block.type === 'rich-text' ? 'Rich Text' :
+           block.type === 'product-video' ? 'Product Video' : 'Block'
   }
 
   const getBlockIcon = (blockType: string) => {
@@ -215,6 +216,8 @@ export function BlockListPanel({
         return <LayoutGrid className="w-4 h-4" />
       case 'rich-text':
         return <FileText className="w-4 h-4" />
+      case 'product-video':
+        return <Video className="w-4 h-4" />
       default:
         return <div className="w-4 h-4" />
     }
