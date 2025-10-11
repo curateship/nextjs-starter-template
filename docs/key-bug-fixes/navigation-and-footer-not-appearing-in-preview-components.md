@@ -1,7 +1,3 @@
-# Issues Resolver
-
-This document tracks common issues and their resolutions in the codebase.
-
 ## Navigation and Footer Not Appearing in Preview Components
 
 **Issue**: Navigation and footer blocks do not appear in preview components (PostPreview, ProductPreview, etc.) even when they are configured in site settings.
@@ -41,28 +37,3 @@ This document tracks common issues and their resolutions in the codebase.
 4. `SiteLayout` renders the navigation and footer if provided
 
 **Prevention**: When creating new preview components or builder pages, always ensure that navigation and footer data from site settings are properly passed through to the preview component via `site.settings`.
-
----
-
-## Favicon not showing in Post preview
-
-**Symptom**: Globe icon shows instead of favicon in Post preview nav/footer.
-
-**Fix (match Pages/Products):**
-- Ensure full `site.settings` (with `favicon`) is passed to PostPreview caller.
-- Merge settings instead of overwriting when adding nav/footer.
-- Safety: normalize `settings.favicon` in preview-site factory.
-
-Minimal edits:
-```tsx
-// /src/app/admin/posts/builder/[siteId]/page.tsx
-site={{ id: siteId, name: site?.name || 'Post Site', subdomain: site?.subdomain || 'preview', settings: site?.settings }}
-
-// /src/components/admin/post-builder/BlockPropertiesPanel.tsx
-settings: { ...site.settings, navigation: siteBlocks?.navigation, footer: siteBlocks?.footer, show_featured_image: siteBlocks?.show_featured_image }
-
-// /src/lib/utils/admin-builder-preview.ts
-const base = site?.settings || {}
-const tlFavicon = (site as any)?.favicon
-const settings = base.favicon ? base : (tlFavicon ? { ...base, favicon: tlFavicon } : base)
-```
