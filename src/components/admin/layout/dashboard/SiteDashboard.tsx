@@ -337,8 +337,8 @@ export function SiteDashboard({
       />
     )}
 
-    {/* Cache Settings Card */}
-    <CacheSettingsCard />
+    {/* Cache Settings Card - Only show in edit mode */}
+    {isEditMode && <CacheSettingsCard />}
 
   </div>
   )
