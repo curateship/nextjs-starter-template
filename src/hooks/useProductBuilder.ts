@@ -34,6 +34,7 @@ interface UseProductBuilderReturn {
   handleAddProductPricingBlock: () => void
   handleAddProductFAQBlock: () => void
   handleAddListingViewsBlock: () => void
+  handleAddProductRichTextBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -197,6 +198,12 @@ export function useProductBuilder({
     })
   }
 
+  const handleAddProductRichTextBlock = () => {
+    addBlock('rich-text', 'Rich Text', {
+      content: '<p>Add your content here...</p>'
+    })
+  }
+
   const handleSaveAllBlocks = async () => {
     if (!productId) {
       setSaveMessage("Error: Product ID required")
@@ -263,6 +270,7 @@ export function useProductBuilder({
     handleAddProductPricingBlock,
     handleAddProductFAQBlock,
     handleAddListingViewsBlock,
+    handleAddProductRichTextBlock,
     handleSaveAllBlocks
   }
 }

@@ -7,6 +7,7 @@ import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotsp
 import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/ProductListingViewBlock"
+import { ProductRichTextBlock } from "@/components/frontend/products/ProductRichTextBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -151,9 +152,20 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             />
           )
         }
-        
+
+        if (block.type === 'rich-text') {
+          return (
+            <ProductRichTextBlock
+              key={`rich-text-${block.id}`}
+              content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
+            />
+          )
+        }
+
         // Additional block types can be added here as needed
-        
+
         return null
       })}
       </SiteLayout>

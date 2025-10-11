@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle, Info, DollarSign, LayoutGrid } from "lucide-react"
+import { Plus, Zap, Package, Image, Star, MapPin, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText } from "lucide-react"
 
 interface BlockTypesPanelProps {
   onAddProductDefaultBlock: () => void
@@ -9,16 +9,18 @@ interface BlockTypesPanelProps {
   onAddProductPricingBlock: () => void
   onAddProductFAQBlock: () => void
   onAddListingViewsBlock: () => void
+  onAddProductRichTextBlock: () => void
 }
 
-export function BlockTypesPanel({ 
+export function BlockTypesPanel({
   onAddProductDefaultBlock,
   onAddProductHeroBlock,
   onAddProductFeaturesBlock,
   onAddProductHotspotBlock,
   onAddProductPricingBlock,
   onAddProductFAQBlock,
-  onAddListingViewsBlock
+  onAddListingViewsBlock,
+  onAddProductRichTextBlock
 }: BlockTypesPanelProps) {
   return (
     <div className="w-64 border-l bg-muted/30 p-4 overflow-y-auto">
@@ -126,6 +128,21 @@ export function BlockTypesPanel({
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
               onClick={onAddListingViewsBlock}
               title="Add product listing views block"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-4 h-4" />
+              <span className="font-medium">Rich Text</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
+              onClick={onAddProductRichTextBlock}
+              title="Add rich text block"
             >
               <Plus className="w-4 h-4" />
             </Button>

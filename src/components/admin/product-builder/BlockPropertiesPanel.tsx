@@ -7,6 +7,7 @@ import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/P
 import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/ProductPricingBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
+import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/ProductRichTextEditorBlock"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -255,6 +256,25 @@ export function BlockPropertiesPanel({
                 onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
                 onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
                 onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
+              />
+            )}
+
+            {selectedBlock.type === 'rich-text' && (
+              <ProductRichTextEditorBlock
+                content={{
+                  title: selectedBlock.content.title || '',
+                  subtitle: selectedBlock.content.subtitle || '',
+                  headerAlign: selectedBlock.content.headerAlign || 'left',
+                  content: selectedBlock.content.content || '',
+                  hideHeader: selectedBlock.content.hideHeader,
+                  hideEditorHeader: selectedBlock.content.hideEditorHeader
+                }}
+                onContentChange={(contentObj) => {
+                  updateBlockContent('title', contentObj.title)
+                  updateBlockContent('subtitle', contentObj.subtitle)
+                  updateBlockContent('headerAlign', contentObj.headerAlign)
+                  updateBlockContent('content', contentObj.content)
+                }}
               />
             )}
           </div>

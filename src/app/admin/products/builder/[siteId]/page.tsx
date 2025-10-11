@@ -264,6 +264,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onAddProductPricingBlock={builderState.handleAddProductPricingBlock}
             onAddProductFAQBlock={builderState.handleAddProductFAQBlock}
             onAddListingViewsBlock={builderState.handleAddListingViewsBlock}
+            onAddProductRichTextBlock={builderState.handleAddProductRichTextBlock}
           />
         </div>
       </div>
