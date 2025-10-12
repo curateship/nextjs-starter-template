@@ -380,19 +380,14 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
   }
 
   const getNavContainerStyle = () => {
-    // Check if site-wide setting is full width
-    if (site?.settings?.site_width === 'full') {
-      return undefined
-    }
-
-    // Check if navigation block has full width setting
     if (style?.containerWidth === 'full') {
-      return undefined
+      return undefined // No max-width for full width
     }
-
-    // Use site's global custom_width to match content blocks
-    const effectiveWidth = site?.settings?.custom_width || 1152
-    return { maxWidth: `${effectiveWidth}px` }
+    if (style?.containerWidth === 'custom' && style.customWidth) {
+      return { maxWidth: `${style.customWidth}px` }
+    }
+    // Default navigation width (can be different from site width)
+    return { maxWidth: '1152px' }
   }
 
   return (
