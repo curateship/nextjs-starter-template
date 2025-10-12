@@ -87,19 +87,21 @@ export function ProductVideoBlock({
           Your browser does not support the video tag.
         </video>
 
-        {/* Show cover image with play button overlay when not autoplaying and not playing */}
-        {!autoplay && !isPlaying && proxiedCoverImage && (
+        {/* Show cover image or play button overlay when not autoplaying and not playing */}
+        {!autoplay && !isPlaying && (
           <div
             className="absolute inset-0 cursor-pointer group"
             onClick={handlePlayClick}
           >
-            <Image
-              src={proxiedCoverImage}
-              alt={title || 'Video cover'}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
-            />
+            {proxiedCoverImage && (
+              <Image
+                src={proxiedCoverImage}
+                alt={title || 'Video cover'}
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
+              />
+            )}
             <div className="absolute inset-0 flex items-center justify-center bg-black/5 group-hover:bg-black/10 transition-colors">
               <div className="w-20 h-20 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-110">
                 <Play className="w-10 h-10 text-black ml-1" fill="currentColor" />
