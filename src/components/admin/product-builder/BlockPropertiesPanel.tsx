@@ -203,10 +203,14 @@ export function BlockPropertiesPanel({
                 headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 tiers={selectedBlock.content.tiers || []}
+                checkoutSettings={selectedBlock.content.checkoutSettings}
+                downloadSettings={selectedBlock.content.downloadSettings}
                 onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
                 onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onTiersChange={(tiers) => updateBlockContent('tiers', tiers)}
+                onCheckoutSettingsChange={(settings) => updateBlockContent('checkoutSettings', settings)}
+                onDownloadSettingsChange={(settings) => updateBlockContent('downloadSettings', settings)}
               />
             )}
             

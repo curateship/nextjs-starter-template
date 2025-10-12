@@ -27,7 +27,7 @@ export function getProductBlockTitle(blockType: string): string {
     case 'product-hotspot':
       return 'Product Hotspot'
     case 'product-pricing':
-      return 'Product Pricing'
+      return 'Product Checkout'
     case 'faq':
       return 'FAQ'
     case 'listing-views':

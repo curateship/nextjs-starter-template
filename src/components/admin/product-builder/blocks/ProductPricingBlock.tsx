@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   DndContext,
   closestCenter,
@@ -40,32 +41,21 @@ const sanitizeAdminInput = (input: string): string => {
     .substring(0, 1000) // Higher limit for admin but still prevent DoS
 }
 
-const isValidAdminUrl = (url: string): boolean => {
-  if (!url || url.trim() === '') return true // Empty URLs are allowed
-  try {
-    const parsedUrl = new URL(url)
-    // Only allow HTTP(S) protocols for admin inputs
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 const isValidPartialUrl = (url: string): boolean => {
   if (!url || url.trim() === '') return true // Empty URLs are allowed
-  
+
   // Allow partial URLs while typing (like "http", "https:", "https://ex")
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return true
   }
-  
+
   // Block dangerous protocols immediately
-  if (url.toLowerCase().includes('javascript:') || 
-      url.toLowerCase().includes('data:') || 
+  if (url.toLowerCase().includes('javascript:') ||
+      url.toLowerCase().includes('data:') ||
       url.toLowerCase().includes('vbscript:')) {
     return false
   }
-  
+
   return true // Allow other partial input
 }
 
@@ -81,6 +71,36 @@ interface PricingTier {
   highlighted: boolean
   ribbonText: string
   ribbonColor: 'blue' | 'green' | 'purple' | 'red' | 'yellow'
+  stripePriceId?: string
+}
+
+interface OrderBump {
+  id: string
+  title: string
+  description: string
+  price: number
+  stripePriceId: string
+  isPreSelected: boolean
+}
+
+interface DownloadFile {
+  id: string
+  name: string
+  url: string
+}
+
+interface CheckoutSettings {
+  enabled: boolean
+  mode: 'payment' | 'subscription'
+  successUrl: string
+  cancelUrl: string
+  orderBumps: OrderBump[]
+}
+
+interface DownloadSettings {
+  enabled: boolean
+  thankYouMessage: string
+  files: DownloadFile[]
 }
 
 interface ProductPricingBlockProps {
@@ -88,10 +108,14 @@ interface ProductPricingBlockProps {
   headerSubtitle?: string
   headerAlign?: 'left' | 'center'
   tiers: PricingTier[]
+  checkoutSettings?: CheckoutSettings
+  downloadSettings?: DownloadSettings
   onHeaderTitleChange: (value: string) => void
   onHeaderSubtitleChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onTiersChange: (tiers: PricingTier[]) => void
+  onCheckoutSettingsChange?: (settings: CheckoutSettings) => void
+  onDownloadSettingsChange?: (settings: DownloadSettings) => void
 }
 
 // Sortable pricing tier item component
@@ -100,13 +124,15 @@ function SortablePricingTierItem({
   tierIndex,
   updateTier,
   removeTier,
-  updateFeatures
+  updateFeatures,
+  showStripeFields
 }: {
   tier: PricingTier
   tierIndex: number
   updateTier: (index: number, field: keyof PricingTier, value: any) => void
   removeTier: (index: number) => void
   updateFeatures: (tierIndex: number, featuresText: string) => void
+  showStripeFields: boolean
 }) {
   const {
     attributes,
@@ -209,6 +235,21 @@ function SortablePricingTierItem({
           </div>
         </div>
 
+        {showStripeFields && (
+          <div>
+            <Label htmlFor={`tier-stripe-price-${tierIndex}`}>Stripe Price ID</Label>
+            <Input
+              id={`tier-stripe-price-${tierIndex}`}
+              value={tier.stripePriceId || ''}
+              onChange={(e) => updateTier(tierIndex, 'stripePriceId', sanitizeAdminInput(e.target.value))}
+              placeholder="price_xxxxxxxxxxxxx"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Get this from your Stripe dashboard
+            </p>
+          </div>
+        )}
+
         <div>
           <Label htmlFor={`tier-features-${tierIndex}`}>Features (one per line)</Label>
           <Textarea
@@ -286,16 +327,134 @@ function SortablePricingTierItem({
   )
 }
 
+// Order Bump Item Component
+function SortableOrderBumpItem({
+  bump,
+  bumpIndex,
+  updateBump,
+  removeBump,
+}: {
+  bump: OrderBump
+  bumpIndex: number
+  updateBump: (index: number, field: keyof OrderBump, value: any) => void
+  removeBump: (index: number) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: bump.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="border rounded-lg p-4 bg-background hover:border-muted-foreground/50 transition-colors"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <h4 className="text-sm font-medium">Order Bump {bumpIndex + 1}</h4>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeBump(bumpIndex)}
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor={`bump-title-${bumpIndex}`}>Title</Label>
+            <Input
+              id={`bump-title-${bumpIndex}`}
+              value={bump.title}
+              onChange={(e) => updateBump(bumpIndex, 'title', sanitizeAdminInput(e.target.value))}
+              placeholder="Priority Support"
+            />
+          </div>
+          <div>
+            <Label htmlFor={`bump-price-${bumpIndex}`}>Price</Label>
+            <Input
+              id={`bump-price-${bumpIndex}`}
+              type="number"
+              value={bump.price}
+              onChange={(e) => updateBump(bumpIndex, 'price', parseFloat(e.target.value) || 0)}
+              placeholder="29.99"
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor={`bump-description-${bumpIndex}`}>Description</Label>
+          <Textarea
+            id={`bump-description-${bumpIndex}`}
+            value={bump.description}
+            onChange={(e) => updateBump(bumpIndex, 'description', sanitizeAdminInput(e.target.value))}
+            placeholder="Get 24/7 live chat support"
+            rows={2}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor={`bump-stripe-price-${bumpIndex}`}>Stripe Price ID</Label>
+          <Input
+            id={`bump-stripe-price-${bumpIndex}`}
+            value={bump.stripePriceId}
+            onChange={(e) => updateBump(bumpIndex, 'stripePriceId', sanitizeAdminInput(e.target.value))}
+            placeholder="price_xxxxxxxxxxxxx"
+          />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id={`bump-preselected-${bumpIndex}`}
+            checked={bump.isPreSelected}
+            onCheckedChange={(checked) => updateBump(bumpIndex, 'isPreSelected', checked)}
+          />
+          <Label htmlFor={`bump-preselected-${bumpIndex}`}>Pre-select by default</Label>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ProductPricingBlock({
   headerTitle = '',
   headerSubtitle = '',
   headerAlign = 'left',
   tiers,
+  checkoutSettings,
+  downloadSettings,
   onHeaderTitleChange,
   onHeaderSubtitleChange,
   onHeaderAlignChange,
   onTiersChange,
+  onCheckoutSettingsChange,
+  onDownloadSettingsChange,
 }: ProductPricingBlockProps) {
+  const [activeTab, setActiveTab] = useState('pricing')
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -307,6 +466,22 @@ export function ProductPricingBlock({
     })
   )
 
+  // Initialize settings with defaults if not provided
+  const currentCheckoutSettings: CheckoutSettings = checkoutSettings || {
+    enabled: false,
+    mode: 'payment',
+    successUrl: '/products/[slug]/success',
+    cancelUrl: '/products/[slug]/cancelled',
+    orderBumps: [],
+  }
+
+  const currentDownloadSettings: DownloadSettings = downloadSettings || {
+    enabled: false,
+    thankYouMessage: 'Thank you for your purchase!',
+    files: [],
+  }
+
+  // Pricing tier functions
   const addTier = () => {
     const newTier: PricingTier = {
       id: `tier-${Date.now()}-${Math.random()}`,
@@ -319,7 +494,8 @@ export function ProductPricingBlock({
       buttonUrl: "",
       highlighted: false,
       ribbonText: "",
-      ribbonColor: "blue"
+      ribbonColor: "blue",
+      stripePriceId: "",
     }
     onTiersChange([...(tiers || []), newTier])
   }
@@ -346,106 +522,448 @@ export function ProductPricingBlock({
     if (over && active.id !== over.id && tiers) {
       const oldIndex = tiers.findIndex((tier) => tier.id === active.id)
       const newIndex = tiers.findIndex((tier) => tier.id === over.id)
-      
+
       if (oldIndex !== -1 && newIndex !== -1) {
         onTiersChange(arrayMove(tiers, oldIndex, newIndex))
       }
     }
   }
 
+  // Order bump functions
+  const addOrderBump = () => {
+    const newBump: OrderBump = {
+      id: `bump-${Date.now()}-${Math.random()}`,
+      title: "Order Bump",
+      description: "Add this to your order",
+      price: 0,
+      stripePriceId: "",
+      isPreSelected: false,
+    }
+    onCheckoutSettingsChange?.({
+      ...currentCheckoutSettings,
+      orderBumps: [...currentCheckoutSettings.orderBumps, newBump],
+    })
+  }
+
+  const removeBump = (index: number) => {
+    const newBumps = currentCheckoutSettings.orderBumps.filter((_, i) => i !== index)
+    onCheckoutSettingsChange?.({
+      ...currentCheckoutSettings,
+      orderBumps: newBumps,
+    })
+  }
+
+  const updateBump = (index: number, field: keyof OrderBump, value: any) => {
+    const newBumps = [...currentCheckoutSettings.orderBumps]
+    newBumps[index] = { ...newBumps[index], [field]: value }
+    onCheckoutSettingsChange?.({
+      ...currentCheckoutSettings,
+      orderBumps: newBumps,
+    })
+  }
+
+  const handleBumpDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    const bumps = currentCheckoutSettings.orderBumps
+
+    if (over && active.id !== over.id) {
+      const oldIndex = bumps.findIndex((bump) => bump.id === active.id)
+      const newIndex = bumps.findIndex((bump) => bump.id === over.id)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onCheckoutSettingsChange?.({
+          ...currentCheckoutSettings,
+          orderBumps: arrayMove(bumps, oldIndex, newIndex),
+        })
+      }
+    }
+  }
+
+  // Download file functions
+  const addDownloadFile = () => {
+    const newFile: DownloadFile = {
+      id: `file-${Date.now()}-${Math.random()}`,
+      name: "Download File",
+      url: "",
+    }
+    onDownloadSettingsChange?.({
+      ...currentDownloadSettings,
+      files: [...currentDownloadSettings.files, newFile],
+    })
+  }
+
+  const removeFile = (index: number) => {
+    const newFiles = currentDownloadSettings.files.filter((_, i) => i !== index)
+    onDownloadSettingsChange?.({
+      ...currentDownloadSettings,
+      files: newFiles,
+    })
+  }
+
+  const updateFile = (index: number, field: keyof DownloadFile, value: string) => {
+    const newFiles = [...currentDownloadSettings.files]
+    newFiles[index] = { ...newFiles[index], [field]: value }
+    onDownloadSettingsChange?.({
+      ...currentDownloadSettings,
+      files: newFiles,
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header Settings Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Header Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="pricing-title">Title</Label>
-              <Input
-                id="pricing-title"
-                value={headerTitle}
-                onChange={(e) => onHeaderTitleChange(sanitizeAdminInput(e.target.value))}
-                placeholder="Pricing Plans"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="pricing-subtitle">Subtitle</Label>
-              <Input
-                id="pricing-subtitle"
-                value={headerSubtitle}
-                onChange={(e) => onHeaderSubtitleChange(sanitizeAdminInput(e.target.value))}
-                placeholder="Choose the perfect plan for your needs"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="pricing-align">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="pricing-align">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <TabsList className="grid w-full grid-cols-3">
+        <TabsTrigger value="pricing">Pricing</TabsTrigger>
+        <TabsTrigger value="checkout">Checkout</TabsTrigger>
+        <TabsTrigger value="download">Download</TabsTrigger>
+      </TabsList>
 
-      {/* Pricing Tiers Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Pricing Tiers</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addTier}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Tier
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleTierDragEnd}
-          >
-            <SortableContext
-              items={tiers?.map(t => t.id) || []}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-4">
-                {tiers?.map((tier, index) => (
-                  <SortablePricingTierItem
-                    key={tier.id}
-                    tier={tier}
-                    tierIndex={index}
-                    updateTier={updateTier}
-                    removeTier={removeTier}
-                    updateFeatures={updateFeatures}
-                  />
-                ))}
+      {/* Tab 1: Pricing */}
+      <TabsContent value="pricing" className="space-y-6 mt-6">
+        {/* Header Settings Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pricing-title">Title</Label>
+                <Input
+                  id="pricing-title"
+                  value={headerTitle}
+                  onChange={(e) => onHeaderTitleChange(sanitizeAdminInput(e.target.value))}
+                  placeholder="Pricing Plans"
+                />
               </div>
-            </SortableContext>
-          </DndContext>
 
-          {(tiers?.length === 0 || !tiers) && (
-            <div className="text-center py-8 text-muted-foreground">
-              No pricing tiers yet. Click "Add Tier" to create one.
+              <div className="space-y-2">
+                <Label htmlFor="pricing-subtitle">Subtitle</Label>
+                <Input
+                  id="pricing-subtitle"
+                  value={headerSubtitle}
+                  onChange={(e) => onHeaderSubtitleChange(sanitizeAdminInput(e.target.value))}
+                  placeholder="Choose the perfect plan for your needs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pricing-align">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="pricing-align">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+
+        {/* Pricing Tiers Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Pricing Tiers</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addTier}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Tier
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleTierDragEnd}
+            >
+              <SortableContext
+                items={tiers?.map(t => t.id) || []}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-4">
+                  {tiers?.map((tier, index) => (
+                    <SortablePricingTierItem
+                      key={tier.id}
+                      tier={tier}
+                      tierIndex={index}
+                      updateTier={updateTier}
+                      removeTier={removeTier}
+                      updateFeatures={updateFeatures}
+                      showStripeFields={currentCheckoutSettings.enabled}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            {(tiers?.length === 0 || !tiers) && (
+              <div className="text-center py-8 text-muted-foreground">
+                No pricing tiers yet. Click "Add Tier" to create one.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Tab 2: Checkout */}
+      <TabsContent value="checkout" className="space-y-6 mt-6">
+        {/* Stripe Configuration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Stripe Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="checkout-enabled"
+                checked={currentCheckoutSettings.enabled}
+                onCheckedChange={(checked) =>
+                  onCheckoutSettingsChange?.({
+                    ...currentCheckoutSettings,
+                    enabled: !!checked,
+                  })
+                }
+              />
+              <Label htmlFor="checkout-enabled" className="font-semibold">
+                Enable Stripe Checkout
+              </Label>
+            </div>
+
+            {currentCheckoutSettings.enabled && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="checkout-mode">Payment Mode</Label>
+                    <Select
+                      value={currentCheckoutSettings.mode}
+                      onValueChange={(value: 'payment' | 'subscription') =>
+                        onCheckoutSettingsChange?.({
+                          ...currentCheckoutSettings,
+                          mode: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="checkout-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="payment">One-time Payment</SelectItem>
+                        <SelectItem value="subscription">Subscription</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="success-url">Success URL</Label>
+                    <Input
+                      id="success-url"
+                      value={currentCheckoutSettings.successUrl}
+                      onChange={(e) =>
+                        onCheckoutSettingsChange?.({
+                          ...currentCheckoutSettings,
+                          successUrl: e.target.value,
+                        })
+                      }
+                      placeholder="/products/[slug]/success"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Use [slug] as placeholder for product slug
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="cancel-url">Cancel URL</Label>
+                    <Input
+                      id="cancel-url"
+                      value={currentCheckoutSettings.cancelUrl}
+                      onChange={(e) =>
+                        onCheckoutSettingsChange?.({
+                          ...currentCheckoutSettings,
+                          cancelUrl: e.target.value,
+                        })
+                      }
+                      placeholder="/products/[slug]/cancelled"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Use [slug] as placeholder for product slug
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Order Bumps */}
+        {currentCheckoutSettings.enabled && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Order Bumps</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Add complementary products that customers can add before checkout
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addOrderBump}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Order Bump
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleBumpDragEnd}
+              >
+                <SortableContext
+                  items={currentCheckoutSettings.orderBumps.map(b => b.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-4">
+                    {currentCheckoutSettings.orderBumps.map((bump, index) => (
+                      <SortableOrderBumpItem
+                        key={bump.id}
+                        bump={bump}
+                        bumpIndex={index}
+                        updateBump={updateBump}
+                        removeBump={removeBump}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+
+              {currentCheckoutSettings.orderBumps.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No order bumps yet. Click "Add Order Bump" to create one.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+
+      {/* Tab 3: Download */}
+      <TabsContent value="download" className="space-y-6 mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Download Page Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="download-enabled"
+                checked={currentDownloadSettings.enabled}
+                onCheckedChange={(checked) =>
+                  onDownloadSettingsChange?.({
+                    ...currentDownloadSettings,
+                    enabled: !!checked,
+                  })
+                }
+              />
+              <Label htmlFor="download-enabled" className="font-semibold">
+                Enable Download Page
+              </Label>
+            </div>
+
+            {currentDownloadSettings.enabled && (
+              <>
+                <div>
+                  <Label htmlFor="thank-you-message">Thank You Message</Label>
+                  <Textarea
+                    id="thank-you-message"
+                    value={currentDownloadSettings.thankYouMessage}
+                    onChange={(e) =>
+                      onDownloadSettingsChange?.({
+                        ...currentDownloadSettings,
+                        thankYouMessage: e.target.value,
+                      })
+                    }
+                    placeholder="Thank you for your purchase! Here are your downloads..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <Label>Download Files</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addDownloadFile}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add File
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {currentDownloadSettings.files.map((file, index) => (
+                      <div key={file.id} className="border rounded-lg p-4 bg-background">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium">File {index + 1}</h4>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor={`file-name-${index}`}>File Name</Label>
+                            <Input
+                              id={`file-name-${index}`}
+                              value={file.name}
+                              onChange={(e) => updateFile(index, 'name', e.target.value)}
+                              placeholder="My Product.zip"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor={`file-url-${index}`}>File URL</Label>
+                            <Input
+                              id={`file-url-${index}`}
+                              value={file.url}
+                              onChange={(e) => updateFile(index, 'url', e.target.value)}
+                              placeholder="https://your-storage.com/file.zip"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {currentDownloadSettings.files.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                      No download files yet. Click "Add File" to create one.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   )
 }

@@ -92,14 +92,14 @@ export function BlockTypesPanel({
           <div className="p-3 rounded-lg border bg-background flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <DollarSign className="w-4 h-4" />
-              <span className="font-medium">Product Pricing</span>
+              <span className="font-medium">Product Checkout</span>
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
               onClick={onAddProductPricingBlock}
-              title="Add product pricing block"
+              title="Add product checkout block"
             >
               <Plus className="w-4 h-4" />
             </Button>
