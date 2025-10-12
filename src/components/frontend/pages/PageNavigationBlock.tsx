@@ -374,20 +374,25 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
   // Get navigation container styles
   const getNavContainerClass = () => {
     if (style?.containerWidth === 'full') {
-      return 'w-full px-4 md:px-6'
+      return 'w-full px-6'
     }
-    return 'mx-auto w-full px-4 md:px-6'
+    return 'mx-auto px-6'
   }
 
   const getNavContainerStyle = () => {
+    // Check if site-wide setting is full width
+    if (site?.settings?.site_width === 'full') {
+      return undefined
+    }
+
+    // Check if navigation block has full width setting
     if (style?.containerWidth === 'full') {
-      return undefined // No max-width for full width
+      return undefined
     }
-    if (style?.containerWidth === 'custom' && style.customWidth) {
-      return { maxWidth: `${style.customWidth}px` }
-    }
-    // Default navigation width (can be different from site width)
-    return { maxWidth: '1152px' }
+
+    // Use site's global custom_width to match content blocks
+    const effectiveWidth = site?.settings?.custom_width || 1152
+    return { maxWidth: `${effectiveWidth}px` }
   }
 
   return (
@@ -404,8 +409,8 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
           backgroundColor: mounted && (scrolled || menuState) && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
         } : undefined}
       >
-        <div 
-          className={getNavContainerClass()} 
+        <div
+          className={getNavContainerClass()}
           style={getNavContainerStyle()}
         >
           <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
