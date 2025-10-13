@@ -112,7 +112,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             comparison: '', // Not used in admin
             isPopular: tier.highlighted || tier.isPopular || false,
             ribbonText: tier.ribbonText || '',
-            ribbonColor: tier.ribbonColor || 'blue'
+            ribbonColor: tier.ribbonColor || 'blue',
+            stripePriceId: tier.stripePriceId || ''
           }))
           
           return (
@@ -120,7 +121,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               key={`product-pricing-${block.id}`}
               title={block.content.headerTitle || block.content.title}
               subtitle={block.content.headerSubtitle || block.content.subtitle}
+              headerAlign={block.content.headerAlign}
               pricingTiers={transformedTiers}
+              checkoutSettings={block.content.checkoutSettings}
+              productSlug={product.slug}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />

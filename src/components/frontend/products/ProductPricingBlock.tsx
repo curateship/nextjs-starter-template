@@ -1,6 +1,9 @@
+'use client'
+
 import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import Link from "next/link"
 
 // Security utility functions
 const isValidUrl = (url: string): boolean => {
@@ -40,6 +43,15 @@ interface PricingTier {
   isPopular?: boolean
   ribbonText?: string
   ribbonColor?: 'blue' | 'green' | 'purple' | 'red' | 'yellow'
+  stripePriceId?: string
+}
+
+interface CheckoutSettings {
+  enabled: boolean
+  mode: 'payment' | 'subscription'
+  successUrl: string
+  cancelUrl: string
+  orderBumps: any[]
 }
 
 interface ProductPricingBlockProps {
@@ -47,11 +59,21 @@ interface ProductPricingBlockProps {
   subtitle?: string
   headerAlign?: 'left' | 'center'
   pricingTiers?: PricingTier[]
+  checkoutSettings?: CheckoutSettings
+  productSlug?: string
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
 
-const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
+const SinglePricingCard = ({
+  tier,
+  checkoutEnabled = false,
+  productSlug
+}: {
+  tier: PricingTier
+  checkoutEnabled?: boolean
+  productSlug?: string
+}) => {
   // Function to get ribbon color classes
   const getRibbonColorClasses = (color: string) => {
     switch (color) {
@@ -93,7 +115,16 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
                   </span>
 
                   <div className="flex justify-center">
-                    {tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
+                    {checkoutEnabled && tier.stripePriceId && productSlug ? (
+                      <Link href={`/products/${productSlug}/checkout?tier=${tier.id}`}>
+                        <Button
+                          variant={tier.buttonVariant}
+                          size="lg"
+                          className="cursor-pointer">
+                          {sanitizeText(tier.buttonText)}
+                        </Button>
+                      </Link>
+                    ) : tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
                       <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer">
                         <Button
                           variant={tier.buttonVariant}
@@ -135,7 +166,15 @@ const SinglePricingCard = ({ tier }: { tier: PricingTier }) => {
   )
 }
 
-const PricingCard = ({ tier }: { tier: PricingTier }) => {
+const PricingCard = ({
+  tier,
+  checkoutEnabled = false,
+  productSlug
+}: {
+  tier: PricingTier
+  checkoutEnabled?: boolean
+  productSlug?: string
+}) => {
   // Function to get ribbon color classes
   const getRibbonColorClasses = (color: string) => {
     switch (color) {
@@ -204,7 +243,13 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
 
           {/* CTA Button */}
           <div className="mt-auto px-8 pb-8">
-            {tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
+            {checkoutEnabled && tier.stripePriceId && productSlug ? (
+              <Link href={`/products/${productSlug}/checkout?tier=${tier.id}`} className="block">
+                <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
+                  {sanitizeText(tier.buttonText)}
+                </Button>
+              </Link>
+            ) : tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
               <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer" className="block">
                 <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
                   {sanitizeText(tier.buttonText)}
@@ -240,6 +285,8 @@ const ProductPricingBlock = ({
   subtitle,
   headerAlign = 'center',
   pricingTiers = [],
+  checkoutSettings,
+  productSlug,
   siteWidth = 'custom',
   customWidth
 }: ProductPricingBlockProps) => {
@@ -249,6 +296,7 @@ const ProductPricingBlock = ({
   }
 
   const displayTiers = pricingTiers
+  const checkoutEnabled = checkoutSettings?.enabled || false
 
   // Use single pricing layout when there's only one tier
   if (displayTiers.length === 1) {
@@ -265,7 +313,11 @@ const ProductPricingBlock = ({
           align: headerAlign
         } : undefined}
       >
-        <SinglePricingCard tier={singleTier} />
+        <SinglePricingCard
+          tier={singleTier}
+          checkoutEnabled={checkoutEnabled}
+          productSlug={productSlug}
+        />
       </BlockContainer>
     )
   }
@@ -287,7 +339,11 @@ const ProductPricingBlock = ({
       <div className="mx-auto grid max-w-xl gap-8 rounded-md lg:max-w-none lg:grid-cols-3 lg:gap-10">
         {displayTiers.map((tier) => (
           <div key={tier.id} className="h-full">
-            <PricingCard tier={tier} />
+            <PricingCard
+              tier={tier}
+              checkoutEnabled={checkoutEnabled}
+              productSlug={productSlug}
+            />
           </div>
         ))}
       </div>
