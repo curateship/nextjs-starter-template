@@ -135,7 +135,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductFAQBlock
               key={`product-faq-${block.id}`}
-              content={block.content}
+              content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -146,7 +146,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductListingViewBlock
               key={`listing-views-${block.id}`}
-              content={block.content}
+              content={block.content as any}
               siteId={site.id}
               urlPrefixes={{
                 products: 'products',
@@ -173,7 +173,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductVideoBlock
               key={`product-video-${block.id}`}
-              content={block.content}
+              content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
