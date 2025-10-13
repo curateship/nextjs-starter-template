@@ -228,7 +228,6 @@ export function ProductVideoBlock({
         onSelectMedia={onVideoUrlChange}
         currentMediaUrl={videoUrl}
         showVideos={true}
-        showImages={false}
       />
 
       {/* Cover Image Picker Modal */}
