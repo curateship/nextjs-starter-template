@@ -237,7 +237,6 @@ export function ProductVideoBlock({
         onSelectMedia={onCoverImageChange}
         currentMediaUrl={coverImage}
         showVideos={false}
-        showImages={true}
       />
     </div>
   )
