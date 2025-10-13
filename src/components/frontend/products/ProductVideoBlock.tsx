@@ -17,7 +17,7 @@ interface ProductVideoBlockProps {
     muted?: boolean
   }
   className?: string
-  siteWidth?: 'narrow' | 'standard' | 'wide' | 'full' | 'custom'
+  siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
 
