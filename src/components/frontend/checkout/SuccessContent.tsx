@@ -20,7 +20,7 @@ interface DownloadSettings {
 interface Product {
   id: string
   slug: string
-  name: string
+  title: string
 }
 
 interface SessionData {
@@ -57,7 +57,7 @@ export function SuccessContent({
         </div>
         <h1 className="text-4xl font-bold mb-2">Payment Successful!</h1>
         <p className="text-lg text-muted-foreground">
-          Thank you for your purchase of {product.name}
+          Thank you for your purchase of {product.title}
         </p>
       </div>
 

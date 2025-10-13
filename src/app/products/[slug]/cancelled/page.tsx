@@ -61,7 +61,7 @@ export default async function CancelledPage({ params }: CancelledPageProps) {
             </Button>
             <Button asChild size="lg">
               <Link href={`/products/${product.slug}`}>
-                Back to {product.name}
+                Back to {product.title}
               </Link>
             </Button>
           </div>

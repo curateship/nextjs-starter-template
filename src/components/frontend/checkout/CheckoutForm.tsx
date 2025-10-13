@@ -38,7 +38,7 @@ interface PricingTier {
 interface Product {
   id: string
   slug: string
-  name: string
+  title: string
 }
 
 interface CheckoutFormProps {
@@ -105,7 +105,7 @@ export function CheckoutForm({
       // Create checkout session
       const result = await createCheckoutSession({
         productSlug: product.slug,
-        productName: product.name,
+        productName: product.title,
         mainPriceId: selectedTier.stripePriceId,
         selectedBumps: selectedOrderBumps,
         mode: checkoutSettings.mode,
