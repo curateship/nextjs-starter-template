@@ -162,7 +162,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductRichTextBlock
               key={`rich-text-${block.id}`}
-              content={block.content}
+              content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
