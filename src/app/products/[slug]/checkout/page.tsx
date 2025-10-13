@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { getProductBySlug } from '@/lib/actions/products/product-frontend-actions'
+import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { CheckoutForm } from '@/components/frontend/checkout/CheckoutForm'
 
 interface CheckoutPageProps {
@@ -12,7 +12,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   const { tier: tierId } = await searchParams
 
   // Fetch product data
-  const result = await getProductBySlug(slug)
+  const result = await getProductBySlugDirect(slug)
 
   if (!result.success || !result.product) {
     notFound()

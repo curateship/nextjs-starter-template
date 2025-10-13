@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getProductBySlug } from '@/lib/actions/products/product-frontend-actions'
+import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { verifyCheckoutSession } from '@/lib/actions/stripe/checkout-actions'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
 
@@ -13,7 +13,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   const { session_id } = await searchParams
 
   // Fetch product data
-  const result = await getProductBySlug(slug)
+  const result = await getProductBySlugDirect(slug)
 
   if (!result.success || !result.product) {
     notFound()

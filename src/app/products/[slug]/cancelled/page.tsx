@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getProductBySlug } from '@/lib/actions/products/product-frontend-actions'
+import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,7 +13,7 @@ export default async function CancelledPage({ params }: CancelledPageProps) {
   const { slug } = await params
 
   // Fetch product data
-  const result = await getProductBySlug(slug)
+  const result = await getProductBySlugDirect(slug)
 
   if (!result.success || !result.product) {
     notFound()
