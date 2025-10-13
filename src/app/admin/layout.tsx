@@ -1,5 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { SiteProvider } from "@/contexts/site-context"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/layout/sidebar/Sidebar"
@@ -11,6 +14,37 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    async function checkAuth() {
+      const supabase = createClient()
+      const { data: { user }, error } = await supabase.auth.getUser()
+
+      if (error || !user) {
+        router.push('/login?redirect=/admin')
+        return
+      }
+
+      setIsAuthenticated(true)
+    }
+
+    checkAuth()
+  }, [router])
+
+  // Don't render anything until auth check completes
+  if (isAuthenticated === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <ThemeProvider
       attribute="class"

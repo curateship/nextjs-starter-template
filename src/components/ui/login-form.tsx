@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
@@ -25,6 +25,7 @@ export function LoginForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,8 +42,9 @@ export function LoginForm({
       if (error) {
         setError(error.message)
       } else {
-        // Let middleware handle the redirect after auth verification
-        window.location.href = "/admin"
+        // Redirect to the original page or default to /admin
+        const redirectTo = searchParams.get('redirect') || '/admin'
+        window.location.href = redirectTo
       }
     } catch (err) {
       setError("An unexpected error occurred")

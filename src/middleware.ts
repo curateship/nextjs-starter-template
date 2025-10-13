@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 
 export async function middleware() {
   // Middleware is intentionally minimal to avoid unnecessary database calls
-  // Site-specific logic (like maintenance mode) is handled in page components
-  // where site data is already being loaded
+  // Authentication is handled in the /admin layout.tsx server component
+  // This provides better error handling and a cleaner user experience
   return NextResponse.next()
 }
 

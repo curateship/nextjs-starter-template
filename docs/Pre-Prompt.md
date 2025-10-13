@@ -1,4 +1,6 @@
 
+# Mandatory requirements:
+- Do not push changes to git until user requested
 
 # How to ensure Always Works™ implementation
 Please ensure your implementation Always Works™™ for: $ARGUMENTS.

@@ -110,8 +110,15 @@ function sanitizeCustomDomain(input?: string | null): string | null {
 
 export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
   try {
-    // Server action: Fetching all sites with theme info
-    
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    // Fetch only sites owned by the authenticated user
     const { data, error } = await supabaseAdmin
       .from('sites')
       .select(`
@@ -123,6 +130,7 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
           metadata
         )
       `)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -134,9 +142,9 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
     return { data: data as SiteWithTheme[], error: null }
   } catch (error) {
       // Unexpected error fetching sites
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
