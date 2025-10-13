@@ -25,9 +25,9 @@ interface Product {
 
 interface SessionData {
   id: string
-  customerEmail?: string
-  amountTotal?: number
-  currency?: string
+  customerEmail?: string | null
+  amountTotal?: number | null
+  currency?: string | null
   paymentStatus: string
 }
 
@@ -91,7 +91,7 @@ export function SuccessContent({
                 <span className="font-medium">{sessionData.customerEmail}</span>
               </div>
             )}
-            {sessionData.amountTotal !== undefined && (
+            {sessionData.amountTotal != null && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount Paid:</span>
                 <span className="font-medium">
