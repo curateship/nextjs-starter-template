@@ -1,4 +1,5 @@
 import { GalleryVerticalEnd } from "lucide-react"
+import { Suspense } from "react"
 
 import { LoginForm } from "@/components/ui/login-form"
 
@@ -12,7 +13,9 @@ export default function LoginPage() {
           </div>
           Acme Inc.
         </a>
-        <LoginForm />
+        <Suspense fallback={<div>Loading...</div>}>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )
