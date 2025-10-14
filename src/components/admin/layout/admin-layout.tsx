@@ -2,7 +2,6 @@
 
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { AdminCard } from "@/components/admin/layout/dashboard/AdminCard"
-import { BasicBlock } from "@/components/admin/product-builder/blocks/ProductBasicBlock"
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -31,4 +30,4 @@ export function AdminLayout({
 }
 
 // Re-export admin components
-export { AdminPageHeader, AdminCard, BasicBlock }
+export { AdminPageHeader, AdminCard }
