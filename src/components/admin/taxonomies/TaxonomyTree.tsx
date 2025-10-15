@@ -137,7 +137,7 @@ export function TaxonomyTree({
                 )}
 
                 <Link
-                  href={`/admin/taxonomies/builder/${siteId}?type=${taxonomyType.slug}&term=${taxonomy.slug}`}
+                  href={`/admin/taxonomies/builder/${siteId}?type=${taxonomyType.id}&taxonomy=${taxonomy.slug}`}
                   className="flex-1 min-w-0 hover:opacity-80 transition-opacity"
                 >
                   <div className="font-medium hover:underline truncate">{taxonomy.title}</div>
@@ -210,7 +210,7 @@ export function TaxonomyTree({
                 className="h-8 w-8 p-0"
                 asChild
               >
-                <Link href={`/admin/taxonomies/builder/${siteId}?type=${taxonomyType.slug}&term=${taxonomy.slug}`}>
+                <Link href={`/admin/taxonomies/builder/${siteId}?type=${taxonomyType.id}&taxonomy=${taxonomy.slug}`}>
                   <Edit className="w-4 h-4" />
                   <span className="sr-only">Edit</span>
                 </Link>

@@ -102,7 +102,7 @@ export function useTaxonomyBuilder({
   }
 
   const handleAddTaxonomyDefaultBlock = () => {
-    addBlock('taxonomy-default', 'Taxonomy Information', {
+    addBlock('taxonomy-default', 'Tag Information', {
       viewOnly: true
     })
   }

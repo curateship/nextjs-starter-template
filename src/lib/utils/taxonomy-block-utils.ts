@@ -2,58 +2,112 @@
  * Utility functions for taxonomy content blocks
  */
 
-interface TaxonomyBlock {
+export interface TaxonomyBlock {
   id: string
   type: string
-  title: string
   content: Record<string, any>
+  display_order: number
 }
 
 /**
- * Convert JSON content_blocks to array of blocks for the builder
+ * Helper function to get block title for taxonomy blocks
  */
-function convertJsonToBlocks(contentBlocks: Record<string, any>): TaxonomyBlock[] {
+export function getTaxonomyBlockTitle(blockType: string): string {
+  switch (blockType) {
+    case 'taxonomy-default':
+      return 'Tag Information'
+    default:
+      return 'Taxonomy Block'
+  }
+}
+
+/**
+ * Sanitize string content to prevent XSS
+ */
+function sanitizeString(value: any): string {
+  if (typeof value !== 'string') return ''
+  // Remove script tags, javascript:, and event handlers
+  return value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/data:text\/html/gi, '')
+}
+
+/**
+ * Recursively sanitize content object
+ */
+function sanitizeContent(content: any): any {
+  if (typeof content === 'string') {
+    return sanitizeString(content)
+  }
+  if (Array.isArray(content)) {
+    return content.map(sanitizeContent)
+  }
+  if (content && typeof content === 'object') {
+    const sanitized: any = {}
+    for (const [key, value] of Object.entries(content)) {
+      sanitized[key] = sanitizeContent(value)
+    }
+    return sanitized
+  }
+  return content
+}
+
+/**
+ * Convert JSON content_blocks to TaxonomyBlock array format
+ */
+export function convertContentBlocksToArray(contentBlocks: Record<string, any>, taxonomyId: string): TaxonomyBlock[] {
   const blocks: TaxonomyBlock[] = []
 
-  // Filter out _settings and other meta keys
-  const blockEntries = Object.entries(contentBlocks).filter(
-    ([key]) => !key.startsWith('_')
-  )
+  // SECURITY: Validate taxonomyId to prevent injection
+  if (!taxonomyId || typeof taxonomyId !== 'string') {
+    return blocks
+  }
 
-  // Sort by display_order if available
-  blockEntries.sort((a, b) => {
-    const orderA = a[1]?.display_order ?? 999
-    const orderB = b[1]?.display_order ?? 999
-    return orderA - orderB
-  })
+  if (contentBlocks && typeof contentBlocks === 'object') {
+    // SECURITY: Validate allowed block types
+    const allowedBlockTypes = ['taxonomy-default']
 
-  blockEntries.forEach(([blockType, blockData]: [string, any]) => {
-    // Generate a unique ID for the block
-    const blockId = `${blockType}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
+      // Skip _settings and other metadata fields
+      if (blockType.startsWith('_')) {
+        return
+      }
 
-    // Create a clean copy of block data without display_order
-    const { display_order, ...content } = blockData
+      // SECURITY: Validate block type
+      if (!allowedBlockTypes.includes(blockType)) {
+        return // Skip invalid block types
+      }
 
-    // Map block type to human-readable title
-    const title = getBlockTitle(blockType)
+      if (blockData && typeof blockData === 'object') {
+        const { display_order, ...content } = blockData
 
-    blocks.push({
-      id: blockId,
-      type: blockType,
-      title,
-      content
+        // SECURITY: Sanitize all content to prevent XSS
+        const sanitizedContent = sanitizeContent(content)
+
+        blocks.push({
+          id: `${blockType}-${taxonomyId}`,
+          type: blockType,
+          content: sanitizedContent,
+          display_order: typeof display_order === 'number' ? display_order : 0
+        })
+      }
     })
-  })
+
+    // Sort blocks by display_order
+    blocks.sort((a, b) => a.display_order - b.display_order)
+  }
 
   return blocks
 }
 
 /**
- * Get human-readable title for block type
+ * Get human-readable title for block type (for builder UI)
  */
 function getBlockTitle(blockType: string): string {
   const titleMap: Record<string, string> = {
-    'taxonomy-default': 'Taxonomy Information',
+    'taxonomy-default': 'Tag Information',
     'taxonomy-hero': 'Hero Section',
     'taxonomy-stats': 'Statistics',
     'rich-text': 'Rich Text',
@@ -161,11 +215,4 @@ function validateBlockContent(blockType: string, content: Record<string, any>): 
     isValid: errors.length === 0,
     errors
   }
-}
-
-export const taxonomyBlockUtils = {
-  convertJsonToBlocks,
-  getBlockTitle,
-  getDefaultBlockContent,
-  validateBlockContent
 }
