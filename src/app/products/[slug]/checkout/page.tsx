@@ -19,6 +19,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   }
 
   const product = result.product
+  const site = result.site
 
   // Get pricing block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-pricing')
@@ -46,14 +47,21 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <CheckoutForm
-          product={product}
-          selectedTier={selectedTier}
-          checkoutSettings={checkoutSettings}
-        />
-      </div>
-    </div>
+    <CheckoutForm
+      product={{
+        id: product.id,
+        slug: product.slug,
+        title: product.title,
+        description: product.description,
+        featuredImage: product.featuredImage,
+      }}
+      site={{
+        name: site?.name || 'Store',
+        logo: site?.settings?.logo,
+        favicon: site?.settings?.favicon,
+      }}
+      selectedTier={selectedTier}
+      checkoutSettings={checkoutSettings}
+    />
   )
 }

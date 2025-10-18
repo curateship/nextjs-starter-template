@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createCheckoutSession } from '@/lib/actions/stripe/checkout-actions'
-import { Check, Loader2 } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { PaymentElementWrapper } from './PaymentElementWrapper'
+import Image from 'next/image'
 
 interface OrderBump {
   id: string
@@ -39,16 +40,26 @@ interface Product {
   id: string
   slug: string
   title: string
+  description?: string
+  featuredImage?: string
+}
+
+interface Site {
+  name: string
+  logo?: string
+  favicon?: string
 }
 
 interface CheckoutFormProps {
   product: Product
+  site: Site
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
 }
 
 export function CheckoutForm({
   product,
+  site,
   selectedTier,
   checkoutSettings,
 }: CheckoutFormProps) {
@@ -60,8 +71,6 @@ export function CheckoutForm({
         .map((bump) => bump.id)
     )
   )
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const toggleBump = (bumpId: string) => {
     setSelectedBumps((prev) => {
@@ -88,182 +97,119 @@ export function CheckoutForm({
     return mainPrice + bumpsTotal
   }
 
-  const handleCheckout = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      // Get selected order bumps
-      const selectedOrderBumps = checkoutSettings.orderBumps.filter((bump) =>
-        selectedBumps.has(bump.id)
-      )
-
-      // Replace [slug] placeholder in URLs
-      const successUrl = checkoutSettings.successUrl.replace('[slug]', product.slug)
-      const cancelUrl = checkoutSettings.cancelUrl.replace('[slug]', product.slug)
-
-      // Create checkout session
-      const result = await createCheckoutSession({
-        productSlug: product.slug,
-        productName: product.title,
-        mainPriceId: selectedTier.stripePriceId,
-        selectedBumps: selectedOrderBumps,
-        mode: checkoutSettings.mode,
-        successUrl,
-        cancelUrl,
-      })
-
-      if (!result.success || !result.url) {
-        throw new Error(result.error || 'Failed to create checkout session')
-      }
-
-      // Redirect to Stripe checkout
-      window.location.href = result.url
-    } catch (err) {
-      console.error('Checkout error:', err)
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-      setIsLoading(false)
-    }
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-2">Checkout</h1>
-        <p className="text-muted-foreground">Complete your purchase</p>
-      </div>
-
-      {/* Order Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Order Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Main Product */}
-          <div className="flex items-start justify-between pb-4 border-b">
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{selectedTier.name}</h3>
-              <p className="text-sm text-muted-foreground">{selectedTier.description}</p>
-
-              {/* Features */}
-              <ul className="mt-3 space-y-2">
-                {selectedTier.features.slice(0, 3).map((feature, index) => (
-                  <li key={index} className="flex items-center gap-2 text-sm">
-                    <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-                {selectedTier.features.length > 3 && (
-                  <li className="text-sm text-muted-foreground ml-6">
-                    +{selectedTier.features.length - 3} more features
-                  </li>
-                )}
-              </ul>
+    <div className="min-h-screen bg-gray-100">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        {/* Logo/Brand */}
+        <div className="flex items-center justify-center gap-2 mb-6 pt-4">
+          {(site.logo || site.favicon) && (
+            <div className="relative w-8 h-8 flex-shrink-0">
+              <Image
+                src={site.logo || site.favicon || ''}
+                alt={site.name}
+                fill
+                className="object-contain"
+              />
             </div>
-            <div className="text-right ml-4">
-              <div className="text-2xl font-bold">{selectedTier.price}</div>
-              <div className="text-sm text-muted-foreground">{selectedTier.period}</div>
-            </div>
-          </div>
+          )}
+          <span className="font-semibold text-lg">{site.name}</span>
+        </div>
 
-          {/* Order Bumps */}
-          {checkoutSettings.orderBumps.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-semibold">Add to your order</h4>
-              {checkoutSettings.orderBumps.map((bump) => (
-                <div
-                  key={bump.id}
-                  className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                    selectedBumps.has(bump.id)
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                  }`}
-                  onClick={() => toggleBump(bump.id)}
-                >
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      checked={selectedBumps.has(bump.id)}
-                      onCheckedChange={() => toggleBump(bump.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h5 className="font-semibold">{bump.title}</h5>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {bump.description}
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <div className="font-semibold">
+        <Card className="shadow-lg overflow-hidden border-0">
+          <div className="flex flex-col lg:flex-row">
+            {/* Left Column - Product Info with light gray background */}
+            <div className="bg-gray-50 p-8 lg:p-12 space-y-6 flex-1">
+              {/* Product Title and Price */}
+              <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-semibold">{product.title}</h1>
+                <div className="text-2xl font-semibold">{selectedTier.price}</div>
+              </div>
+
+              {/* Product Image */}
+              {product.featuredImage && (
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-border">
+                  <Image
+                    src={product.featuredImage}
+                    alt={product.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Product Description */}
+              {selectedTier.description && (
+                <p className="text-sm leading-relaxed">
+                  {selectedTier.description}
+                </p>
+              )}
+
+              {/* Order Bumps */}
+              {checkoutSettings.orderBumps.length > 0 && (
+                <div className="space-y-3">
+                  {checkoutSettings.orderBumps.map((bump) => (
+                    <div
+                      key={bump.id}
+                      className={`border-2 rounded-xl p-5 cursor-pointer transition-all bg-white ${
+                        selectedBumps.has(bump.id)
+                          ? 'border-foreground'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      onClick={() => toggleBump(bump.id)}
+                    >
+                      <div className="flex items-start gap-4">
+                        <Checkbox
+                          checked={selectedBumps.has(bump.id)}
+                          onCheckedChange={(checked) => {
+                            toggleBump(bump.id)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 flex items-start justify-between gap-4">
+                          <div>
+                            <h5 className="font-medium">{bump.title}</h5>
+                            <p className="text-sm text-muted-foreground mt-0.5">
+                              {bump.description}
+                            </p>
+                          </div>
+                          <div className="text-lg font-semibold whitespace-nowrap">
                             ${bump.price.toFixed(2)}
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* Total */}
-          <div className="pt-4 border-t">
-            <div className="flex items-center justify-between text-lg">
-              <span className="font-semibold">Total</span>
-              <div className="text-right">
-                <div className="text-2xl font-bold">
-                  ${getTotalPrice().toFixed(2)}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {checkoutSettings.mode === 'subscription' ? selectedTier.period : 'one-time'}
-                </div>
+              {/* Footer */}
+              <div className="pt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                {site.favicon && (
+                  <div className="relative w-4 h-4">
+                    <Image
+                      src={site.favicon}
+                      alt=""
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                )}
+                <span>Made with care at {site.name}</span>
               </div>
             </div>
+
+            {/* Right Column - Payment Element with white background */}
+            <div className="bg-white p-8 lg:p-12 flex-1">
+              <PaymentElementWrapper
+                product={product}
+                selectedTier={selectedTier}
+                checkoutSettings={checkoutSettings}
+                selectedBumps={Array.from(selectedBumps)}
+              />
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Checkout Button */}
-      <div className="space-y-4">
-        <Button
-          onClick={handleCheckout}
-          disabled={isLoading}
-          className="w-full py-6 text-lg"
-          size="lg"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            `Proceed to Payment`
-          )}
-        </Button>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Secure checkout powered by Stripe
-        </p>
-      </div>
-
-      {/* Back Link */}
-      <div className="text-center">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(`/products/${product.slug}`)}
-          disabled={isLoading}
-        >
-          ← Back to Product
-        </Button>
+        </Card>
       </div>
     </div>
   )

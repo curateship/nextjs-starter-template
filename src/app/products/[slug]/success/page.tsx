@@ -1,16 +1,16 @@
 import { notFound } from 'next/navigation'
 import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
-import { verifyCheckoutSession } from '@/lib/actions/stripe/checkout-actions'
+import { verifyCheckoutSession, verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
 
 interface SuccessPageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ session_id?: string }>
+  searchParams: Promise<{ session_id?: string; payment_intent?: string }>
 }
 
 export default async function SuccessPage({ params, searchParams }: SuccessPageProps) {
   const { slug } = await params
-  const { session_id } = await searchParams
+  const { session_id, payment_intent } = await searchParams
 
   // Fetch product data
   const result = await getProductBySlugDirect(slug)
@@ -25,11 +25,28 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-pricing')
   const downloadSettings = pricingBlockData?.content?.downloadSettings
 
-  // Verify the checkout session if session_id is provided
+  // Verify payment - check for payment_intent (Payment Element) or session_id (Checkout Session)
   let sessionData = null
   let sessionError = null
 
-  if (session_id) {
+  if (payment_intent) {
+    // Payment Element flow
+    const verificationResult = await verifyPaymentIntent(payment_intent)
+    if (verificationResult.success) {
+      // Convert payment intent to session-like structure for SuccessContent
+      sessionData = {
+        id: verificationResult.paymentIntent?.id,
+        customerEmail: null, // Payment Intent doesn't have customer email by default
+        amountTotal: verificationResult.paymentIntent?.amount,
+        currency: verificationResult.paymentIntent?.currency,
+        paymentStatus: verificationResult.paymentIntent?.status,
+        metadata: verificationResult.paymentIntent?.metadata,
+      }
+    } else {
+      sessionError = verificationResult.error
+    }
+  } else if (session_id) {
+    // Legacy Checkout Session flow
     const verificationResult = await verifyCheckoutSession(session_id)
     if (verificationResult.success) {
       sessionData = verificationResult.session

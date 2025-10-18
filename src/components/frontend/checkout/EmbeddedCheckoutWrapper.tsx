@@ -1,0 +1,140 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { loadStripe } from '@stripe/stripe-js'
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js'
+import { createCheckoutSession } from '@/lib/actions/stripe/checkout-actions'
+import { Loader2 } from 'lucide-react'
+
+// Initialize Stripe with publishable key
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+console.log('Stripe publishable key:', publishableKey ? `${publishableKey.substring(0, 20)}...` : 'NOT SET')
+if (!publishableKey) {
+  console.error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set')
+}
+const stripePromise = publishableKey ? loadStripe(publishableKey) : null
+
+interface OrderBump {
+  id: string
+  title: string
+  description: string
+  price: number
+  stripePriceId: string
+  isPreSelected: boolean
+}
+
+interface CheckoutSettings {
+  enabled: boolean
+  mode: 'payment' | 'subscription'
+  successUrl: string
+  cancelUrl: string
+  orderBumps: OrderBump[]
+}
+
+interface PricingTier {
+  id: string
+  name: string
+  price: string
+  period: string
+  description: string
+  features: string[]
+  stripePriceId: string
+}
+
+interface Product {
+  id: string
+  slug: string
+  title: string
+}
+
+interface EmbeddedCheckoutWrapperProps {
+  product: Product
+  selectedTier: PricingTier
+  checkoutSettings: CheckoutSettings
+  selectedBumps: string[]
+}
+
+export function EmbeddedCheckoutWrapper({
+  product,
+  selectedTier,
+  checkoutSettings,
+  selectedBumps,
+}: EmbeddedCheckoutWrapperProps) {
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Reset state when selectedBumps changes to force recreation
+    setClientSecret(null)
+    setError(null)
+
+    const createSession = async () => {
+      try {
+        // Get selected order bumps
+        const selectedOrderBumps = checkoutSettings.orderBumps.filter((bump) =>
+          selectedBumps.includes(bump.id)
+        )
+
+        // Replace [slug] placeholder in URLs
+        const successUrl = checkoutSettings.successUrl.replace('[slug]', product.slug)
+        const cancelUrl = checkoutSettings.cancelUrl.replace('[slug]', product.slug)
+
+        // Create checkout session with embedded mode
+        const result = await createCheckoutSession({
+          productSlug: product.slug,
+          productName: product.title,
+          mainPriceId: selectedTier.stripePriceId,
+          selectedBumps: selectedOrderBumps,
+          mode: checkoutSettings.mode,
+          successUrl,
+          cancelUrl,
+          uiMode: 'embedded',
+        })
+
+        if (!result.success || !result.clientSecret) {
+          throw new Error(result.error || 'Failed to create checkout session')
+        }
+
+        setClientSecret(result.clientSecret)
+      } catch (err) {
+        console.error('Checkout error:', err)
+        setError(err instanceof Error ? err.message : 'Something went wrong')
+      }
+    }
+
+    createSession()
+  }, [product, selectedTier, checkoutSettings, selectedBumps])
+
+  if (!stripePromise) {
+    return (
+      <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg">
+        Stripe configuration error. Please check your environment variables.
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg">
+        {error}
+      </div>
+    )
+  }
+
+  if (!clientSecret) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  return (
+    <EmbeddedCheckoutProvider
+      stripe={stripePromise}
+      options={{ clientSecret }}
+    >
+      <EmbeddedCheckout />
+    </EmbeddedCheckoutProvider>
+  )
+}

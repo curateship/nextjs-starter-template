@@ -24,6 +24,7 @@ export interface CheckoutSessionData {
   mode: 'payment' | 'subscription'
   successUrl: string
   cancelUrl: string
+  uiMode?: 'hosted' | 'embedded'
 }
 
 /**
@@ -48,23 +49,33 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
     })
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: data.mode,
       line_items: lineItems,
-      success_url: `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.cancelUrl}`,
       metadata: {
         productSlug: data.productSlug,
         productName: data.productName,
       },
       allow_promotion_codes: true,
       billing_address_collection: 'required',
-    })
+    }
+
+    // Add UI mode specific parameters
+    if (data.uiMode === 'embedded') {
+      sessionParams.ui_mode = 'embedded'
+      sessionParams.return_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
+    } else {
+      sessionParams.success_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.cancel_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.cancelUrl}`
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams)
 
     return {
       success: true,
       sessionId: session.id,
       url: session.url,
+      clientSecret: session.client_secret,
     }
   } catch (error) {
     console.error('Error creating checkout session:', error)
@@ -112,6 +123,143 @@ export async function verifyCheckoutSession(sessionId: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to verify session',
+    }
+  }
+}
+
+/**
+ * Create a Payment Intent for Payment Element
+ */
+export async function createPaymentIntent(data: {
+  productSlug: string
+  productName: string
+  mainPriceId: string
+  selectedBumps: OrderBump[]
+  mode: 'payment' | 'subscription'
+}) {
+  try {
+    // Get price details to calculate amount
+    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+
+    let totalAmount = mainPrice.unit_amount || 0
+
+    // Add order bump amounts
+    for (const bump of data.selectedBumps) {
+      const bumpPrice = await stripe.prices.retrieve(bump.stripePriceId)
+      totalAmount += bumpPrice.unit_amount || 0
+    }
+
+    // Create payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalAmount,
+      currency: mainPrice.currency || 'usd',
+      metadata: {
+        productSlug: data.productSlug,
+        productName: data.productName,
+        mainPriceId: data.mainPriceId,
+        orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
+          id: b.id,
+          title: b.title,
+          priceId: b.stripePriceId,
+        }))),
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    })
+
+    return {
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+    }
+  } catch (error) {
+    console.error('Error creating payment intent:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create payment intent',
+    }
+  }
+}
+
+/**
+ * Update a Payment Intent amount when order bumps change
+ */
+export async function updatePaymentIntent(data: {
+  paymentIntentId: string
+  mainPriceId: string
+  selectedBumps: OrderBump[]
+}) {
+  try {
+    // Get price details to calculate new amount
+    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+
+    let totalAmount = mainPrice.unit_amount || 0
+
+    // Add order bump amounts
+    for (const bump of data.selectedBumps) {
+      const bumpPrice = await stripe.prices.retrieve(bump.stripePriceId)
+      totalAmount += bumpPrice.unit_amount || 0
+    }
+
+    // Update payment intent
+    const paymentIntent = await stripe.paymentIntents.update(data.paymentIntentId, {
+      amount: totalAmount,
+      metadata: {
+        orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
+          id: b.id,
+          title: b.title,
+          priceId: b.stripePriceId,
+        }))),
+      },
+    })
+
+    return {
+      success: true,
+      paymentIntent: {
+        id: paymentIntent.id,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+      },
+    }
+  } catch (error) {
+    console.error('Error updating payment intent:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update payment intent',
+    }
+  }
+}
+
+/**
+ * Verify a payment intent and retrieve details
+ */
+export async function verifyPaymentIntent(paymentIntentId: string) {
+  try {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+    if (paymentIntent.status !== 'succeeded') {
+      return {
+        success: false,
+        error: 'Payment not completed',
+      }
+    }
+
+    return {
+      success: true,
+      paymentIntent: {
+        id: paymentIntent.id,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        status: paymentIntent.status,
+        metadata: paymentIntent.metadata,
+      },
+    }
+  } catch (error) {
+    console.error('Error verifying payment intent:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to verify payment',
     }
   }
 }
