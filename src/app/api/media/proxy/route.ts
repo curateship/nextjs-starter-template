@@ -1,46 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Timeout for fetch requests (10 seconds)
+const FETCH_TIMEOUT = 10000
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const url = searchParams.get('url')
-  
+
   if (!url) {
     return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 })
   }
 
+  // Create AbortController for timeout management
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+
   try {
-    // Fetch the video from Supabase
-    const response = await fetch(url)
-    
+    // Get the range header for video streaming
+    const range = request.headers.get('range')
+
+    // Build fetch options
+    const fetchOptions: RequestInit = {
+      signal: controller.signal,
+      headers: range ? { Range: range } : {},
+    }
+
+    // Single fetch with proper timeout and range support
+    const response = await fetch(url, fetchOptions)
+
+    // Clear timeout on successful fetch
+    clearTimeout(timeoutId)
+
     if (!response.ok) {
       throw new Error(`Failed to fetch media: ${response.statusText}`)
     }
 
     const contentType = response.headers.get('content-type') || 'video/mp4'
     const contentLength = response.headers.get('content-length')
-    
-    // Get the range header for video streaming
-    const range = request.headers.get('range')
-    
-    if (range && contentLength) {
+    const contentRange = response.headers.get('content-range')
+
+    if (range && contentRange) {
       // Handle range requests for video streaming
-      const parts = range.replace(/bytes=/, '').split('-')
-      const start = parseInt(parts[0], 10)
-      const end = parts[1] ? parseInt(parts[1], 10) : parseInt(contentLength) - 1
-      const chunksize = (end - start) + 1
-      
-      const rangeResponse = await fetch(url, {
-        headers: {
-          Range: `bytes=${start}-${end}`
-        }
-      })
-      
-      return new NextResponse(rangeResponse.body, {
+      return new NextResponse(response.body, {
         status: 206,
         headers: {
-          'Content-Range': `bytes ${start}-${end}/${contentLength}`,
+          'Content-Range': contentRange,
           'Accept-Ranges': 'bytes',
-          'Content-Length': chunksize.toString(),
+          'Content-Length': contentLength || '',
           'Content-Type': contentType,
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -62,6 +68,18 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
+    // Clear timeout on error
+    clearTimeout(timeoutId)
+
+    // Handle timeout errors specifically
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error(`Media proxy timeout after ${FETCH_TIMEOUT}ms for URL:`, url)
+      return NextResponse.json(
+        { error: 'Request timeout - media server took too long to respond' },
+        { status: 504 }
+      )
+    }
+
     console.error('Media proxy error:', error)
     return NextResponse.json({ error: 'Failed to proxy media' }, { status: 500 })
   }
