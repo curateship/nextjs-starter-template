@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { uploadToR2, deleteFromR2 } from '@/lib/storage/r2'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,26 +106,18 @@ export async function uploadMediaAction(
     const storagePath = `${user.id}/${timestamp}_${cleanFilename}.${fileExtension}`
 
     // Convert File to ArrayBuffer for upload
-    const fileBuffer = await file.arrayBuffer()
-    
-    // Upload file to Supabase Storage (using site-media bucket for both images and videos)
-    const bucketName = 'site-media'
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from(bucketName)
-      .upload(storagePath, fileBuffer, {
-        contentType: file.type,
-        cacheControl: '31536000', // Cache for 1 year
-        upsert: false
-      })
+    const arrayBuffer = await file.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
 
-    if (uploadError) {
-      return { data: null, error: `Upload failed: ${uploadError.message}` }
+    // Upload file to R2 Storage
+    const r2FileName = `${user.id}/${timestamp}_${cleanFilename}.${fileExtension}`
+    let publicUrl: string
+
+    try {
+      publicUrl = await uploadToR2(r2FileName, fileBuffer, file.type)
+    } catch (uploadError) {
+      return { data: null, error: `Upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}` }
     }
-
-    // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from('site-media')
-      .getPublicUrl(storagePath)
 
 
     // Save metadata to database
@@ -137,18 +130,20 @@ export async function uploadMediaAction(
         alt_text: alt_text || null,
         file_size: file.size,
         file_type: fileType,
-        storage_path: storagePath,
-        public_url: urlData.publicUrl
+        storage_path: r2FileName,
+        public_url: publicUrl
       })
       .select('*')
       .single()
 
     if (dbError) {
       // Clean up uploaded file if database save fails
-      await supabaseAdmin.storage
-        .from('site-media')
-        .remove([storagePath])
-      
+      try {
+        await deleteFromR2(r2FileName)
+      } catch (cleanupError) {
+        console.error('Failed to cleanup R2 file:', cleanupError)
+      }
+
       return { data: null, error: `Database error: ${dbError.message}` }
     }
 
@@ -366,13 +361,11 @@ export async function deleteMediaAction(mediaId: string): Promise<{ success: boo
       return { success: false, error: `Database error: ${dbError.message}` }
     }
 
-    // Delete from storage
-    const { error: storageError } = await supabaseAdmin.storage
-      .from('site-media')
-      .remove([media.storage_path])
-
-    if (storageError) {
-      console.error('Storage deletion failed:', storageError)
+    // Delete from R2 storage
+    try {
+      await deleteFromR2(media.storage_path)
+    } catch (storageError) {
+      console.error('R2 deletion failed:', storageError)
       // Don't fail the entire operation if storage deletion fails
     }
 
