@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, Play, VideoIcon, Filter } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, Play, VideoIcon, Filter, CheckSquare } from "lucide-react"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -37,6 +38,8 @@ export default function ImagesPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Load images when page, pageSize, or filterType changes
   useEffect(() => {
@@ -126,16 +129,16 @@ export default function ImagesPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type 
+    // Validate file type
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
-    
+
     if (!allowedTypes.includes(file.type)) {
       toast.error('Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.')
       return
     }
-    
+
     const fileType = imageTypes.includes(file.type) ? 'image' : 'video'
 
     // Validate file size (10MB for images, 100MB for videos)
@@ -147,7 +150,7 @@ export default function ImagesPage() {
     }
 
     setIsUploading(true)
-    
+
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -164,7 +167,7 @@ export default function ImagesPage() {
       }
 
       toast.success("Image uploaded successfully!")
-      
+
       // Refresh the images list
       loadImages()
 
@@ -179,8 +182,89 @@ export default function ImagesPage() {
     }
   }
 
+  const handleToggleSelection = (mediaId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(mediaId)) {
+        newSet.delete(mediaId)
+      } else {
+        newSet.add(mediaId)
+      }
+      return newSet
+    })
+  }
+
+  const handleToggleSelectAll = () => {
+    // Check if all items on current page are selected
+    const allPageIds = images.map(media => media.id)
+    const allSelected = allPageIds.every(id => selectedIds.has(id))
+
+    if (allSelected) {
+      // Deselect all items on current page
+      setSelectedIds(prev => {
+        const newSet = new Set(prev)
+        allPageIds.forEach(id => newSet.delete(id))
+        return newSet
+      })
+    } else {
+      // Select all items on current page
+      setSelectedIds(prev => {
+        const newSet = new Set(prev)
+        allPageIds.forEach(id => newSet.add(id))
+        return newSet
+      })
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+
+    const count = selectedIds.size
+    if (!confirm(`Are you sure you want to delete ${count} ${count === 1 ? 'item' : 'items'}? This action cannot be undone.`)) {
+      return
+    }
+
+    setIsDeleting(true)
+    let successCount = 0
+    let failCount = 0
+
+    try {
+      for (const id of Array.from(selectedIds)) {
+        try {
+          const { success } = await deleteImageAction(id)
+          if (success) {
+            successCount++
+          } else {
+            failCount++
+          }
+        } catch (error) {
+          failCount++
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} ${successCount === 1 ? 'item' : 'items'}`)
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} ${failCount === 1 ? 'item' : 'items'}`)
+      }
+
+      // Clear selection and reload
+      setSelectedIds(new Set())
+      loadImages()
+
+    } catch (error) {
+      toast.error('Failed to delete items')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   // Get current images from paginated data
   const images = paginatedData?.data || []
+
+  // Check if all items on current page are selected
+  const allPageSelected = images.length > 0 && images.every(media => selectedIds.has(media.id))
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -222,6 +306,29 @@ export default function ImagesPage() {
                 </h3>
               )}
               <div className="flex items-center space-x-4">
+                {/* Bulk Actions */}
+                {selectedIds.size > 0 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleToggleSelectAll}
+                    >
+                      <CheckSquare className="w-4 h-4 mr-2" />
+                      {allPageSelected ? 'Deselect All' : 'Select All'}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleBulkDelete}
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {isDeleting ? 'Deleting...' : `Delete ${selectedIds.size}`}
+                    </Button>
+                  </>
+                )}
+
                 {/* Filter Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -369,59 +476,70 @@ export default function ImagesPage() {
           ) : (
             // List View
             <div className="divide-y">
-              {images.map((media) => (
-                <div key={media.id} className="p-6 flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden relative">
-                      {media.file_type === 'video' ? (
-                        <video 
-                          src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
-                          className="w-full h-full object-contain"
-                          muted
-                          preload="metadata"
-                          onLoadedMetadata={(e) => {
-                            e.currentTarget.currentTime = 0.1;
-                          }}
-                        />
-                      ) : (
-                        <Image
-                          src={media.public_url}
-                          alt={media.alt_text || media.original_name}
-                          fill
-                          className="object-contain"
-                          sizes="64px"
-                        />
-                      )}
+              {images.map((media) => {
+                const isSelected = selectedIds.has(media.id)
+                return (
+                  <div
+                    key={media.id}
+                    className={`p-6 flex items-center justify-between transition-colors ${isSelected ? 'bg-accent/50' : ''}`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => handleToggleSelection(media.id)}
+                        aria-label={`Select ${media.original_name}`}
+                      />
+                      <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden relative">
+                        {media.file_type === 'video' ? (
+                          <video
+                            src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                            className="w-full h-full object-contain"
+                            muted
+                            preload="metadata"
+                            onLoadedMetadata={(e) => {
+                              e.currentTarget.currentTime = 0.1;
+                            }}
+                          />
+                        ) : (
+                          <Image
+                            src={media.public_url}
+                            alt={media.alt_text || media.original_name}
+                            fill
+                            className="object-contain"
+                            sizes="64px"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{media.original_name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {formatFileSize(media.file_size)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium">{media.original_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {formatFileSize(media.file_size)}
-                      </p>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditImage(media)}
+                        className="cursor-pointer"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteImage(media)}
+                        className="cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditImage(media)}
-                      className="cursor-pointer"
-                    >
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteImage(media)}
-                      className="cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </AdminCard>
