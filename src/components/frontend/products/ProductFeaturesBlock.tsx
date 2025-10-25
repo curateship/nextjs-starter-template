@@ -77,32 +77,35 @@ const ProductFeaturesBlock = ({
         {displayFeatures.map((feature) => (
           <div key={feature.id} className="space-y-4">
             <Card
-              className="aspect-video overflow-hidden px-6"
+              className="aspect-video overflow-hidden px-6 flex flex-col"
               variant="soft"
             >
               {feature.image ? (
-                <div className="h-full translate-y-6 rounded-md overflow-hidden">
-                  {getMediaType(feature.image) === 'video' ? (
-                    <video
-                      src={`/api/media/proxy?url=${encodeURIComponent(feature.image)}`}
-                      className="w-full h-full object-cover object-top"
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      preload="auto"
-                    />
-                  ) : (
-                    <Image
-                      src={feature.image}
-                      alt={feature.title}
-                      width={400}
-                      height={225}
-                      className="w-full h-auto object-cover object-top"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                  )}
-                </div>
+                <>
+                  <div className="w-full h-auto translate-y-6 rounded-t-md overflow-hidden">
+                    {getMediaType(feature.image) === 'video' ? (
+                      <video
+                        src={`/api/media/proxy?url=${encodeURIComponent(feature.image)}`}
+                        className="w-full h-auto object-cover object-top"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="auto"
+                      />
+                    ) : (
+                      <Image
+                        src={feature.image}
+                        alt={feature.title}
+                        width={400}
+                        height={225}
+                        className="w-full h-auto object-cover object-top"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1 bg-white translate-y-6 rounded-b-md" />
+                </>
               ) : (
                 <Card className="h-full translate-y-6" />
               )}

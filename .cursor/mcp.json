@@ -18,6 +18,18 @@
                 "AZURE_OPENAI_API_KEY": "AZURE_OPENAI_API_KEY_HERE",
                 "OLLAMA_API_KEY": "OLLAMA_API_KEY_HERE"
             }
+        },
+        "supabase": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@supabase/mcp-server-supabase"
+            ],
+            "env": {
+                "SUPABASE_URL": "https://dqlgeutcmshgcwbactmu.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxbGdldXRjbXNoZ2N3YmFjdG11Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU2OTg5MywiZXhwIjoyMDcwMTQ1ODkzfQ.-_52j29GM_uWLHXDJuvPuiiE2eTsPIQt83Wsm1s5XpI"
+            }
         }
     }
 }
