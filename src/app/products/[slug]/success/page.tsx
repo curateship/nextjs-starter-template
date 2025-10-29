@@ -40,6 +40,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
         amountTotal: verificationResult.paymentIntent.amount ?? null,
         currency: verificationResult.paymentIntent.currency ?? null,
         paymentStatus: verificationResult.paymentIntent.status ?? 'unknown',
+        metadata: verificationResult.paymentIntent.metadata,
       }
     } else {
       sessionError = verificationResult.error

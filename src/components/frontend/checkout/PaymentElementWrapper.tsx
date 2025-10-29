@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import {
   Elements,
@@ -11,6 +11,8 @@ import {
 import { createPaymentIntent, updatePaymentIntent } from '@/lib/actions/stripe/checkout-actions'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 // Initialize Stripe
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -59,21 +61,30 @@ interface PaymentElementWrapperProps {
 function CheckoutForm({
   product,
   checkoutSettings,
-  totalAmount
+  totalAmount,
+  isUpdating
 }: {
   product: Product;
   checkoutSettings: CheckoutSettings;
   totalAmount: number;
+  isUpdating: boolean;
 }) {
   const stripe = useStripe()
   const elements = useElements()
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!stripe || !elements) {
+      return
+    }
+
+    // Wait for any pending updates to complete
+    if (isUpdating) {
+      setErrorMessage('Please wait while we update your order...')
       return
     }
 
@@ -84,6 +95,11 @@ function CheckoutForm({
       elements,
       confirmParams: {
         return_url: `${process.env.NEXT_PUBLIC_APP_DOMAIN}${checkoutSettings.successUrl.replace('[slug]', product.slug)}`,
+        payment_method_data: {
+          billing_details: {
+            email: email,
+          },
+        },
       },
     })
 
@@ -95,7 +111,33 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <PaymentElement />
+      <div className="space-y-2">
+        <Label htmlFor="email" className="text-sm font-semibold">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          required
+          className="bg-gray-50 border-none shadow-none py-[12.6px] px-3 h-auto focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-0"
+        />
+      </div>
+
+      <PaymentElement
+        options={{
+          wallets: {
+            link: 'never'
+          },
+          fields: {
+            billingDetails: {
+              email: 'never'
+            }
+          },
+          layout: 'tabs',
+          paymentMethodOrder: ['card']
+        }}
+      />
 
       {errorMessage && (
         <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg text-sm">
@@ -105,11 +147,16 @@ function CheckoutForm({
 
       <Button
         type="submit"
-        disabled={!stripe || isProcessing}
+        disabled={!stripe || isProcessing || isUpdating}
         className="w-full"
         size="lg"
       >
-        {isProcessing ? (
+        {isUpdating ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Updating order...
+          </>
+        ) : isProcessing ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
             Processing...
@@ -133,6 +180,8 @@ export function PaymentElementWrapper({
   const [totalAmount, setTotalAmount] = useState<number>(0)
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const previousBumps = useRef<string[]>(selectedBumps)
+  const hasInitialized = useRef(false)
 
   // Create payment intent only once on mount
   useEffect(() => {
@@ -164,6 +213,7 @@ export function PaymentElementWrapper({
 
         setClientSecret(result.clientSecret)
         setPaymentIntentId(result.paymentIntentId || null)
+        hasInitialized.current = true
       } catch (err) {
         console.error('Payment error:', err)
         setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -176,7 +226,24 @@ export function PaymentElementWrapper({
 
   // Update payment intent amount when selectedBumps changes
   useEffect(() => {
-    if (!paymentIntentId) return
+    // Don't run until initial payment intent is created
+    if (!hasInitialized.current || !paymentIntentId) {
+      previousBumps.current = selectedBumps
+      return
+    }
+
+    // Check if bumps actually changed
+    const bumpsChanged =
+      previousBumps.current.length !== selectedBumps.length ||
+      previousBumps.current.some((id, index) => selectedBumps[index] !== id) ||
+      selectedBumps.some((id, index) => previousBumps.current[index] !== id)
+
+    if (!bumpsChanged) {
+      previousBumps.current = selectedBumps
+      return
+    }
+
+    previousBumps.current = selectedBumps
 
     const updateIntent = async () => {
       try {
@@ -193,6 +260,12 @@ export function PaymentElementWrapper({
         const total = (tierPrice + bumpsTotal) * 100
         setTotalAmount(total)
 
+        console.log('Updating payment intent:', {
+          paymentIntentId,
+          total: total / 100,
+          selectedBumps: selectedOrderBumps.map(b => b.title)
+        })
+
         // Update payment intent with new amount
         const result = await updatePaymentIntent({
           paymentIntentId,
@@ -202,6 +275,17 @@ export function PaymentElementWrapper({
 
         if (!result.success) {
           console.error('Failed to update payment intent:', result.error)
+        } else {
+          console.log('Payment intent updated successfully', {
+            newAmount: result.paymentIntent?.amount,
+            paymentIntentId: result.paymentIntent?.id,
+          })
+
+          // Update client secret to force Elements to re-render with new amount
+          if (result.clientSecret) {
+            setClientSecret(result.clientSecret)
+            console.log('Updated client secret for Elements re-initialization')
+          }
         }
       } catch (err) {
         console.error('Error updating payment intent:', err)
@@ -211,7 +295,8 @@ export function PaymentElementWrapper({
     }
 
     updateIntent()
-  }, [selectedBumps, paymentIntentId, checkoutSettings.orderBumps, selectedTier.price, selectedTier.stripePriceId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBumps])
 
   if (!stripePromise) {
     return (
@@ -300,6 +385,7 @@ export function PaymentElementWrapper({
 
   return (
     <Elements
+      key={clientSecret}
       stripe={stripePromise}
       options={{
         clientSecret,
@@ -310,6 +396,7 @@ export function PaymentElementWrapper({
         product={product}
         checkoutSettings={checkoutSettings}
         totalAmount={totalAmount}
+        isUpdating={isUpdating}
       />
     </Elements>
   )

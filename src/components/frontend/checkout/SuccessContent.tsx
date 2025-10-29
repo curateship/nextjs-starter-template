@@ -5,16 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-interface DownloadFile {
-  id: string
-  name: string
-  url: string
-}
-
 interface DownloadSettings {
   enabled: boolean
   thankYouMessage: string
-  files: DownloadFile[]
+  content: string
 }
 
 interface Product {
@@ -29,6 +23,10 @@ interface SessionData {
   amountTotal?: number | null
   currency?: string | null
   paymentStatus: string
+  metadata?: {
+    productName?: string
+    orderBumps?: string
+  }
 }
 
 interface SuccessContentProps {
@@ -44,7 +42,17 @@ export function SuccessContent({
   sessionData,
   sessionError,
 }: SuccessContentProps) {
-  const showDownloads = downloadSettings?.enabled && downloadSettings.files.length > 0
+  const showDownloads = downloadSettings?.enabled && downloadSettings.content
+
+  // Parse order bumps from metadata
+  let orderBumps: Array<{ id: string; title: string; priceId: string }> = []
+  if (sessionData?.metadata?.orderBumps) {
+    try {
+      orderBumps = JSON.parse(sessionData.metadata.orderBumps)
+    } catch (e) {
+      console.error('Failed to parse order bumps:', e)
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -57,7 +65,7 @@ export function SuccessContent({
         </div>
         <h1 className="text-4xl font-bold mb-2">Payment Successful!</h1>
         <p className="text-lg text-muted-foreground">
-          Thank you for your purchase of {product.title}
+          Thank you for your purchase!
         </p>
       </div>
 
@@ -82,76 +90,69 @@ export function SuccessContent({
       {sessionData && (
         <Card>
           <CardHeader>
-            <CardTitle>Order Details</CardTitle>
+            <CardTitle>Order Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {sessionData.customerEmail && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Email:</span>
-                <span className="font-medium">{sessionData.customerEmail}</span>
+          <CardContent className="space-y-4">
+            {/* Line Items */}
+            <div className="space-y-2">
+              <div className="flex justify-between py-2">
+                <span className="font-medium">{product.title}</span>
               </div>
-            )}
-            {sessionData.amountTotal != null && (
+              {orderBumps.length > 0 && (
+                <div className="space-y-1 border-t pt-2">
+                  {orderBumps.map((bump) => (
+                    <div key={bump.id} className="flex justify-between py-1 text-sm">
+                      <span className="text-muted-foreground">+ {bump.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Order Info */}
+            <div className="space-y-3 border-t pt-4">
+              {sessionData.customerEmail && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Email:</span>
+                  <span className="font-medium">{sessionData.customerEmail}</span>
+                </div>
+              )}
+              {sessionData.amountTotal != null && (
+                <div className="flex justify-between text-lg font-semibold">
+                  <span>Total Paid:</span>
+                  <span>
+                    ${(sessionData.amountTotal / 100).toFixed(2)}{' '}
+                    {sessionData.currency?.toUpperCase()}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Amount Paid:</span>
-                <span className="font-medium">
-                  ${(sessionData.amountTotal / 100).toFixed(2)}{' '}
-                  {sessionData.currency?.toUpperCase()}
+                <span className="text-muted-foreground">Payment Status:</span>
+                <span className="font-medium capitalize text-green-600">
+                  {sessionData.paymentStatus}
                 </span>
               </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Payment Status:</span>
-              <span className="font-medium capitalize text-green-600">
-                {sessionData.paymentStatus}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Order ID:</span>
-              <span className="font-mono text-sm">{sessionData.id}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Order ID:</span>
+                <span className="font-mono text-sm">{sessionData.id}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Thank You Message & Downloads */}
+      {/* Content */}
       {showDownloads && (
         <Card>
           <CardHeader>
-            <CardTitle>Your Downloads</CardTitle>
+            <CardTitle>Your Purchase</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Custom thank you message */}
-            {downloadSettings.thankYouMessage && (
-              <p className="text-muted-foreground whitespace-pre-wrap">
-                {downloadSettings.thankYouMessage}
-              </p>
-            )}
-
-            {/* Download files */}
-            <div className="space-y-3">
-              {downloadSettings.files.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Download className="h-5 w-5 text-primary" />
-                    <span className="font-medium">{file.name}</span>
-                  </div>
-                  <Button asChild size="sm">
-                    <a
-                      href={file.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download
-                    >
-                      Download
-                    </a>
-                  </Button>
-                </div>
-              ))}
-            </div>
+          <CardContent>
+            {/* Rich text content */}
+            <div
+              className="prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: downloadSettings.content }}
+            />
           </CardContent>
         </Card>
       )}
@@ -173,19 +174,6 @@ export function SuccessContent({
               </p>
             </div>
           </div>
-          {showDownloads && (
-            <div className="flex items-start gap-3">
-              <div className="rounded-full bg-primary/10 p-2 flex-shrink-0">
-                <Download className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">Download your files</p>
-                <p className="text-sm text-muted-foreground">
-                  Your download links are available above and in your confirmation email.
-                </p>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -201,11 +189,6 @@ export function SuccessContent({
             Return to Home
           </Link>
         </Button>
-      </div>
-
-      {/* Support */}
-      <div className="text-center text-sm text-muted-foreground">
-        <p>Need help? Contact us at support@example.com</p>
       </div>
     </div>
   )

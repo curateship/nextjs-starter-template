@@ -8,9 +8,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Plus, Trash2, GripVertical } from "lucide-react"
+import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 import {
   DndContext,
   closestCenter,
@@ -85,12 +88,6 @@ interface OrderBump {
   imageUrl?: string
 }
 
-interface DownloadFile {
-  id: string
-  name: string
-  url: string
-}
-
 interface CheckoutSettings {
   enabled: boolean
   mode: 'payment' | 'subscription'
@@ -102,7 +99,7 @@ interface CheckoutSettings {
 interface DownloadSettings {
   enabled: boolean
   thankYouMessage: string
-  files: DownloadFile[]
+  content: string
 }
 
 interface ProductPricingBlockProps {
@@ -492,7 +489,7 @@ export function ProductPricingBlock({
   const currentDownloadSettings: DownloadSettings = downloadSettings || {
     enabled: false,
     thankYouMessage: 'Thank you for your purchase!',
-    files: [],
+    content: '',
   }
 
   // Pricing tier functions
@@ -593,35 +590,35 @@ export function ProductPricingBlock({
     }
   }
 
-  // Download file functions
-  const addDownloadFile = () => {
-    const newFile: DownloadFile = {
-      id: `file-${Date.now()}-${Math.random()}`,
-      name: "Download File",
-      url: "",
+  // Rich text editor for download content
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: 'Enter your download page content here...',
+      }),
+    ],
+    content: currentDownloadSettings.content || '',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-3 py-2',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      onDownloadSettingsChange?.({
+        ...currentDownloadSettings,
+        content: editor.getHTML(),
+      })
+    },
+  })
+
+  // Update editor content when download settings change externally
+  useEffect(() => {
+    if (editor && currentDownloadSettings.content !== editor.getHTML()) {
+      editor.commands.setContent(currentDownloadSettings.content || '')
     }
-    onDownloadSettingsChange?.({
-      ...currentDownloadSettings,
-      files: [...currentDownloadSettings.files, newFile],
-    })
-  }
-
-  const removeFile = (index: number) => {
-    const newFiles = currentDownloadSettings.files.filter((_, i) => i !== index)
-    onDownloadSettingsChange?.({
-      ...currentDownloadSettings,
-      files: newFiles,
-    })
-  }
-
-  const updateFile = (index: number, field: keyof DownloadFile, value: string) => {
-    const newFiles = [...currentDownloadSettings.files]
-    newFiles[index] = { ...newFiles[index], [field]: value }
-    onDownloadSettingsChange?.({
-      ...currentDownloadSettings,
-      files: newFiles,
-    })
-  }
+  }, [currentDownloadSettings.content, editor])
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -897,83 +894,73 @@ export function ProductPricingBlock({
             </div>
 
             {currentDownloadSettings.enabled && (
-              <>
-                <div>
-                  <Label htmlFor="thank-you-message">Thank You Message</Label>
-                  <Textarea
-                    id="thank-you-message"
-                    value={currentDownloadSettings.thankYouMessage}
-                    onChange={(e) =>
-                      onDownloadSettingsChange?.({
-                        ...currentDownloadSettings,
-                        thankYouMessage: e.target.value,
-                      })
-                    }
-                    placeholder="Thank you for your purchase! Here are your downloads..."
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <Label>Download Files</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addDownloadFile}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add File
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {currentDownloadSettings.files.map((file, index) => (
-                      <div key={file.id} className="border rounded-lg p-4 bg-background">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-medium">File {index + 1}</h4>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(index)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor={`file-name-${index}`}>File Name</Label>
-                            <Input
-                              id={`file-name-${index}`}
-                              value={file.name}
-                              onChange={(e) => updateFile(index, 'name', e.target.value)}
-                              placeholder="My Product.zip"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor={`file-url-${index}`}>File URL</Label>
-                            <Input
-                              id={`file-url-${index}`}
-                              value={file.url}
-                              onChange={(e) => updateFile(index, 'url', e.target.value)}
-                              placeholder="https://your-storage.com/file.zip"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {currentDownloadSettings.files.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                      No download files yet. Click "Add File" to create one.
+              <div>
+                  <Label>Page Content</Label>
+                  <div className="border rounded-lg overflow-hidden">
+                    {/* Editor Toolbar */}
+                    <div className="border-b bg-muted/50 p-2 flex gap-1 flex-wrap">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleBold().run()}
+                        className={editor?.isActive('bold') ? 'bg-muted' : ''}
+                      >
+                        <Bold className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleItalic().run()}
+                        className={editor?.isActive('italic') ? 'bg-muted' : ''}
+                      >
+                        <Italic className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                        className={editor?.isActive('heading', { level: 2 }) ? 'bg-muted' : ''}
+                      >
+                        <Heading2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                        className={editor?.isActive('heading', { level: 3 }) ? 'bg-muted' : ''}
+                      >
+                        <Heading3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                        className={editor?.isActive('bulletList') ? 'bg-muted' : ''}
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                        className={editor?.isActive('orderedList') ? 'bg-muted' : ''}
+                      >
+                        <ListOrdered className="h-4 w-4" />
+                      </Button>
                     </div>
-                  )}
+                    {/* Editor Content */}
+                    <EditorContent editor={editor} />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This content will be displayed on the success/download page after purchase
+                  </p>
                 </div>
-              </>
             )}
           </CardContent>
         </Card>

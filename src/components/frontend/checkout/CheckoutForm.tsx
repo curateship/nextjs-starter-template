@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -85,6 +85,9 @@ export function CheckoutForm({
     })
   }
 
+  // Memoize the selected bumps array to prevent unnecessary re-renders
+  const selectedBumpsArray = useMemo(() => Array.from(selectedBumps), [selectedBumps])
+
   // Calculate total price
   const getTotalPrice = () => {
     // Parse the main tier price (remove $ and convert to number)
@@ -140,7 +143,7 @@ export function CheckoutForm({
 
               {/* Product Description */}
               {selectedTier.description && (
-                <p className="text-sm leading-relaxed">
+                <p className="text-base leading-relaxed">
                   {selectedTier.description}
                 </p>
               )}
@@ -180,7 +183,7 @@ export function CheckoutForm({
                                 />
                               </div>
                             )}
-                            <p className="text-sm text-muted-foreground mt-0.5">
+                            <p className="text-base text-muted-foreground mt-0.5">
                               {bump.description}
                             </p>
                           </div>
@@ -216,7 +219,7 @@ export function CheckoutForm({
                 product={product}
                 selectedTier={selectedTier}
                 checkoutSettings={checkoutSettings}
-                selectedBumps={Array.from(selectedBumps)}
+                selectedBumps={selectedBumpsArray}
               />
             </div>
           </div>

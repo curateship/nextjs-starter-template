@@ -217,6 +217,7 @@ export async function updatePaymentIntent(data: {
 
     return {
       success: true,
+      clientSecret: paymentIntent.client_secret,
       paymentIntent: {
         id: paymentIntent.id,
         amount: paymentIntent.amount,
