@@ -14,7 +14,7 @@ import * as SelectPrimitive from '@radix-ui/react-select'
 import { Loader2, Sparkles, Send, RefreshCw, Bot, ChevronDown, Check } from 'lucide-react'
 import { generateContentBlocksAction, refineChatContentAction, applyAIBlocksToProductAction } from '@/lib/actions/ai/generation-actions'
 import type { GeneratedBlock, AIMessage } from '@/lib/ai/types'
-import { AI_MODELS } from '@/lib/config/ai-models'
+import { AI_MODELS } from '@/lib/ai/models'
 import { ChatMessage } from './ChatMessage'
 import { cn } from '@/lib/utils/tailwind-class-merger'
 
