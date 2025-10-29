@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getFromR2 } from '@/lib/storage/r2'
+import { getFromR2 } from '@/lib/utils/r2'
 
 // Timeout for fetch requests (10 seconds)
 const FETCH_TIMEOUT = 10000

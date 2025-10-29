@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { uploadToR2, deleteFromR2 } from '@/lib/storage/r2'
+import { uploadToR2, deleteFromR2 } from '@/lib/utils/r2'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

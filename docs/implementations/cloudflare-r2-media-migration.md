@@ -94,7 +94,7 @@ npm install @aws-sdk/s3-request-presigner
 
 ### 2.2 Create R2 Client Utility
 
-**New File:** `src/lib/storage/r2.ts`
+**New File:** `src/lib/utils/r2.ts`
 
 ```typescript
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
@@ -226,7 +226,7 @@ Replace Supabase storage with R2:
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadToR2 } from '@/lib/storage/r2'
+import { uploadToR2 } from '@/lib/utils/r2'
 import { createClient } from '@/lib/supabase/client'
 
 export async function POST(request: NextRequest) {
@@ -296,7 +296,7 @@ If using public URLs, you might not need the proxy. But if you want to keep it f
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
-import { getFromR2 } from '@/lib/storage/r2'
+import { getFromR2 } from '@/lib/utils/r2'
 
 const FETCH_TIMEOUT = 10000
 
@@ -459,7 +459,7 @@ export async function OPTIONS() {
 
 ```typescript
 import { createClient } from '@supabase/supabase-js'
-import { uploadToR2 } from '../src/lib/storage/r2'
+import { uploadToR2 } from '../src/lib/utils/r2'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
