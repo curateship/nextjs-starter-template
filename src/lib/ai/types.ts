@@ -6,11 +6,7 @@
 export type BlockType =
   | 'product-hero'
   | 'product-features'
-  | 'product-hotspot'
-  | 'product-pricing'
   | 'faq'
-  | 'product-video'
-  | 'rich-text'
 
 export interface GeneratedBlock {
   id: string

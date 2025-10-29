@@ -54,38 +54,6 @@ function normalizeFeaturesBlock(content: any): any {
 }
 
 /**
- * Normalize pricing block content
- * Ensures all tiers have IDs and features have IDs
- */
-function normalizePricingBlock(content: any): any {
-  const normalized = { ...content }
-
-  if (content.tiers && Array.isArray(content.tiers)) {
-    normalized.tiers = content.tiers.map((tier: any) => ({
-      ...tier,
-      id: tier.id || `tier-${Date.now()}-${Math.random()}`,
-      features: tier.features ? ensureIds(tier.features) : []
-    }))
-  }
-
-  return normalized
-}
-
-/**
- * Normalize hotspot block content
- * Ensures all hotspots have IDs
- */
-function normalizeHotspotBlock(content: any): any {
-  const normalized = { ...content }
-
-  if (content.hotspots && Array.isArray(content.hotspots)) {
-    normalized.hotspots = ensureIds(content.hotspots)
-  }
-
-  return normalized
-}
-
-/**
  * Normalize a single block based on its type
  */
 export function normalizeBlock(block: GeneratedBlock): GeneratedBlock {
@@ -98,11 +66,9 @@ export function normalizeBlock(block: GeneratedBlock): GeneratedBlock {
     case 'product-features':
       normalized.content = normalizeFeaturesBlock(block.content)
       break
-    case 'product-pricing':
-      normalized.content = normalizePricingBlock(block.content)
-      break
-    case 'product-hotspot':
-      normalized.content = normalizeHotspotBlock(block.content)
+    case 'product-hero':
+      // Product hero doesn't need special normalization
+      normalized.content = block.content
       break
     default:
       // For other block types, just ensure the content is valid

@@ -57,11 +57,7 @@ export async function autoSelectBlocks(
     const validBlockTypes: BlockType[] = [
       'product-hero',
       'product-features',
-      'product-hotspot',
-      'product-pricing',
-      'faq',
-      'product-video',
-      'rich-text'
+      'faq'
     ]
 
     const selected = blocks.filter(b => validBlockTypes.includes(b as BlockType)) as BlockType[]
@@ -83,7 +79,7 @@ export async function autoSelectBlocks(
       }
     }
 
-    return result.slice(0, 5) // Max 5 blocks
+    return result.slice(0, 3) // Max 3 blocks (all mandatory)
   } catch (error) {
     console.error('Auto-select blocks error:', error)
     // Fallback to mandatory blocks only

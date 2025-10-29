@@ -45,6 +45,8 @@ export function AIGenerationDialog({
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<'initial' | 'chat'>('initial')
   const [isLoadingExisting, setIsLoadingExisting] = useState(false)
+  const [hasNewlyGeneratedBlocks, setHasNewlyGeneratedBlocks] = useState(false)
+  const [changedBlocks, setChangedBlocks] = useState<GeneratedBlock[]>([]) // Track only changed blocks for preview
 
   // Refs for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -84,11 +86,7 @@ export function AIGenerationDialog({
         const validBlockTypes = [
           'product-hero',
           'product-features',
-          'product-hotspot',
-          'product-pricing',
-          'faq',
-          'product-video',
-          'rich-text'
+          'faq'
         ]
 
         // Convert content_blocks object to GeneratedBlock array, filtering for valid AI blocks
@@ -101,14 +99,36 @@ export function AIGenerationDialog({
           }))
 
         if (existingBlocks.length > 0) {
-          setGeneratedBlocks(existingBlocks)
+          // Sort blocks in the correct order: product-hero, product-features, faq
+          const blockOrder = ['product-hero', 'product-features', 'faq']
+          const sortedBlocks = existingBlocks.sort((a, b) => {
+            return blockOrder.indexOf(a.type) - blockOrder.indexOf(b.type)
+          })
+
+          setGeneratedBlocks(sortedBlocks)
           setMode('chat')
+          setHasNewlyGeneratedBlocks(false) // These are existing blocks, not newly generated
+
+          // Format block names for display
+          const blockNames = sortedBlocks.map(block => {
+            const name = block.type
+              .split('-')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ')
+            return name
+          })
+
+          const blockList = blockNames.length === 1
+            ? blockNames[0]
+            : blockNames.length === 2
+            ? `${blockNames[0]} and ${blockNames[1]}`
+            : `${blockNames.slice(0, -1).join(', ')}, and ${blockNames[blockNames.length - 1]}`
 
           // Add initial assistant message
           const assistantMessage: AIMessage = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: `I've loaded ${existingBlocks.length} existing block${existingBlocks.length > 1 ? 's' : ''} from your product. You can ask me to make changes to them!`,
+            content: `I've loaded ${blockList} from your product. You can ask me to make changes to them!`,
             timestamp: new Date()
           }
           setMessages([assistantMessage])
@@ -154,6 +174,8 @@ export function AIGenerationDialog({
         if (result.success && result.blocks) {
           setGeneratedBlocks(result.blocks)
           setMode('chat')
+          setHasNewlyGeneratedBlocks(true) // These are newly generated blocks
+          setChangedBlocks(result.blocks) // All blocks are new in initial generation
 
           // Add assistant response
           const assistantMessage: AIMessage = {
@@ -179,7 +201,17 @@ export function AIGenerationDialog({
         })
 
         if (result.success && result.updatedBlocks) {
+          // Detect which blocks actually changed by comparing with current blocks
+          const actualChangedBlocks = result.updatedBlocks.filter((updatedBlock) => {
+            const originalBlock = generatedBlocks.find(b => b.type === updatedBlock.type)
+            if (!originalBlock) return true // New block
+            // Compare content to see if it changed
+            return JSON.stringify(originalBlock.content) !== JSON.stringify(updatedBlock.content)
+          })
+
           setGeneratedBlocks(result.updatedBlocks)
+          setHasNewlyGeneratedBlocks(actualChangedBlocks.length > 0)
+          setChangedBlocks(actualChangedBlocks) // Only show changed blocks in preview
 
           // Add assistant response
           const assistantMessage: AIMessage = {
@@ -258,6 +290,8 @@ export function AIGenerationDialog({
     setGeneratedBlocks([])
     setError(null)
     setMode('initial')
+    setHasNewlyGeneratedBlocks(false)
+    setChangedBlocks([])
   }
 
   const handleCancel = () => {
@@ -269,22 +303,9 @@ export function AIGenerationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="!w-[840px] !max-w-[95vw] max-h-[90vh] flex flex-col sm:!max-w-[95vw]">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-500" />
-              Generate Content with AI
-            </div>
-            {mode === 'chat' && generatedBlocks.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReset}
-                className="text-muted-foreground"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Start Over
-              </Button>
-            )}
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            Generate Content with AI
           </DialogTitle>
         </DialogHeader>
 
@@ -339,12 +360,12 @@ export function AIGenerationDialog({
             </div>
           )}
 
-          {/* Generated Blocks Preview */}
-          {generatedBlocks.length > 0 && (
+          {/* Generated Blocks Preview - Only show for newly generated/changed content */}
+          {changedBlocks.length > 0 && hasNewlyGeneratedBlocks && (
             <div className="space-y-2 border rounded-lg p-3 bg-muted/30">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-sm">
-                  {generatedBlocks.length} Block{generatedBlocks.length > 1 ? 's' : ''} Generated
+                  {changedBlocks.length} Block{changedBlocks.length > 1 ? 's' : ''} {mode === 'initial' ? 'Generated' : 'Updated'}
                 </h3>
               </div>
               <details className="text-xs">
@@ -353,7 +374,7 @@ export function AIGenerationDialog({
                 </summary>
                 <div className="mt-2 max-h-[200px] overflow-y-auto p-2 bg-background rounded border">
                   <div className="font-mono text-xs whitespace-pre-wrap break-words">
-                    {generatedBlocks.map((block, index) => (
+                    {changedBlocks.map((block, index) => (
                       <div key={block.id} className="mb-4 pb-4 border-b last:border-0">
                         <div className="font-bold text-purple-600 mb-2">
                           Block {index + 1}: {block.type.toUpperCase().replace(/-/g, ' ')}
@@ -460,6 +481,18 @@ export function AIGenerationDialog({
 
           {/* Actions */}
           <div className="flex justify-end items-center gap-2 pt-2">
+            {mode === 'chat' && generatedBlocks.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                disabled={isGenerating || isSaving}
+                className="text-muted-foreground"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Start Over
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={handleCancel}
@@ -480,9 +513,7 @@ export function AIGenerationDialog({
                     Saving...
                   </>
                 ) : (
-                  <>
-                    Apply {generatedBlocks.length} Block{generatedBlocks.length > 1 ? 's' : ''} to {contentType}
-                  </>
+                  'Apply'
                 )}
               </Button>
             )}
