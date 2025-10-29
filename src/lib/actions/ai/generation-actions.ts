@@ -5,7 +5,7 @@
 
 'use server'
 
-import type { BlockType, GeneratedBlock, AIMessage } from '@/types/ai-generation'
+import type { BlockType, GeneratedBlock, AIMessage } from '@/lib/ai/types'
 import { autoSelectBlocks, generateBlocks } from '@/lib/ai/generation-service'
 import { ChatSession } from '@/lib/ai/chat-service'
 import { sanitizeBlocks } from '@/lib/ai/content-sanitizer'

@@ -3,7 +3,7 @@
  * System prompts and templates for AI content generation
  */
 
-import type { BlockType } from '@/types/ai-generation'
+import type { BlockType } from '@/lib/ai/types'
 
 /**
  * Get the system prompt for auto-selecting block types

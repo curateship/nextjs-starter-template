@@ -3,7 +3,7 @@
  * Available AI models for content generation
  */
 
-import type { AIModel } from '@/types/ai-generation'
+import type { AIModel } from '@/lib/ai/types'
 
 export const AI_MODELS: AIModel[] = [
   {

@@ -12,7 +12,7 @@ import { Loader2, Send, Bot, ChevronDown, Check } from 'lucide-react'
 import { AI_MODELS } from '@/lib/config/ai-models'
 import { ChatMessage } from './ChatMessage'
 import { cn } from '@/lib/utils/tailwind-class-merger'
-import type { AIMessage } from '@/types/ai-generation'
+import type { AIMessage } from '@/lib/ai/types'
 
 interface BlockAIChatProps {
   blockType: 'product-features' | 'product-hero' | 'product-pricing' | 'faq' | 'product-hotspot' | 'rich-text' | 'product-video'

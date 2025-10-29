@@ -4,7 +4,7 @@
  */
 
 import { User, Bot } from 'lucide-react'
-import type { AIMessage } from '@/types/ai-generation'
+import type { AIMessage } from '@/lib/ai/types'
 
 interface ChatMessageProps {
   message: AIMessage
