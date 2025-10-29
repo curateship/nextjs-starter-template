@@ -16,12 +16,15 @@ const isValidUrl = (url: string): boolean => {
   }
 }
 
-const sanitizeText = (text: string | undefined | null): string => {
+const sanitizeText = (text: any): string => {
   // Handle undefined/null values
   if (!text) return ''
-  
+
+  // Convert to string if not already
+  const textStr = String(text)
+
   // Remove potential XSS vectors while preserving normal text
-  return text
+  return textStr
     .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
     .replace(/javascript:/gi, '') // Remove javascript: protocol
     .replace(/data:/gi, '') // Remove data: protocol

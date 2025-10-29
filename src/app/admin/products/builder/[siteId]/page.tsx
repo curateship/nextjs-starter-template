@@ -175,6 +175,11 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     updateCurrentProduct({ is_published: status === 'published' })
   }
 
+  const handleAIComplete = () => {
+    // Reload product data from database after AI generation
+    reloadBlocks()
+  }
+
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
@@ -217,6 +222,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onSave={builderState.handleSaveAllBlocks}
           onPreviewProduct={() => builderState.setSelectedBlock(null)}
           productsLoading={productsLoading}
+          onAIComplete={handleAIComplete}
         />
         
         <div className="flex-1 flex">

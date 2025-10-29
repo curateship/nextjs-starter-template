@@ -8,11 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
+import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
 import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
+import { AIGenerationDialog } from "@/components/admin/ai-generation/AIGenerationDialog"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 interface ProductBuilderHeaderProps {
@@ -26,6 +27,7 @@ interface ProductBuilderHeaderProps {
   onSave: () => void
   onPreviewProduct?: () => void
   productsLoading?: boolean
+  onAIComplete?: () => void
 }
 
 export function ProductBuilderHeader({
@@ -38,10 +40,12 @@ export function ProductBuilderHeader({
   isSaving,
   onSave,
   onPreviewProduct,
-  productsLoading = false
+  productsLoading = false,
+  onAIComplete
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showAIDialog, setShowAIDialog] = useState(false)
   const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
   
@@ -118,6 +122,16 @@ export function ProductBuilderHeader({
           </Button>
         </div>
         <div className="ml-auto flex items-center space-x-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setShowAIDialog(true)}
+            disabled={!currentProduct?.id}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Generate
+          </Button>
           {saveMessage && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
               saveMessage.includes('Error') || saveMessage.includes('Failed') 
@@ -195,6 +209,23 @@ export function ProductBuilderHeader({
           }
         }}
       />
+
+      {/* AI Generation Dialog - Only render when product is selected */}
+      {currentProduct?.id && (
+        <AIGenerationDialog
+          open={showAIDialog}
+          onOpenChange={setShowAIDialog}
+          contentType="product"
+          siteId={currentSite?.id}
+          productId={currentProduct.id}
+          onAIComplete={() => {
+            // Called after successful DB save
+            if (onAIComplete) {
+              onAIComplete()
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
