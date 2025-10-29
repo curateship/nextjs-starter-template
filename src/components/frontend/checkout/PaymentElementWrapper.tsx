@@ -62,7 +62,7 @@ function CheckoutForm({
   product,
   checkoutSettings,
   totalAmount,
-  isUpdating
+  isUpdating,
 }: {
   product: Product;
   checkoutSettings: CheckoutSettings;
@@ -90,6 +90,9 @@ function CheckoutForm({
 
     setIsProcessing(true)
     setErrorMessage(null)
+
+    // Add a small delay to ensure payment intent update has propagated
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     const { error } = await stripe.confirmPayment({
       elements,
@@ -185,6 +188,14 @@ export function PaymentElementWrapper({
 
   // Create payment intent only once on mount
   useEffect(() => {
+    // Prevent double execution in React Strict Mode
+    if (hasInitialized.current) {
+      return
+    }
+
+    // Set immediately to prevent race condition with Strict Mode double mount
+    hasInitialized.current = true
+
     const createIntent = async () => {
       try {
         // Get initial order bumps
@@ -213,7 +224,6 @@ export function PaymentElementWrapper({
 
         setClientSecret(result.clientSecret)
         setPaymentIntentId(result.paymentIntentId || null)
-        hasInitialized.current = true
       } catch (err) {
         console.error('Payment error:', err)
         setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -232,14 +242,15 @@ export function PaymentElementWrapper({
       return
     }
 
-    // Check if bumps actually changed
+    // Check if bumps actually changed (order-independent comparison)
+    const currentSet = new Set(selectedBumps)
+    const previousSet = new Set(previousBumps.current)
+
     const bumpsChanged =
-      previousBumps.current.length !== selectedBumps.length ||
-      previousBumps.current.some((id, index) => selectedBumps[index] !== id) ||
-      selectedBumps.some((id, index) => previousBumps.current[index] !== id)
+      currentSet.size !== previousSet.size ||
+      [...currentSet].some(id => !previousSet.has(id))
 
     if (!bumpsChanged) {
-      previousBumps.current = selectedBumps
       return
     }
 
@@ -260,13 +271,7 @@ export function PaymentElementWrapper({
         const total = (tierPrice + bumpsTotal) * 100
         setTotalAmount(total)
 
-        console.log('Updating payment intent:', {
-          paymentIntentId,
-          total: total / 100,
-          selectedBumps: selectedOrderBumps.map(b => b.title)
-        })
-
-        // Update payment intent with new amount
+        // Update existing payment intent with new amount
         const result = await updatePaymentIntent({
           paymentIntentId,
           mainPriceId: selectedTier.stripePriceId,
@@ -275,17 +280,6 @@ export function PaymentElementWrapper({
 
         if (!result.success) {
           console.error('Failed to update payment intent:', result.error)
-        } else {
-          console.log('Payment intent updated successfully', {
-            newAmount: result.paymentIntent?.amount,
-            paymentIntentId: result.paymentIntent?.id,
-          })
-
-          // Update client secret to force Elements to re-render with new amount
-          if (result.clientSecret) {
-            setClientSecret(result.clientSecret)
-            console.log('Updated client secret for Elements re-initialization')
-          }
         }
       } catch (err) {
         console.error('Error updating payment intent:', err)
@@ -385,7 +379,6 @@ export function PaymentElementWrapper({
 
   return (
     <Elements
-      key={clientSecret}
       stripe={stripePromise}
       options={{
         clientSecret,

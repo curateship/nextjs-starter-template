@@ -57,67 +57,99 @@ When a user toggled order bumps:
 - Caused PaymentElementWrapper to re-render unnecessarily
 - This bug was **always present** but silent until we fixed Bug #1
 
+#### Bug #3: Development Hot Module Replacement (HMR) Side Effect
+
+**Note**: This is a **development-only issue** that does not affect production.
+
+When navigating to the checkout page (not refreshing), Next.js/Turbopack's Hot Module Replacement triggers extra component mount cycles:
+
+1. Component mounts
+2. HMR rebuilds code (`[Fast Refresh] rebuilding`)
+3. Component remounts
+4. React Strict Mode doubles it again
+5. Result: Multiple renders on first navigation
+
+**Observable in development**:
+- First navigation: `[CheckoutForm] selectedBumpsArray updated` appears 2+ times
+- Page refresh: Only appears 2 times (Strict Mode only)
+- Production build: Only appears once (no HMR or Strict Mode)
+
+**Why this doesn't matter**:
+- HMR only runs in development (`npm run dev`)
+- Production builds don't have HMR or Strict Mode
+- Users never experience this behavior
+- Payment functionality works correctly in both cases
+
 ## The Solution
 
-### Fix #1: Force Elements Re-initialization on Payment Intent Updates
+### The Journey to Simplicity
 
-**File**: `src/lib/actions/stripe/checkout-actions.ts`
+**Failed Complex Approaches:**
+1. ❌ Forcing Elements remount with `key={clientSecret}` - Cleared magic fill
+2. ❌ Creating new payment intents on bump changes - Cleared magic fill
+3. ❌ Using `elements.fetchUpdates()` - Only works for NEW payment intents, not updates
+4. ❌ Complex state synchronization - Over-engineered and fragile
 
-Added `clientSecret` to the response from `updatePaymentIntent`:
+**The Simple Solution That Works:**
+1. ✅ Update payment intent server-side
+2. ✅ DON'T remount Elements (preserves magic fill)
+3. ✅ Add 500ms delay before submission (ensures update propagates)
+4. ✅ Disable submit during updates (prevents race conditions)
 
-```typescript
-// Update payment intent
-const paymentIntent = await stripe.paymentIntents.update(data.paymentIntentId, {
-  amount: totalAmount,
-  metadata: {
-    orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
-      id: b.id,
-      title: b.title,
-      priceId: b.stripePriceId,
-    }))),
-  },
-})
+**Key Insight**: Stripe doesn't need the client to "know" about amount changes. The server-side payment intent has the correct amount, and when the user submits, Stripe uses the server-side value—not the client-cached one.
 
-return {
-  success: true,
-  clientSecret: paymentIntent.client_secret,  // ✅ Return updated client secret
-  paymentIntent: {
-    id: paymentIntent.id,
-    amount: paymentIntent.amount,
-    currency: paymentIntent.currency,
-  },
-}
-```
+### Fix #1: Simple Server-Side Updates
 
 **File**: `src/components/frontend/checkout/PaymentElementWrapper.tsx`
 
-Updated the client secret when payment intent changes:
+Update payment intent without remounting Elements:
 
 ```typescript
-// Update payment intent with new amount
+// Update existing payment intent with new amount (server-side only)
 const result = await updatePaymentIntent({
   paymentIntentId,
   mainPriceId: selectedTier.stripePriceId,
   selectedBumps: selectedOrderBumps,
 })
 
-if (result.success && result.clientSecret) {
-  setClientSecret(result.clientSecret)  // ✅ Update client secret
-  console.log('Updated client secret for Elements re-initialization')
+// No client-side state changes needed - server has the truth
+```
+
+Add delay before submission to ensure updates propagate:
+
+```typescript
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (isUpdating) {
+    setErrorMessage('Please wait while we update your order...')
+    return
+  }
+
+  setIsProcessing(true)
+
+  // Add delay to ensure payment intent update has propagated
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  await stripe.confirmPayment({
+    elements,
+    confirmParams: {
+      return_url: `${process.env.NEXT_PUBLIC_APP_DOMAIN}${checkoutSettings.successUrl}`,
+      payment_method_data: { billing_details: { email } },
+    },
+  })
 }
 ```
 
-Added `key` prop to force Elements remount:
+Elements component stays stable (no `key` prop):
 
 ```typescript
 <Elements
-  key={clientSecret}  // ✅ Force remount when client secret changes
   stripe={stripePromise}
-  options={{
-    clientSecret,
-    appearance,
-  }}
+  options={{ clientSecret, appearance }}
 >
+  {/* Form never remounts, magic fill persists */}
+</Elements>
 ```
 
 ### Fix #2: Prevent Unnecessary Re-renders with useMemo
@@ -185,13 +217,17 @@ useEffect(() => {
 
 ## Technical Details
 
-### Why Elements Component Needs to Remount
+### Why This Simple Approach Works
 
-Stripe's Elements component maintains internal state tied to the payment intent. When the payment intent amount changes server-side, the Elements component doesn't automatically refresh. By changing the `key` prop (via `clientSecret`), we force React to:
+**Common Misconception**: "Stripe Elements needs to know about payment intent changes"
 
-1. Unmount the old Elements instance
-2. Mount a new Elements instance with the updated payment intent
-3. Ensure the payment form reflects the correct amount
+**Reality**: Stripe Elements only needs the `clientSecret` for initialization. When the user submits:
+1. Elements sends payment method data to Stripe
+2. Stripe looks up the payment intent by ID (embedded in clientSecret)
+3. Stripe uses the **server-side** payment intent amount (which we updated)
+4. Client-side cached amount is irrelevant
+
+**The 500ms delay** ensures the server update has propagated through Stripe's systems before submission. This is far simpler than forcing component remounts or creating new payment intents.
 
 ### Why useMemo Was Critical
 
@@ -272,8 +308,9 @@ To prevent similar issues in the future:
 1. **Always memoize derived arrays/objects** passed as props
 2. **Test payment flows** with order bumps/add-ons in Stripe test mode
 3. **Monitor Stripe dashboard** for incomplete/duplicate charges
-4. **Add logging** to payment intent creation/updates for debugging
-5. **Use React DevTools Profiler** to catch unnecessary re-renders early
+4. **Use React DevTools Profiler** to catch unnecessary re-renders early
+5. **Try the simplest solution first** - don't over-engineer
+6. **Understand development vs production behavior** - HMR/Strict Mode can create false issues
 
 ## References
 
