@@ -19,18 +19,20 @@ interface MediaInputProps {
   blockType?: string
   usageContext?: string
   acceptVideo?: boolean // Allow videos in addition to images
+  hideUrlInput?: boolean // Hide the URL input field, only show picker button
 }
 
-export function MediaInput({ 
-  label, 
-  value, 
-  onChange, 
+export function MediaInput({
+  label,
+  value,
+  onChange,
   placeholder = "Enter media URL or select from library",
   description,
   siteId,
   blockType,
   usageContext,
-  acceptVideo = true
+  acceptVideo = true,
+  hideUrlInput = false
 }: MediaInputProps) {
   const [showPicker, setShowPicker] = useState(false)
 
@@ -128,23 +130,25 @@ export function MediaInput({
       )}
 
       {/* URL Input */}
-      <div className="flex gap-2">
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setShowPicker(true)}
-          className="flex items-center gap-2"
-        >
-          <ImageIcon className="w-4 h-4" />
-          Library
-        </Button>
-      </div>
+      {!hideUrlInput && (
+        <div className="flex gap-2">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowPicker(true)}
+            className="flex items-center gap-2"
+          >
+            <ImageIcon className="w-4 h-4" />
+            Library
+          </Button>
+        </div>
+      )}
 
       {/* Empty State */}
       {!shouldShowPreview(value) && (

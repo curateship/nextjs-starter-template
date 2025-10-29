@@ -16,6 +16,7 @@ interface OrderBump {
   price: number
   stripePriceId: string
   isPreSelected: boolean
+  imageUrl?: string
 }
 
 interface CheckoutSettings {
@@ -167,8 +168,18 @@ export function CheckoutForm({
                           className="mt-1"
                         />
                         <div className="flex-1 flex items-start justify-between gap-4">
-                          <div>
-                            <h5 className="font-medium">{bump.title}</h5>
+                          <div className="flex-1">
+                            <h5 className="font-medium mb-3">{bump.title}</h5>
+                            {bump.imageUrl && (
+                              <div className="relative w-full aspect-square max-w-sm mb-3 rounded-lg overflow-hidden border border-border">
+                                <Image
+                                  src={bump.imageUrl}
+                                  alt={bump.title}
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+                            )}
                             <p className="text-sm text-muted-foreground mt-0.5">
                               {bump.description}
                             </p>

@@ -14,6 +14,7 @@ export interface OrderBump {
   price: number
   stripePriceId: string
   isPreSelected: boolean
+  imageUrl?: string
 }
 
 export interface CheckoutSessionData {

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import {
   DndContext,
   closestCenter,
@@ -81,6 +82,7 @@ interface OrderBump {
   price: number
   stripePriceId: string
   isPreSelected: boolean
+  imageUrl?: string
 }
 
 interface DownloadFile {
@@ -423,6 +425,18 @@ function SortableOrderBumpItem({
             value={bump.stripePriceId}
             onChange={(e) => updateBump(bumpIndex, 'stripePriceId', sanitizeAdminInput(e.target.value))}
             placeholder="price_xxxxxxxxxxxxx"
+          />
+        </div>
+
+        <div>
+          <MediaInput
+            label="Order Bump Image"
+            value={bump.imageUrl || ''}
+            onChange={(value) => updateBump(bumpIndex, 'imageUrl', value)}
+            placeholder="Select an image from media library"
+            description="Optional image to display with the order bump"
+            acceptVideo={false}
+            hideUrlInput={true}
           />
         </div>
 
