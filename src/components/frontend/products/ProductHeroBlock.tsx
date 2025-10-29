@@ -1,7 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Key, Settings2, Sparkles, Zap, Github, ArrowRight, Download, ExternalLink, Star, Rocket } from "lucide-react";
+import { RainbowButton } from "@/components/ui/rainbow-button";
+import { GradientOverlays } from "@/components/ui/gradient-overlays";
 import DotPattern from "@/components/ui/dot-pattern";
 import Image from "next/image";
 import { AnimatedGroup } from "@/components/ui/animated-group";
@@ -104,10 +105,10 @@ interface ProductHeroBlockProps {
 }
 
 // Main hero content component
-const HeroContent = ({ 
-  title, 
-  subtitle, 
-  primaryButton, 
+const HeroContent = ({
+  title,
+  subtitle,
+  primaryButton,
   secondaryButton,
   primaryButtonLink,
   secondaryButtonLink,
@@ -119,7 +120,16 @@ const HeroContent = ({
   trustedByAvatars
 }: Pick<ProductHeroBlockProps, 'title' | 'subtitle' | 'primaryButton' | 'secondaryButton' | 'primaryButtonLink' | 'secondaryButtonLink' | 'rainbowButtonText' | 'rainbowButtonIcon' | 'rainbowButtonLink' | 'trustedByText' | 'trustedByCount' | 'trustedByAvatars'>) => (
   <div className="relative z-10 text-center max-w-3xl space-y-6">
-    {rainbowButtonText && rainbowButtonText.trim() && <RainbowButton rainbowButtonLink={rainbowButtonLink} buttonText={rainbowButtonText} buttonIcon={rainbowButtonIcon} />}
+    {rainbowButtonText && rainbowButtonText.trim() && (
+      <RainbowButton
+        href={rainbowButtonLink || "#"}
+        icon={rainbowButtonIcon as any}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {rainbowButtonText}
+      </RainbowButton>
+    )}
     <HeroTitle title={title} />
     <HeroSubtitle subtitle={subtitle} />
     <CTAButtons primaryButton={primaryButton} secondaryButton={secondaryButton} primaryButtonLink={primaryButtonLink} secondaryButtonLink={secondaryButtonLink} />
@@ -185,71 +195,6 @@ const ProductHeroBlock = ({
   );
 };
 
-// Gradient overlay component for blending background pattern into page background
-const GradientOverlays = () => (
-  <>
-    {/* Top gradient overlay - blends background pattern into page background */}
-    <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-background via-background/60 to-transparent pointer-events-none" />
-    
-    {/* Bottom gradient overlay - blends background pattern into page background */}
-    <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-background via-background/60 to-transparent pointer-events-none" />
-    
-    {/* Left edge gradient for horizontal blending */}
-    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent pointer-events-none" />
-    
-    {/* Right edge gradient for horizontal blending */}
-    <div className="absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none" />
-  </>
-)
-
-// Rainbow gradient button component - simplified version matching old working code
-const RainbowButton = ({ rainbowButtonLink, buttonText, buttonIcon }: { rainbowButtonLink?: string; buttonText?: string; buttonIcon?: string }) => (
-  <Link
-    href={rainbowButtonLink || "#"}
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    <button
-      className="group relative inline-flex h-11 cursor-pointer items-center justify-center rounded-3xl border-0 bg-[length:200%] px-8 py-2 font-medium text-black dark:text-white transition-colors [background-clip:padding-box,border-box,border-box] [background-origin:border-box] [border:calc(0.08*1rem)_solid_transparent] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 before:absolute before:bottom-[-20%] before:left-1/2 before:z-0 before:h-1/5 before:w-3/5 before:-translate-x-1/2 before:animate-[rainbow_3s_linear_infinite] before:bg-[linear-gradient(90deg,var(--color-1),var(--color-2),var(--color-3),var(--color-4),var(--color-5))] before:bg-[length:200%] before:[filter:blur(12px)] bg-white dark:bg-black"
-      style={{
-        ['--color-1' as any]: 'hsl(210, 100%, 60%)', // Blue
-        ['--color-2' as any]: 'hsl(280, 80%, 65%)',  // Purple
-        ['--color-3' as any]: 'hsl(330, 100%, 65%)', // Pink
-        ['--color-4' as any]: 'hsl(20, 100%, 60%)',  // Orange
-        ['--color-5' as any]: 'hsl(140, 70%, 50%)',  // Green
-      }}
-    >
-      {getButtonIcon(buttonIcon)}
-      {buttonText || "Get Access to Everything"}
-    </button>
-  </Link>
-)
-
-// Helper function to get icon component based on string value
-const getButtonIcon = (iconName?: string) => {
-  const iconClass = "w-4 h-4 mr-2"
-  
-  switch (iconName) {
-    case 'github':
-      return <Github className={iconClass} />
-    case 'arrow-right':
-      return <ArrowRight className={iconClass} />
-    case 'download':
-      return <Download className={iconClass} />
-    case 'external-link':
-      return <ExternalLink className={iconClass} />
-    case 'star':
-      return <Star className={iconClass} />
-    case 'rocket':
-      return <Rocket className={iconClass} />
-    case 'zap':
-      return <Zap className={iconClass} />
-    case 'none':
-      return null
-    default:
-      return <Key className={iconClass} />
-  }
-}
 
 // Hero title component (animation handled by AnimatedGroup)
 const HeroTitle = ({ title }: { title?: string }) => {
