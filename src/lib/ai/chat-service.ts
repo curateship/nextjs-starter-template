@@ -80,11 +80,14 @@ export class ChatSession {
       // Update current blocks
       this.currentBlocks = response.blocks
 
-      // Create assistant message
+      // Get explanation from AI response or use default
+      const explanation = response.explanation || `I've updated the blocks based on your request.`
+
+      // Create assistant message with explanation
       const assistantMsg: AIMessage = {
         id: `assistant-${Date.now()}`,
         role: 'assistant',
-        content: `I've updated the blocks based on your request.`,
+        content: explanation,
         timestamp: new Date()
       }
       this.messages.push(assistantMsg)

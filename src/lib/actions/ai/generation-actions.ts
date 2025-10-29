@@ -187,11 +187,16 @@ export async function applyAIBlocksToProductAction(
     // Get existing content blocks (object keyed by block type)
     const existingBlocks = (product.content_blocks as Record<string, any>) || {}
 
-    // Convert AI blocks to object keyed by block type
-    // updateProductBlocksAction expects: { "block-type": { content } }
+    // Convert AI blocks to object keyed by block type with display_order
+    // updateProductBlocksAction expects: { "block-type": { content, display_order } }
     const newBlocksObject: Record<string, any> = {}
-    blocks.forEach(block => {
-      newBlocksObject[block.type] = block.content
+    blocks.forEach((block, index) => {
+      // Preserve existing display_order if block already exists, otherwise use index
+      const existingDisplayOrder = existingBlocks[block.type]?.display_order
+      newBlocksObject[block.type] = {
+        ...block.content,
+        display_order: existingDisplayOrder !== undefined ? existingDisplayOrder : index
+      }
     })
 
     // Merge with existing blocks (new blocks override existing ones of same type)

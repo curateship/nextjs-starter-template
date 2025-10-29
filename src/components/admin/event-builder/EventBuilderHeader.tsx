@@ -42,8 +42,16 @@ export function EventBuilderHeader({
 }: EventBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectOpen, setSelectOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentEvent = events.find(d => d.slug === selectedEvent)
+
+  const handleCreateEvent = () => {
+    setSelectOpen(false)
+    setTimeout(() => {
+      setShowCreateDialog(true)
+    }, 100)
+  }
 
   // Generate event URL for frontend viewing
   const getEventUrl = () => {
@@ -69,7 +77,7 @@ export function EventBuilderHeader({
           <div className="h-4 w-px bg-border"></div>
           <h1 className="text-lg font-semibold">Event Builder</h1>
           <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedEvent} onValueChange={onEventChange}>
+          <Select value={selectedEvent} onValueChange={onEventChange} open={selectOpen} onOpenChange={setSelectOpen}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
                 {currentEvent ? currentEvent.title : ""}
@@ -85,7 +93,7 @@ export function EventBuilderHeader({
               <div className="border-t pt-1 mt-2">
                 <div
                   className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={() => setShowCreateDialog(true)}
+                  onClick={handleCreateEvent}
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Plus className="h-4 w-4" />

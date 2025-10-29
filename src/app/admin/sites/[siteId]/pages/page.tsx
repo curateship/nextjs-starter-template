@@ -135,27 +135,31 @@ export default function SitePagesPage({ params }: PageProps) {
 
   const confirmDeletePage = async () => {
     if (!pendingDeleteId) return
-    
+
+    const pageIdToDelete = pendingDeleteId
+
+    // Close dialog immediately and clear state
+    setConfirmDialogOpen(false)
+    setPendingDeleteId(null)
+
     try {
-      setDeletePageId(pendingDeleteId)
-      setConfirmDialogOpen(false)
-      const { success, error: deleteError } = await deletePageAction(pendingDeleteId)
-      
+      setDeletePageId(pageIdToDelete)
+      const { success, error: deleteError } = await deletePageAction(pageIdToDelete)
+
       if (deleteError) {
         setErrorMessage(deleteError)
         setErrorDialogOpen(true)
         return
       }
-      
+
       if (success) {
-        setPages(prev => prev.filter(page => page.id !== pendingDeleteId))
+        setPages(prev => prev.filter(page => page.id !== pageIdToDelete))
       }
     } catch (err) {
       setErrorMessage('Failed to delete page')
       setErrorDialogOpen(true)
     } finally {
       setDeletePageId(null)
-      setPendingDeleteId(null)
     }
   }
 
@@ -526,50 +530,43 @@ export default function SitePagesPage({ params }: PageProps) {
         />
 
         {/* Confirmation Dialog */}
-        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Page</DialogTitle>
-              <DialogDescription>
+        {confirmDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={cancelDeletePage}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete Page</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 Are you sure you want to delete this page? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2">
-              <Button 
-                onClick={cancelDeletePage}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={confirmDeletePage}
-                variant="destructive"
-              >
-                Delete
-              </Button>
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button onClick={cancelDeletePage} variant="outline">Cancel</Button>
+                <Button onClick={confirmDeletePage} variant="destructive">Delete</Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
 
         {/* Error Dialog */}
-        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Cannot Delete Page</DialogTitle>
-              <DialogDescription>
+        {errorDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setErrorDialogOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Cannot Delete Page</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 {errorMessage}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end">
-              <Button 
-                onClick={() => setErrorDialogOpen(false)}
-                variant="default"
-              >
-                OK
-              </Button>
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )

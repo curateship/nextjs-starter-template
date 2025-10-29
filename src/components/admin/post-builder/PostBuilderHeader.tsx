@@ -41,8 +41,16 @@ export function PostBuilderHeader({
 }: PostBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectOpen, setSelectOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentPost = posts.find(p => p.slug === selectedPost)
+
+  const handleCreatePost = () => {
+    setSelectOpen(false)
+    setTimeout(() => {
+      setShowCreateDialog(true)
+    }, 100)
+  }
   
   
   // Generate post URL for frontend viewing
@@ -69,7 +77,7 @@ export function PostBuilderHeader({
           <div className="h-4 w-px bg-border"></div>
           <h1 className="text-lg font-semibold">Post Builder</h1>
           <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedPost} onValueChange={onPostChange}>
+          <Select value={selectedPost} onValueChange={onPostChange} open={selectOpen} onOpenChange={setSelectOpen}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
                 {currentPost ? currentPost.title : ""}
@@ -83,9 +91,9 @@ export function PostBuilderHeader({
                 </SelectItem>
               ))}
               <div className="border-t pt-1 mt-2">
-                <div 
+                <div
                   className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={() => setShowCreateDialog(true)}
+                  onClick={handleCreatePost}
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Plus className="h-4 w-4" />

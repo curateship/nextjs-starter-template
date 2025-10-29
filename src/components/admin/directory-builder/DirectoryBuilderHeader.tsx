@@ -42,8 +42,16 @@ export function DirectoryBuilderHeader({
 }: DirectoryBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectOpen, setSelectOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentDirectory = directories.find(d => d.slug === selectedDirectory)
+
+  const handleCreateDirectory = () => {
+    setSelectOpen(false)
+    setTimeout(() => {
+      setShowCreateDialog(true)
+    }, 100)
+  }
 
   // Generate directory URL for frontend viewing
   const getDirectoryUrl = () => {
@@ -69,7 +77,7 @@ export function DirectoryBuilderHeader({
           <div className="h-4 w-px bg-border"></div>
           <h1 className="text-lg font-semibold">Directory Builder</h1>
           <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedDirectory} onValueChange={onDirectoryChange}>
+          <Select value={selectedDirectory} onValueChange={onDirectoryChange} open={selectOpen} onOpenChange={setSelectOpen}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
                 {currentDirectory ? currentDirectory.title : ""}
@@ -85,7 +93,7 @@ export function DirectoryBuilderHeader({
               <div className="border-t pt-1 mt-2">
                 <div
                   className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={() => setShowCreateDialog(true)}
+                  onClick={handleCreateDirectory}
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Plus className="h-4 w-4" />

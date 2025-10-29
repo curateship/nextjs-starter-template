@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,8 +46,16 @@ export function ProductBuilderHeader({
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showAIDialog, setShowAIDialog] = useState(false)
+  const [selectOpen, setSelectOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
+
+  const handleCreateProduct = () => {
+    setSelectOpen(false) // Close the Select dropdown first
+    setTimeout(() => {
+      setShowCreateDialog(true) // Then open the Dialog after a brief delay
+    }, 100)
+  }
   
   
   // Generate product URL for frontend viewing
@@ -74,7 +82,7 @@ export function ProductBuilderHeader({
           <div className="h-4 w-px bg-border"></div>
           <h1 className="text-lg font-semibold">Product Builder</h1>
           <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedProduct} onValueChange={onProductChange}>
+          <Select value={selectedProduct} onValueChange={onProductChange} open={selectOpen} onOpenChange={setSelectOpen}>
             <SelectTrigger className="w-[200px]">
               <SelectValue>
                 {currentProduct ? currentProduct.title : ""}
@@ -88,9 +96,9 @@ export function ProductBuilderHeader({
                 </SelectItem>
               ))}
               <div className="border-t pt-1 mt-2">
-                <div 
+                <div
                   className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={() => setShowCreateDialog(true)}
+                  onClick={handleCreateProduct}
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <Plus className="h-4 w-4" />
@@ -171,7 +179,7 @@ export function ProductBuilderHeader({
           </Button>
         </div>
       </div>
-      
+
       {/* Create Product Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
@@ -181,14 +189,12 @@ export function ProductBuilderHeader({
               Add a new product to your catalog. You can customize the content after creation.
             </DialogDescription>
           </DialogHeader>
-          <CreateProductModal 
+          <CreateProductModal
             onSuccess={(product) => {
-              // Add the new product to the list if callback exists
               if (onProductCreated) {
                 onProductCreated(product)
               }
               setShowCreateDialog(false)
-              // Navigate to the new product's builder page
               onProductChange(product.slug)
             }}
             onCancel={() => setShowCreateDialog(false)}

@@ -6,7 +6,7 @@
 import { generateText } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import type { BlockType, GeneratedBlock } from '@/lib/ai/types'
-import { getAutoSelectPrompt, getBlockGenerationPrompt } from './prompt-templates'
+import { getProductAutoSelectPrompt, getProductBlockGenerationPrompt } from './product-prompts'
 
 /**
  * Extract JSON from AI response
@@ -37,10 +37,13 @@ export async function autoSelectBlocks(
   userPrompt: string,
   modelId: string = 'gpt-4o-mini'
 ): Promise<BlockType[]> {
+  // Mandatory blocks in order of importance
+  const mandatoryBlocks: BlockType[] = ['product-hero', 'product-features', 'faq']
+
   try {
     const { text } = await generateText({
       model: openai(modelId),
-      prompt: `${getAutoSelectPrompt()}\n\nUser's product description:\n${userPrompt}`,
+      prompt: `${getProductAutoSelectPrompt()}\n\nUser's product description:\n${userPrompt}`,
       temperature: 0.7
     })
 
@@ -63,16 +66,28 @@ export async function autoSelectBlocks(
 
     const selected = blocks.filter(b => validBlockTypes.includes(b as BlockType)) as BlockType[]
 
-    // Ensure we have at least product-hero
-    if (!selected.includes('product-hero')) {
-      selected.unshift('product-hero')
+    // Ensure mandatory blocks are present and in correct order
+    const result: BlockType[] = []
+
+    // Add mandatory blocks first in order
+    for (const mandatoryBlock of mandatoryBlocks) {
+      if (!result.includes(mandatoryBlock)) {
+        result.push(mandatoryBlock)
+      }
     }
 
-    return selected.slice(0, 5) // Max 5 blocks
+    // Add optional blocks (if not already included)
+    for (const block of selected) {
+      if (!result.includes(block)) {
+        result.push(block)
+      }
+    }
+
+    return result.slice(0, 5) // Max 5 blocks
   } catch (error) {
     console.error('Auto-select blocks error:', error)
-    // Fallback to default blocks
-    return ['product-hero', 'product-features', 'faq']
+    // Fallback to mandatory blocks only
+    return mandatoryBlocks
   }
 }
 
@@ -87,7 +102,7 @@ export async function generateSingleBlock(
   try {
     const { text } = await generateText({
       model: openai(modelId),
-      prompt: getBlockGenerationPrompt(blockType, userPrompt),
+      prompt: getProductBlockGenerationPrompt(blockType, userPrompt),
       temperature: 0.8
     })
 
