@@ -134,22 +134,9 @@ export default function TaxonomyTermsPage({
     <AdminLayout>
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
-          title={
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" asChild className="h-9 w-9">
-                <Link href={`/admin/taxonomies/${siteId}`}>
-                  <ArrowLeft className="w-4 h-4" />
-                  <span className="sr-only">Back to Taxonomies</span>
-                </Link>
-              </Button>
-              {taxonomyType ? (
-                <span>{taxonomyType.name}</span>
-              ) : (
-                <div className="h-9 bg-muted rounded animate-pulse w-32"></div>
-              )}
-            </div>
-          }
+          title={taxonomyType?.name || 'Loading...'}
           subtitle={taxonomyType?.description || ''}
+          backUrl={`/admin/taxonomies/${siteId}`}
           primaryAction={{
             label: "Create Term",
             onClick: () => setShowCreateModal(true)

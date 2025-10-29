@@ -94,7 +94,7 @@ export async function assignTaxonomyToContentAction(
       return { success: false, error: 'Taxonomy not found' }
     }
 
-    if (taxonomy.sites.user_id !== user.id) {
+    if (taxonomy.sites[0]?.user_id !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
@@ -185,7 +185,7 @@ export async function removeTaxonomyFromContentAction(
       return { success: false, error: 'Taxonomy not found' }
     }
 
-    if (taxonomy.sites.user_id !== user.id) {
+    if (taxonomy.sites[0]?.user_id !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
@@ -318,7 +318,7 @@ export async function getTaxonomyContentAction(
       return { data: null, error: 'Taxonomy not found' }
     }
 
-    if (taxonomy.sites.user_id !== user.id) {
+    if (taxonomy.sites[0]?.user_id !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 

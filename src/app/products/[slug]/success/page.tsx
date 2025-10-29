@@ -32,15 +32,14 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   if (payment_intent) {
     // Payment Element flow
     const verificationResult = await verifyPaymentIntent(payment_intent)
-    if (verificationResult.success) {
+    if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
       sessionData = {
-        id: verificationResult.paymentIntent?.id,
+        id: verificationResult.paymentIntent.id,
         customerEmail: null, // Payment Intent doesn't have customer email by default
-        amountTotal: verificationResult.paymentIntent?.amount,
-        currency: verificationResult.paymentIntent?.currency,
-        paymentStatus: verificationResult.paymentIntent?.status,
-        metadata: verificationResult.paymentIntent?.metadata,
+        amountTotal: verificationResult.paymentIntent.amount ?? null,
+        currency: verificationResult.paymentIntent.currency ?? null,
+        paymentStatus: verificationResult.paymentIntent.status ?? 'unknown',
       }
     } else {
       sessionError = verificationResult.error

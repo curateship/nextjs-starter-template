@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { uploadToR2 } from '../src/lib/storage/r2'
+import { uploadToR2 } from '../src/lib/utils/r2'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
