@@ -94,25 +94,29 @@ export default function EventsPage() {
 
   const handleDeleteConfirm = async () => {
     if (!pendingDeleteId) return
-    
+
+    const eventIdToDelete = pendingDeleteId
+
+    // Close dialog immediately and clear state
+    setConfirmDialogOpen(false)
+    setPendingDeleteId(null)
+
     try {
       setDeleting(true)
-      const { success, error: deleteError } = await deleteEventAction(pendingDeleteId)
-      
+      const { success, error: deleteError } = await deleteEventAction(eventIdToDelete)
+
       if (!success) {
         setError(deleteError || 'Failed to delete event')
         return
       }
-      
+
       // Remove from local state
-      setEvents(prev => prev.filter(event => event.id !== pendingDeleteId))
-      
+      setEvents(prev => prev.filter(event => event.id !== eventIdToDelete))
+
     } catch (err) {
       setError('Failed to delete event')
     } finally {
       setDeleting(false)
-      setConfirmDialogOpen(false)
-      setPendingDeleteId(null)
     }
   }
 
@@ -469,32 +473,36 @@ export default function EventsPage() {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Event</DialogTitle>
-            <DialogDescription>
+      {confirmDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={handleDeleteCancel}
+          />
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+            <h2 className="text-lg font-semibold mb-2">Delete Event</h2>
+            <p className="text-sm text-muted-foreground mb-4">
               Are you sure you want to delete this event? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={handleDeleteCancel}
-              disabled={deleting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteConfirm}
-              disabled={deleting}
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </Button>
+            </p>
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {selectedEvent && (

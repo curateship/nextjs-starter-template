@@ -64,7 +64,7 @@ export async function GET(
 
     // Get the directory
     const { data: directory, error: directoryError } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .select('*')
       .eq('id', directoryId)
       .single()
@@ -147,7 +147,7 @@ export async function PUT(
 
     // Get the directory first
     const { data: directory, error: directoryError } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .select('*')
       .eq('id', directoryId)
       .single()
@@ -205,7 +205,7 @@ export async function PUT(
 
       // Check if slug conflicts with other directories (excluding current directory)
       const { data: existingDirectory } = await supabaseAdmin
-        .from('directories')
+        .from('directory')
         .select('id')
         .eq('site_id', directory.site_id)
         .eq('slug', slug)
@@ -221,7 +221,7 @@ export async function PUT(
 
     // Update the directory
     const { data: updatedDirectory, error: updateError } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .update({
         ...updates,
         updated_at: new Date().toISOString()

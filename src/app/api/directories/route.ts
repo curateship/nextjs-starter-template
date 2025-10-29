@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Check if slug conflicts with existing directories in this site
     const { data: existingDirectory } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .select('title')
       .eq('site_id', directoryData.site_id)
       .eq('slug', slug)
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     // Get the next display order
     const { data: orderData } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .select('display_order')
       .eq('site_id', directoryData.site_id)
       .order('display_order', { ascending: false })
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // Create the directory
     const { data: newDirectory, error: createError } = await supabaseAdmin
-      .from('directories')
+      .from('directory')
       .insert([{
         site_id: directoryData.site_id,
         title: directoryData.title.trim(),

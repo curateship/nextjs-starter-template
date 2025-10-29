@@ -107,27 +107,31 @@ export default function DirectoriesPage() {
 
   const confirmDeleteDirectory = async () => {
     if (!pendingDeleteId) return
-    
+
+    const directoryIdToDelete = pendingDeleteId
+
+    // Close dialog immediately and clear state
+    setConfirmDialogOpen(false)
+    setPendingDeleteId(null)
+
     try {
-      setDeleteDirectoryId(pendingDeleteId)
-      setConfirmDialogOpen(false)
-      const { success, error: deleteError } = await deleteDirectoryAction(pendingDeleteId)
-      
+      setDeleteDirectoryId(directoryIdToDelete)
+      const { success, error: deleteError } = await deleteDirectoryAction(directoryIdToDelete)
+
       if (deleteError) {
         setErrorMessage(deleteError)
         setErrorDialogOpen(true)
         return
       }
-      
+
       if (success) {
-        setDirectories(prev => prev.filter(directory => directory.id !== pendingDeleteId))
+        setDirectories(prev => prev.filter(directory => directory.id !== directoryIdToDelete))
       }
     } catch (err) {
       setErrorMessage('Failed to delete directory')
       setErrorDialogOpen(true)
     } finally {
       setDeleteDirectoryId(null)
-      setPendingDeleteId(null)
     }
   }
 
@@ -526,50 +530,43 @@ export default function DirectoriesPage() {
         />
 
         {/* Confirmation Dialog */}
-        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Directory</DialogTitle>
-              <DialogDescription>
+        {confirmDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={cancelDeleteDirectory}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete Directory</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 Are you sure you want to delete this directory? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2">
-              <Button 
-                onClick={cancelDeleteDirectory}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={confirmDeleteDirectory}
-                variant="destructive"
-              >
-                Delete
-              </Button>
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button onClick={cancelDeleteDirectory} variant="outline">Cancel</Button>
+                <Button onClick={confirmDeleteDirectory} variant="destructive">Delete</Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
 
         {/* Error Dialog */}
-        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Error</DialogTitle>
-              <DialogDescription>
+        {errorDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setErrorDialogOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Error</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 {errorMessage}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end">
-              <Button 
-                onClick={() => setErrorDialogOpen(false)}
-                variant="default"
-              >
-                OK
-              </Button>
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )

@@ -107,27 +107,31 @@ export default function ProductsPage() {
 
   const confirmDeleteProduct = async () => {
     if (!pendingDeleteId) return
-    
+
+    const productIdToDelete = pendingDeleteId
+
+    // Close dialog immediately and clear state
+    setConfirmDialogOpen(false)
+    setPendingDeleteId(null)
+
     try {
-      setDeleteProductId(pendingDeleteId)
-      setConfirmDialogOpen(false)
-      const { success, error: deleteError } = await deleteProductAction(pendingDeleteId)
-      
+      setDeleteProductId(productIdToDelete)
+      const { success, error: deleteError } = await deleteProductAction(productIdToDelete)
+
       if (deleteError) {
         setErrorMessage(deleteError)
         setErrorDialogOpen(true)
         return
       }
-      
+
       if (success) {
-        setProducts(prev => prev.filter(product => product.id !== pendingDeleteId))
+        setProducts(prev => prev.filter(product => product.id !== productIdToDelete))
       }
     } catch (err) {
       setErrorMessage('Failed to delete product')
       setErrorDialogOpen(true)
     } finally {
       setDeleteProductId(null)
-      setPendingDeleteId(null)
     }
   }
 
@@ -546,50 +550,58 @@ export default function ProductsPage() {
         />
 
         {/* Confirmation Dialog */}
-        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Product</DialogTitle>
-              <DialogDescription>
+        {confirmDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={cancelDeleteProduct}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete Product</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 Are you sure you want to delete this product? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2">
-              <Button 
-                onClick={cancelDeleteProduct}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={confirmDeleteProduct}
-                variant="destructive"
-              >
-                Delete
-              </Button>
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={cancelDeleteProduct}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmDeleteProduct}
+                  variant="destructive"
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
 
         {/* Error Dialog */}
-        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Error</DialogTitle>
-              <DialogDescription>
+        {errorDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setErrorDialogOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Error</h2>
+              <p className="text-sm text-muted-foreground mb-4">
                 {errorMessage}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end">
-              <Button 
-                onClick={() => setErrorDialogOpen(false)}
-                variant="default"
-              >
-                OK
-              </Button>
+              </p>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => setErrorDialogOpen(false)}
+                  variant="default"
+                >
+                  OK
+                </Button>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
     </AdminLayout>
   )
