@@ -49,6 +49,7 @@ export interface MediaData {
   file_type: 'image' | 'video'
   storage_path: string
   public_url: string
+  site_id: string | null
   created_at: string
   updated_at: string
 }
@@ -68,7 +69,8 @@ export type ImageUploadData = MediaUploadData
  */
 export async function uploadMediaAction(
   file: File,
-  alt_text?: string
+  alt_text?: string,
+  site_id?: string
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
     // Validate file type
@@ -125,6 +127,7 @@ export async function uploadMediaAction(
       .from('media')
       .insert({
         user_id: user.id,
+        site_id: site_id || null,
         filename: `${timestamp}_${cleanFilename}.${fileExtension}`,
         original_name: file.name,
         alt_text: alt_text || null,
@@ -172,10 +175,11 @@ export interface PaginatedMediaResponse {
 }
 
 /**
- * Get all media files for the current user
+ * Get all media files for the current user, optionally filtered by site
  */
 export async function getMediaAction(
-  fileType?: 'image' | 'video'
+  fileType?: 'image' | 'video',
+  site_id?: string
 ): Promise<{ data: MediaData[] | null; error: string | null }> {
   try {
     const supabase = await createSupabaseServerClient()
@@ -188,11 +192,16 @@ export async function getMediaAction(
       .from('media')
       .select('*')
       .eq('user_id', user.id)
-    
+
+    // Filter by site_id if provided
+    if (site_id) {
+      query = query.eq('site_id', site_id)
+    }
+
     if (fileType) {
       query = query.eq('file_type', fileType)
     }
-    
+
     const { data: media, error } = await query
       .order('created_at', { ascending: false })
 
@@ -203,20 +212,21 @@ export async function getMediaAction(
     return { data: media as MediaData[], error: null }
 
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
 
 /**
- * Get paginated media files for the current user
+ * Get paginated media files for the current user, optionally filtered by site
  */
 export async function getPaginatedMediaAction(
   page: number = 1,
   pageSize: number = 20,
-  fileType?: 'image' | 'video'
+  fileType?: 'image' | 'video',
+  site_id?: string
 ): Promise<{ data: PaginatedMediaResponse | null; error: string | null }> {
   try {
     const supabase = await createSupabaseServerClient()
@@ -230,7 +240,12 @@ export async function getPaginatedMediaAction(
       .from('media')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-    
+
+    // Filter by site_id if provided
+    if (site_id) {
+      countQuery = countQuery.eq('site_id', site_id)
+    }
+
     if (fileType) {
       countQuery = countQuery.eq('file_type', fileType)
     }
@@ -252,11 +267,16 @@ export async function getPaginatedMediaAction(
       .from('media')
       .select('*')
       .eq('user_id', user.id)
-    
+
+    // Filter by site_id if provided
+    if (site_id) {
+      dataQuery = dataQuery.eq('site_id', site_id)
+    }
+
     if (fileType) {
       dataQuery = dataQuery.eq('file_type', fileType)
     }
-    
+
     const { data: media, error } = await dataQuery
       .order('created_at', { ascending: false })
       .range(offset, offset + pageSize - 1)
@@ -276,9 +296,9 @@ export async function getPaginatedMediaAction(
     return { data: response, error: null }
 
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }

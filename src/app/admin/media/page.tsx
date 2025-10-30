@@ -10,6 +10,7 @@ import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
+import { useSiteContext } from "@/contexts/site-context"
 import { 
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 
 
 export default function ImagesPage() {
+  const { currentSite } = useSiteContext()
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery')
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -41,16 +43,20 @@ export default function ImagesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Load images when page, pageSize, or filterType changes
+  // Load images when page, pageSize, filterType, or currentSite changes
   useEffect(() => {
-    loadImages()
-  }, [currentPage, pageSize, filterType])
+    if (currentSite) {
+      loadImages()
+    }
+  }, [currentPage, pageSize, filterType, currentSite])
 
   const loadImages = async () => {
+    if (!currentSite) return
+
     try {
       setIsLoading(true)
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSite.id)
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {
@@ -127,7 +133,7 @@ export default function ImagesPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !currentSite) return
 
     // Validate file type
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
@@ -154,8 +160,9 @@ export default function ImagesPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('siteId', currentSite.id)
 
-      const response = await fetch('/api/images/upload', {
+      const response = await fetch('/api/media/upload', {
         method: 'POST',
         body: formData
       })
@@ -279,7 +286,7 @@ export default function ImagesPage() {
       <div className="w-full max-w-6xl mx-auto">
         <AdminPageHeader
           title="Media Library"
-          subtitle="Manage images and videos for all your sites"
+          subtitle={currentSite ? `Manage images and videos for ${currentSite.name}` : "Manage images and videos"}
           primaryAction={{
             label: isUploading ? "Uploading..." : "Upload Media",
             onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()

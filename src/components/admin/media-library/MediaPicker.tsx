@@ -36,19 +36,21 @@ interface MediaPickerProps {
   onSelectMedia: (mediaUrl: string, altText?: string) => void
   currentMediaUrl?: string
   showVideos?: boolean
+  site_id?: string
   // Legacy props for backward compatibility
   onSelectImage?: (imageUrl: string, altText?: string) => void
   currentImageUrl?: string
 }
 
-export function MediaPicker({ 
-  open, 
-  onOpenChange, 
-  onSelectMedia, 
-  onSelectImage, 
-  currentMediaUrl, 
-  currentImageUrl, 
-  showVideos = true 
+export function MediaPicker({
+  open,
+  onOpenChange,
+  onSelectMedia,
+  onSelectImage,
+  currentMediaUrl,
+  currentImageUrl,
+  showVideos = true,
+  site_id
 }: MediaPickerProps) {
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -84,7 +86,7 @@ export function MediaPicker({
     try {
       setIsLoading(true)
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, site_id)
       if (error) {
         toast.error(`Failed to load media: ${error}`)
       } else {
@@ -184,12 +186,15 @@ export function MediaPicker({
     if (!uploadFile) return
 
     setIsUploading(true)
-    
+
     try {
       const formData = new FormData()
       formData.append('file', uploadFile)
       if (altText.trim()) {
         formData.append('altText', altText.trim())
+      }
+      if (site_id) {
+        formData.append('siteId', site_id)
       }
 
       const response = await fetch('/api/media/upload', {

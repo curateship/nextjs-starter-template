@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const altText = formData.get('altText') as string | null
+    const siteId = formData.get('siteId') as string | null
 
     if (!file) {
       return NextResponse.json(
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await uploadMediaAction(file, altText || undefined)
+    const result = await uploadMediaAction(file, altText || undefined, siteId || undefined)
 
     if (result.error) {
       return NextResponse.json(

@@ -187,6 +187,7 @@ export function MediaInput({
         onSelectMedia={handleSelectMedia}
         currentMediaUrl={value}
         showVideos={acceptVideo}
+        site_id={siteId}
       />
     </div>
   )
