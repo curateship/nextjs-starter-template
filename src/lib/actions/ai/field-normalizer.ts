@@ -3,7 +3,7 @@
  * Maps AI-generated field names to component prop names and ensures data consistency
  */
 
-import type { GeneratedBlock } from '@/lib/ai/types'
+import type { GeneratedBlock } from '@/lib/actions/ai/types'
 
 /**
  * Ensure all items in an array have unique IDs

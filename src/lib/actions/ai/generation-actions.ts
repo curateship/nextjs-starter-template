@@ -5,11 +5,11 @@
 
 'use server'
 
-import type { BlockType, GeneratedBlock, AIMessage } from '@/lib/ai/types'
-import { autoSelectBlocks, generateBlocks } from '@/lib/ai/generation-service'
-import { ChatSession } from '@/lib/ai/chat-service'
-import { sanitizeBlocks } from '@/lib/ai/content-sanitizer'
-import { normalizeBlocks } from '@/lib/ai/field-normalizer'
+import type { BlockType, GeneratedBlock, AIMessage } from '@/lib/actions/ai/types'
+import { autoSelectBlocks, generateBlocks } from '@/lib/actions/ai/generation-service'
+import { ChatSession } from '@/lib/actions/ai/chat-service'
+import { sanitizeBlocks } from '@/lib/actions/ai/content-sanitizer'
+import { normalizeBlocks } from '@/lib/actions/ai/field-normalizer'
 import { getProductByIdAction, updateProductBlocksAction } from '@/lib/actions/products/product-actions'
 
 /**
@@ -100,7 +100,7 @@ export async function generateSingleBlockAction(params: {
     }
 
     // Generate single block
-    const { generateSingleBlock } = await import('@/lib/ai/generation-service')
+    const { generateSingleBlock } = await import('@/lib/actions/ai/generation-service')
     const result = await generateSingleBlock(
       params.blockType,
       params.prompt,

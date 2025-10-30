@@ -5,7 +5,7 @@
 
 import { generateText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-import type { GeneratedBlock, AIMessage } from '@/lib/ai/types'
+import type { GeneratedBlock, AIMessage } from '@/lib/actions/ai/types'
 import { getChatRefinementPrompt } from './prompt-templates'
 
 /**

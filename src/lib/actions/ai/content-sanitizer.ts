@@ -3,7 +3,7 @@
  * Sanitizes AI-generated content to prevent XSS and validate data
  */
 
-import type { GeneratedBlock } from '@/lib/ai/types'
+import type { GeneratedBlock } from '@/lib/actions/ai/types'
 
 /**
  * Sanitize a string by removing dangerous content

@@ -5,7 +5,7 @@
 
 import { generateText } from 'ai'
 import { openai } from '@ai-sdk/openai'
-import type { BlockType, GeneratedBlock } from '@/lib/ai/types'
+import type { BlockType, GeneratedBlock } from '@/lib/actions/ai/types'
 import { getProductAutoSelectPrompt, getProductBlockGenerationPrompt } from './product-prompts'
 
 /**

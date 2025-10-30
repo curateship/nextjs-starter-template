@@ -3,7 +3,7 @@
  * Prompts specifically designed for product content generation
  */
 
-import type { BlockType } from '@/lib/ai/types'
+import type { BlockType } from '@/lib/actions/ai/types'
 
 /**
  * Get the system prompt for auto-selecting product block types
