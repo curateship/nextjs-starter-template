@@ -285,7 +285,28 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
   }
 }
 
+/**
+ * Get a product by slug (for public access, no auth required)
+ */
+export async function getProductBySlug(slug: string): Promise<Product | null> {
+  try {
+    const { data: product, error } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .single()
 
+    if (error || !product) {
+      return null
+    }
+
+    return product
+  } catch (error) {
+    console.error('Error fetching product by slug:', error)
+    return null
+  }
+}
 
 /**
  * Update an existing product

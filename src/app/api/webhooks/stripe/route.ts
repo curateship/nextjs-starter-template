@@ -47,11 +47,8 @@ export async function POST(req: NextRequest) {
           productSlug: session.metadata?.productSlug,
         })
 
-        // TODO: You can add custom logic here:
-        // - Send confirmation email
-        // - Grant access to digital products
-        // - Update database with purchase record
-        // - Trigger analytics events
+        // TODO: Paid product email delivery integration
+        // Will be added in future iteration
 
         break
       }
