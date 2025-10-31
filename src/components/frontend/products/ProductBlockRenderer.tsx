@@ -5,6 +5,7 @@ import { ProductHeroBlock } from "@/components/frontend/products/ProductHeroBloc
 import { ProductFeaturesBlock } from "@/components/frontend/products/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock"
 import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
+import ProductLeadMagnetBlock from "@/components/frontend/products/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/ProductListingViewBlock"
 import { ProductRichTextBlock } from "@/components/frontend/products/ProductRichTextBlock"
@@ -130,7 +131,17 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             />
           )
         }
-        
+
+        if (block.type === 'lead-magnet') {
+          return (
+            <ProductLeadMagnetBlock
+              key={`lead-magnet-${block.id}`}
+              content={block.content as any}
+              product={product}
+            />
+          )
+        }
+
         if (block.type === 'faq') {
           return (
             <ProductFAQBlock

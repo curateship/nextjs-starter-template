@@ -7,6 +7,15 @@ import {
 import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
 import { getProductByIdAction } from '@/lib/actions/products/product-actions'
+import {
+  checkUserExists,
+  createAutoAccount,
+  sendPasswordSetupEmail,
+  linkOrderToUser,
+  getUserByEmail,
+} from '@/lib/actions/auth/account-auto-creation'
+import { sendAccountNotificationEmail } from '@/lib/actions/email/account-emails'
+import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 
 /**
  * GET /api/track/click/[token]?redirect=https://example.com
@@ -37,6 +46,91 @@ export async function GET(
 
     // Mark link as clicked (increments click_count and sets clicked_at if first time)
     await markLinkClicked(token)
+
+    // **PHASE 2: Automatic Account Creation**
+    // If first click, create account for user (or link to existing account)
+    if (isFirstClick) {
+      try {
+        const userExists = await checkUserExists(order.customer_email)
+
+        if (!userExists) {
+          // Create new account for first-time lead magnet user
+          console.log('Creating new account for:', order.customer_email)
+
+          const productResult = await getProductByIdAction(order.product_id)
+          const siteResult = await getSiteByIdAction(order.site_id)
+
+          if (productResult.data && siteResult.data) {
+            const product = productResult.data
+            const site = siteResult.data
+
+            const newUser = await createAutoAccount({
+              email: order.customer_email,
+              siteId: order.site_id,
+              productId: order.product_id,
+              productSlug: product.slug,
+            })
+
+            // Link order to newly created user
+            await linkOrderToUser(order.id, newUser.id)
+            console.log('Linked order to new user:', newUser.id)
+
+            // Determine site URL
+            const siteUrl = site.custom_domain
+              ? `https://${site.custom_domain}`
+              : `https://${site.subdomain}.yourdomain.com`
+
+            // Send welcome email with password setup link
+            await sendAccountNotificationEmail({
+              to: order.customer_email,
+              type: 'new_account',
+              productName: product.title,
+              siteUrl,
+            })
+
+            await sendPasswordSetupEmail(order.customer_email, siteUrl)
+            console.log('Sent account creation emails to:', order.customer_email)
+          }
+        } else {
+          // Existing user - link order to their account
+          console.log('Linking order to existing user:', order.customer_email)
+
+          const existingUser = await getUserByEmail(order.customer_email)
+          if (existingUser) {
+            await linkOrderToUser(order.id, existingUser.id)
+            console.log('Linked order to existing user:', existingUser.id)
+
+            // Send notification about new lead magnet
+            const productResult = await getProductByIdAction(order.product_id)
+            const siteResult = await getSiteByIdAction(order.site_id)
+
+            if (productResult.data && siteResult.data) {
+              const product = productResult.data
+              const site = siteResult.data
+
+              const siteUrl = site.custom_domain
+                ? `https://${site.custom_domain}`
+                : `https://${site.subdomain}.yourdomain.com`
+
+              await sendAccountNotificationEmail({
+                to: order.customer_email,
+                type: 'existing_account',
+                productName: product.title,
+                siteUrl,
+              })
+              console.log(
+                'Sent lead magnet notification to:',
+                order.customer_email
+              )
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Account creation failed:', error)
+        // Don't fail the entire flow if account creation fails
+        // User still gets their content, just no account
+      }
+    }
 
     // If first click, add to Flodesk
     if (isFirstClick && !order.flodesk_added_at) {

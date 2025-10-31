@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video } from "lucide-react"
+import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video, Mail } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -208,6 +208,8 @@ export function BlockListPanel({
         return <Star className="w-4 h-4" />
       case 'product-hotspot':
         return <Target className="w-4 h-4" />
+      case 'lead-magnet':
+        return <Mail className="w-4 h-4" />
       case 'product-pricing':
         return <DollarSign className="w-4 h-4" />
       case 'faq':

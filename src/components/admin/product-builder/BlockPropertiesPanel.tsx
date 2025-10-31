@@ -5,6 +5,7 @@ import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/P
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/ProductHotspotBlock"
 import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/ProductPricingBlock"
+import ProductLeadMagnetBlock from "@/components/admin/product-builder/blocks/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/ProductRichTextEditorBlock"
@@ -213,7 +214,18 @@ export function BlockPropertiesPanel({
                 onDownloadSettingsChange={(settings) => updateBlockContent('downloadSettings', settings)}
               />
             )}
-            
+
+            {selectedBlock.type === 'lead-magnet' && (
+              <ProductLeadMagnetBlock
+                block={selectedBlock}
+                onUpdate={(updates) => {
+                  Object.entries(updates).forEach(([key, value]) => {
+                    updateBlockContent(key, value)
+                  })
+                }}
+              />
+            )}
+
             {selectedBlock.type === 'faq' && (
               <ProductFAQBlock
                 title={selectedBlock.content.title ?? 'Product FAQ'}

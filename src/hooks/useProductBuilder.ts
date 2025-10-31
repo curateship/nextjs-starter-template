@@ -32,6 +32,7 @@ interface UseProductBuilderReturn {
   handleAddProductFeaturesBlock: () => void
   handleAddProductHotspotBlock: () => void
   handleAddProductPricingBlock: () => void
+  handleAddProductLeadMagnetBlock: () => void
   handleAddProductFAQBlock: () => void
   handleAddListingViewsBlock: () => void
   handleAddProductRichTextBlock: () => void
@@ -149,12 +150,52 @@ export function useProductBuilder({
   }
 
   const handleAddProductPricingBlock = () => {
+    // Check if lead-magnet block exists
+    const currentBlocks = blocks[selectedProduct] || []
+    if (currentBlocks.some(b => b.type === 'lead-magnet')) {
+      alert('Cannot add Pricing block: Product already has a Lead Magnet block. Products can have either Lead Magnet OR Pricing, not both.')
+      return
+    }
+
     addBlock('product-pricing', 'Product Pricing', {
       title: '',
       subtitle: '',
       headerTitle: '',
       headerSubtitle: '',
       pricingTiers: []
+    })
+  }
+
+  const handleAddProductLeadMagnetBlock = () => {
+    // Check if pricing block exists
+    const currentBlocks = blocks[selectedProduct] || []
+    if (currentBlocks.some(b => b.type === 'product-pricing')) {
+      alert('Cannot add Lead Magnet block: Product already has a Pricing block. Products can have either Lead Magnet OR Pricing, not both.')
+      return
+    }
+
+    addBlock('lead-magnet', 'Product Lead Magnet', {
+      heading: 'Get Your Free Download',
+      subheading: 'Enter your email to receive instant access',
+      buttonText: 'Get Instant Access',
+      benefits: [
+        'Instant download',
+        'No credit card required',
+        'Unsubscribe anytime'
+      ],
+      emailSettings: {
+        subject: 'Your download is ready!',
+        fromName: '',
+        replyTo: '',
+        content: '<p>Thank you for downloading! Click the link below to access your content.</p><p>{{DOWNLOAD_LINK}}</p>'
+      },
+      flodeskSettings: {
+        enabled: false,
+        segmentId: '',
+        tags: []
+      },
+      thankYouUrl: '',
+      accessInstructions: ''
     })
   }
 
@@ -282,6 +323,7 @@ export function useProductBuilder({
     handleAddProductFeaturesBlock,
     handleAddProductHotspotBlock,
     handleAddProductPricingBlock,
+    handleAddProductLeadMagnetBlock,
     handleAddProductFAQBlock,
     handleAddListingViewsBlock,
     handleAddProductRichTextBlock,

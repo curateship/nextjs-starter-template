@@ -18,7 +18,7 @@ const supabaseAdmin = createClient(
 /**
  * Order type enum
  */
-export type OrderType = 'free_signup' | 'paid_purchase'
+export type OrderType = 'lead_magnet' | 'paid_purchase'
 
 /**
  * Payment status enum
@@ -75,7 +75,7 @@ export async function createFreeSignup(params: {
         site_id: params.siteId,
         product_id: params.productId,
         customer_email: params.email.toLowerCase().trim(),
-        order_type: 'free_signup',
+        order_type: 'lead_magnet',
         access_token: accessToken,
         metadata: params.metadata || null,
       })
@@ -393,7 +393,7 @@ export async function getOrderAnalytics(siteId: string): Promise<{
 
     const orders = data || []
 
-    const freeSignups = orders.filter((o) => o.order_type === 'free_signup')
+    const freeSignups = orders.filter((o) => o.order_type === 'lead_magnet')
     const paidPurchases = orders.filter((o) => o.order_type === 'paid_purchase')
     const clickedOrders = orders.filter((o) => o.clicked_at !== null)
 
