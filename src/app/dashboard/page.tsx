@@ -17,7 +17,11 @@ interface Order {
     title: string
     slug: string
     description: string | null
-  }
+  } | {
+    title: string
+    slug: string
+    description: string | null
+  }[] | null
 }
 
 export default function UserDashboard() {
@@ -156,7 +160,11 @@ export default function UserDashboard() {
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {orders.map((order) => (
+            {orders.map((order) => {
+              const product = Array.isArray(order.products) ? order.products[0] : order.products
+              if (!product) return null
+
+              return (
               <div
                 key={order.id}
                 className="overflow-hidden rounded-lg bg-white shadow transition-shadow hover:shadow-md"
@@ -184,12 +192,12 @@ export default function UserDashboard() {
                   </div>
 
                   <h3 className="mb-2 text-lg font-semibold text-gray-900">
-                    {order.products.title}
+                    {product.title}
                   </h3>
 
-                  {order.products.description && (
+                  {product.description && (
                     <p className="mb-4 line-clamp-2 text-sm text-gray-600">
-                      {order.products.description}
+                      {product.description}
                     </p>
                   )}
 
@@ -218,7 +226,7 @@ export default function UserDashboard() {
                   </div>
 
                   <a
-                    href={`/api/track/click/${order.access_token}?redirect=${encodeURIComponent(`/products/${order.products.slug}`)}`}
+                    href={`/api/track/click/${order.access_token}?redirect=${encodeURIComponent(`/products/${product.slug}`)}`}
                     className="block w-full rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-indigo-700"
                   >
                     Access Content
@@ -236,7 +244,8 @@ export default function UserDashboard() {
                   </p>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </main>

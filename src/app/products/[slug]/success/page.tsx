@@ -34,13 +34,17 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
     const verificationResult = await verifyPaymentIntent(payment_intent)
     if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
+      const metadata = verificationResult.paymentIntent.metadata
       sessionData = {
         id: verificationResult.paymentIntent.id,
         customerEmail: null, // Payment Intent doesn't have customer email by default
         amountTotal: verificationResult.paymentIntent.amount ?? null,
         currency: verificationResult.paymentIntent.currency ?? null,
         paymentStatus: verificationResult.paymentIntent.status ?? 'unknown',
-        metadata: verificationResult.paymentIntent.metadata,
+        metadata: metadata ? {
+          productName: metadata.productName as string | undefined,
+          orderBumps: metadata.orderBumps as string | undefined,
+        } : undefined,
       }
     } else {
       sessionError = verificationResult.error
@@ -48,8 +52,16 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   } else if (session_id) {
     // Legacy Checkout Session flow
     const verificationResult = await verifyCheckoutSession(session_id)
-    if (verificationResult.success) {
-      sessionData = verificationResult.session
+    if (verificationResult.success && verificationResult.session) {
+      const session = verificationResult.session
+      const metadata = session.metadata
+      sessionData = {
+        ...session,
+        metadata: metadata ? {
+          productName: metadata.productName as string | undefined,
+          orderBumps: metadata.orderBumps as string | undefined,
+        } : undefined,
+      }
     } else {
       sessionError = verificationResult.error
     }

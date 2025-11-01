@@ -28,6 +28,7 @@ interface LeadMagnetBlockContent {
     segmentId: string
     tags: string[]
   }
+  accessInstructions?: string
   thankYou: {
     heading: string
     message: string

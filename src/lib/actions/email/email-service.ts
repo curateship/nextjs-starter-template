@@ -153,7 +153,14 @@ class EmailService {
         replyTo,
       })
 
-      if (!result.id) {
+      if (result.error) {
+        return {
+          success: false,
+          error: result.error.message || 'Failed to send email',
+        }
+      }
+
+      if (!result.data?.id) {
         return {
           success: false,
           error: 'Failed to send email - no message ID returned',
@@ -162,7 +169,7 @@ class EmailService {
 
       return {
         success: true,
-        messageId: result.id,
+        messageId: result.data.id,
       }
     } catch (error) {
       console.error('Error sending product delivery email:', error)

@@ -3,7 +3,7 @@
  */
 interface FlodeskConfig {
   apiKey: string
-  segmentId: string
+  segmentId?: string
 }
 
 /**
@@ -11,7 +11,7 @@ interface FlodeskConfig {
  */
 interface AddSubscriberParams {
   email: string
-  segmentId: string
+  segmentId?: string
   tags?: string[]
   firstName?: string
   lastName?: string
@@ -55,14 +55,17 @@ class FlodeskService {
     params: AddSubscriberParams
   ): Promise<FlodeskResult> {
     try {
-      const { apiKey, segmentId } = config
-      const { email, tags, firstName, lastName, customFields } = params
+      const { apiKey, segmentId: configSegmentId } = config
+      const { email, segmentId: paramsSegmentId, tags, firstName, lastName, customFields } = params
+
+      // Use params segmentId if provided, otherwise fall back to config segmentId
+      const segmentId = paramsSegmentId || configSegmentId
 
       // Validate configuration
-      if (!apiKey || !segmentId) {
+      if (!apiKey) {
         return {
           success: false,
-          error: 'Flodesk API key and segment ID are required',
+          error: 'Flodesk API key is required',
         }
       }
 

@@ -217,7 +217,7 @@ export function BlockPropertiesPanel({
 
             {selectedBlock.type === 'lead-magnet' && (
               <ProductLeadMagnetBlock
-                block={selectedBlock}
+                block={selectedBlock as any}
                 onUpdate={(updates) => {
                   Object.entries(updates).forEach(([key, value]) => {
                     updateBlockContent(key, value)

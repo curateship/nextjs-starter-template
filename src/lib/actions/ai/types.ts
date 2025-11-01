@@ -6,6 +6,10 @@
 export type BlockType =
   | 'product-hero'
   | 'product-features'
+  | 'product-hotspot'
+  | 'product-pricing'
+  | 'product-video'
+  | 'rich-text'
   | 'faq'
 
 export interface GeneratedBlock {
