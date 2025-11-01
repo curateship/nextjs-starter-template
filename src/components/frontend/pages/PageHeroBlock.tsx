@@ -151,14 +151,23 @@ const PageHeroBlock = ({
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         {/* Background pattern */}
-        <BackgroundPattern 
+        <BackgroundPattern
           pattern={backgroundPattern || 'dots'}
           size={backgroundPatternSize || 'medium'}
           opacity={backgroundPatternOpacity || 80}
         />
-        
+
         {/* Gradient overlays that only affect the background pattern */}
         <GradientOverlays />
+
+        {/* Solid backdrop for navigation blur - prevents flickering */}
+        <div
+          className="absolute top-0 left-0 right-0 h-24 bg-background pointer-events-none"
+          style={{
+            opacity: 1,
+            zIndex: 1
+          }}
+        />
       </div>
       
       {/* Content layer above background */}

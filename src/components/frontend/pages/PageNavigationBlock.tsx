@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { Menu, X, ChevronDown, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo, useState, useRef, useEffect, memo } from 'react'
 import { cn } from '@/lib/utils/tailwind-class-merger'
-import { useScroll } from 'motion/react'
 import { isSafeUrl } from '@/lib/utils/url-validator'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 
@@ -268,7 +267,7 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBlockProps) {
   // Transform database links to MenuItem format, fallback to defaults
   const menuItems: MenuItem[] = useMemo(() => {
     if (links && links.length > 0) {
@@ -284,30 +283,16 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
 
   // State management for responsive navigation
   const [menuState, setMenuState] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  
+
   // Timeout ref for dropdown hover delay
   const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  // Track scroll progress for navbar background effect
-  const { scrollYProgress } = useScroll()
 
   // Handle client-side mounting to prevent hydration mismatch
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Update scrolled state based on scroll position
-  useEffect(() => {
-    if (!mounted) return
-    
-    const unsubscribe = scrollYProgress.on('change', (latest) => {
-      setScrolled(latest > 0.01)
-    })
-    return () => unsubscribe()
-  }, [scrollYProgress, mounted])
 
   // Handle dropdown hover with delay to prevent accidental closing
   const handleDropdownMouseEnter = () => {
@@ -395,13 +380,10 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
       <nav
         data-state={menuState && 'active'}
         className={cn(
-          'fixed top-0 z-50 w-full border-b transition-colors duration-150',
-          !style && 'bg-background',
-          mounted && (scrolled || menuState) && !style && 'bg-background/50 backdrop-blur-xl',
-          mounted && (scrolled || menuState) && style && blurEffect !== 'none' && blurClass
+          'fixed top-0 z-50 w-full border-b bg-background/90 backdrop-blur-sm'
         )}
         style={style ? {
-          backgroundColor: mounted && (scrolled || menuState) && blurEffect !== 'none' ? `${style.backgroundColor}80` : style.backgroundColor
+          backgroundColor: `${style.backgroundColor}E6`, // 90% opacity
         } : undefined}
       >
         <div
@@ -490,4 +472,4 @@ export function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBloc
       </nav>
     </header>
   )
-}
+})
