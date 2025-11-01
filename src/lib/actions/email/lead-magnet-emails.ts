@@ -1,7 +1,5 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 interface LeadMagnetEmailParams {
   to: string
   subject: string
@@ -20,6 +18,9 @@ export async function sendLeadMagnetDeliveryEmail(
   params: LeadMagnetEmailParams
 ): Promise<void> {
   const { to, subject, fromName, replyTo, content, productName, siteUrl } = params
+
+  // Initialize Resend lazily to avoid build-time errors
+  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const html = `
     <!DOCTYPE html>
