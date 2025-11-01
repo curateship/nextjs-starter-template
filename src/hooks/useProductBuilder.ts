@@ -187,15 +187,17 @@ export function useProductBuilder({
         subject: 'Your download is ready!',
         fromName: '',
         replyTo: '',
-        content: '<p>Thank you for downloading! Click the link below to access your content.</p><p>{{DOWNLOAD_LINK}}</p>'
+        content: '<p>Thank you for signing up!</p><p>Click the link below to access your content:</p><p><a href="https://example.com/your-resource.pdf">Download Your Content</a></p>'
       },
       flodeskSettings: {
         enabled: false,
         segmentId: '',
         tags: []
       },
-      thankYouUrl: '',
-      accessInstructions: ''
+      thankYou: {
+        heading: 'Check Your Email!',
+        message: "We've sent your content to your email address."
+      }
     })
   }
 

@@ -6,7 +6,7 @@ import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-ema
 
 /**
  * POST /api/products/lead-magnet/signup
- * Handle lead magnet signups with Phase 2 integration
+ * Handle lead magnet signups - simplified version
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,9 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Verify product has lead_magnet block
     const contentBlocks = product.content_blocks || {}
-    const leadMagnetBlock = Object.values(contentBlocks).find(
-      (block: any) => block.type === 'lead-magnet'
-    ) as any
+    const leadMagnetBlock = contentBlocks['lead-magnet']
 
     if (!leadMagnetBlock) {
       return NextResponse.json(
@@ -66,9 +64,13 @@ export async function POST(request: NextRequest) {
     const site = siteResult.data
 
     // Determine site URL
-    const siteUrl = site.custom_domain
-      ? `https://${site.custom_domain}`
-      : `https://${site.subdomain}.yourdomain.com`
+    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
+    const isLocalDev = appDomain.includes('localhost')
+    const siteUrl = isLocalDev
+      ? appDomain
+      : (site.custom_domain
+          ? `https://${site.custom_domain}`
+          : `https://${site.subdomain}.yourdomain.com`)
 
     // Create order in product_orders table
     const order = await createFreeSignup({
@@ -82,14 +84,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Generate click tracking URL
-    const clickTrackingUrl = `${siteUrl}/api/track/click/${order.access_token}?redirect=${encodeURIComponent(`/products/${product.slug}`)}`
-
     // Get email settings from lead magnet block
     const emailSettings = leadMagnetBlock.emailSettings || {}
-    const emailContent = leadMagnetBlock.emailContent || '<p>Thank you for signing up! Click the button below to access your content.</p><p>{{DOWNLOAD_LINK}}</p>'
 
-    // Send delivery email with click tracking
+    // Get email content
+    const emailContent = emailSettings.content || ''
+
+    // Send delivery email with content
     try {
       await sendLeadMagnetDeliveryEmail({
         to: email,
@@ -97,7 +98,6 @@ export async function POST(request: NextRequest) {
         fromName: emailSettings.fromName || site.name || 'Your Company',
         replyTo: emailSettings.replyTo,
         content: emailContent,
-        clickTrackingUrl,
         productName: product.title,
         siteUrl,
       })
@@ -109,15 +109,10 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error('Failed to send lead magnet email:', emailError)
       // Don't fail the request - order was still created
-      // User can still access content via dashboard
     }
-
-    // Determine thank you page URL
-    const thankYouUrl = leadMagnetBlock.thankYouUrl || `/products/${product.slug}/thank-you`
 
     return NextResponse.json({
       success: true,
-      redirectUrl: thankYouUrl,
       orderId: order.id,
     })
   } catch (error) {

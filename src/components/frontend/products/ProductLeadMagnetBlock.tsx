@@ -20,8 +20,10 @@ interface LeadMagnetBlockContent {
     segmentId?: string
     tags?: string[]
   }
-  thankYouUrl?: string
-  accessInstructions?: string
+  thankYou?: {
+    heading?: string
+    message?: string
+  }
 }
 
 interface ProductLeadMagnetBlockProps {
@@ -72,12 +74,9 @@ export default function ProductLeadMagnetBlock({
         throw new Error(data.error || 'Failed to sign up')
       }
 
+      // Show success message
       setIsSuccess(true)
-
-      // Redirect to thank you page after 2 seconds
-      setTimeout(() => {
-        router.push(data.redirectUrl)
-      }, 2000)
+      setIsLoading(false)
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.')
       setIsLoading(false)
@@ -93,13 +92,13 @@ export default function ProductLeadMagnetBlock({
             <Check className="h-8 w-8 text-green-600" />
           </div>
           <h3 className="mb-3 text-2xl font-bold text-gray-900">
-            Check Your Email!
+            {content.thankYou?.heading || 'Check Your Email!'}
           </h3>
           <p className="text-lg text-gray-700">
-            We've sent your {product.title} to <strong>{email}</strong>
+            {content.thankYou?.message || "We've sent your content to your email address."}
           </p>
-          <p className="mt-4 text-sm text-gray-600">
-            Redirecting to your confirmation page...
+          <p className="mt-6 text-sm text-gray-600">
+            Sent to: <strong>{email}</strong>
           </p>
         </div>
       </div>

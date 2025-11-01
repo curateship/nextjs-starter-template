@@ -8,26 +8,18 @@ interface LeadMagnetEmailParams {
   fromName: string
   replyTo?: string
   content: string
-  clickTrackingUrl: string
   productName: string
   siteUrl: string
 }
 
 /**
- * Send lead magnet delivery email with click tracking
- * The email includes a tracked link that triggers Phase 2 account creation on first click
+ * Send lead magnet delivery email
+ * Simple email delivery with admin-configured content links
  */
 export async function sendLeadMagnetDeliveryEmail(
   params: LeadMagnetEmailParams
 ): Promise<void> {
-  const { to, subject, fromName, replyTo, content, clickTrackingUrl, productName, siteUrl } = params
-
-  // Inject click tracking URL into content
-  // Replace {{DOWNLOAD_LINK}} placeholder with actual tracked link
-  const emailContent = content.replace(
-    /\{\{DOWNLOAD_LINK\}\}/g,
-    clickTrackingUrl
-  )
+  const { to, subject, fromName, replyTo, content, productName, siteUrl } = params
 
   const html = `
     <!DOCTYPE html>
@@ -90,23 +82,8 @@ export async function sendLeadMagnetDeliveryEmail(
           </div>
           <div class="content">
             <div class="user-content">
-              ${emailContent}
+              ${content}
             </div>
-
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${clickTrackingUrl}" class="button">
-                Access Your Content
-              </a>
-            </div>
-
-            <p style="font-size: 14px; color: #666; margin-top: 30px;">
-              <strong>Note:</strong> We've created an account for you! Check your inbox for a password setup email from Supabase.
-              Once you set your password, you can log in to access all your lead magnets in one place.
-            </p>
-          </div>
-          <div class="footer">
-            <p>Need help? Reply to this email.</p>
-            <p><a href="${siteUrl}/dashboard">View Your Dashboard</a></p>
           </div>
         </div>
       </body>

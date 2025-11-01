@@ -879,62 +879,65 @@ function generateAccessToken(): string {
 
 ## Implementation Status
 
-### ✅ Phase 1: COMPLETED (Lead Magnet Block)
+### ✅ Phase 1: COMPLETED - SIMPLIFIED (Lead Magnet Block)
 - Product Lead Magnet block type added to product builder
 - Admin editor with 4-tab interface (Content, Email, Flodesk, Settings)
 - Frontend card/CTA style signup form
-- Email delivery with click tracking via Resend
-- Thank you page at /products/[slug]/thank-you
+- Email delivery via Resend with admin-configured content
+- **SIMPLIFIED:** Thank you message shows in same component (no redirect page)
+- **SIMPLIFIED:** No click tracking for content access
 - Mutual exclusivity with pricing block enforced
 - Security: XSS prevention, input validation, block type validation
 
-### ✅ Phase 2: COMPLETED (Automatic Account Creation)
-- Auto-create auth.users accounts on first email click
-- Secure random password generation
-- Magic link password setup via Supabase
-- Welcome email with account notification
-- Link orders to user accounts (product_orders.user_id)
-- Differentiate new vs existing users
-- No admin privilege conflicts (proper RLS separation)
+### ⚠️ Phase 2: SKIPPED (Automatic Account Creation)
+**Decision:** Removed automatic account creation for simplicity
+- Account creation will be a separate, optional feature (future)
+- Users get content directly in email
+- Database schema supports user_id for future account linking
+- No account-related emails or flows in current implementation
 
 ### 📋 Phase 3: NOT STARTED (User Dashboard)
+**Status:** Waiting for account creation feature before implementing
+- Will require Phase 2 (account creation) to be implemented first
 - User-facing dashboard at /dashboard
 - Global template system (one template for all users)
 - Lead magnet list view with access links
 - Account settings page
 - Stats and analytics
 
-## Current System Architecture
+## Current System Architecture (Simplified)
 
-This implementation provides a complete, production-ready lead magnet system with:
+This implementation provides a simple, production-ready lead magnet system with:
 
 ✅ **Free product email capture** - Card/CTA style forms with benefits list
-✅ **Email delivery** - Resend with click tracking and {{DOWNLOAD_LINK}} placeholder
-✅ **Automatic account creation** - Users get accounts on first click (Phase 2)
-✅ **Password management** - Secure random passwords + magic link setup
-✅ **Token-based access** - Cryptographically secure tokens per order
+✅ **Email delivery** - Resend with admin-configured content links (no tracking)
+✅ **In-component thank you** - Success message shows in same component (no redirect)
+✅ **Fully customizable** - Admins control form, email, and thank you messaging
+✅ **Token generation** - Cryptographically secure tokens per order (for future analytics)
 ✅ **Flodesk integration** - Optional email marketing platform support
 ✅ **Multi-block architecture** - Fully integrated with product builder system
 ✅ **Mutual exclusivity** - Products have either lead magnet OR pricing, not both
 
+❌ **No automatic accounts** - Removed for simplicity (can be added as separate feature)
+❌ **No click tracking** - Content links go directly in email (no tracking URLs)
+❌ **No redirect pages** - Thank you message shows inline
+
 ### Key Files Implemented
 
 **Admin Components:**
-- `/src/components/admin/product-builder/blocks/ProductLeadMagnetBlock.tsx` - 4-tab editor
+- `/src/components/admin/product-builder/blocks/ProductLeadMagnetBlock.tsx` - 4-tab editor (Content, Email, Flodesk, Settings with thank you message)
 - `/src/components/admin/product-builder/BlockTypesPanel.tsx` - Add button with Mail icon
 - `/src/components/admin/product-builder/BlockListPanel.tsx` - Block icon in list
-- `/src/hooks/useProductBuilder.ts` - Handler with mutual exclusivity check
+- `/src/hooks/useProductBuilder.ts` - Handler with mutual exclusivity check + thankYou defaults
 
 **Frontend Components:**
-- `/src/components/frontend/products/ProductLeadMagnetBlock.tsx` - Card/CTA form
+- `/src/components/frontend/products/ProductLeadMagnetBlock.tsx` - Card/CTA form + inline thank you message
 - `/src/components/frontend/products/ProductBlockRenderer.tsx` - Rendering integration
-- `/src/app/products/[slug]/thank-you/page.tsx` - Thank you page
 
 **API & Actions:**
-- `/src/app/api/products/lead-magnet/signup/route.ts` - Signup endpoint
-- `/src/app/api/track/click/[token]/route.ts` - Click tracking + account creation (Phase 2)
-- `/src/lib/actions/email/lead-magnet-emails.ts` - Email helper
-- `/src/lib/actions/email/account-emails.ts` - Account notification emails (Phase 2)
+- `/src/app/api/products/lead-magnet/signup/route.ts` - Signup endpoint (no redirect URL)
+- `/src/app/api/track/click/[token]/route.ts` - Click tracking (simplified - no account creation)
+- `/src/lib/actions/email/lead-magnet-emails.ts` - Simple email template
 - `/src/lib/actions/email/order-actions.ts` - Order type: 'lead_magnet'
 
 **Utilities:**
@@ -942,11 +945,16 @@ This implementation provides a complete, production-ready lead magnet system wit
 
 **Database:**
 - `product_orders` table with `order_type: 'lead_magnet'`
-- `product_orders.user_id` links to auth.users (Phase 2)
+- `product_orders.user_id` (nullable - for future account linking)
 - Migration 069: Add 'lead_magnet' enum value
 - Migration 070: Update existing records
 
-The system is production-ready and fully tested with no compilation errors.
+**Deleted Files (Simplified):**
+- ~~`/src/app/products/[slug]/thank-you/page.tsx`~~ - Removed (thank you shows inline)
+- ~~Account creation logic~~ - Removed from click tracking
+- ~~Account notification emails~~ - Removed
+
+The system is production-ready with a clean, simple implementation.
 
 ---
 

@@ -28,8 +28,10 @@ interface LeadMagnetBlockContent {
     segmentId: string
     tags: string[]
   }
-  thankYouUrl: string
-  accessInstructions: string
+  thankYou: {
+    heading: string
+    message: string
+  }
 }
 
 interface ProductLeadMagnetBlockProps {
@@ -251,8 +253,7 @@ export default function ProductLeadMagnetBlock({
               <div>
                 <Label>Email Content (Rich Text)</Label>
                 <p className="text-sm text-gray-600">
-                  Use <code>{'{{DOWNLOAD_LINK}}'}</code> as a placeholder for
-                  the tracked download link.
+                  Add your content with links, text, and formatting. Include direct links to your downloadable resources.
                 </p>
                 <div className="mt-2 min-h-[200px] rounded-md border p-4">
                   <EditorContent editor={editor} />
@@ -346,17 +347,40 @@ export default function ProductLeadMagnetBlock({
 
             {/* Settings Tab */}
             <TabsContent value="settings" className="space-y-4">
-              <div>
-                <Label htmlFor="thankYouUrl">Thank You Page URL</Label>
-                <Input
-                  id="thankYouUrl"
-                  value={content.thankYouUrl || ''}
-                  onChange={(e) => onUpdate({ thankYouUrl: e.target.value })}
-                  placeholder="/products/{slug}/thank-you"
-                />
-                <p className="mt-1 text-sm text-gray-600">
-                  Leave empty to use default: /products/[slug]/thank-you
-                </p>
+              <div className="space-y-4 rounded-lg border p-4">
+                <h3 className="font-semibold text-gray-900">Thank You Message</h3>
+
+                <div>
+                  <Label htmlFor="thankYouHeading">Heading</Label>
+                  <Input
+                    id="thankYouHeading"
+                    value={content.thankYou?.heading || ''}
+                    onChange={(e) => onUpdate({
+                      thankYou: {
+                        ...content.thankYou,
+                        heading: e.target.value
+                      }
+                    })}
+                    placeholder="Check Your Email!"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="thankYouMessage">Message</Label>
+                  <textarea
+                    id="thankYouMessage"
+                    value={content.thankYou?.message || ''}
+                    onChange={(e) => onUpdate({
+                      thankYou: {
+                        ...content.thankYou,
+                        message: e.target.value
+                      }
+                    })}
+                    placeholder="We've sent your content to your email address."
+                    rows={3}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
 
               <div>
