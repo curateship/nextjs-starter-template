@@ -36,13 +36,15 @@ Thank you page displays "Check your email at user@example.com for your [Product 
   ↓
 User receives email with product content
   ↓
-User clicks ANY link in email
+User opens email OR clicks link
   ↓
-GET /api/track/click/[token]
-  - Validates token
-  - Marks signup as "clicked" in database
-  - Adds to Flodesk (if enabled) with tag "lead-magnet-[product-slug]"
-  - Redirects to destination URL or shows content
+Resend fires webhook → POST /api/webhooks/resend
+  - Event type: email.opened OR email.clicked
+  - Finds order by email address
+  - Gets Flodesk configuration (site-specific or .env fallback)
+  - Adds user to Flodesk with product-specific tags
+  - Marks order as flodesk_added_at (prevents duplicates)
+  - Engagement-based addition ensures quality subscribers
 ```
 
 ### Paid Product Flow (Existing - Enhanced)
@@ -220,14 +222,15 @@ Add new block type to existing products:
 - [ ] `supabase/migrations/0XX_create_product_orders_table.sql`
 
 **1.2 Environment Variables**
-- [ ] Add to `.env.example`:
+- [x] Add to `.env.example`:
   ```env
   # Email Delivery (Resend)
   RESEND_API_KEY=re_xxxxx
   DEFAULT_FROM_EMAIL=noreply@yourdomain.com
   DEFAULT_FROM_NAME=Your App Name
+  RESEND_WEBHOOK_SECRET=your_resend_webhook_signing_secret  # Required for webhooks
 
-  # Flodesk (Optional - can be configured per-site)
+  # Flodesk (Optional - can be configured per-site or via .env fallback)
   FLODESK_API_KEY=fk_xxxxx
   FLODESK_SEGMENT_ID=seg_xxxxx
   ```
@@ -376,7 +379,39 @@ Flow:
 5. Else: show a simple page with "Opening your content..."
 ```
 
-**3.3 Webhook Enhancement** (`src/app/api/webhooks/stripe/route.ts`)
+**3.3 Resend Webhook Handler** (`src/app/api/webhooks/resend/route.ts`)
+```typescript
+POST /api/webhooks/resend
+Headers: svix-signature (webhook signature for verification)
+Body: Resend webhook payload (email.opened or email.clicked events)
+
+Flow:
+1. Verify webhook signature using RESEND_WEBHOOK_SECRET
+2. Parse webhook payload (type, data)
+3. Extract email address from webhook data
+4. Find most recent order for this email (where flodesk_added_at is null)
+5. If no pending order found, return early
+6. Get Flodesk configuration (site-specific or .env fallback via getFlodeskConfig)
+7. If Flodesk not configured, return early
+8. Get product details and lead magnet block settings
+9. Prepare subscriber data:
+   - email, first_name, last_name
+   - segment_ids (from product settings or default)
+   - tags (from product-specific Flodesk settings)
+10. Add subscriber to Flodesk via API
+11. Mark order as flodesk_added_at with timestamp
+12. Store Flodesk subscriber ID and event type in order metadata
+13. Return success response
+
+Supported Events:
+- email.opened: User opened the lead magnet email
+- email.clicked: User clicked a link in the email
+
+Note: This approach adds users to Flodesk based on engagement (open OR click)
+rather than at signup time, ensuring only interested users are added.
+```
+
+**3.4 Webhook Enhancement** (`src/app/api/webhooks/stripe/route.ts`)
 ```typescript
 // Enhance existing webhook handler
 case 'checkout.session.completed': {
@@ -797,6 +832,76 @@ function generateAccessToken(): string {
 
 ---
 
+## Configuration
+
+### Resend Webhook Setup
+
+To enable Flodesk integration based on email engagement (opens/clicks), you must configure the Resend webhook:
+
+1. **Get your webhook endpoint URL:**
+   - Development: `https://your-dev-domain.com/api/webhooks/resend`
+   - Production: `https://your-production-domain.com/api/webhooks/resend`
+
+2. **Configure in Resend Dashboard:**
+   - Go to [Resend Webhooks](https://resend.com/webhooks)
+   - Click "Add Webhook"
+   - Enter your webhook endpoint URL
+   - Select events to subscribe to:
+     - ✅ `email.opened`
+     - ✅ `email.clicked`
+   - Save and copy the webhook signing secret
+
+3. **Add webhook secret to environment variables:**
+   ```env
+   RESEND_WEBHOOK_SECRET=your_webhook_signing_secret_here
+   ```
+
+4. **Test the webhook:**
+   - Send a test lead magnet email
+   - Open the email or click a link
+   - Check your application logs for: `Resend webhook: email.opened for user@example.com`
+   - Verify the user was added to Flodesk (check Flodesk dashboard)
+
+### Flodesk Configuration
+
+You can configure Flodesk credentials in two ways:
+
+**Option 1: Environment Variables (Simple - Recommended)**
+```env
+FLODESK_API_KEY=fk_your_api_key_here
+FLODESK_SEGMENT_ID=seg_your_segment_id_here  # Optional default segment
+```
+
+**Option 2: Site-Specific Configuration (Advanced)**
+- Store credentials in the `site_integrations` table via admin UI
+- Allows different sites to use different Flodesk accounts
+- Falls back to environment variables if not configured per-site
+
+**Integration Priority:**
+1. Site-specific configuration (from `site_integrations` table)
+2. Environment variable fallback
+3. Integration disabled if neither is configured
+
+### Getting Flodesk Credentials
+
+1. **API Key:**
+   - Go to [Flodesk Account Settings](https://app.flodesk.com/settings/api)
+   - Generate a new API key
+   - Format: `fk_...`
+
+2. **Segment ID (Optional):**
+   - Go to Segments in Flodesk dashboard
+   - Click on the segment you want to use
+   - Copy the segment ID from the URL
+   - Format: `seg_...`
+
+3. **Product-Specific Tags:**
+   - Configure tags in the Product Lead Magnet block's Flodesk tab
+   - Users will be tagged based on which product they signed up for
+   - Example tags: `lead-magnet-seo-guide`, `product-checklist`
+
+---
+
 ## Future Enhancements
 
 ### V1 (MVP) - ✅ COMPLETED
@@ -937,8 +1042,10 @@ This implementation provides a simple, production-ready lead magnet system with:
 **API & Actions:**
 - `/src/app/api/products/lead-magnet/signup/route.ts` - Signup endpoint (no redirect URL)
 - `/src/app/api/track/click/[token]/route.ts` - Click tracking (simplified - no account creation)
+- `/src/app/api/webhooks/resend/route.ts` - Resend webhook handler for email.opened/clicked events
 - `/src/lib/actions/email/lead-magnet-emails.ts` - Simple email template
 - `/src/lib/actions/email/order-actions.ts` - Order type: 'lead_magnet'
+- `/src/lib/actions/email/integration-actions.ts` - Flodesk/Resend config with .env fallback
 
 **Utilities:**
 - `/src/lib/utils/product-block-utils.ts` - Block type validation

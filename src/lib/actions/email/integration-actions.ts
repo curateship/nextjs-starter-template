@@ -197,28 +197,39 @@ export async function deleteIntegration(integrationId: string): Promise<void> {
 
 /**
  * Get Flodesk config for a site (helper function)
+ * Falls back to environment variables if not configured per-site
  */
 export async function getFlodeskConfig(siteId: string): Promise<{
   apiKey: string
-  segmentId: string
+  segmentId?: string
 } | null> {
+  // First try to get site-specific configuration
   const integration = await getSiteIntegration(siteId, 'flodesk')
 
-  if (!integration || !integration.is_enabled) {
-    return null
+  if (integration && integration.is_enabled) {
+    const { api_key, segment_id } = integration.config
+
+    if (api_key) {
+      return {
+        apiKey: api_key,
+        segmentId: segment_id,
+      }
+    }
   }
 
-  const { api_key, segment_id } = integration.config
+  // Fall back to environment variables
+  const envApiKey = process.env.FLODESK_API_KEY
+  const envSegmentId = process.env.FLODESK_SEGMENT_ID
 
-  if (!api_key || !segment_id) {
-    console.error('Flodesk integration is missing required fields')
-    return null
+  if (envApiKey) {
+    return {
+      apiKey: envApiKey,
+      segmentId: envSegmentId,
+    }
   }
 
-  return {
-    apiKey: api_key,
-    segmentId: segment_id,
-  }
+  // No Flodesk configuration found
+  return null
 }
 
 /**
