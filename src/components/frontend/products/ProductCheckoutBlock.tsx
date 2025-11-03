@@ -57,7 +57,7 @@ interface CheckoutSettings {
   orderBumps: any[]
 }
 
-interface ProductPricingBlockProps {
+interface ProductCheckoutBlockProps {
   title?: string
   subtitle?: string
   headerAlign?: 'left' | 'center'
@@ -283,7 +283,7 @@ const PricingCard = ({
   )
 }
 
-const ProductPricingBlock = ({
+const ProductCheckoutBlock = ({
   title,
   subtitle,
   headerAlign = 'center',
@@ -292,7 +292,7 @@ const ProductPricingBlock = ({
   productSlug,
   siteWidth = 'custom',
   customWidth
-}: ProductPricingBlockProps) => {
+}: ProductCheckoutBlockProps) => {
   // Don't render anything if no pricing tiers are provided
   if (!pricingTiers || pricingTiers.length === 0) {
     return null
@@ -354,4 +354,4 @@ const ProductPricingBlock = ({
   )
 }
 
-export { ProductPricingBlock }
+export { ProductCheckoutBlock }

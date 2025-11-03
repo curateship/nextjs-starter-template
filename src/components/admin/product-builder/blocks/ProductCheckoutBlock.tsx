@@ -102,7 +102,7 @@ interface DownloadSettings {
   content: string
 }
 
-interface ProductPricingBlockProps {
+interface ProductCheckoutBlockProps {
   headerTitle?: string
   headerSubtitle?: string
   headerAlign?: 'left' | 'center'
@@ -450,7 +450,7 @@ function SortableOrderBumpItem({
   )
 }
 
-export function ProductPricingBlock({
+export function ProductCheckoutBlock({
   headerTitle = '',
   headerSubtitle = '',
   headerAlign = 'left',
@@ -463,7 +463,7 @@ export function ProductPricingBlock({
   onTiersChange,
   onCheckoutSettingsChange,
   onDownloadSettingsChange,
-}: ProductPricingBlockProps) {
+}: ProductCheckoutBlockProps) {
   const [activeTab, setActiveTab] = useState('pricing')
 
   const sensors = useSensors(

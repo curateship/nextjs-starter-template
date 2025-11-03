@@ -3,7 +3,7 @@ import { ProductFeatureGridBlock } from "@/components/ui/product-feature-grid-bl
 import { ProductBonusBlock } from "@/components/ui/product-bonus-block";
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock";
 import { ProductFeatureCarousel } from "@/components/ui/product-feature-carousel";
-import { ProductPricingBlock } from "@/components/ui/product-pricing-block";
+import { ProductCheckoutBlock } from "@/components/ui/product-checkout-block";
 import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock";
 
 export default function DefaultThemeProductDemoPage() {
@@ -13,7 +13,7 @@ export default function DefaultThemeProductDemoPage() {
       <ProductFeatureGridBlock />
       <ProductHotspotBlock />
       <ProductBonusBlock />
-      <ProductPricingBlock />
+      <ProductCheckoutBlock />
       <ProductFeatureCarousel />
       <FaqBlock />
     </>

@@ -6,7 +6,7 @@ interface BlockTypesPanelProps {
   onAddProductHeroBlock: () => void
   onAddProductFeaturesBlock: () => void
   onAddProductHotspotBlock: () => void
-  onAddProductPricingBlock: () => void
+  onAddProductCheckoutBlock: () => void
   onAddProductLeadMagnetBlock: () => void
   onAddProductFAQBlock: () => void
   onAddListingViewsBlock: () => void
@@ -19,7 +19,7 @@ export function BlockTypesPanel({
   onAddProductHeroBlock,
   onAddProductFeaturesBlock,
   onAddProductHotspotBlock,
-  onAddProductPricingBlock,
+  onAddProductCheckoutBlock,
   onAddProductLeadMagnetBlock,
   onAddProductFAQBlock,
   onAddListingViewsBlock,
@@ -115,7 +115,7 @@ export function BlockTypesPanel({
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-3 -m-2 text-green-600 hover:text-green-700 hover:bg-green-50 cursor-pointer"
-              onClick={onAddProductPricingBlock}
+              onClick={onAddProductCheckoutBlock}
               title="Add product checkout block"
             >
               <Plus className="w-4 h-4" />

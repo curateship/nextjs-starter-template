@@ -77,7 +77,7 @@ User's product description: ${userPrompt}
 Generate 4-6 FAQ items. Return ONLY valid JSON, no explanatory text.`,
 
     'product-hotspot': `Generate a product hotspot block. Return ONLY valid JSON, no explanatory text.`,
-    'product-pricing': `Generate a product pricing block. Return ONLY valid JSON, no explanatory text.`,
+    'product-checkout': `Generate a product checkout block. Return ONLY valid JSON, no explanatory text.`,
     'product-video': `Generate a product video block. Return ONLY valid JSON, no explanatory text.`,
     'rich-text': `Generate rich text content. Return ONLY valid JSON, no explanatory text.`
   }

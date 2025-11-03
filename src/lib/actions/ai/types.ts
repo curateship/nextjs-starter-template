@@ -7,7 +7,7 @@ export type BlockType =
   | 'product-hero'
   | 'product-features'
   | 'product-hotspot'
-  | 'product-pricing'
+  | 'product-checkout'
   | 'product-video'
   | 'rich-text'
   | 'faq'

@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils/tailwind-class-merger'
 import type { AIMessage } from '@/lib/actions/ai/types'
 
 interface BlockAIChatProps {
-  blockType: 'product-features' | 'product-hero' | 'product-pricing' | 'faq' | 'product-hotspot' | 'rich-text' | 'product-video'
+  blockType: 'product-features' | 'product-hero' | 'product-checkout' | 'faq' | 'product-hotspot' | 'rich-text' | 'product-video'
   currentContent: any
   onContentUpdate: (content: any) => void
   productContext?: string

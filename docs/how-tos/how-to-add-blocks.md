@@ -211,7 +211,7 @@ const allowedBlockTypes = [
   'product-gallery',
   'product-features',
   'product-hotspot',
-  'product-pricing',
+  'product-checkout',
   'faq',
   'listing-views',
   'rich-text', // Add your new block type
@@ -245,7 +245,7 @@ const allowedBlockTypes = [
   'product-gallery',
   'product-features',
   'product-hotspot',
-  'product-pricing',
+  'product-checkout',
   'faq',
   'listing-views',
   'rich-text' // Add your new block type

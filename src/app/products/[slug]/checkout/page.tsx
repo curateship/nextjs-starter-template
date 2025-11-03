@@ -21,8 +21,8 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   const product = result.product
   const site = result.site
 
-  // Get pricing block data
-  const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-pricing')
+  // Get checkout block data
+  const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
   const checkoutSettings = pricingBlockData?.content?.checkoutSettings
 
   // Check if checkout is enabled

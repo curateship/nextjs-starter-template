@@ -63,7 +63,7 @@ Implement AI-powered content generation for products, pages, posts, and director
   - product-hero
   - product-features
   - product-hotspot
-  - product-pricing
+  - product-checkout
   - faq
   - product-video
   - rich-text

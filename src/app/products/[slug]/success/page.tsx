@@ -21,8 +21,8 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
 
   const product = result.product
 
-  // Get pricing block data
-  const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-pricing')
+  // Get checkout block data
+  const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
   const downloadSettings = pricingBlockData?.content?.downloadSettings
 
   // Verify payment - check for payment_intent (Payment Element) or session_id (Checkout Session)

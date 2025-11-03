@@ -31,7 +31,7 @@ interface UseProductBuilderReturn {
   handleAddProductHeroBlock: () => void
   handleAddProductFeaturesBlock: () => void
   handleAddProductHotspotBlock: () => void
-  handleAddProductPricingBlock: () => void
+  handleAddProductCheckoutBlock: () => void
   handleAddProductLeadMagnetBlock: () => void
   handleAddProductFAQBlock: () => void
   handleAddListingViewsBlock: () => void
@@ -149,7 +149,7 @@ export function useProductBuilder({
     })
   }
 
-  const handleAddProductPricingBlock = () => {
+  const handleAddProductCheckoutBlock = () => {
     // Check if lead-magnet block exists
     const currentBlocks = blocks[selectedProduct] || []
     if (currentBlocks.some(b => b.type === 'lead-magnet')) {
@@ -157,7 +157,7 @@ export function useProductBuilder({
       return
     }
 
-    addBlock('product-pricing', 'Product Pricing', {
+    addBlock('product-checkout', 'Product Checkout', {
       title: '',
       subtitle: '',
       headerTitle: '',
@@ -167,10 +167,10 @@ export function useProductBuilder({
   }
 
   const handleAddProductLeadMagnetBlock = () => {
-    // Check if pricing block exists
+    // Check if checkout block exists
     const currentBlocks = blocks[selectedProduct] || []
-    if (currentBlocks.some(b => b.type === 'product-pricing')) {
-      alert('Cannot add Lead Magnet block: Product already has a Pricing block. Products can have either Lead Magnet OR Pricing, not both.')
+    if (currentBlocks.some(b => b.type === 'product-checkout')) {
+      alert('Cannot add Lead Magnet block: Product already has a Checkout block. Products can have either Lead Magnet OR Checkout, not both.')
       return
     }
 
@@ -324,7 +324,7 @@ export function useProductBuilder({
     handleAddProductHeroBlock,
     handleAddProductFeaturesBlock,
     handleAddProductHotspotBlock,
-    handleAddProductPricingBlock,
+    handleAddProductCheckoutBlock,
     handleAddProductLeadMagnetBlock,
     handleAddProductFAQBlock,
     handleAddListingViewsBlock,

@@ -4,7 +4,7 @@ import { ProductDefaultBlock } from "@/components/frontend/products/ProductDefau
 import { ProductHeroBlock } from "@/components/frontend/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock"
-import { ProductPricingBlock } from "@/components/frontend/products/ProductPricingBlock"
+import { ProductCheckoutBlock } from "@/components/frontend/products/ProductCheckoutBlock"
 import ProductLeadMagnetBlock from "@/components/frontend/products/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/ProductListingViewBlock"
@@ -96,9 +96,9 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           )
         }
         
-        if (block.type === 'product-pricing') {
+        if (block.type === 'product-checkout') {
           const tiers = block.content.tiers || block.content.pricingTiers || []
-          
+
           // Transform admin tier structure to frontend tier structure
           const transformedTiers = tiers.map((tier: any) => ({
             id: tier.id,
@@ -116,10 +116,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             ribbonColor: tier.ribbonColor || 'blue',
             stripePriceId: tier.stripePriceId || ''
           }))
-          
+
           return (
-            <ProductPricingBlock
-              key={`product-pricing-${block.id}`}
+            <ProductCheckoutBlock
+              key={`product-checkout-${block.id}`}
               title={block.content.headerTitle || block.content.title}
               subtitle={block.content.headerSubtitle || block.content.subtitle}
               headerAlign={block.content.headerAlign}

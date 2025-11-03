@@ -187,7 +187,7 @@ export function BlockListPanel({
            block.type === 'product-gallery' ? 'Product Gallery' :
            block.type === 'product-features' ? 'Product Features' :
            block.type === 'product-hotspot' ? 'Product Hotspot' :
-           block.type === 'product-pricing' ? 'Product Pricing' :
+           block.type === 'product-checkout' ? 'Product Checkout' :
            block.type === 'faq' ? 'Product FAQ' :
            block.type === 'listing-views' ? 'Product Listing Views' :
            block.type === 'rich-text' ? 'Rich Text' :
@@ -210,7 +210,7 @@ export function BlockListPanel({
         return <Target className="w-4 h-4" />
       case 'lead-magnet':
         return <Mail className="w-4 h-4" />
-      case 'product-pricing':
+      case 'product-checkout':
         return <DollarSign className="w-4 h-4" />
       case 'faq':
         return <HelpCircle className="w-4 h-4" />

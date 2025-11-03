@@ -157,7 +157,7 @@ const PricingCard = ({ tier }: { tier: PricingTier }) => {
   );
 };
 
-const ProductPricingBlock = () => {
+const ProductCheckoutBlock = () => {
   return (
     <BlockContainer
       id="pricing"
@@ -175,4 +175,4 @@ const ProductPricingBlock = () => {
   );
 };
 
-export { ProductPricingBlock };
+export { ProductCheckoutBlock };

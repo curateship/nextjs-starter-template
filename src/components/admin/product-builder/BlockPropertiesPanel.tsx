@@ -4,7 +4,7 @@ import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/P
 import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/ProductGalleryBlock"
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/ProductHotspotBlock"
-import { ProductPricingBlock } from "@/components/admin/product-builder/blocks/ProductPricingBlock"
+import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/ProductCheckoutBlock"
 import ProductLeadMagnetBlock from "@/components/admin/product-builder/blocks/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
@@ -198,8 +198,8 @@ export function BlockPropertiesPanel({
               />
             )}
             
-            {selectedBlock.type === 'product-pricing' && (
-              <ProductPricingBlock
+            {selectedBlock.type === 'product-checkout' && (
+              <ProductCheckoutBlock
                 headerTitle={selectedBlock.content.headerTitle ?? ''}
                 headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
