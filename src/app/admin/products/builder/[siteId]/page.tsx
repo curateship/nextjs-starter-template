@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { ProductBuilderHeader } from "@/components/admin/product-builder/ProductBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/product-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/product-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/product-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/product-builder/BlockSelectionModal"
 import { getSiteProductsAction, updateProductAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
 
@@ -27,6 +27,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   // Get initial product from URL params or default to first product
   const initialProduct = searchParams.get('product') || ''
   const [selectedProduct, setSelectedProduct] = useState(initialProduct)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
   
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -220,7 +221,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           saveMessage={builderState.saveMessage}
           isSaving={builderState.isSaving}
           onSave={builderState.handleSaveAllBlocks}
-          onPreviewProduct={() => builderState.setSelectedBlock(null)}
           productsLoading={productsLoading}
           onAIComplete={handleAIComplete}
         />
@@ -258,23 +258,19 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewProduct={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}
           />
-          
-          <BlockTypesPanel
-            onAddProductDefaultBlock={builderState.handleAddProductDefaultBlock}
-            onAddProductHeroBlock={builderState.handleAddProductHeroBlock}
-            onAddProductFeaturesBlock={builderState.handleAddProductFeaturesBlock}
-            onAddProductHotspotBlock={builderState.handleAddProductHotspotBlock}
-            onAddProductCheckoutBlock={builderState.handleAddProductCheckoutBlock}
-            onAddProductLeadMagnetBlock={builderState.handleAddProductLeadMagnetBlock}
-            onAddProductFAQBlock={builderState.handleAddProductFAQBlock}
-            onAddListingViewsBlock={builderState.handleAddListingViewsBlock}
-            onAddProductRichTextBlock={builderState.handleAddProductRichTextBlock}
-            onAddProductVideoBlock={builderState.handleAddProductVideoBlock}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentProduct.blocks.map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )

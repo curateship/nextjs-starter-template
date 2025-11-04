@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -8,7 +7,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle, Sparkles } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
@@ -25,7 +31,6 @@ interface ProductBuilderHeaderProps {
   saveMessage: string
   isSaving: boolean
   onSave: () => void
-  onPreviewProduct?: () => void
   productsLoading?: boolean
   onAIComplete?: () => void
 }
@@ -39,33 +44,33 @@ export function ProductBuilderHeader({
   saveMessage,
   isSaving,
   onSave,
-  onPreviewProduct,
   productsLoading = false,
   onAIComplete
 }: ProductBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showAIDialog, setShowAIDialog] = useState(false)
-  const [selectOpen, setSelectOpen] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentProduct = products.find(p => p.slug === selectedProduct)
 
   const handleCreateProduct = () => {
-    setSelectOpen(false) // Close the Select dropdown first
+    setDropdownOpen(false)
     setTimeout(() => {
-      setShowCreateDialog(true) // Then open the Dialog after a brief delay
+      setShowCreateDialog(true)
     }, 100)
   }
   
   
   // Generate product URL for frontend viewing
-  const getProductUrl = () => {
-    if (!currentProduct || !currentSite?.subdomain) {
+  const getProductUrl = (productSlug?: string) => {
+    const slug = productSlug || currentProduct?.slug
+    if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    
+
     // Use dedicated product routing
-    const url = `http://localhost:3000/products/${currentProduct.slug}`
+    const url = `http://localhost:3000/products/${slug}`
     return url
   }
   
@@ -73,61 +78,54 @@ export function ProductBuilderHeader({
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[57px] z-40">
       <div className="flex h-14 items-center px-6">
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="icon" asChild>
             <Link href="/admin/products">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Products
+              <ArrowLeft className="w-4 h-4" />
             </Link>
           </Button>
-          <div className="h-4 w-px bg-border"></div>
-          <h1 className="text-lg font-semibold">Product Builder</h1>
-          <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedProduct} onValueChange={onProductChange} open={selectOpen} onOpenChange={setSelectOpen}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue>
-                {currentProduct ? currentProduct.title : ""}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-9 px-3 font-semibold text-base hover:bg-transparent">
+                {currentProduct ? currentProduct.title : "Select Product"}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[240px]">
               {products.map((product) => (
-                <SelectItem key={product.id} value={product.slug}>
-                  {product.title}
-                  {!product.is_published && " (Draft)"}
-                </SelectItem>
-              ))}
-              <div className="border-t pt-1 mt-2">
-                <div
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={handleCreateProduct}
+                <DropdownMenuItem
+                  key={product.id}
+                  onSelect={(e) => e.preventDefault()}
+                  className={product.slug === selectedProduct ? "bg-accent" : ""}
                 >
-                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                    <Plus className="h-4 w-4" />
-                  </span>
-                  Create Product
-                </div>
-              </div>
-            </SelectContent>
-          </Select>
-          <Button 
-            variant="outline"
-            size="sm" 
-            onClick={onPreviewProduct}
-            disabled={!currentProduct}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview Product
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-            disabled={!currentProduct || !currentSite?.subdomain}
-          >
-            <Link href={getProductUrl()} target="_blank">
-              <Eye className="w-4 h-4 mr-2" />
-              View Product
-            </Link>
-          </Button>
+                  <div className="flex items-center justify-between flex-1">
+                    <span
+                      onClick={() => {
+                        onProductChange(product.slug)
+                        setDropdownOpen(false)
+                      }}
+                      className="flex-1 cursor-pointer"
+                    >
+                      {product.title}
+                      {!product.is_published && " (Draft)"}
+                    </span>
+                    <Link
+                      href={getProductUrl(product.slug)}
+                      target="_blank"
+                      onClick={(e) => e.stopPropagation()}
+                      className="ml-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCreateProduct}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Product
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="ml-auto flex items-center space-x-2">
           <Button

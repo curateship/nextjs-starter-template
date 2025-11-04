@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video, Mail } from "lucide-react"
+import { Trash2, GripVertical, Zap, Package, Image, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video, Mail, Plus, Eye } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -47,6 +47,8 @@ interface BlockListPanelProps {
   onSelectBlock: (block: ProductBlock) => void
   onDeleteBlock: (block: ProductBlock) => void
   onReorderBlocks: (blocks: ProductBlock[]) => void
+  onOpenBlockModal: () => void
+  onPreviewProduct?: () => void
   deleting: string | null
   blocksLoading?: boolean
 }
@@ -137,6 +139,8 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
+  onOpenBlockModal,
+  onPreviewProduct,
   deleting,
   blocksLoading = false
 }: BlockListPanelProps) {
@@ -234,9 +238,32 @@ export function BlockListPanel({
               <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
             </div>
           ) : (
-            <h2 className="text-xl font-semibold mb-6">
-              {currentProduct.name} Product Blocks
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-semibold">
+                  Active Blocks
+                </h2>
+                {onPreviewProduct && (
+                  <Button
+                    onClick={onPreviewProduct}
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Preview Product"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <Button
+                onClick={onOpenBlockModal}
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Blocks</span>
+              </Button>
+            </div>
           )}
           
           {blocksLoading ? (
