@@ -9,8 +9,8 @@ export type BlockType =
   | 'product-hotspot'
   | 'product-checkout'
   | 'product-video'
-  | 'rich-text'
-  | 'faq'
+  | 'product-rich-text'
+  | 'product-faq'
 
 export interface GeneratedBlock {
   id: string

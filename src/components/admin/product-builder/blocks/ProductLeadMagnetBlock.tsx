@@ -16,7 +16,7 @@ interface LeadMagnetBlockContent {
   heading: string
   subheading: string
   buttonText: string
-  benefits: string[]
+  productBenefits: string[]
   emailSettings: {
     subject: string
     fromName: string
@@ -29,7 +29,7 @@ interface LeadMagnetBlockContent {
     tags: string[]
   }
   accessInstructions?: string
-  thankYou: {
+  thankYouMessage: {
     heading: string
     message: string
   }
@@ -75,16 +75,16 @@ export default function ProductLeadMagnetBlock({
   const handleAddBenefit = () => {
     if (newBenefit.trim()) {
       onUpdate({
-        benefits: [...(content.benefits || []), newBenefit.trim()],
+        productBenefits: [...(content.productBenefits || []), newBenefit.trim()],
       })
       setNewBenefit('')
     }
   }
 
   const handleRemoveBenefit = (index: number) => {
-    const updated = [...(content.benefits || [])]
+    const updated = [...(content.productBenefits || [])]
     updated.splice(index, 1)
-    onUpdate({ benefits: updated })
+    onUpdate({ productBenefits: updated })
   }
 
   const handleAddTag = () => {
@@ -161,7 +161,7 @@ export default function ProductLeadMagnetBlock({
               <div>
                 <Label>Benefits List</Label>
                 <div className="mt-2 space-y-2">
-                  {content.benefits?.map((benefit, index) => (
+                  {content.productBenefits?.map((benefit, index) => (
                     <div
                       key={index}
                       className="flex items-center gap-2 rounded-md border p-2"
@@ -355,10 +355,10 @@ export default function ProductLeadMagnetBlock({
                   <Label htmlFor="thankYouHeading">Heading</Label>
                   <Input
                     id="thankYouHeading"
-                    value={content.thankYou?.heading || ''}
+                    value={content.thankYouMessage?.heading || ''}
                     onChange={(e) => onUpdate({
-                      thankYou: {
-                        ...content.thankYou,
+                      thankYouMessage: {
+                        ...content.thankYouMessage,
                         heading: e.target.value
                       }
                     })}
@@ -370,10 +370,10 @@ export default function ProductLeadMagnetBlock({
                   <Label htmlFor="thankYouMessage">Message</Label>
                   <textarea
                     id="thankYouMessage"
-                    value={content.thankYou?.message || ''}
+                    value={content.thankYouMessage?.message || ''}
                     onChange={(e) => onUpdate({
-                      thankYou: {
-                        ...content.thankYou,
+                      thankYouMessage: {
+                        ...content.thankYouMessage,
                         message: e.target.value
                       }
                     })}

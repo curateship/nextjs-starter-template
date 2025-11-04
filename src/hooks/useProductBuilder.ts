@@ -147,14 +147,14 @@ export function useProductBuilder({
       subheader: 'Hover over the blinking dots to discover more',
       headerAlign: 'left',
       backgroundImage: '',
-      hotspots: []
+      productHotspots: []
     })
   }
 
   const handleAddProductCheckoutBlock = () => {
-    // Check if lead-magnet block exists
+    // Check if product-lead-magnet block exists
     const currentBlocks = blocks[selectedProduct] || []
-    if (currentBlocks.some(b => b.type === 'lead-magnet')) {
+    if (currentBlocks.some(b => b.type === 'product-lead-magnet')) {
       alert('Cannot add Pricing block: Product already has a Lead Magnet block. Products can have either Lead Magnet OR Pricing, not both.')
       return
     }
@@ -163,7 +163,7 @@ export function useProductBuilder({
       header: '',
       subheader: '',
       headerAlign: 'center',
-      pricingTiers: []
+      productPricingTiers: []
     })
   }
 
@@ -175,11 +175,11 @@ export function useProductBuilder({
       return
     }
 
-    addBlock('lead-magnet', 'Product Lead Magnet', {
+    addBlock('product-lead-magnet', 'Product Lead Magnet', {
       heading: 'Get Your Free Download',
       subheading: 'Enter your email to receive instant access',
       buttonText: 'Get Instant Access',
-      benefits: [
+      productBenefits: [
         'Instant download',
         'No credit card required',
         'Unsubscribe anytime'
@@ -195,7 +195,7 @@ export function useProductBuilder({
         segmentId: '',
         tags: []
       },
-      thankYou: {
+      thankYouMessage: {
         heading: 'Check Your Email!',
         message: "We've sent your content to your email address."
       }
@@ -203,11 +203,11 @@ export function useProductBuilder({
   }
 
   const handleAddProductFAQBlock = () => {
-    addBlock('faq', 'FAQ', {
+    addBlock('product-faq', 'Product FAQ', {
       header: 'Product FAQ',
       subheader: 'Get answers to common questions about this product, its features, compatibility, and support options.',
       headerAlign: 'left',
-      faqItems: [
+      productFaqItems: [
         {
           id: 'item-1',
           question: 'What are the product specifications?',
@@ -245,8 +245,8 @@ export function useProductBuilder({
   }
 
   const handleAddProductRichTextBlock = () => {
-    addBlock('rich-text', 'Rich Text', {
-      content: '<p>Add your content here...</p>'
+    addBlock('product-rich-text', 'Rich Text', {
+      richtextContent: '<p>Add your content here...</p>'
     })
   }
 

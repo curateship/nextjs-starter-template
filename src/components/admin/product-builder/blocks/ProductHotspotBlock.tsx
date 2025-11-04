@@ -16,13 +16,13 @@ interface ProductHotspotBlockProps {
   subheader?: string
   headerAlign?: 'left' | 'center'
   backgroundImage: string
-  hotspots: Hotspot[]
+  productHotspots: Hotspot[]
   showTooltipsAlways: boolean
   onHeaderChange: (value: string) => void
   onSubheaderChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onBackgroundImageChange: (value: string) => void
-  onHotspotsChange: (hotspots: Hotspot[]) => void
+  onProductHotspotsChange: (productHotspots: Hotspot[]) => void
   onShowTooltipsAlwaysChange: (value: boolean) => void
   siteId: string
   blockId: string
@@ -33,13 +33,13 @@ export function ProductHotspotBlock({
   subheader = '',
   headerAlign = 'left',
   backgroundImage,
-  hotspots,
+  productHotspots,
   showTooltipsAlways,
   onHeaderChange,
   onSubheaderChange,
   onHeaderAlignChange,
   onBackgroundImageChange,
-  onHotspotsChange,
+  onProductHotspotsChange,
   onShowTooltipsAlwaysChange,
   siteId,
   blockId,
@@ -71,7 +71,7 @@ export function ProductHotspotBlock({
       text: "Click to edit this hotspot"
     }
 
-    onHotspotsChange([...hotspots, newHotspot])
+    onProductHotspotsChange([...productHotspots, newHotspot])
     setEditingHotspot(newHotspot.id)
     setHotspotForm({ text: "Click to edit this hotspot" })
     setIsAddingHotspot(false)
@@ -89,7 +89,7 @@ export function ProductHotspotBlock({
   }
 
   const handleEditHotspot = (hotspotId: string, event?: React.MouseEvent) => {
-    const hotspot = hotspots.find(h => h.id === hotspotId)
+    const hotspot = productHotspots.find(h => h.id === hotspotId)
     if (hotspot) {
       setEditingHotspot(hotspotId)
       setHotspotForm({ text: hotspot.text })
@@ -116,20 +116,20 @@ export function ProductHotspotBlock({
   const handleSaveHotspot = () => {
     if (!editingHotspot) return
 
-    const updatedHotspots = hotspots.map(hotspot => 
-      hotspot.id === editingHotspot 
+    const updatedHotspots = productHotspots.map(hotspot =>
+      hotspot.id === editingHotspot
         ? { ...hotspot, text: hotspotForm.text }
         : hotspot
     )
-    
-    onHotspotsChange(updatedHotspots)
+
+    onProductHotspotsChange(updatedHotspots)
     setEditingHotspot(null)
     setHotspotForm({ text: "" })
   }
 
   const handleDeleteHotspot = (hotspotId: string) => {
-    const updatedHotspots = hotspots.filter(h => h.id !== hotspotId)
-    onHotspotsChange(updatedHotspots)
+    const updatedHotspots = productHotspots.filter(h => h.id !== hotspotId)
+    onProductHotspotsChange(updatedHotspots)
     if (editingHotspot === hotspotId) {
       setEditingHotspot(null)
       setHotspotForm({ text: "" })
@@ -258,7 +258,7 @@ export function ProductHotspotBlock({
                 />
                 
                 {/* Preview hotspots */}
-                {hotspots.map((hotspot) => (
+                {productHotspots.map((hotspot) => (
                   <div key={hotspot.id} className="absolute z-10" style={{
                     left: `${hotspot.x}%`,
                     top: `${hotspot.y}%`,

@@ -97,7 +97,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         }
         
         if (block.type === 'product-checkout') {
-          const tiers = block.content.tiers || block.content.pricingTiers || []
+          const tiers = block.content.productPricingTiers || []
 
           // Transform admin tier structure to frontend tier structure
           const transformedTiers = tiers.map((tier: any) => ({
@@ -132,17 +132,17 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           )
         }
 
-        if (block.type === 'lead-magnet') {
+        if (block.type === 'product-lead-magnet') {
           return (
             <ProductLeadMagnetBlock
-              key={`lead-magnet-${block.id}`}
+              key={`product-lead-magnet-${block.id}`}
               content={block.content as any}
               product={product}
             />
           )
         }
 
-        if (block.type === 'faq') {
+        if (block.type === 'product-faq') {
           return (
             <ProductFAQBlock
               key={`product-faq-${block.id}`}
@@ -169,10 +169,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           )
         }
 
-        if (block.type === 'rich-text') {
+        if (block.type === 'product-rich-text') {
           return (
             <ProductRichTextBlock
-              key={`rich-text-${block.id}`}
+              key={`product-rich-text-${block.id}`}
               content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}

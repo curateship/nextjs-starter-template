@@ -188,9 +188,9 @@ export function BlockListPanel({
            block.type === 'product-features' ? 'Product Features' :
            block.type === 'product-hotspot' ? 'Product Hotspot' :
            block.type === 'product-checkout' ? 'Product Checkout' :
-           block.type === 'faq' ? 'Product FAQ' :
+           block.type === 'product-faq' ? 'Product FAQ' :
            block.type === 'listing-views' ? 'Product Listing Views' :
-           block.type === 'rich-text' ? 'Rich Text' :
+           block.type === 'product-rich-text' ? 'Rich Text' :
            block.type === 'product-video' ? 'Product Video' : 'Block'
   }
 
@@ -208,15 +208,15 @@ export function BlockListPanel({
         return <Star className="w-4 h-4" />
       case 'product-hotspot':
         return <Target className="w-4 h-4" />
-      case 'lead-magnet':
+      case 'product-lead-magnet':
         return <Mail className="w-4 h-4" />
       case 'product-checkout':
         return <DollarSign className="w-4 h-4" />
-      case 'faq':
+      case 'product-faq':
         return <HelpCircle className="w-4 h-4" />
       case 'listing-views':
         return <LayoutGrid className="w-4 h-4" />
-      case 'rich-text':
+      case 'product-rich-text':
         return <FileText className="w-4 h-4" />
       case 'product-video':
         return <Video className="w-4 h-4" />

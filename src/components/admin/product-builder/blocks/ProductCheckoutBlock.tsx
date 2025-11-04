@@ -106,13 +106,13 @@ interface ProductCheckoutBlockProps {
   header?: string
   subheader?: string
   headerAlign?: 'left' | 'center'
-  tiers: PricingTier[]
+  productPricingTiers: PricingTier[]
   checkoutSettings?: CheckoutSettings
   downloadSettings?: DownloadSettings
   onHeaderChange: (value: string) => void
   onSubheaderChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
-  onTiersChange: (tiers: PricingTier[]) => void
+  onProductPricingTiersChange: (productPricingTiers: PricingTier[]) => void
   onCheckoutSettingsChange?: (settings: CheckoutSettings) => void
   onDownloadSettingsChange?: (settings: DownloadSettings) => void
 }
@@ -454,13 +454,13 @@ export function ProductCheckoutBlock({
   header = '',
   subheader = '',
   headerAlign = 'left',
-  tiers,
+  productPricingTiers,
   checkoutSettings,
   downloadSettings,
   onHeaderChange,
   onSubheaderChange,
   onHeaderAlignChange,
-  onTiersChange,
+  onProductPricingTiersChange,
   onCheckoutSettingsChange,
   onDownloadSettingsChange,
 }: ProductCheckoutBlockProps) {
@@ -496,7 +496,7 @@ export function ProductCheckoutBlock({
   const addTier = () => {
     const newTier: PricingTier = {
       id: `tier-${Date.now()}-${Math.random()}`,
-      name: `Plan ${(tiers?.length || 0) + 1}`,
+      name: `Plan ${(productPricingTiers?.length || 0) + 1}`,
       price: "$0",
       period: "per month",
       description: "Perfect for getting started",
@@ -508,18 +508,18 @@ export function ProductCheckoutBlock({
       ribbonColor: "blue",
       stripePriceId: "",
     }
-    onTiersChange([...(tiers || []), newTier])
+    onProductPricingTiersChange([...(productPricingTiers || []), newTier])
   }
 
   const removeTier = (index: number) => {
-    const newTiers = (tiers || []).filter((_, i) => i !== index)
-    onTiersChange(newTiers)
+    const newTiers = (productPricingTiers || []).filter((_, i) => i !== index)
+    onProductPricingTiersChange(newTiers)
   }
 
   const updateTier = (index: number, field: keyof PricingTier, value: any) => {
-    const newTiers = [...(tiers || [])]
+    const newTiers = [...(productPricingTiers || [])]
     newTiers[index] = { ...newTiers[index], [field]: value }
-    onTiersChange(newTiers)
+    onProductPricingTiersChange(newTiers)
   }
 
   const updateFeatures = (tierIndex: number, featuresText: string) => {
@@ -530,12 +530,12 @@ export function ProductCheckoutBlock({
   const handleTierDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
-    if (over && active.id !== over.id && tiers) {
-      const oldIndex = tiers.findIndex((tier) => tier.id === active.id)
-      const newIndex = tiers.findIndex((tier) => tier.id === over.id)
+    if (over && active.id !== over.id && productPricingTiers) {
+      const oldIndex = productPricingTiers.findIndex((tier) => tier.id === active.id)
+      const newIndex = productPricingTiers.findIndex((tier) => tier.id === over.id)
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        onTiersChange(arrayMove(tiers, oldIndex, newIndex))
+        onProductPricingTiersChange(arrayMove(productPricingTiers, oldIndex, newIndex))
       }
     }
   }
@@ -696,11 +696,11 @@ export function ProductCheckoutBlock({
               onDragEnd={handleTierDragEnd}
             >
               <SortableContext
-                items={tiers?.map(t => t.id) || []}
+                items={productPricingTiers?.map(t => t.id) || []}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-4">
-                  {tiers?.map((tier, index) => (
+                  {productPricingTiers?.map((tier, index) => (
                     <SortablePricingTierItem
                       key={tier.id}
                       tier={tier}
@@ -715,7 +715,7 @@ export function ProductCheckoutBlock({
               </SortableContext>
             </DndContext>
 
-            {(tiers?.length === 0 || !tiers) && (
+            {(productPricingTiers?.length === 0 || !productPricingTiers) && (
               <div className="text-center py-8 text-muted-foreground">
                 No pricing tiers yet. Click "Add Tier" to create one.
               </div>

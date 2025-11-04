@@ -17,7 +17,7 @@ interface ProductHotspotBlockProps {
   subtitle?: string
   headerAlign?: 'left' | 'center'
   backgroundImage?: string
-  hotspots?: Hotspot[]
+  productHotspots?: Hotspot[]
   showTooltipsAlways?: boolean
   className?: string
   siteWidth?: 'full' | 'custom'
@@ -29,7 +29,7 @@ const ProductHotspotBlock = ({
   subtitle = "Hover over the blinking dots to discover more about our features",
   headerAlign = "center",
   backgroundImage = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
-  hotspots = [],
+  productHotspots = [],
   showTooltipsAlways = false,
   className = "white",
   siteWidth = 'custom',
@@ -67,7 +67,7 @@ const ProductHotspotBlock = ({
           )}
           
           {/* Hotspots */}
-          {hotspots.map((hotspot) => (
+          {productHotspots.map((hotspot) => (
             showTooltipsAlways ? (
               <div key={hotspot.id} className="absolute z-10" style={{
                 left: `${hotspot.x}%`,

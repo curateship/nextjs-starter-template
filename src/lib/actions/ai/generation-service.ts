@@ -38,7 +38,7 @@ export async function autoSelectBlocks(
   modelId: string = 'gpt-4o-mini'
 ): Promise<BlockType[]> {
   // Mandatory blocks in order of importance
-  const mandatoryBlocks: BlockType[] = ['product-hero', 'product-features', 'faq']
+  const mandatoryBlocks: BlockType[] = ['product-hero', 'product-features', 'product-faq']
 
   try {
     const { text } = await generateText({
@@ -57,7 +57,7 @@ export async function autoSelectBlocks(
     const validBlockTypes: BlockType[] = [
       'product-hero',
       'product-features',
-      'faq'
+      'product-faq'
     ]
 
     const selected = blocks.filter(b => validBlockTypes.includes(b as BlockType)) as BlockType[]

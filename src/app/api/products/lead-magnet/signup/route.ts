@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
 
     const product = productResult.data
 
-    // Verify product has lead_magnet block
+    // Verify product has product-lead-magnet block
     const contentBlocks = product.content_blocks || {}
-    const leadMagnetBlock = contentBlocks['lead-magnet']
+    const leadMagnetBlock = contentBlocks['product-lead-magnet']
 
     if (!leadMagnetBlock) {
       return NextResponse.json(
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       productId,
       email,
       metadata: {
-        block_type: 'lead-magnet',
+        block_type: 'product-lead-magnet',
         user_agent: request.headers.get('user-agent'),
         referrer: request.headers.get('referer'),
       },

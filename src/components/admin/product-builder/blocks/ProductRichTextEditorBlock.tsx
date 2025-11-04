@@ -27,14 +27,14 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 
 interface RichTextBlockProps {
   content: {
-    title?: string
-    subtitle?: string
+    header?: string
+    subheader?: string
     headerAlign?: 'left' | 'center'
-    content: string
+    richtextContent: string
     hideHeader?: boolean
     hideEditorHeader?: boolean
   }
-  onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
+  onContentChange: (content: { header?: string; subheader?: string; headerAlign?: 'left' | 'center'; richtextContent: string }) => void
   compact?: boolean
 }
 
@@ -54,35 +54,35 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
         types: ['heading', 'paragraph'],
       }),
     ],
-    content: content.content,
+    content: content.richtextContent,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
       onContentChange({
         ...content,
-        content: html
+        richtextContent: html
       })
     },
   })
 
   // Update editor content when content prop changes
   useEffect(() => {
-    if (editor && content.content !== editor.getHTML()) {
-      editor.commands.setContent(content.content)
+    if (editor && content.richtextContent !== editor.getHTML()) {
+      editor.commands.setContent(content.richtextContent)
     }
-  }, [content.content, editor])
+  }, [content.richtextContent, editor])
 
-  const handleTitleChange = (value: string) => {
+  const handleHeaderChange = (value: string) => {
     onContentChange({
       ...content,
-      title: value
+      header: value
     })
   }
 
-  const handleSubtitleChange = (value: string) => {
+  const handleSubheaderChange = (value: string) => {
     onContentChange({
       ...content,
-      subtitle: value
+      subheader: value
     })
   }
 
@@ -134,21 +134,21 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="title">Section Header</Label>
+              <Label htmlFor="header">Section Header</Label>
               <Input
-                id="title"
-                value={content.title || ''}
-                onChange={(e) => handleTitleChange(e.target.value)}
+                id="header"
+                value={content.header || ''}
+                onChange={(e) => handleHeaderChange(e.target.value)}
                 placeholder="Enter section title..."
                 className="mt-1"
               />
             </div>
             <div>
-              <Label htmlFor="subtitle">Section Sub Header</Label>
+              <Label htmlFor="subheader">Section Sub Header</Label>
               <Input
-                id="subtitle"
-                value={content.subtitle || ''}
-                onChange={(e) => handleSubtitleChange(e.target.value)}
+                id="subheader"
+                value={content.subheader || ''}
+                onChange={(e) => handleSubheaderChange(e.target.value)}
                 placeholder="Enter section subtitle..."
                 className="mt-1"
               />
@@ -364,20 +364,20 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
             /* Preview Mode */
             <div className="border rounded-md p-4 bg-muted/5">
               <div className={`min-h-[200px] ${content.headerAlign === 'center' ? 'text-center' : 'text-left'}`}>
-                {content.title && (
+                {content.header && (
                   <h2 className={`text-3xl font-bold md:text-5xl mb-4 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
-                    {content.title}
+                    {content.header}
                   </h2>
                 )}
-                {content.subtitle && (
+                {content.subheader && (
                   <p className={`text-lg text-muted-foreground mb-6 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
-                    {content.subtitle}
+                    {content.subheader}
                   </p>
                 )}
                 <div
                   className="prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(content.content, {
+                    __html: DOMPurify.sanitize(content.richtextContent, {
                       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
                       ALLOWED_ATTR: ['href', 'target', 'rel'],
                       ALLOW_DATA_ATTR: false

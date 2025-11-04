@@ -37,11 +37,11 @@ interface ProductFAQBlockProps {
   header?: string
   subheader?: string
   headerAlign?: 'left' | 'center'
-  faqItems?: FaqItem[]
+  productFaqItems?: FaqItem[]
   onHeaderChange?: (value: string) => void
   onSubheaderChange?: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
-  onFaqItemsChange?: (value: FaqItem[]) => void
+  onProductFaqItemsChange?: (value: FaqItem[]) => void
 }
 
 // Sortable FAQ item component
@@ -136,17 +136,17 @@ export function ProductFAQBlock({
   header = '',
   subheader = '',
   headerAlign = 'left',
-  faqItems = [],
+  productFaqItems = [],
   onHeaderChange,
   onSubheaderChange,
   onHeaderAlignChange,
-  onFaqItemsChange
+  onProductFaqItemsChange
 }: ProductFAQBlockProps) {
-  const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
+  const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(productFaqItems)
 
   const updateFaqItems = (newItems: FaqItem[]) => {
     setLocalFaqItems(newItems)
-    onFaqItemsChange?.(newItems)
+    onProductFaqItemsChange?.(newItems)
   }
 
   const addNewFaqItem = () => {

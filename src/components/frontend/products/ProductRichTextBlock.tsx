@@ -5,10 +5,10 @@ import { useEffect, useState } from "react"
 
 interface RichTextBlockProps {
   content: {
-    title?: string
-    subtitle?: string
+    header?: string
+    subheader?: string
     headerAlign?: 'left' | 'center'
-    content: string
+    richtextContent: string
   }
   className?: string
   siteWidth?: 'full' | 'custom'
@@ -22,7 +22,7 @@ export function ProductRichTextBlock({ content, className = "", siteWidth = 'cus
     // Only run DOMPurify on client side
     if (typeof window !== 'undefined') {
       import('dompurify').then((DOMPurify) => {
-        const sanitized = DOMPurify.default.sanitize(content.content, {
+        const sanitized = DOMPurify.default.sanitize(content.richtextContent, {
           ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
           ALLOWED_ATTR: ['href', 'target', 'rel'],
           ALLOW_DATA_ATTR: false,
@@ -32,13 +32,13 @@ export function ProductRichTextBlock({ content, className = "", siteWidth = 'cus
         setSanitizedContent(sanitized)
       })
     }
-  }, [content.content])
+  }, [content.richtextContent])
 
   return (
     <BlockContainer
       header={{
-        title: content.title,
-        subtitle: content.subtitle,
+        title: content.header,
+        subtitle: content.subheader,
         align: content.headerAlign || 'left'
       }}
       className={className}

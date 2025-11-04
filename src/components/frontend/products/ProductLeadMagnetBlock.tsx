@@ -8,7 +8,7 @@ interface LeadMagnetBlockContent {
   heading?: string
   subheading?: string
   buttonText?: string
-  benefits?: string[]
+  productBenefits?: string[]
   emailSettings?: {
     subject?: string
     fromName?: string
@@ -20,7 +20,7 @@ interface LeadMagnetBlockContent {
     segmentId?: string
     tags?: string[]
   }
-  thankYou?: {
+  thankYouMessage?: {
     heading?: string
     message?: string
   }
@@ -92,10 +92,10 @@ export default function ProductLeadMagnetBlock({
             <Check className="h-8 w-8 text-green-600" />
           </div>
           <h3 className="mb-3 text-2xl font-bold text-gray-900">
-            {content.thankYou?.heading || 'Check Your Email!'}
+            {content.thankYouMessage?.heading || 'Check Your Email!'}
           </h3>
           <p className="text-lg text-gray-700">
-            {content.thankYou?.message || "We've sent your content to your email address."}
+            {content.thankYouMessage?.message || "We've sent your content to your email address."}
           </p>
           <p className="mt-6 text-sm text-gray-600">
             Sent to: <strong>{email}</strong>
@@ -127,9 +127,9 @@ export default function ProductLeadMagnetBlock({
         )}
 
         {/* Benefits List */}
-        {content.benefits && content.benefits.length > 0 && (
+        {content.productBenefits && content.productBenefits.length > 0 && (
           <ul className="mb-8 space-y-3">
-            {content.benefits.map((benefit, index) => (
+            {content.productBenefits.map((benefit, index) => (
               <li key={index} className="flex items-start">
                 <Check className="mr-3 mt-1 h-5 w-5 flex-shrink-0 text-green-600" />
                 <span className="text-gray-700">{benefit}</span>

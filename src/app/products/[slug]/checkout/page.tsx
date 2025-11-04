@@ -32,7 +32,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   }
 
   // Get the selected tier
-  const tiers = pricingBlockData?.content?.tiers || []
+  const tiers = pricingBlockData?.content?.productPricingTiers || pricingBlockData?.content?.tiers || []
   const selectedTier = tiers.find((t: any) => t.id === tierId)
 
   if (!selectedTier) {

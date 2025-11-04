@@ -185,13 +185,13 @@ export function BlockPropertiesPanel({
                 subheader={selectedBlock.content.subheader ?? 'Hover over the blinking dots to discover more about our features'}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 backgroundImage={selectedBlock.content.backgroundImage || ''}
-                hotspots={selectedBlock.content.hotspots || []}
+                productHotspots={selectedBlock.content.productHotspots || []}
                 showTooltipsAlways={selectedBlock.content.showTooltipsAlways || false}
                 onHeaderChange={(value) => updateBlockContent('header', value)}
                 onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onBackgroundImageChange={(value) => updateBlockContent('backgroundImage', value)}
-                onHotspotsChange={(hotspots) => updateBlockContent('hotspots', hotspots)}
+                onProductHotspotsChange={(productHotspots) => updateBlockContent('productHotspots', productHotspots)}
                 onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
@@ -203,19 +203,19 @@ export function BlockPropertiesPanel({
                 header={selectedBlock.content.header ?? ''}
                 subheader={selectedBlock.content.subheader ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
-                tiers={selectedBlock.content.tiers || []}
+                productPricingTiers={selectedBlock.content.productPricingTiers || []}
                 checkoutSettings={selectedBlock.content.checkoutSettings}
                 downloadSettings={selectedBlock.content.downloadSettings}
                 onHeaderChange={(value) => updateBlockContent('header', value)}
                 onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
-                onTiersChange={(tiers) => updateBlockContent('tiers', tiers)}
+                onProductPricingTiersChange={(productPricingTiers) => updateBlockContent('productPricingTiers', productPricingTiers)}
                 onCheckoutSettingsChange={(settings) => updateBlockContent('checkoutSettings', settings)}
                 onDownloadSettingsChange={(settings) => updateBlockContent('downloadSettings', settings)}
               />
             )}
 
-            {selectedBlock.type === 'lead-magnet' && (
+            {selectedBlock.type === 'product-lead-magnet' && (
               <ProductLeadMagnetBlock
                 block={selectedBlock as any}
                 onUpdate={(updates) => {
@@ -226,16 +226,16 @@ export function BlockPropertiesPanel({
               />
             )}
 
-            {selectedBlock.type === 'faq' && (
+            {selectedBlock.type === 'product-faq' && (
               <ProductFAQBlock
                 header={selectedBlock.content.header ?? 'Product FAQ'}
                 subheader={selectedBlock.content.subheader ?? 'Get answers to common questions about this product, its features, compatibility, and support options.'}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
-                faqItems={selectedBlock.content.faqItems || []}
+                productFaqItems={selectedBlock.content.productFaqItems || []}
                 onHeaderChange={(value) => updateBlockContent('header', value)}
                 onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
-                onFaqItemsChange={(faqItems) => updateBlockContent('faqItems', faqItems)}
+                onProductFaqItemsChange={(productFaqItems) => updateBlockContent('productFaqItems', productFaqItems)}
               />
             )}
             
@@ -276,21 +276,21 @@ export function BlockPropertiesPanel({
               />
             )}
 
-            {selectedBlock.type === 'rich-text' && (
+            {selectedBlock.type === 'product-rich-text' && (
               <ProductRichTextEditorBlock
                 content={{
-                  title: selectedBlock.content.title || '',
-                  subtitle: selectedBlock.content.subtitle || '',
+                  header: selectedBlock.content.header || '',
+                  subheader: selectedBlock.content.subheader || '',
                   headerAlign: selectedBlock.content.headerAlign || 'left',
-                  content: selectedBlock.content.content || '',
+                  richtextContent: selectedBlock.content.richtextContent || '',
                   hideHeader: selectedBlock.content.hideHeader,
                   hideEditorHeader: selectedBlock.content.hideEditorHeader
                 }}
                 onContentChange={(contentObj) => {
-                  updateBlockContent('title', contentObj.title)
-                  updateBlockContent('subtitle', contentObj.subtitle)
+                  updateBlockContent('header', contentObj.header)
+                  updateBlockContent('subheader', contentObj.subheader)
                   updateBlockContent('headerAlign', contentObj.headerAlign)
-                  updateBlockContent('content', contentObj.content)
+                  updateBlockContent('richtextContent', contentObj.richtextContent)
                 }}
               />
             )}

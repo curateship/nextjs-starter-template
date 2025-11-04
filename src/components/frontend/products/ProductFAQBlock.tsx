@@ -13,10 +13,10 @@ interface FaqItem {
 
 interface ProductFAQBlockProps {
     content?: {
-        title?: string
-        subtitle?: string
+        header?: string
+        subheader?: string
         headerAlign?: 'left' | 'center'
-        faqItems?: FaqItem[]
+        productFaqItems?: FaqItem[]
     }
     siteWidth?: 'full' | 'custom'
     customWidth?: number
@@ -51,9 +51,8 @@ const ProductFAQBlock = ({ content, siteWidth = 'custom', customWidth }: Product
         },
     ]
 
-    // Use content items if available and not empty, otherwise use defaults
-    const faqItems = (content?.faqItems && content.faqItems.length > 0) 
-        ? content.faqItems 
+    const faqItems = (content?.productFaqItems && content.productFaqItems.length > 0)
+        ? content.productFaqItems
         : defaultFaqItems
 
     return (
@@ -62,8 +61,8 @@ const ProductFAQBlock = ({ content, siteWidth = 'custom', customWidth }: Product
             siteWidth={siteWidth}
             customWidth={customWidth}
             header={{
-                title: content?.title ?? '',
-                subtitle: content?.subtitle ?? '',
+                title: content?.header || content?.title || '',
+                subtitle: content?.subheader || content?.subtitle || '',
                 align: content?.headerAlign ?? "center"
             }}
         >

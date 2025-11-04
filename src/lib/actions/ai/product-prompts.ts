@@ -14,9 +14,9 @@ export function getProductAutoSelectPrompt(): string {
 BLOCKS (always include all 3 in this order):
 1. product-hero: Hero section with headline, description, CTA (REQUIRED - ALWAYS FIRST)
 2. product-features: List of product features with icons (REQUIRED - ALWAYS SECOND)
-3. faq: Frequently asked questions (REQUIRED - ALWAYS THIRD)
+3. product-faq: Frequently asked questions (REQUIRED - ALWAYS THIRD)
 
-Return ONLY this JSON array: ["product-hero", "product-features", "faq"]
+Return ONLY this JSON array: ["product-hero", "product-features", "product-faq"]
 
 Do not include any explanatory text, just the JSON array.`
 }
@@ -60,7 +60,7 @@ User's product description: ${userPrompt}
 
 Generate 4-6 features. Return ONLY valid JSON, no explanatory text.`,
 
-    'faq': `Generate a FAQ block with the following JSON structure:
+    'product-faq': `Generate a FAQ block with the following JSON structure:
 {
   "title": "FAQ section title",
   "subtitle": "FAQ subtitle",
@@ -79,7 +79,7 @@ Generate 4-6 FAQ items. Return ONLY valid JSON, no explanatory text.`,
     'product-hotspot': `Generate a product hotspot block. Return ONLY valid JSON, no explanatory text.`,
     'product-checkout': `Generate a product checkout block. Return ONLY valid JSON, no explanatory text.`,
     'product-video': `Generate a product video block. Return ONLY valid JSON, no explanatory text.`,
-    'rich-text': `Generate rich text content. Return ONLY valid JSON, no explanatory text.`
+    'product-rich-text': `Generate rich text content. Return ONLY valid JSON, no explanatory text.`
   }
 
   return blockPrompts[blockType] || ''

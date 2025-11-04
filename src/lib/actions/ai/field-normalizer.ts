@@ -17,23 +17,32 @@ function ensureIds(items: any[]): any[] {
 
 /**
  * Normalize FAQ block content
- * Maps: questions → faqItems, description → subtitle
+ * Maps: questions → productFaqItems, description → subheader
  */
 function normalizeFAQBlock(content: any): any {
   const normalized = { ...content }
 
-  // Map questions → faqItems
-  if (content.questions && !content.faqItems) {
-    normalized.faqItems = ensureIds(content.questions)
+  // Map questions → productFaqItems (AI generates 'questions', we need 'productFaqItems')
+  if (content.questions && !content.productFaqItems) {
+    normalized.productFaqItems = ensureIds(content.questions)
     delete normalized.questions
-  } else if (content.faqItems) {
-    normalized.faqItems = ensureIds(content.faqItems)
+  } else if (content.productFaqItems) {
+    normalized.productFaqItems = ensureIds(content.productFaqItems)
   }
 
-  // Map description → subtitle
-  if (content.description && !content.subtitle) {
-    normalized.subtitle = content.description
+  // Map description/subtitle → subheader (AI may generate these variants)
+  if (content.description && !content.subheader) {
+    normalized.subheader = content.description
     delete normalized.description
+  } else if (content.subtitle && !content.subheader) {
+    normalized.subheader = content.subtitle
+    delete normalized.subtitle
+  }
+
+  // Map title → header (AI may generate 'title' instead of 'header')
+  if (content.title && !content.header) {
+    normalized.header = content.title
+    delete normalized.title
   }
 
   return normalized
@@ -60,7 +69,7 @@ export function normalizeBlock(block: GeneratedBlock): GeneratedBlock {
   let normalized = { ...block }
 
   switch (block.type) {
-    case 'faq':
+    case 'product-faq':
       normalized.content = normalizeFAQBlock(block.content)
       break
     case 'product-features':
