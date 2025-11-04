@@ -49,14 +49,14 @@ interface Feature {
 }
 
 interface ProductFeaturesBlockProps {
-  headerTitle?: string
-  headerSubtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
-  features: Feature[]
-  onHeaderTitleChange: (value: string) => void
-  onHeaderSubtitleChange: (value: string) => void
+  featuresCollection: Feature[]
+  onHeaderChange: (value: string) => void
+  onSubheaderChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
-  onFeaturesChange: (features: Feature[]) => void
+  onFeaturesCollectionChange: (features: Feature[]) => void
   siteId: string
   blockId: string
 }
@@ -177,14 +177,14 @@ function SortableFeatureItem({
 }
 
 export function ProductFeaturesBlock({
-  headerTitle = '',
-  headerSubtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = 'left',
-  features,
-  onHeaderTitleChange,
-  onHeaderSubtitleChange,
+  featuresCollection,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
-  onFeaturesChange,
+  onFeaturesCollectionChange,
   siteId,
   blockId,
 }: ProductFeaturesBlockProps) {
@@ -205,33 +205,33 @@ export function ProductFeaturesBlock({
     const newFeature: Feature = {
       id: `feature-${Date.now()}-${Math.random()}`,
       image: "",
-      title: `Feature ${features.length + 1}`,
+      title: `Feature ${featuresCollection.length + 1}`,
       description: "Describe this amazing feature and how it benefits your users."
     }
-    const newFeatures = [...features, newFeature]
-    onFeaturesChange(newFeatures)
+    const newFeatures = [...featuresCollection, newFeature]
+    onFeaturesCollectionChange(newFeatures)
   }
 
   const removeFeature = (index: number) => {
-    const newFeatures = features.filter((_, i) => i !== index)
-    onFeaturesChange(newFeatures)
+    const newFeatures = featuresCollection.filter((_, i) => i !== index)
+    onFeaturesCollectionChange(newFeatures)
   }
 
   const updateFeature = (index: number, field: keyof Feature, value: string) => {
-    const newFeatures = [...features]
+    const newFeatures = [...featuresCollection]
     newFeatures[index] = { ...newFeatures[index], [field]: value }
-    onFeaturesChange(newFeatures)
+    onFeaturesCollectionChange(newFeatures)
   }
 
   const handleFeatureDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      const oldIndex = features.findIndex((feature) => feature.id === active.id)
-      const newIndex = features.findIndex((feature) => feature.id === over.id)
+      const oldIndex = featuresCollection.findIndex((feature) => feature.id === active.id)
+      const newIndex = featuresCollection.findIndex((feature) => feature.id === over.id)
       
       if (oldIndex !== -1 && newIndex !== -1) {
-        onFeaturesChange(arrayMove(features, oldIndex, newIndex))
+        onFeaturesCollectionChange(arrayMove(featuresCollection, oldIndex, newIndex))
       }
     }
   }
@@ -251,25 +251,25 @@ export function ProductFeaturesBlock({
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="features-title">Title</Label>
+              <Label htmlFor="features-title">Header</Label>
               <Input
                 id="features-title"
-                value={headerTitle}
-                onChange={(e) => onHeaderTitleChange(e.target.value)}
+                value={header}
+                onChange={(e) => onHeaderChange(e.target.value)}
                 placeholder="Features"
               />
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="features-subtitle">Subtitle</Label>
+              <Label htmlFor="features-subtitle">Sub Header</Label>
               <Input
                 id="features-subtitle"
-                value={headerSubtitle}
-                onChange={(e) => onHeaderSubtitleChange(e.target.value)}
+                value={subheader}
+                onChange={(e) => onSubheaderChange(e.target.value)}
                 placeholder="Discover what makes our product special"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="features-align">Header Alignment</Label>
               <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
@@ -309,11 +309,11 @@ export function ProductFeaturesBlock({
             onDragEnd={handleFeatureDragEnd}
           >
             <SortableContext
-              items={features.map(f => f.id)}
+              items={featuresCollection.map(f => f.id)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-3">
-                {features.map((feature, index) => (
+                {featuresCollection.map((feature, index) => (
                   <SortableFeatureItem
                     key={feature.id}
                     feature={feature}
@@ -327,7 +327,7 @@ export function ProductFeaturesBlock({
             </SortableContext>
           </DndContext>
 
-          {features.length === 0 && (
+          {featuresCollection.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No features yet. Click "Add Feature" to create one.
             </div>
@@ -340,7 +340,7 @@ export function ProductFeaturesBlock({
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
         onSelectMedia={(mediaUrl) => showPicker !== null && handleSelectMedia(mediaUrl, showPicker)}
-        currentMediaUrl={showPicker !== null ? features[showPicker]?.image : undefined}
+        currentMediaUrl={showPicker !== null ? featuresCollection[showPicker]?.image : undefined}
         showVideos={true}
       />
     </div>

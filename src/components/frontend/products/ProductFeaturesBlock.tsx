@@ -23,24 +23,24 @@ interface Feature {
 }
 
 interface ProductFeaturesBlockProps {
-  headerTitle?: string
-  headerSubtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
-  features?: Feature[]
+  featuresCollection?: Feature[]
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
 
 const ProductFeaturesBlock = ({
-  headerTitle = '',
-  headerSubtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = "center",
-  features = [],
+  featuresCollection = [],
   siteWidth = 'custom',
   customWidth
 }: ProductFeaturesBlockProps) => {
   // Show default features if none provided
-  const displayFeatures = features.length > 0 ? features : [
+  const displayFeatures = featuresCollection.length > 0 ? featuresCollection : [
     {
       id: 'default-1',
       image: '',
@@ -62,14 +62,14 @@ const ProductFeaturesBlock = ({
   ]
 
   return (
-    <BlockContainer 
+    <BlockContainer
       id="features"
       className="white"
       siteWidth={siteWidth}
       customWidth={customWidth}
       header={{
-        title: headerTitle,
-        subtitle: headerSubtitle,
+        title: header,
+        subtitle: subheader,
         align: headerAlign
       }}
     >

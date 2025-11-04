@@ -666,7 +666,7 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
       if (!allowedBlockTypes.includes(blockType)) {
         return { success: false, error: `Invalid block type: ${blockType}` }
       }
-      
+
       // Validate block data structure
       const blockData = contentBlocks[blockType]
       if (typeof blockData !== 'object' || blockData === null) {

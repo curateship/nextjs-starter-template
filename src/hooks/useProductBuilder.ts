@@ -57,7 +57,7 @@ export function useProductBuilder({
 
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
-    
+
     const updatedBlocks = { ...blocks }
     const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
@@ -127,9 +127,10 @@ export function useProductBuilder({
 
   const handleAddProductFeaturesBlock = () => {
     addBlock('product-features', 'Product Features', {
-      headerTitle: 'Effortless Task Management',
-      headerSubtitle: 'Automate your tasks and workflows.',
-      features: [
+      header: 'Effortless Task Management',
+      subheader: 'Automate your tasks and workflows.',
+      headerAlign: 'center',
+      featuresCollection: [
         {
           id: `feature-${Date.now()}-1`,
           image: '',
@@ -158,10 +159,9 @@ export function useProductBuilder({
     }
 
     addBlock('product-checkout', 'Product Checkout', {
-      title: '',
-      subtitle: '',
-      headerTitle: '',
-      headerSubtitle: '',
+      header: '',
+      subheader: '',
+      headerAlign: 'center',
       pricingTiers: []
     })
   }

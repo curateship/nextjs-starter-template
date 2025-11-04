@@ -103,14 +103,14 @@ interface DownloadSettings {
 }
 
 interface ProductCheckoutBlockProps {
-  headerTitle?: string
-  headerSubtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   tiers: PricingTier[]
   checkoutSettings?: CheckoutSettings
   downloadSettings?: DownloadSettings
-  onHeaderTitleChange: (value: string) => void
-  onHeaderSubtitleChange: (value: string) => void
+  onHeaderChange: (value: string) => void
+  onSubheaderChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onTiersChange: (tiers: PricingTier[]) => void
   onCheckoutSettingsChange?: (settings: CheckoutSettings) => void
@@ -451,14 +451,14 @@ function SortableOrderBumpItem({
 }
 
 export function ProductCheckoutBlock({
-  headerTitle = '',
-  headerSubtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = 'left',
   tiers,
   checkoutSettings,
   downloadSettings,
-  onHeaderTitleChange,
-  onHeaderSubtitleChange,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
   onTiersChange,
   onCheckoutSettingsChange,
@@ -641,8 +641,8 @@ export function ProductCheckoutBlock({
                 <Label htmlFor="pricing-title">Title</Label>
                 <Input
                   id="pricing-title"
-                  value={headerTitle}
-                  onChange={(e) => onHeaderTitleChange(sanitizeAdminInput(e.target.value))}
+                  value={header}
+                  onChange={(e) => onHeaderChange(sanitizeAdminInput(e.target.value))}
                   placeholder="Pricing Plans"
                 />
               </div>
@@ -651,8 +651,8 @@ export function ProductCheckoutBlock({
                 <Label htmlFor="pricing-subtitle">Subtitle</Label>
                 <Input
                   id="pricing-subtitle"
-                  value={headerSubtitle}
-                  onChange={(e) => onHeaderSubtitleChange(sanitizeAdminInput(e.target.value))}
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange(sanitizeAdminInput(e.target.value))}
                   placeholder="Choose the perfect plan for your needs"
                 />
               </div>

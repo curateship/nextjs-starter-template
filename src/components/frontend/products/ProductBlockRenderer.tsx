@@ -120,8 +120,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return (
             <ProductCheckoutBlock
               key={`product-checkout-${block.id}`}
-              title={block.content.headerTitle || block.content.title}
-              subtitle={block.content.headerSubtitle || block.content.subtitle}
+              header={block.content.header}
+              subheader={block.content.subheader}
               headerAlign={block.content.headerAlign}
               pricingTiers={transformedTiers}
               checkoutSettings={block.content.checkoutSettings}

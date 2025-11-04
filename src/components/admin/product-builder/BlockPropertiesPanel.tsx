@@ -166,14 +166,14 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'product-features' && (
               <ProductFeaturesBlock
-                headerTitle={selectedBlock.content.headerTitle ?? ''}
-                headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
+                header={selectedBlock.content.header ?? ''}
+                subheader={selectedBlock.content.subheader ?? ''}
                 headerAlign={selectedBlock.content.headerAlign || 'left'}
-                features={selectedBlock.content.features || []}
-                onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
-                onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
+                featuresCollection={selectedBlock.content.featuresCollection || []}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
-                onFeaturesChange={(features) => updateBlockContent('features', features)}
+                onFeaturesCollectionChange={(features) => updateBlockContent('featuresCollection', features)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
@@ -200,14 +200,14 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'product-checkout' && (
               <ProductCheckoutBlock
-                headerTitle={selectedBlock.content.headerTitle ?? ''}
-                headerSubtitle={selectedBlock.content.headerSubtitle ?? ''}
+                header={selectedBlock.content.header ?? ''}
+                subheader={selectedBlock.content.subheader ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 tiers={selectedBlock.content.tiers || []}
                 checkoutSettings={selectedBlock.content.checkoutSettings}
                 downloadSettings={selectedBlock.content.downloadSettings}
-                onHeaderTitleChange={(value) => updateBlockContent('headerTitle', value)}
-                onHeaderSubtitleChange={(value) => updateBlockContent('headerSubtitle', value)}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onTiersChange={(tiers) => updateBlockContent('tiers', tiers)}
                 onCheckoutSettingsChange={(settings) => updateBlockContent('checkoutSettings', settings)}

@@ -58,8 +58,8 @@ interface CheckoutSettings {
 }
 
 interface ProductCheckoutBlockProps {
-  title?: string
-  subtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   pricingTiers?: PricingTier[]
   checkoutSettings?: CheckoutSettings
@@ -284,8 +284,8 @@ const PricingCard = ({
 }
 
 const ProductCheckoutBlock = ({
-  title,
-  subtitle,
+  header,
+  subheader,
   headerAlign = 'center',
   pricingTiers = [],
   checkoutSettings,
@@ -310,9 +310,9 @@ const ProductCheckoutBlock = ({
         className="white"
         siteWidth={siteWidth}
         customWidth={customWidth}
-        header={(title || subtitle) ? {
-          title: title,
-          subtitle: subtitle,
+        header={(header || subheader) ? {
+          title: header,
+          subtitle: subheader,
           align: headerAlign
         } : undefined}
       >
@@ -332,9 +332,9 @@ const ProductCheckoutBlock = ({
       className="white"
       siteWidth={siteWidth}
       customWidth={customWidth}
-      header={(title || subtitle) ? {
-        title: title,
-        subtitle: subtitle,
+      header={(header || subheader) ? {
+        title: header,
+        subtitle: subheader,
         align: headerAlign
       } : undefined}
     >
