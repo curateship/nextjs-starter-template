@@ -143,8 +143,9 @@ export function useProductBuilder({
 
   const handleAddProductHotspotBlock = () => {
     addBlock('product-hotspot', 'Product Hotspot', {
-      title: 'Interactive Product Overview',
-      subtitle: 'Hover over the blinking dots to discover more',
+      header: 'Interactive Product Overview',
+      subheader: 'Hover over the blinking dots to discover more',
+      headerAlign: 'left',
       backgroundImage: '',
       hotspots: []
     })
@@ -203,8 +204,9 @@ export function useProductBuilder({
 
   const handleAddProductFAQBlock = () => {
     addBlock('faq', 'FAQ', {
-      title: 'Product FAQ',
-      subtitle: 'Get answers to common questions about this product, its features, compatibility, and support options.',
+      header: 'Product FAQ',
+      subheader: 'Get answers to common questions about this product, its features, compatibility, and support options.',
+      headerAlign: 'left',
       faqItems: [
         {
           id: 'item-1',
@@ -222,8 +224,8 @@ export function useProductBuilder({
 
   const handleAddListingViewsBlock = () => {
     addBlock('listing-views', 'Product Listings', {
-      title: 'Related Products',
-      subtitle: 'Check out our other products',
+      header: 'Related Products',
+      subheader: 'Check out our other products',
       headerAlign: 'left',
       contentType: 'products',
       displayMode: 'grid',
@@ -250,8 +252,8 @@ export function useProductBuilder({
 
   const handleAddProductVideoBlock = () => {
     addBlock('product-video', 'Product Video', {
-      title: 'Watch Our Product in Action',
-      subtitle: 'See how our product works',
+      header: 'Watch Our Product in Action',
+      subheader: 'See how our product works',
       headerAlign: 'left',
       videoUrl: '',
       coverImage: '',

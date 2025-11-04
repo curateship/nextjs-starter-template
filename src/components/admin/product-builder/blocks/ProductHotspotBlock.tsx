@@ -12,14 +12,14 @@ import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/ProductHotspotBlock"
 
 interface ProductHotspotBlockProps {
-  title?: string
-  subtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   backgroundImage: string
   hotspots: Hotspot[]
   showTooltipsAlways: boolean
-  onTitleChange: (value: string) => void
-  onSubtitleChange: (value: string) => void
+  onHeaderChange: (value: string) => void
+  onSubheaderChange: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onBackgroundImageChange: (value: string) => void
   onHotspotsChange: (hotspots: Hotspot[]) => void
@@ -29,14 +29,14 @@ interface ProductHotspotBlockProps {
 }
 
 export function ProductHotspotBlock({
-  title = '',
-  subtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = 'left',
   backgroundImage,
   hotspots,
   showTooltipsAlways,
-  onTitleChange,
-  onSubtitleChange,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
   onBackgroundImageChange,
   onHotspotsChange,
@@ -150,8 +150,8 @@ export function ProductHotspotBlock({
               <Label htmlFor="title">Header</Label>
               <Input
                 id="title"
-                value={title}
-                onChange={(e) => onTitleChange(e.target.value)}
+                value={header}
+                onChange={(e) => onHeaderChange(e.target.value)}
                 placeholder="Interactive Product Overview"
               />
             </div>
@@ -160,8 +160,8 @@ export function ProductHotspotBlock({
               <Label htmlFor="subtitle">Sub Header</Label>
               <Input
                 id="subtitle"
-                value={subtitle}
-                onChange={(e) => onSubtitleChange(e.target.value)}
+                value={subheader}
+                onChange={(e) => onSubheaderChange(e.target.value)}
                 placeholder="Hover over the blinking dots to discover more about our features"
               />
             </div>

@@ -181,14 +181,14 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'product-hotspot' && (
               <ProductHotspotBlock
-                title={selectedBlock.content.title ?? 'Interactive Product Overview'}
-                subtitle={selectedBlock.content.subtitle ?? 'Hover over the blinking dots to discover more about our features'}
+                header={selectedBlock.content.header ?? 'Interactive Product Overview'}
+                subheader={selectedBlock.content.subheader ?? 'Hover over the blinking dots to discover more about our features'}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 backgroundImage={selectedBlock.content.backgroundImage || ''}
                 hotspots={selectedBlock.content.hotspots || []}
                 showTooltipsAlways={selectedBlock.content.showTooltipsAlways || false}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onBackgroundImageChange={(value) => updateBlockContent('backgroundImage', value)}
                 onHotspotsChange={(hotspots) => updateBlockContent('hotspots', hotspots)}
@@ -228,12 +228,12 @@ export function BlockPropertiesPanel({
 
             {selectedBlock.type === 'faq' && (
               <ProductFAQBlock
-                title={selectedBlock.content.title ?? 'Product FAQ'}
-                subtitle={selectedBlock.content.subtitle ?? 'Get answers to common questions about this product, its features, compatibility, and support options.'}
+                header={selectedBlock.content.header ?? 'Product FAQ'}
+                subheader={selectedBlock.content.subheader ?? 'Get answers to common questions about this product, its features, compatibility, and support options.'}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 faqItems={selectedBlock.content.faqItems || []}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onFaqItemsChange={(faqItems) => updateBlockContent('faqItems', faqItems)}
               />
@@ -241,8 +241,8 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'listing-views' && (
               <ProductListingViewBlock
-                title={selectedBlock.content.title ?? 'Latest Products'}
-                subtitle={selectedBlock.content.subtitle ?? 'Check out our products'}
+                header={selectedBlock.content.header ?? 'Latest Products'}
+                subheader={selectedBlock.content.subheader ?? 'Check out our products'}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 contentType={selectedBlock.content.contentType ?? 'products'}
                 displayMode={selectedBlock.content.displayMode ?? 'grid'}
@@ -257,8 +257,8 @@ export function BlockPropertiesPanel({
                 itemsPerPage={selectedBlock.content.itemsPerPage ?? 12}
                 viewAllText={selectedBlock.content.viewAllText ?? ''}
                 viewAllLink={selectedBlock.content.viewAllLink ?? ''}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onContentTypeChange={(value) => updateBlockContent('contentType', value)}
                 onDisplayModeChange={(value) => updateBlockContent('displayMode', value)}
@@ -297,16 +297,16 @@ export function BlockPropertiesPanel({
 
             {selectedBlock.type === 'product-video' && (
               <ProductVideoBlock
-                title={selectedBlock.content.title ?? ''}
-                subtitle={selectedBlock.content.subtitle ?? ''}
+                header={selectedBlock.content.header ?? ''}
+                subheader={selectedBlock.content.subheader ?? ''}
                 headerAlign={selectedBlock.content.headerAlign ?? 'left'}
                 videoUrl={selectedBlock.content.videoUrl || ''}
                 coverImage={selectedBlock.content.coverImage || ''}
                 autoplay={selectedBlock.content.autoplay ?? false}
                 loop={selectedBlock.content.loop ?? false}
                 muted={selectedBlock.content.muted ?? false}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderChange={(value) => updateBlockContent('header', value)}
+                onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onVideoUrlChange={(value) => updateBlockContent('videoUrl', value)}
                 onCoverImageChange={(value) => updateBlockContent('coverImage', value)}

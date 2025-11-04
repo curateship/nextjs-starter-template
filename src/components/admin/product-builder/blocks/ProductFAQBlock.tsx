@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
@@ -35,12 +34,12 @@ interface FaqItem {
 }
 
 interface ProductFAQBlockProps {
-  title?: string
-  subtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   faqItems?: FaqItem[]
-  onTitleChange?: (value: string) => void
-  onSubtitleChange?: (value: string) => void
+  onHeaderChange?: (value: string) => void
+  onSubheaderChange?: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFaqItemsChange?: (value: FaqItem[]) => void
 }
@@ -134,12 +133,12 @@ function SortableFaqItem({
 }
 
 export function ProductFAQBlock({
-  title = '',
-  subtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = 'left',
   faqItems = [],
-  onTitleChange,
-  onSubtitleChange,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
   onFaqItemsChange
 }: ProductFAQBlockProps) {
@@ -207,8 +206,8 @@ export function ProductFAQBlock({
               <Label htmlFor="product-faq-title">Header</Label>
               <Input
                 id="product-faq-title"
-                value={title}
-                onChange={(e) => onTitleChange?.(e.target.value)}
+                value={header}
+                onChange={(e) => onHeaderChange?.(e.target.value)}
                 placeholder="Product FAQ"
               />
             </div>
@@ -217,8 +216,8 @@ export function ProductFAQBlock({
               <Label htmlFor="product-faq-subtitle">Sub Header</Label>
               <Input
                 id="product-faq-subtitle"
-                value={subtitle}
-                onChange={(e) => onSubtitleChange?.(e.target.value)}
+                value={subheader}
+                onChange={(e) => onSubheaderChange?.(e.target.value)}
                 placeholder="Get answers to common questions about this product..."
               />
             </div>

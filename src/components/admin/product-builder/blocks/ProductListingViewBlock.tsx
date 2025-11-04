@@ -5,8 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 
 interface ProductListingViewBlockProps {
-  title?: string
-  subtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   contentType?: 'products'
   displayMode?: 'grid' | 'list'
@@ -21,8 +21,8 @@ interface ProductListingViewBlockProps {
   itemsPerPage?: number
   viewAllText?: string
   viewAllLink?: string
-  onTitleChange: (value: string) => void
-  onSubtitleChange: (value: string) => void
+  onHeaderChange: (value: string) => void
+  onSubheaderChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: 'products') => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
@@ -40,8 +40,8 @@ interface ProductListingViewBlockProps {
 }
 
 export function ProductListingViewBlock({
-  title = 'Latest Products',
-  subtitle = 'Check out our products',
+  header = 'Latest Products',
+  subheader = 'Check out our products',
   headerAlign = 'left',
   contentType = 'products',
   displayMode = 'grid',
@@ -56,8 +56,8 @@ export function ProductListingViewBlock({
   itemsPerPage = 12,
   viewAllText = '',
   viewAllLink = '',
-  onTitleChange,
-  onSubtitleChange,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
   onContentTypeChange,
   onDisplayModeChange,
@@ -85,8 +85,8 @@ export function ProductListingViewBlock({
               <Label htmlFor="title">Header</Label>
               <Input
                 id="title"
-                value={title}
-                onChange={(e) => onTitleChange(e.target.value)}
+                value={header}
+                onChange={(e) => onHeaderChange(e.target.value)}
                 placeholder="Enter block title"
               />
             </div>
@@ -95,8 +95,8 @@ export function ProductListingViewBlock({
               <Label htmlFor="subtitle">Sub Header</Label>
               <Input
                 id="subtitle"
-                value={subtitle}
-                onChange={(e) => onSubtitleChange(e.target.value)}
+                value={subheader}
+                onChange={(e) => onSubheaderChange(e.target.value)}
                 placeholder="Enter block subtitle"
               />
             </div>

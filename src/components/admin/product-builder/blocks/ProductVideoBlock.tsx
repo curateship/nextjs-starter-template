@@ -11,16 +11,16 @@ import { Video, Image as ImageIcon } from "lucide-react"
 import { useState } from "react"
 
 interface ProductVideoBlockProps {
-  title?: string
-  subtitle?: string
+  header?: string
+  subheader?: string
   headerAlign?: 'left' | 'center'
   videoUrl: string
   coverImage?: string
   autoplay?: boolean
   loop?: boolean
   muted?: boolean
-  onTitleChange: (value: string) => void
-  onSubtitleChange: (value: string) => void
+  onHeaderChange: (value: string) => void
+  onSubheaderChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onVideoUrlChange: (value: string) => void
   onCoverImageChange: (value: string) => void
@@ -32,16 +32,16 @@ interface ProductVideoBlockProps {
 }
 
 export function ProductVideoBlock({
-  title = '',
-  subtitle = '',
+  header = '',
+  subheader = '',
   headerAlign = 'left',
   videoUrl = '',
   coverImage = '',
   autoplay = false,
   loop = false,
   muted = false,
-  onTitleChange,
-  onSubtitleChange,
+  onHeaderChange,
+  onSubheaderChange,
   onHeaderAlignChange,
   onVideoUrlChange,
   onCoverImageChange,
@@ -67,8 +67,8 @@ export function ProductVideoBlock({
               <Label htmlFor="video-title">Header</Label>
               <Input
                 id="video-title"
-                value={title}
-                onChange={(e) => onTitleChange(e.target.value)}
+                value={header}
+                onChange={(e) => onHeaderChange(e.target.value)}
                 placeholder="Watch Our Product in Action"
               />
             </div>
@@ -77,8 +77,8 @@ export function ProductVideoBlock({
               <Label htmlFor="video-subtitle">Sub Header</Label>
               <Input
                 id="video-subtitle"
-                value={subtitle}
-                onChange={(e) => onSubtitleChange(e.target.value)}
+                value={subheader}
+                onChange={(e) => onSubheaderChange(e.target.value)}
                 placeholder="See how our product works"
               />
             </div>
