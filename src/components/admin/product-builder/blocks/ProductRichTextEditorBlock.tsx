@@ -134,7 +134,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="title">Section Title</Label>
+              <Label htmlFor="title">Section Header</Label>
               <Input
                 id="title"
                 value={content.title || ''}
@@ -144,7 +144,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
               />
             </div>
             <div>
-              <Label htmlFor="subtitle">Section Subtitle</Label>
+              <Label htmlFor="subtitle">Section Sub Header</Label>
               <Input
                 id="subtitle"
                 value={content.subtitle || ''}

@@ -147,7 +147,7 @@ export function ProductHotspotBlock({
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="title">Header</Label>
               <Input
                 id="title"
                 value={title}
@@ -155,9 +155,9 @@ export function ProductHotspotBlock({
                 placeholder="Interactive Product Overview"
               />
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="subtitle">Subtitle</Label>
+              <Label htmlFor="subtitle">Sub Header</Label>
               <Input
                 id="subtitle"
                 value={subtitle}

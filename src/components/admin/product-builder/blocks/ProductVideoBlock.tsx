@@ -64,7 +64,7 @@ export function ProductVideoBlock({
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="video-title">Title</Label>
+              <Label htmlFor="video-title">Header</Label>
               <Input
                 id="video-title"
                 value={title}
@@ -74,7 +74,7 @@ export function ProductVideoBlock({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="video-subtitle">Subtitle</Label>
+              <Label htmlFor="video-subtitle">Sub Header</Label>
               <Input
                 id="video-subtitle"
                 value={subtitle}

@@ -638,7 +638,7 @@ export function ProductCheckoutBlock({
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="pricing-title">Title</Label>
+                <Label htmlFor="pricing-title">Header</Label>
                 <Input
                   id="pricing-title"
                   value={header}
@@ -648,7 +648,7 @@ export function ProductCheckoutBlock({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="pricing-subtitle">Subtitle</Label>
+                <Label htmlFor="pricing-subtitle">Sub Header</Label>
                 <Input
                   id="pricing-subtitle"
                   value={subheader}

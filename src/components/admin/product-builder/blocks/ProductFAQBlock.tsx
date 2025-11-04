@@ -204,7 +204,7 @@ export function ProductFAQBlock({
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="product-faq-title">Title</Label>
+              <Label htmlFor="product-faq-title">Header</Label>
               <Input
                 id="product-faq-title"
                 value={title}
@@ -212,9 +212,9 @@ export function ProductFAQBlock({
                 placeholder="Product FAQ"
               />
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="product-faq-subtitle">Subtitle</Label>
+              <Label htmlFor="product-faq-subtitle">Sub Header</Label>
               <Input
                 id="product-faq-subtitle"
                 value={subtitle}
