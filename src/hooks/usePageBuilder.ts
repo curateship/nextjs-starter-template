@@ -3,6 +3,12 @@ import { updatePageBlocksAction, type Page } from "@/lib/actions/pages/page-acti
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/sites/site-actions"
 import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
 import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
+import { getBlockTypeDefinition } from "@/config/page-block-types"
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
 
 interface UsePageBuilderParams {
   siteId: string
@@ -22,6 +28,7 @@ interface UsePageBuilderReturn {
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: any) => Promise<void>
   handleReorderBlocks: (blocks: any[]) => void
+  handleAddBlocks: (selections: BlockSelection[]) => void
   handleAddHeroBlock: () => Promise<void>
   handleAddRichTextBlock: () => Promise<void>
   handleAddFaqBlock: () => Promise<void>
@@ -480,13 +487,13 @@ export function usePageBuilder({
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
-      
+
       // Add to local state with proper positioning
       const updatedBlocks = { ...blocks }
       const currentBlocks = updatedBlocks[selectedPage] || []
       const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
       const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-      
+
       // Position before footer but after navigation
       let insertIndex = currentBlocks.length
       if (footerIndex !== -1) {
@@ -494,31 +501,93 @@ export function usePageBuilder({
       } else if (navIndex !== -1) {
         insertIndex = navIndex + 1
       }
-      
+
       const newBlocks = [...currentBlocks]
       newBlocks.splice(insertIndex, 0, newBlock)
-      
+
       // Update display orders
       newBlocks.forEach((b, idx) => {
         b.display_order = idx
       })
-      
+
       updatedBlocks[selectedPage] = newBlocks
       setBlocks(updatedBlocks)
       setSelectedBlock(newBlock)
-      
+
       // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
         const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
         await updatePageBlocksAction(currentPage.id, jsonBlocks)
       }
-      
+
       setSaveMessage("Divider block added!")
       setTimeout(() => setSaveMessage(""), 3000)
     } catch (error) {
       setSaveMessage("Failed to add divider block")
       setTimeout(() => setSaveMessage(""), 5000)
+    }
+  }
+
+  // Add multiple blocks from modal selection
+  const handleAddBlocks = (selections: BlockSelection[]) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedPage] || []
+    const newBlocksToAdd: any[] = []
+
+    // Process each selection
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+
+      if (!blockDefinition) {
+        console.warn(`Unknown block type: ${selection.type}`)
+        continue
+      }
+
+      // Create the specified quantity of blocks
+      for (let i = 0; i < selection.quantity; i++) {
+        const newBlock = {
+          id: generatePageBlockId(),
+          type: selection.type,
+          content: { ...blockDefinition.defaultContent },
+          display_order: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        newBlocksToAdd.push(newBlock)
+      }
+    }
+
+    if (newBlocksToAdd.length === 0) {
+      return
+    }
+
+    // Find proper insertion point (after navigation, before footer)
+    const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
+    const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
+
+    let insertIndex = currentBlocks.length
+    if (footerIndex !== -1) {
+      insertIndex = footerIndex
+    } else if (navIndex !== -1) {
+      insertIndex = navIndex + 1
+    }
+
+    // Insert new blocks at the proper position
+    const newBlocks = [...currentBlocks]
+    newBlocks.splice(insertIndex, 0, ...newBlocksToAdd)
+
+    // Update display orders
+    newBlocks.forEach((b, idx) => {
+      b.display_order = idx
+    })
+
+    updatedBlocks[selectedPage] = newBlocks
+    setBlocks(updatedBlocks)
+
+    // Select the last added block
+    if (newBlocksToAdd.length > 0) {
+      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }
   }
 
@@ -531,6 +600,7 @@ export function usePageBuilder({
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
+    handleAddBlocks,
     handleAddHeroBlock,
     handleAddRichTextBlock,
     handleAddFaqBlock,

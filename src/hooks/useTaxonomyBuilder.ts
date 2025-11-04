@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react"
 import { updateTaxonomyBlocksAction } from "@/lib/actions/taxonomies/taxonomy-actions"
+import { getBlockTypeDefinition } from "@/config/taxonomy-block-types"
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
 
 interface TaxonomyBlock {
   id: string
@@ -27,6 +33,7 @@ interface UseTaxonomyBuilderReturn {
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: TaxonomyBlock) => void
   handleReorderBlocks: (blocks: TaxonomyBlock[]) => void
+  handleAddBlocks: (selections: BlockSelection[]) => void
   handleAddTaxonomyDefaultBlock: () => void
   handleAddTaxonomyHeroBlock: () => void
   handleAddTaxonomyStatsBlock: () => void
@@ -99,6 +106,41 @@ export function useTaxonomyBuilder({
 
     setBlocks(updatedBlocks)
     setSelectedBlock(newBlock)
+  }
+
+  const handleAddBlocks = (selections: BlockSelection[]) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedTaxonomy] || []
+    const newBlocksToAdd: TaxonomyBlock[] = []
+
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+      if (!blockDefinition) continue
+
+      for (let i = 0; i < selection.quantity; i++) {
+        const newBlock: TaxonomyBlock = {
+          id: `block-${Date.now()}-${Math.random()}`,
+          type: selection.type,
+          title: blockDefinition.name,
+          content: { ...blockDefinition.defaultContent }
+        }
+        newBlocksToAdd.push(newBlock)
+      }
+    }
+
+    if (newBlocksToAdd.length === 0) {
+      return
+    }
+
+    // Add new blocks to current blocks
+    const newBlocks = [...currentBlocks, ...newBlocksToAdd]
+    updatedBlocks[selectedTaxonomy] = newBlocks
+    setBlocks(updatedBlocks)
+
+    // Select the last added block
+    if (newBlocksToAdd.length > 0) {
+      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
+    }
   }
 
   const handleAddTaxonomyDefaultBlock = () => {
@@ -238,6 +280,7 @@ export function useTaxonomyBuilder({
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
+    handleAddBlocks,
     handleAddTaxonomyDefaultBlock,
     handleAddTaxonomyHeroBlock,
     handleAddTaxonomyStatsBlock,

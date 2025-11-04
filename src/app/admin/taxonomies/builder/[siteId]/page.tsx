@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { TaxonomyBuilderHeader } from "@/components/admin/taxonomy-builder/TaxonomyBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/taxonomy-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/taxonomy-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/taxonomy-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/taxonomy-builder/BlockSelectionModal"
 import { getSiteTaxonomyTypesAction, type TaxonomyType } from "@/lib/actions/taxonomies/taxonomy-type-actions"
 import { getTaxonomiesForTypeAction, updateTaxonomyAction } from "@/lib/actions/taxonomies/taxonomy-actions"
 import type { Taxonomy } from "@/lib/actions/taxonomies/taxonomy-actions"
@@ -33,6 +33,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
 
   const [selectedTypeId, setSelectedTypeId] = useState(urlTypeId)
   const [selectedTaxonomy, setSelectedTaxonomy] = useState(urlTaxonomy)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
 
   // Sync state with URL params whenever they change
   useEffect(() => {
@@ -282,14 +283,19 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}
           />
-
-          <BlockTypesPanel
-            onAddTaxonomyDefaultBlock={builderState.handleAddTaxonomyDefaultBlock}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentTaxonomy.blocks.map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )

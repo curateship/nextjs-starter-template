@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Trash2, Info } from "lucide-react"
+import { Trash2, Info, Plus, Eye } from "lucide-react"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
@@ -22,6 +22,8 @@ interface BlockListPanelProps {
   onSelectBlock: (block: TaxonomyBlock | null) => void
   onDeleteBlock: (block: TaxonomyBlock) => void
   onReorderBlocks: (blocks: TaxonomyBlock[]) => void
+  onOpenBlockModal: () => void
+  onPreviewTaxonomy?: () => void
   deleting: string | null
   blocksLoading?: boolean
 }
@@ -107,6 +109,8 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
+  onOpenBlockModal,
+  onPreviewTaxonomy,
   deleting,
   blocksLoading = false
 }: BlockListPanelProps) {
@@ -131,20 +135,39 @@ export function BlockListPanel({
   }
 
   return (
-    <div className="w-80 bg-background p-4 overflow-y-auto border-r">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          Blocks
-        </h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => onSelectBlock(null)}
-        >
-          Preview
-        </Button>
-      </div>
+    <div className="w-[400px] p-6">
+      {blocksLoading ? (
+        <div className="mb-6">
+          <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-xl font-semibold">
+              Active Blocks
+            </h2>
+            {onPreviewTaxonomy && (
+              <Button
+                onClick={onPreviewTaxonomy}
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                title="Preview Taxonomy"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+          <Button
+            onClick={onOpenBlockModal}
+            size="sm"
+            className="flex items-center space-x-1"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Blocks</span>
+          </Button>
+        </div>
+      )}
 
       {blocksLoading ? (
         <div className="space-y-2">
@@ -153,9 +176,11 @@ export function BlockListPanel({
           ))}
         </div>
       ) : currentTaxonomy.blocks.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          <p>No blocks added yet</p>
-          <p className="mt-1 text-xs">Add blocks from the right panel</p>
+        <div className="text-center py-12">
+          <div className="text-muted-foreground mb-4">
+            <p className="text-lg font-medium">No blocks added yet</p>
+            <p className="text-sm">Click "Add Blocks" to start building your taxonomy</p>
+          </div>
         </div>
       ) : (
         <DndContext

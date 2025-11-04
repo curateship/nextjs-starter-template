@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { PageBuilderHeader } from "@/components/admin/page-builder/PageBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/page-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/page-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/page-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/page-builder/BlockSelectionModal"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 
@@ -28,6 +28,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   // Get initial page from URL params or default to home
   const initialPage = searchParams.get('page') || 'home'
   const [selectedPage, setSelectedPage] = useState(initialPage)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
   
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -210,25 +211,26 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             } : undefined}
             blocksLoading={blocksLoading}
           />
-          
+
           <BlockListPanel
             currentPage={currentPage}
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewPage={() => builderState.setSelectedBlock(null)}
             deleting={builderState.deleting}
             blocksLoading={blocksLoading}
           />
-          
-          <BlockTypesPanel
-            onAddHeroBlock={builderState.handleAddHeroBlock}
-            onAddRichTextBlock={builderState.handleAddRichTextBlock}
-            onAddFaqBlock={builderState.handleAddFaqBlock}
-            onAddListingViewsBlock={builderState.handleAddListingViewsBlock}
-            onAddDividerBlock={builderState.handleAddDividerBlock}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentPage.blocks.map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )
