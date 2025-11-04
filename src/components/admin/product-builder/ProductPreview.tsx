@@ -69,7 +69,7 @@ export function ProductPreview({ blocks, product, site, className = "", blocksLo
   
   return (
     <div className={`overflow-x-hidden ${className}`}>
-      <div 
+      <div
         style={{
           zoom: 0.8,
           width: '100%',

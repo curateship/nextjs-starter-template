@@ -3,13 +3,12 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useProductData } from "@/hooks/useProductData"
 import { useProductBuilder } from "@/hooks/useProductBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductBuilderHeader } from "@/components/admin/product-builder/ProductBuilderHeader"
+import { StickyHeader } from "@/components/admin/product-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/product-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/product-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/product-builder/BlockSelectionModal"
@@ -210,21 +209,24 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
 
   return (
-    <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <ProductBuilderHeader
-          products={products}
-          selectedProduct={selectedProduct}
-          onProductChange={handleProductChange}
-          onProductCreated={handleProductCreated}
-          onProductUpdated={handleProductUpdated}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-          productsLoading={productsLoading}
-          onAIComplete={handleAIComplete}
-        />
-        
+    <div className="flex flex-col h-screen overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/products", label: "Products" },
+          { label: currentProductData?.title || "Select Product", isPage: true }
+        ]}
+        products={products}
+        selectedProduct={selectedProduct}
+        onProductChange={handleProductChange}
+        onProductCreated={handleProductCreated}
+        onProductUpdated={handleProductUpdated}
+        saveMessage={builderState.saveMessage}
+        isSaving={builderState.isSaving}
+        onSave={builderState.handleSaveAllBlocks}
+        onAIComplete={handleAIComplete}
+      />
+      <div className="flex flex-col flex-1 overflow-y-auto">
         <div className="flex-1 flex">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
@@ -272,6 +274,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           existingBlockTypes={currentProduct.blocks.map(b => b.type)}
         />
       </div>
-    </AdminLayout>
+    </div>
   )
 }
