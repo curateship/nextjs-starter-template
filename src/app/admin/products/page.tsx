@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/product-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -240,11 +241,18 @@ export default function ProductsPage() {
     private: products.filter(p => isProductPrivate(p)).length
   }
 
-  
+
   return (
-    <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
-        <AdminPageHeader
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { label: "Products", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <AdminPageHeader
           title="Products"
           subtitle="Manage your product catalog"
           primaryAction={{
@@ -602,7 +610,8 @@ export default function ProductsPage() {
             </div>
           </div>
         )}
-      </div>
-    </AdminLayout>
+        </div>
+      </AdminLayout>
+    </>
   )
 }

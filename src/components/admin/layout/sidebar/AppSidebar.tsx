@@ -29,6 +29,10 @@ import {
   SidebarRail,
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteContext } from "@/contexts/site-context"
+import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { currentSite } = useSiteContext()
@@ -163,6 +167,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
+        <div className="flex items-center justify-between gap-2 px-2 py-2">
+          <Button asChild variant="outline" size="sm" className="h-8 px-3 flex-1">
+            <Link
+              href={currentSite ? getSiteUrl(currentSite) : "/"}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Visit site
+            </Link>
+          </Button>
+          <AdminThemeToggle />
+        </div>
         {!loading && user && <SidebarUserAdmin user={user} />}
       </SidebarFooter>
       <SidebarRail />

@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { SiteProvider } from "@/contexts/site-context"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/layout/sidebar/Sidebar"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"
 
 export default function AdminLayout({
@@ -58,12 +57,7 @@ export default function AdminLayout({
           <SidebarProvider className="h-screen">
             <AppSidebar />
             <SidebarInset>
-              <StickyHeader>
-                <SidebarTrigger className="-ml-1" />
-              </StickyHeader>
-              <div className="flex flex-1 flex-col gap-4 p-4 pt-6 h-full">
-                {children}
-              </div>
+              {children}
             </SidebarInset>
           </SidebarProvider>
         </div>
