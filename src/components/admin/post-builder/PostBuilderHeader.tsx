@@ -1,13 +1,19 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
@@ -41,26 +47,27 @@ export function PostBuilderHeader({
 }: PostBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [selectOpen, setSelectOpen] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
   const currentPost = posts.find(p => p.slug === selectedPost)
 
   const handleCreatePost = () => {
-    setSelectOpen(false)
+    setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
-  
-  
+
+
   // Generate post URL for frontend viewing
-  const getPostUrl = () => {
-    if (!currentPost || !currentSite?.subdomain) {
+  const getPostUrl = (postSlug?: string) => {
+    const slug = postSlug || currentPost?.slug
+    if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    
+
     // Use dedicated post routing
-    const url = `http://localhost:3000/posts/${currentPost.slug}`
+    const url = `http://localhost:3000/posts/${slug}`
     return url
   }
   
@@ -68,50 +75,54 @@ export function PostBuilderHeader({
     <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[57px] z-40">
       <div className="flex h-14 items-center px-6">
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="icon" asChild>
             <Link href="/admin/posts">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Posts
+              <ArrowLeft className="w-4 h-4" />
             </Link>
           </Button>
-          <div className="h-4 w-px bg-border"></div>
-          <h1 className="text-lg font-semibold">Post Builder</h1>
-          <div className="h-4 w-px bg-border"></div>
-          <Select value={selectedPost} onValueChange={onPostChange} open={selectOpen} onOpenChange={setSelectOpen}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue>
-                {currentPost ? currentPost.title : ""}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-9 px-3 font-semibold text-base hover:bg-transparent">
+                {currentPost ? currentPost.title : "Select Post"}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[240px]">
               {posts.map((post) => (
-                <SelectItem key={post.id} value={post.slug}>
-                  {post.title}
-                  {!post.is_published && " (Draft)"}
-                </SelectItem>
-              ))}
-              <div className="border-t pt-1 mt-2">
-                <div
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-foreground text-muted-foreground"
-                  onClick={handleCreatePost}
+                <DropdownMenuItem
+                  key={post.id}
+                  onSelect={(e) => e.preventDefault()}
+                  className={post.slug === selectedPost ? "bg-accent" : ""}
                 >
-                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                    <Plus className="h-4 w-4" />
-                  </span>
-                  Create Post
-                </div>
-              </div>
-            </SelectContent>
-          </Select>
-          <Button 
-            variant="outline"
-            size="sm" 
-            onClick={onPreviewPost}
-            disabled={!currentPost}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview Post
-          </Button>
+                  <div className="flex items-center justify-between flex-1">
+                    <span
+                      onClick={() => {
+                        onPostChange(post.slug)
+                        setDropdownOpen(false)
+                      }}
+                      className="flex-1 cursor-pointer"
+                    >
+                      {post.title}
+                      {!post.is_published && " (Draft)"}
+                    </span>
+                    <Link
+                      href={getPostUrl(post.slug)}
+                      target="_blank"
+                      onClick={(e) => e.stopPropagation()}
+                      className="ml-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCreatePost}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Post
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"
@@ -119,7 +130,7 @@ export function PostBuilderHeader({
             disabled={!currentPost || !currentSite?.subdomain}
           >
             <Link href={getPostUrl()} target="_blank">
-              <Eye className="w-4 h-4 mr-2" />
+              <ExternalLink className="w-4 h-4 mr-2" />
               View Post
             </Link>
           </Button>

@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Info } from "lucide-react"
+import { Trash2, GripVertical, Info, Plus, Eye } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -47,6 +47,8 @@ interface BlockListPanelProps {
   onSelectBlock: (block: EventBlock) => void
   onDeleteBlock: (block: EventBlock) => void
   onReorderBlocks: (blocks: EventBlock[]) => void
+  onOpenBlockModal: () => void
+  onPreviewEvent?: () => void
   deleting: string | null
   blocksLoading?: boolean
 }
@@ -137,6 +139,8 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
+  onOpenBlockModal,
+  onPreviewEvent,
   deleting,
   blocksLoading = false
 }: BlockListPanelProps) {
@@ -202,9 +206,32 @@ export function BlockListPanel({
               <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
             </div>
           ) : (
-            <h2 className="text-xl font-semibold mb-6">
-              {currentEvent.name} Event Blocks
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-semibold">
+                  Active Blocks
+                </h2>
+                {onPreviewEvent && (
+                  <Button
+                    onClick={onPreviewEvent}
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Preview Event"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <Button
+                onClick={onOpenBlockModal}
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Blocks</span>
+              </Button>
+            </div>
           )}
 
           {blocksLoading ? (
@@ -227,7 +254,7 @@ export function BlockListPanel({
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
                 <p className="text-lg font-medium">No blocks added yet</p>
-                <p className="text-sm">Add blocks from the right sidebar to start building your event</p>
+                <p className="text-sm">Click "Add Blocks" to start building your event</p>
               </div>
             </div>
           ) : (

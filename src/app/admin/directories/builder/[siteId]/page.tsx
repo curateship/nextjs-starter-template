@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { DirectoryBuilderHeader } from "@/components/admin/directory-builder/DirectoryBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/directory-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/directory-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/directory-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/directory-builder/BlockSelectionModal"
 import { getSiteDirectoriesAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -27,6 +27,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   // Get initial directory from URL params or default to first directory
   const initialDirectory = searchParams.get('directory') || ''
   const [selectedDirectory, setSelectedDirectory] = useState(initialDirectory)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -253,14 +254,19 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewDirectory={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}
           />
-
-          <BlockTypesPanel
-            onAddDirectoryDefaultBlock={builderState.handleAddDirectoryDefaultBlock}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )

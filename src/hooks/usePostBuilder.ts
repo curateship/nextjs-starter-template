@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react'
-import { 
-  getPostBlocksAction, 
-  updatePostBlocksAction, 
-  addPostBlockAction, 
+import {
+  getPostBlocksAction,
+  updatePostBlocksAction,
+  addPostBlockAction,
   deletePostBlockAction,
-  type PostBlock 
+  type PostBlock
 } from '@/lib/actions/posts/post-actions'
+import { getBlockTypeDefinition } from '@/config/post-block-types'
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
 
 interface UsePostBuilderParams {
   blocks: Record<string, PostBlock>
@@ -20,12 +26,13 @@ export interface PostBuilderHookResult {
   setSelectedBlock: (block: PostBlock | null) => void
   loading: boolean
   saveMessage: string
-  handleAddRichTextBlock: () => Promise<void>
-  handleAddPostInformationBlock: () => Promise<void>
-  handleDeleteBlock: (block: PostBlock) => Promise<void>
-  handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => Promise<void>
-  handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => Promise<void>
-  handleCleanupCorrupted: () => Promise<void>
+  handleAddBlocks: (selections: BlockSelection[]) => void
+  handleAddRichTextBlock: () => void
+  handleAddPostInformationBlock: () => void
+  handleDeleteBlock: (block: PostBlock) => void
+  handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => void
+  handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
+  handleCleanupCorrupted: () => void
   handleSaveAllBlocks: () => Promise<void>
 }
 
@@ -44,128 +51,117 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     setSelectedBlock(null)
   }, [selectedPost])
 
-  // Add a new post information block
-  const handleAddPostInformationBlock = async () => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
+  // Add multiple blocks at once (local-first, like product builder)
+  const handleAddBlocks = (selections: BlockSelection[]) => {
+    const currentBlocks = Object.values(blocks)
+    const newBlocksToAdd: PostBlock[] = []
+    let displayOrderCounter = currentBlocks.length
+
+    // Process each selection
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+
+      if (!blockDefinition) {
+        console.warn(`Unknown block type: ${selection.type}`)
+        continue
+      }
+
+      // Create the specified quantity of blocks
+      for (let i = 0; i < selection.quantity; i++) {
+        const timestamp = Date.now() + i // Ensure unique IDs
+        const newBlock: PostBlock = {
+          id: `${selection.type}-${timestamp}`,
+          type: selection.type as PostBlock['type'],
+          display_order: ++displayOrderCounter,
+          content: { ...blockDefinition.defaultContent },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        newBlocksToAdd.push(newBlock)
+      }
+    }
+
+    if (newBlocksToAdd.length === 0) {
       return
     }
 
-    try {
-      setSaveMessage('Adding block...')
-
-      const { data: newBlock, error } = await addPostBlockAction(
-        postId,
-        'post-information',
-        { showAuthor: true, showDate: true }
-      )
-
-      if (error || !newBlock) {
-        console.error('Error adding post information block:', error)
-        setSaveMessage('Error adding block')
-        setTimeout(() => setSaveMessage(''), 3000)
-        return
-      }
-
-      // Update blocks using setBlocks
-      setBlocks(prev => ({
-        ...prev,
-        [newBlock.id]: newBlock
-      }))
-
-      setSelectedBlock(newBlock)
-      setSaveMessage('Block added!')
-      setTimeout(() => setSaveMessage(''), 3000)
-    } catch (err) {
-      console.error('Error adding post information block:', err)
-      setSaveMessage('Error adding block')
-      setTimeout(() => setSaveMessage(''), 3000)
-    }
-  }
-
-  // Add a new rich text block
-  const handleAddRichTextBlock = async () => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
-      return
-    }
-    
-    try {
-      setSaveMessage('Adding block...')
-      
-      const { data: newBlock, error } = await addPostBlockAction(
-        postId,
-        'rich-text',
-        { title: '', body: '', format: 'html' }
-      )
-
-      if (error || !newBlock) {
-        console.error('Error adding rich text block:', error)
-        setSaveMessage('Error adding block')
-        setTimeout(() => setSaveMessage(''), 3000)
-        return
-      }
-
-      // Update blocks using setBlocks
-      setBlocks(prev => ({
-        ...prev,
-        [newBlock.id]: newBlock
-      }))
-      
-      setSelectedBlock(newBlock)
-      setSaveMessage('Block added!')
-      setTimeout(() => setSaveMessage(''), 3000)
-    } catch (err) {
-      console.error('Error adding rich text block:', err)
-      setSaveMessage('Error adding block')
-      setTimeout(() => setSaveMessage(''), 3000)
-    }
-  }
-
-  // Delete a block
-  const handleDeleteBlock = async (block: PostBlock) => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
-      return
-    }
-    
-    try {
-      setSaveMessage('Deleting block...')
-
-      const { success, error } = await deletePostBlockAction(postId, block.id)
-
-      if (!success || error) {
-        console.error('Error deleting block:', error)
-        setSaveMessage('Error deleting block')
-        setTimeout(() => setSaveMessage(''), 3000)
-        return
-      }
-
-      // Update local state
-      setBlocks(prev => {
-        const { [block.id]: removed, ...rest } = prev
-        return rest
+    // Update blocks state with all new blocks
+    setBlocks(prev => {
+      const updated = { ...prev }
+      newBlocksToAdd.forEach(block => {
+        updated[block.id] = block
       })
+      return updated
+    })
 
-      // Clear selection if deleted block was selected
-      if (selectedBlock?.id === block.id) {
-        setSelectedBlock(null)
-      }
-
-      setSaveMessage('Block deleted!')
-      setTimeout(() => setSaveMessage(''), 3000)
-    } catch (err) {
-      console.error('Error deleting block:', err)
-      setSaveMessage('Error deleting block')
-      setTimeout(() => setSaveMessage(''), 3000)
+    // Select the last added block
+    if (newBlocksToAdd.length > 0) {
+      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }
   }
 
-  // Update a block (local state only, like page builder)
-  const handleUpdateBlock = async (blockId: string, updates: Partial<PostBlock>) => {
+  // Add a new post information block (local-first)
+  const handleAddPostInformationBlock = () => {
+    const currentBlocks = Object.values(blocks)
+    const timestamp = Date.now()
+
+    const newBlock: PostBlock = {
+      id: `post-information-${timestamp}`,
+      type: 'post-information',
+      display_order: currentBlocks.length + 1,
+      content: { showAuthor: true, showDate: true },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    // Update blocks using setBlocks
+    setBlocks(prev => ({
+      ...prev,
+      [newBlock.id]: newBlock
+    }))
+
+    setSelectedBlock(newBlock)
+  }
+
+  // Add a new rich text block (local-first)
+  const handleAddRichTextBlock = () => {
+    const currentBlocks = Object.values(blocks)
+    const timestamp = Date.now()
+
+    const newBlock: PostBlock = {
+      id: `rich-text-${timestamp}`,
+      type: 'rich-text',
+      display_order: currentBlocks.length + 1,
+      content: { title: '', body: '', format: 'html' },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    // Update blocks using setBlocks
+    setBlocks(prev => ({
+      ...prev,
+      [newBlock.id]: newBlock
+    }))
+
+    setSelectedBlock(newBlock)
+  }
+
+  // Delete a block (local-first)
+  const handleDeleteBlock = (block: PostBlock) => {
+    // Update local state
+    setBlocks(prev => {
+      const { [block.id]: removed, ...rest } = prev
+      return rest
+    })
+
+    // Clear selection if deleted block was selected
+    if (selectedBlock?.id === block.id) {
+      setSelectedBlock(null)
+    }
+  }
+
+  // Update a block (local state only)
+  const handleUpdateBlock = (blockId: string, updates: Partial<PostBlock>) => {
     const currentBlock = blocks[blockId]
     if (!currentBlock) return
 
@@ -187,90 +183,35 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     }
   }
 
-  // Reorder blocks
-  const handleReorderBlocks = async (newOrder: { id: string; display_order: number }[]) => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
-      return
-    }
-    
-    try {
-      setSaveMessage('Reordering blocks...')
-
-      // Update local state with new order
-      const updated = { ...blocks }
-      newOrder.forEach(({ id, display_order }) => {
-        if (updated[id]) {
-          updated[id] = {
-            ...updated[id],
-            display_order,
-            updated_at: new Date().toISOString()
-          }
+  // Reorder blocks (local-first)
+  const handleReorderBlocks = (newOrder: { id: string; display_order: number }[]) => {
+    // Update local state with new order
+    const updated = { ...blocks }
+    newOrder.forEach(({ id, display_order }) => {
+      if (updated[id]) {
+        updated[id] = {
+          ...updated[id],
+          display_order,
+          updated_at: new Date().toISOString()
         }
-      })
-      
-      setBlocks(updated)
-
-      // Save to server - use updated blocks state
-      const { success, error } = await updatePostBlocksAction(postId, updated)
-
-      if (!success || error) {
-        console.error('Error reordering blocks:', error)
-        // Revert handled by parent component
-        setSaveMessage('Error reordering blocks')
-        setTimeout(() => setSaveMessage(''), 3000)
-        return
       }
+    })
 
-      setSaveMessage('Blocks reordered!')
-      setTimeout(() => setSaveMessage(''), 3000)
-    } catch (err) {
-      console.error('Error reordering blocks:', err)
-      setSaveMessage('Error reordering blocks')
-      setTimeout(() => setSaveMessage(''), 3000)
-    }
+    setBlocks(updated)
   }
 
-  // Clean up corrupted blocks
-  const handleCleanupCorrupted = async () => {
-    if (!postId || postId.length === 0) {
-      setSaveMessage('No post selected')
-      setTimeout(() => setSaveMessage(''), 3000)
-      return
-    }
-    
-    try {
-      setSaveMessage('Cleaning up corrupted blocks...')
-
-      // Filter out any corrupted blocks (blocks without id or type)
-      const cleanBlocks: Record<string, PostBlock> = {}
-      Object.entries(blocks).forEach(([key, block]) => {
-        if (block && typeof block === 'object' && block.id && block.type) {
-          cleanBlocks[key] = block
-        }
-      })
-
-      // Update local state
-      setBlocks(cleanBlocks)
-
-      // Save to server
-      const { success, error } = await updatePostBlocksAction(postId, cleanBlocks)
-
-      if (!success || error) {
-        console.error('Error cleaning up blocks:', error)
-        setSaveMessage('Error cleaning up blocks')
-        setTimeout(() => setSaveMessage(''), 3000)
-        return
+  // Clean up corrupted blocks (local-first)
+  const handleCleanupCorrupted = () => {
+    // Filter out any corrupted blocks (blocks without id or type)
+    const cleanBlocks: Record<string, PostBlock> = {}
+    Object.entries(blocks).forEach(([key, block]) => {
+      if (block && typeof block === 'object' && block.id && block.type) {
+        cleanBlocks[key] = block
       }
+    })
 
-      setSaveMessage('Corrupted blocks cleaned up!')
-      setTimeout(() => setSaveMessage(''), 3000)
-    } catch (err) {
-      console.error('Error cleaning up corrupted blocks:', err)
-      setSaveMessage('Error cleaning up blocks')
-      setTimeout(() => setSaveMessage(''), 3000)
-    }
+    // Update local state only
+    setBlocks(cleanBlocks)
   }
 
   // Save all blocks to server (like page builder)
@@ -308,6 +249,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     setSelectedBlock,
     loading,
     saveMessage,
+    handleAddBlocks,
     handleAddRichTextBlock,
     handleAddPostInformationBlock,
     handleDeleteBlock,

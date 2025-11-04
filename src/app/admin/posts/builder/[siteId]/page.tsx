@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { PostBuilderHeader } from "@/components/admin/post-builder/PostBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/post-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/post-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/post-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/post-builder/BlockSelectionModal"
 import { getSitePostsAction, updatePostAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
@@ -31,6 +31,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Get initial post from URL params or default to first post
   const initialPost = searchParams.get('post') || ''
   const [selectedPost, setSelectedPost] = useState(initialPost)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
   
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -245,6 +246,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewPost={() => builderState.setSelectedBlock(null)}
             onCleanupCorrupted={builderState.handleCleanupCorrupted}
             deleting={null}
             blocksLoading={loading}
@@ -254,13 +257,14 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
               excerpt: currentPostData?.excerpt || undefined
             }}
           />
-          
-          <BlockTypesPanel
-            onAddRichTextBlock={builderState.handleAddRichTextBlock}
-            onAddPostInformationBlock={builderState.handleAddPostInformationBlock}
-            currentBlocks={Object.values(builderState.blocks)}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={Object.values(builderState.blocks).map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )

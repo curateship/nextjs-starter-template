@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react"
 import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
+import { getBlockTypeDefinition } from "@/config/event-block-types"
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
 
 interface EventBlock {
   id: string
@@ -27,6 +33,7 @@ interface UseEventBuilderReturn {
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: EventBlock) => void
   handleReorderBlocks: (blocks: EventBlock[]) => void
+  handleAddBlocks: (selections: BlockSelection[]) => void
   handleAddEventDefaultBlock: () => void
   handleSaveAllBlocks: () => void
 }
@@ -96,6 +103,44 @@ export function useEventBuilder({
     setSelectedBlock(newBlock)
   }
 
+  const handleAddBlocks = (selections: BlockSelection[]) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedEvent] || []
+    const newBlocks: EventBlock[] = []
+
+    // Process each selection
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+
+      if (!blockDefinition) {
+        console.warn(`Unknown block type: ${selection.type}`)
+        continue
+      }
+
+      // Create the specified quantity of blocks
+      for (let i = 0; i < selection.quantity; i++) {
+        const timestamp = Date.now() + i // Ensure unique IDs
+        const newBlock: EventBlock = {
+          id: `${selection.type}-${timestamp}`,
+          type: selection.type,
+          title: blockDefinition.name,
+          content: { ...blockDefinition.defaultContent }
+        }
+        newBlocks.push(newBlock)
+      }
+    }
+
+    // Add all new blocks to the end of the current blocks
+    updatedBlocks[selectedEvent] = [...currentBlocks, ...newBlocks]
+
+    setBlocks(updatedBlocks)
+
+    // Select the last added block
+    if (newBlocks.length > 0) {
+      setSelectedBlock(newBlocks[newBlocks.length - 1])
+    }
+  }
+
   const handleAddEventDefaultBlock = () => {
     addBlock('event-default', 'Event Information', {
       viewOnly: true
@@ -161,6 +206,7 @@ export function useEventBuilder({
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
+    handleAddBlocks,
     handleAddEventDefaultBlock,
     handleSaveAllBlocks
   }

@@ -12,7 +12,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import { EventBuilderHeader } from "@/components/admin/event-builder/EventBuilderHeader"
 import { BlockPropertiesPanel } from "@/components/admin/event-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/event-builder/BlockListPanel"
-import { BlockTypesPanel } from "@/components/admin/event-builder/BlockTypesPanel"
+import { BlockSelectionModal } from "@/components/admin/event-builder/BlockSelectionModal"
 import { getSiteEventsAction, updateEventAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
@@ -27,6 +27,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   // Get initial event from URL params or default to first event
   const initialEvent = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(initialEvent)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -253,14 +254,19 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
+            onOpenBlockModal={() => setBlockModalOpen(true)}
+            onPreviewEvent={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}
           />
-
-          <BlockTypesPanel
-            onAddEventDefaultBlock={builderState.handleAddEventDefaultBlock}
-          />
         </div>
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentEvent.blocks.map(b => b.type)}
+        />
       </div>
     </AdminLayout>
   )

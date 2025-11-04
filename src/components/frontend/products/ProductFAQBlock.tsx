@@ -61,8 +61,8 @@ const ProductFAQBlock = ({ content, siteWidth = 'custom', customWidth }: Product
             siteWidth={siteWidth}
             customWidth={customWidth}
             header={{
-                title: content?.header || content?.title || '',
-                subtitle: content?.subheader || content?.subtitle || '',
+                title: content?.header || '',
+                subtitle: content?.subheader || '',
                 align: content?.headerAlign ?? "center"
             }}
         >

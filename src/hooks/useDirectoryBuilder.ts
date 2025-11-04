@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react"
 import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
+import { getBlockTypeDefinition } from "@/config/directory-block-types"
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
 
 interface DirectoryBlock {
   id: string
@@ -27,6 +33,7 @@ interface UseDirectoryBuilderReturn {
   updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: DirectoryBlock) => void
   handleReorderBlocks: (blocks: DirectoryBlock[]) => void
+  handleAddBlocks: (selections: BlockSelection[]) => void
   handleAddDirectoryDefaultBlock: () => void
   handleSaveAllBlocks: () => void
 }
@@ -96,6 +103,44 @@ export function useDirectoryBuilder({
     setSelectedBlock(newBlock)
   }
 
+  const handleAddBlocks = (selections: BlockSelection[]) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = updatedBlocks[selectedDirectory] || []
+    const newBlocks: DirectoryBlock[] = []
+
+    // Process each selection
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+
+      if (!blockDefinition) {
+        console.warn(`Unknown block type: ${selection.type}`)
+        continue
+      }
+
+      // Create the specified quantity of blocks
+      for (let i = 0; i < selection.quantity; i++) {
+        const timestamp = Date.now() + i // Ensure unique IDs
+        const newBlock: DirectoryBlock = {
+          id: `${selection.type}-${timestamp}`,
+          type: selection.type,
+          title: blockDefinition.name,
+          content: { ...blockDefinition.defaultContent }
+        }
+        newBlocks.push(newBlock)
+      }
+    }
+
+    // Add all new blocks to the end of the current blocks
+    updatedBlocks[selectedDirectory] = [...currentBlocks, ...newBlocks]
+
+    setBlocks(updatedBlocks)
+
+    // Select the last added block
+    if (newBlocks.length > 0) {
+      setSelectedBlock(newBlocks[newBlocks.length - 1])
+    }
+  }
+
   const handleAddDirectoryDefaultBlock = () => {
     addBlock('directory-default', 'Directory Information', {
       viewOnly: true
@@ -161,6 +206,7 @@ export function useDirectoryBuilder({
     updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
+    handleAddBlocks,
     handleAddDirectoryDefaultBlock,
     handleSaveAllBlocks
   }

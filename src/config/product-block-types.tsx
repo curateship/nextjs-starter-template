@@ -108,6 +108,7 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
       subheader: 'Find answers to common questions',
       productFaqItems: [
         {
+          id: `faq-${Date.now()}-1`,
           question: 'Sample question?',
           answer: 'Sample answer here.'
         }
