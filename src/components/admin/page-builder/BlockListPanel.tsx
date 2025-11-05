@@ -242,7 +242,7 @@ export function BlockListPanel({
 
   return (
     <>
-      <div className="w-[400px] p-6">
+      <div className="w-[400px] p-6 sticky top-0 self-start max-h-screen overflow-y-auto">
         <div className="max-w-3xl mx-auto">
           {blocksLoading ? (
             <div className="mb-6">

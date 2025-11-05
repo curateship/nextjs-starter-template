@@ -49,7 +49,7 @@ export function BlockPropertiesPanel({
   blocksLoading = false
 }: BlockPropertiesPanelProps) {
   return (
-    <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="flex-1 border-r bg-muted/30 overflow-y-auto">
       {selectedBlock ? (
         <div>
           <div className="space-y-4">

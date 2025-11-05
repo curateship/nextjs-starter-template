@@ -9,7 +9,7 @@ import Link from "next/link"
 import { usePageData } from "@/hooks/usePageData"
 import { usePageBuilder } from "@/hooks/usePageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { PageBuilderHeader } from "@/components/admin/page-builder/PageBuilderHeader"
+import { StickyHeader } from "@/components/admin/page-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/page-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/page-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/page-builder/BlockSelectionModal"
@@ -181,57 +181,62 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }
 
   return (
-    <AdminLayout noPadding>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <PageBuilderHeader
-          site={site}
-          pages={pages}
-          selectedPage={selectedPage}
-          onPageChange={handlePageChange}
-          onPageCreated={handlePageCreated}
-          onPageUpdated={handlePageUpdated}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-          onPreviewPage={() => builderState.setSelectedBlock(null)}
-          pagesLoading={pagesLoading}
-        />
-        
-        <div className="flex-1 flex">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-            siteId={siteId}
-            currentPage={currentPage}
-            site={site ? {
-              id: site.id,
-              name: site.name,
-              subdomain: site.subdomain,
-              settings: site.settings
-            } : undefined}
-            blocksLoading={blocksLoading}
-          />
+    <div className="flex flex-col h-full overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
+          { label: currentPageData?.title || currentPage.name || selectedPage, isPage: true }
+        ]}
+        pages={pages}
+        selectedPage={selectedPage}
+        onPageChange={handlePageChange}
+        onPageCreated={handlePageCreated}
+        onPageUpdated={handlePageUpdated}
+        saveMessage={builderState.saveMessage}
+        isSaving={builderState.isSaving}
+        onSave={builderState.handleSaveAllBlocks}
+        onPreviewPage={() => builderState.setSelectedBlock(null)}
+        site={site}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout noPadding>
+          <div className="flex-1 flex">
+            <BlockPropertiesPanel
+              selectedBlock={builderState.selectedBlock}
+              updateBlockContent={builderState.updateBlockContent}
+              siteId={siteId}
+              currentPage={currentPage}
+              site={site ? {
+                id: site.id,
+                name: site.name,
+                subdomain: site.subdomain,
+                settings: site.settings
+              } : undefined}
+              blocksLoading={blocksLoading}
+            />
 
-          <BlockListPanel
-            currentPage={currentPage}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
-            onPreviewPage={() => builderState.setSelectedBlock(null)}
-            deleting={builderState.deleting}
-            blocksLoading={blocksLoading}
-          />
-        </div>
+            <BlockListPanel
+              currentPage={currentPage}
+              selectedBlock={builderState.selectedBlock}
+              onSelectBlock={builderState.setSelectedBlock}
+              onDeleteBlock={builderState.handleDeleteBlock}
+              onReorderBlocks={builderState.handleReorderBlocks}
+              onOpenBlockModal={() => setBlockModalOpen(true)}
+              onPreviewPage={() => builderState.setSelectedBlock(null)}
+              deleting={builderState.deleting}
+              blocksLoading={blocksLoading}
+            />
+          </div>
 
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={currentPage.blocks.map(b => b.type)}
-        />
+          <BlockSelectionModal
+            open={blockModalOpen}
+            onOpenChange={setBlockModalOpen}
+            onAddBlocks={builderState.handleAddBlocks}
+            existingBlockTypes={currentPage.blocks.map(b => b.type)}
+          />
+        </AdminLayout>
       </div>
-    </AdminLayout>
+    </div>
   )
 }

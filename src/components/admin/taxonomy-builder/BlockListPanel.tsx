@@ -135,7 +135,7 @@ export function BlockListPanel({
   }
 
   return (
-    <div className="w-[400px] p-6">
+    <div className="w-[400px] p-6 sticky top-0 self-start max-h-screen overflow-y-auto">
       {blocksLoading ? (
         <div className="mb-6">
           <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>

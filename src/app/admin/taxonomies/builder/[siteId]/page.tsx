@@ -9,7 +9,7 @@ import Link from "next/link"
 import { useTaxonomyData } from "@/hooks/useTaxonomyData"
 import { useTaxonomyBuilder } from "@/hooks/useTaxonomyBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { TaxonomyBuilderHeader } from "@/components/admin/taxonomy-builder/TaxonomyBuilderHeader"
+import { StickyHeader } from "@/components/admin/taxonomy-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/taxonomy-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/taxonomy-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/taxonomy-builder/BlockSelectionModal"
@@ -24,8 +24,6 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   const { currentSite } = useSiteContext()
   const [taxonomyTypes, setTaxonomyTypes] = useState<TaxonomyType[]>([])
   const [taxonomies, setTaxonomies] = useState<Taxonomy[]>([])
-  const [taxonomiesLoading, setTaxonomiesLoading] = useState(true)
-  const [taxonomiesError, setTaxonomiesError] = useState<string | null>(null)
 
   // Get taxonomy type and term from URL params
   const urlTypeId = searchParams.get('type') || ''
@@ -80,16 +78,13 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   useEffect(() => {
     async function loadTaxonomies() {
       if (!selectedTypeId) {
-        setTaxonomiesLoading(false)
         return
       }
 
       try {
-        setTaxonomiesLoading(true)
-        setTaxonomiesError(null)
         const { data, error } = await getTaxonomiesForTypeAction(siteId, selectedTypeId)
         if (error) {
-          setTaxonomiesError(error)
+          console.error('Failed to load taxonomies:', error)
           return
         }
         setTaxonomies(data || [])
@@ -112,9 +107,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
           router.replace(`/admin/taxonomies/builder/${siteId}?type=${selectedTypeId}&taxonomy=${firstTaxonomy.slug}`)
         }
       } catch (err) {
-        setTaxonomiesError('Failed to load taxonomies')
-      } finally {
-        setTaxonomiesLoading(false)
+        console.error('Failed to load taxonomies:', err)
       }
     }
 
@@ -122,7 +115,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   }, [siteId, selectedTypeId, urlTaxonomy, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useTaxonomyData(siteId, selectedTypeId)
+  const { site, blocks, siteBlocks, blocksLoading, siteError } = useTaxonomyData(siteId, selectedTypeId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -156,15 +149,6 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
         [taxonomySlug]: prev[taxonomySlug] || []
       }))
       router.replace(`/admin/taxonomies/builder/${siteId}?type=${selectedTypeId}&taxonomy=${taxonomySlug}`)
-    }
-  }
-
-  // Handle taxonomy type change
-  const handleTaxonomyTypeChange = (typeId: string) => {
-    if (typeId !== selectedTypeId) {
-      setSelectedTypeId(typeId)
-      setSelectedTaxonomy('')
-      router.replace(`/admin/taxonomies/builder/${siteId}?type=${typeId}`)
     }
   }
 
@@ -229,74 +213,83 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
     )
   }
 
+  const currentType = taxonomyTypes.find(t => t.id === selectedTypeId)
+
   return (
-    <AdminLayout noPadding>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <TaxonomyBuilderHeader
-          taxonomyTypes={taxonomyTypes}
-          selectedTypeId={selectedTypeId}
-          onTypeChange={handleTaxonomyTypeChange}
-          taxonomies={taxonomies}
-          selectedTaxonomy={selectedTaxonomy}
-          onTaxonomyChange={handleTaxonomyChange}
-          onTaxonomyUpdated={(updatedTaxonomy) => {
-            setTaxonomies(prev => prev.map(t => t.id === updatedTaxonomy.id ? updatedTaxonomy : t))
-          }}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-          onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
-          taxonomiesLoading={taxonomiesLoading}
-        />
+    <div className="flex flex-col h-full overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { href: `/admin/taxonomies/${siteId}`, label: "Taxonomies" },
+          { href: currentType ? `/admin/taxonomies/${siteId}/${currentType.slug}` : `/admin/taxonomies/${siteId}`, label: currentType?.name || "Type" },
+          { label: currentTaxonomyData?.title || currentTaxonomy.slug || selectedTaxonomy, isPage: true }
+        ]}
+        taxonomies={taxonomies}
+        selectedTaxonomy={selectedTaxonomy}
+        onTaxonomyChange={handleTaxonomyChange}
+        onTaxonomyCreated={(taxonomy) => {
+          setTaxonomies(prev => [...prev, taxonomy])
+        }}
+        onTaxonomyUpdated={(updatedTaxonomy) => {
+          setTaxonomies(prev => prev.map(t => t.id === updatedTaxonomy.id ? updatedTaxonomy : t))
+        }}
+        saveMessage={builderState.saveMessage}
+        isSaving={builderState.isSaving}
+        onSave={builderState.handleSaveAllBlocks}
+        site={site}
+        taxonomyType={currentType}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout noPadding>
+          <div className="flex-1 flex">
+            <BlockPropertiesPanel
+              selectedBlock={builderState.selectedBlock}
+              updateBlockContent={builderState.updateBlockContent}
+              siteId={siteId}
+              currentTaxonomy={{
+                ...currentTaxonomy,
+                id: currentTaxonomyData?.id,
+                title: currentTaxonomyData?.title,
+                meta_description: currentTaxonomyData?.meta_description || undefined,
+                site_id: currentTaxonomyData?.site_id,
+                featured_image: currentTaxonomyData?.featured_image,
+                description: currentTaxonomyData?.description
+              }}
+              site={{
+                id: siteId,
+                name: site?.name || 'Taxonomy Site',
+                subdomain: site?.subdomain || 'preview',
+                settings: site?.settings
+              }}
+              siteBlocks={siteBlocks}
+              blocksLoading={blocksLoading}
+              onTitleChange={handleTitleChange}
+              onDescriptionChange={handleDescriptionChange}
+              onFeaturedImageChange={handleFeaturedImageChange}
+              onStatusChange={handleStatusChange}
+            />
 
-        <div className="flex-1 flex">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-            siteId={siteId}
-            currentTaxonomy={{
-              ...currentTaxonomy,
-              id: currentTaxonomyData?.id,
-              title: currentTaxonomyData?.title,
-              meta_description: currentTaxonomyData?.meta_description || undefined,
-              site_id: currentTaxonomyData?.site_id,
-              featured_image: currentTaxonomyData?.featured_image,
-              description: currentTaxonomyData?.description
-            }}
-            site={{
-              id: siteId,
-              name: site?.name || 'Taxonomy Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
-            }}
-            siteBlocks={siteBlocks}
-            blocksLoading={blocksLoading}
-            onTitleChange={handleTitleChange}
-            onDescriptionChange={handleDescriptionChange}
-            onFeaturedImageChange={handleFeaturedImageChange}
-            onStatusChange={handleStatusChange}
+            <BlockListPanel
+              currentTaxonomy={currentTaxonomy}
+              selectedBlock={builderState.selectedBlock}
+              onSelectBlock={builderState.setSelectedBlock}
+              onDeleteBlock={builderState.handleDeleteBlock}
+              onReorderBlocks={builderState.handleReorderBlocks}
+              onOpenBlockModal={() => setBlockModalOpen(true)}
+              onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
+              deleting={null}
+              blocksLoading={blocksLoading}
+            />
+          </div>
+
+          <BlockSelectionModal
+            open={blockModalOpen}
+            onOpenChange={setBlockModalOpen}
+            onAddBlocks={builderState.handleAddBlocks}
+            existingBlockTypes={currentTaxonomy.blocks.map(b => b.type)}
           />
-
-          <BlockListPanel
-            currentTaxonomy={currentTaxonomy}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
-            onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
-            deleting={null}
-            blocksLoading={blocksLoading}
-          />
-        </div>
-
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={currentTaxonomy.blocks.map(b => b.type)}
-        />
+        </AdminLayout>
       </div>
-    </AdminLayout>
+    </div>
   )
 }

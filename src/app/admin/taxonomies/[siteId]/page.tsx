@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/taxonomy-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useSiteContext } from "@/contexts/site-context"
@@ -135,16 +136,24 @@ export default function TaxonomiesPage({ params }: { params: Promise<{ siteId: s
   }
 
   return (
-    <AdminLayout>
-      <div className="w-full">
-        <AdminPageHeader
-          title="Taxonomies"
-          subtitle="Organize your content with hierarchical categories and tags"
-          primaryAction={{
-            label: "Create Taxonomy Type",
-            onClick: () => setShowCreateModal(true)
-          }}
-        />
+    <AdminLayout noPadding>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { label: "Taxonomies", isPage: true }
+        ]}
+      />
+      <div className="w-full px-16 pt-[30px]">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Taxonomies</h1>
+            <p className="text-muted-foreground">Organize your content with hierarchical categories and tags</p>
+          </div>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Tag className="mr-2 h-4 w-4" />
+            Create Taxonomy Type
+          </Button>
+        </div>
 
         <AdminCard>
           <div className="p-6 border-b">

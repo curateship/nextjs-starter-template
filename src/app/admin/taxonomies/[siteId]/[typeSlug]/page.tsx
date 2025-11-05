@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/taxonomy-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { useSiteContext } from "@/contexts/site-context"
 import { getTaxonomyTypeBySlugAction, type TaxonomyType } from "@/lib/actions/taxonomies/taxonomy-type-actions"
@@ -131,17 +132,25 @@ export default function TaxonomyTermsPage({
   }
 
   return (
-    <AdminLayout>
-      <div className="w-full">
-        <AdminPageHeader
-          title={taxonomyType?.name || 'Loading...'}
-          subtitle={taxonomyType?.description || ''}
-          backUrl={`/admin/taxonomies/${siteId}`}
-          primaryAction={{
-            label: "Create Term",
-            onClick: () => setShowCreateModal(true)
-          }}
-        />
+    <AdminLayout noPadding>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { href: `/admin/taxonomies/${siteId}`, label: "Taxonomies" },
+          { label: taxonomyType?.name || 'Loading...', isPage: true }
+        ]}
+      />
+      <div className="w-full px-16 pt-[30px]">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{taxonomyType?.name || 'Loading...'}</h1>
+            <p className="text-muted-foreground">{taxonomyType?.description || ''}</p>
+          </div>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Term
+          </Button>
+        </div>
 
         <AdminCard>
           <div className="p-6 border-b">
