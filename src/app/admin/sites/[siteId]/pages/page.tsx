@@ -236,7 +236,7 @@ export default function SitePagesPage({ params }: PageProps) {
   if (!site && !loading) {
     return (
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <div className="text-center py-8">
             <p className="text-red-600 mb-4">Site not found or access denied</p>
             <Button asChild>
@@ -247,10 +247,10 @@ export default function SitePagesPage({ params }: PageProps) {
       </AdminLayout>
     )
   }
-  
+
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Pages"
           subtitle="Manage Pages"

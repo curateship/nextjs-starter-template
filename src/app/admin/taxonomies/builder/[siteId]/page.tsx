@@ -205,7 +205,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
-      <AdminLayout>
+      <AdminLayout noPadding>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-600 mb-2">{siteError}</p>
@@ -230,7 +230,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout noPadding>
       <div className="flex flex-col -m-4 -mt-6 h-full">
         <TaxonomyBuilderHeader
           taxonomyTypes={taxonomyTypes}

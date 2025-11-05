@@ -9,7 +9,7 @@ export default function NewslettersPage() {
   
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Newsletters"
           subtitle="Manage your AI-generated newsletter content"

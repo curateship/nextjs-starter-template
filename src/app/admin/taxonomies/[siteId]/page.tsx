@@ -136,7 +136,7 @@ export default function TaxonomiesPage({ params }: { params: Promise<{ siteId: s
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Taxonomies"
           subtitle="Organize your content with hierarchical categories and tags"

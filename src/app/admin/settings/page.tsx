@@ -156,7 +156,7 @@ export default function SettingsPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Account Settings"
           subtitle="Manage your profile and security settings"

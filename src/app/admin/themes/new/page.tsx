@@ -24,7 +24,7 @@ export default function NewThemePage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Add Theme"
           subtitle="Create a new theme for multi-site deployments"

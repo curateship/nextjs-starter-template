@@ -212,7 +212,7 @@ export default function PostsPage() {
         ]}
       />
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Posts</h1>

@@ -25,7 +25,7 @@ export default function NewProductPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Create Product"
           subtitle="Add a new product to your catalog"

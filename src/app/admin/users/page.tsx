@@ -9,7 +9,7 @@ export default function UsersPage() {
   
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Users"
           subtitle="Manage your user accounts"

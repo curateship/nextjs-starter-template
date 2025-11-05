@@ -32,7 +32,7 @@ export function AdminPageHeader({
   extraContent,
 }: AdminPageHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-6 mt-8">
+    <div className="flex items-center justify-between mb-6">
       <div className="flex items-center space-x-4">
         {backUrl && (
           <Button variant="ghost" size="sm" className="p-2" asChild>

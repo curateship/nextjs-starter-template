@@ -27,7 +27,7 @@ export default function NewPostPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Add New Post"
           subtitle="Create a new blog post or article"

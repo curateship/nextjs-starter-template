@@ -19,7 +19,7 @@ export default function DirectoryBuilderRootPage() {
 
   // Show loading state while site context loads
   return (
-    <AdminLayout>
+    <AdminLayout noPadding>
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <FolderOpen className="mx-auto h-8 w-8 text-muted-foreground mb-2" />

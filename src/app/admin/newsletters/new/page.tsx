@@ -24,7 +24,7 @@ export default function NewNewsletterPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Create Newsletter"
           subtitle="Create new AI-powered newsletter content"

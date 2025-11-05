@@ -24,7 +24,7 @@ export default function NewUserPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Add User"
           subtitle="Create a new user account"

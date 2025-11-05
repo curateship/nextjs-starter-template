@@ -152,7 +152,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <AdminPageHeader
             title="Site Settings"
             subtitle="Configure your site"
@@ -181,7 +181,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   if (error && !site) {
     return (
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <div className="p-8 text-center">
             <p className="text-red-600 mb-4">{error}</p>
             <button 
@@ -198,7 +198,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto pb-8">
+      <div className="w-full pb-8">
         <AdminPageHeader
           title="Edit Site"
           subtitle={`Edit settings for ${site?.subdomain}.domain.com`}

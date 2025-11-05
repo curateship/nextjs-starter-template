@@ -177,7 +177,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Only show loading state for critical errors (not during normal loading)
   if (!site && error) {
     return (
-      <AdminLayout>
+      <AdminLayout noPadding>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-600 mb-2">{error}</p>
@@ -219,7 +219,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
       />
       <div className="flex-1 overflow-y-auto">
-        <AdminLayout>
+        <AdminLayout noPadding>
         <div className="flex-1 flex">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}

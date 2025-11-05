@@ -283,7 +283,7 @@ export default function ImagesPage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Media Library"
           subtitle={currentSite ? `Manage images and videos for ${currentSite.name}` : "Manage images and videos"}

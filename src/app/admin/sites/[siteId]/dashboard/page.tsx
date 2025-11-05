@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { BarChart3, Users, Globe, TrendingUp, Settings, Edit3 } from 'lucide-react'
 import Link from 'next/link'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
+import { AdminLayout } from '@/components/admin/layout/admin-layout'
 
 interface PageProps {
   params: Promise<{
@@ -21,8 +22,9 @@ export default async function SiteDashboard({ params }: PageProps) {
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
 
   return (
-    <div className="flex-1 space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <AdminLayout>
+      <div className="flex-1 space-y-6">
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{siteName} Dashboard</h1>
           <p className="text-muted-foreground">
@@ -203,6 +205,7 @@ export default async function SiteDashboard({ params }: PageProps) {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AdminLayout>
   )
 }

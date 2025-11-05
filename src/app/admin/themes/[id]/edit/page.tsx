@@ -95,7 +95,7 @@ export default function EditThemePage() {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <div className="p-8 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading theme...</p>
@@ -108,7 +108,7 @@ export default function EditThemePage() {
   if (error || !theme) {
     return (
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <div className="p-8 text-center">
             <p className="text-red-600 mb-4">{error || 'Theme not found'}</p>
             <button 
@@ -125,7 +125,7 @@ export default function EditThemePage() {
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title={`Edit ${theme.name}`}
           subtitle="Update theme settings and configuration"

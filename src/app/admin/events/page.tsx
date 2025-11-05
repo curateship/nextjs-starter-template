@@ -225,7 +225,7 @@ export default function EventsPage() {
         ]}
       />
       <AdminLayout>
-        <div className="w-full max-w-6xl mx-auto">
+        <div className="w-full">
           <AdminPageHeader
             title="Events"
             subtitle="Manage your event listings"

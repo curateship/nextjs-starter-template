@@ -156,7 +156,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   // Only show error state for critical failures
   if ((siteError || pagesError) && !site && !siteLoading) {
     return (
-      <AdminLayout>
+      <AdminLayout noPadding>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <p className="text-red-600 mb-2">{siteError || pagesError || 'Site not found'}</p>
@@ -181,7 +181,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout noPadding>
       <div className="flex flex-col -m-4 -mt-6 h-full">
         <PageBuilderHeader
           site={site}

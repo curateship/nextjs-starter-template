@@ -132,7 +132,7 @@ export default function TaxonomyTermsPage({
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title={taxonomyType?.name || 'Loading...'}
           subtitle={taxonomyType?.description || ''}

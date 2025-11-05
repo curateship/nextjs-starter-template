@@ -116,7 +116,7 @@ export default function SitesPage() {
   
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full">
         <AdminPageHeader
           title="Sites"
           subtitle="Manage your site collection"
