@@ -331,7 +331,7 @@ export function ProductHeroBlock({
 
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Text Content Card */}
       <Card className="shadow-sm">
         <CardHeader>

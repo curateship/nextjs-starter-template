@@ -40,12 +40,12 @@ export function ProductDetailsBlock({
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       <div>
         <Label className="text-sm font-medium">Edit Product Details</Label>
       </div>
-      
-      <div className="space-y-4">
+
+      <div>
         <div>
           <Label htmlFor="description" className="text-sm font-medium">Product Description</Label>
           <Textarea

@@ -55,7 +55,7 @@ export function ProductVideoBlock({
   const [showCoverPicker, setShowCoverPicker] = useState(false)
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header Settings Card */}
       <Card>
         <CardHeader>

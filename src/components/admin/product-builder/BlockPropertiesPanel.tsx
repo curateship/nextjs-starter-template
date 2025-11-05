@@ -70,7 +70,7 @@ export function BlockPropertiesPanel({
     <div className="flex-1 border-r bg-muted/30 overflow-y-auto">
       {selectedBlock ? (
         <div>
-          <div className="space-y-4 p-4">
+          <div className="">
             {selectedBlock.type === 'product-default' && (
               <ProductDefaultBlock
                 title={currentProduct?.title || currentProduct?.name || ''}

@@ -242,7 +242,7 @@ export function ProductFeaturesBlock({
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header Settings Card */}
       <Card>
         <CardHeader>

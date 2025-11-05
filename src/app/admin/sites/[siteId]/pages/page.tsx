@@ -4,6 +4,7 @@ import { useState, useEffect, use, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/page-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -250,24 +251,23 @@ export default function SitePagesPage({ params }: PageProps) {
   }
 
   return (
-    <AdminLayout noPadding>
+    <>
       <StickyHeader
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { label: "Pages", isPage: true }
         ]}
       />
-      <div className="w-full px-16 pt-[30px]">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pages</h1>
-            <p className="text-muted-foreground">Manage Pages</p>
-          </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Page
-          </Button>
-        </div>
+      <AdminLayout>
+        <div className="w-full">
+        <AdminPageHeader
+          title="Pages"
+          subtitle="Manage Pages"
+          primaryAction={{
+            label: "Create Page",
+            onClick: () => setShowCreateDialog(true)
+          }}
+        />
         
         <AdminCard>
           <div className="p-6 border-b">
@@ -577,6 +577,7 @@ export default function SitePagesPage({ params }: PageProps) {
           </div>
         )}
       </div>
-    </AdminLayout>
+      </AdminLayout>
+    </>
   )
 }

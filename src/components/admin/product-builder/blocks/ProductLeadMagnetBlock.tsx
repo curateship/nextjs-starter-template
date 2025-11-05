@@ -111,7 +111,7 @@ export default function ProductLeadMagnetBlock({
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       <Card>
         <CardHeader>
           <CardTitle>Product Lead Magnet Configuration</CardTitle>

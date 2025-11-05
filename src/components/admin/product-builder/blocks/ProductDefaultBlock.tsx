@@ -53,7 +53,7 @@ export function ProductDefaultBlock({
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Product Information</CardTitle>

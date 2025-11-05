@@ -629,7 +629,7 @@ export function ProductCheckoutBlock({
       </TabsList>
 
       {/* Tab 1: Pricing */}
-      <TabsContent value="pricing" className="space-y-6 mt-6">
+      <TabsContent value="pricing" className="mt-6">
         {/* Header Settings Card */}
         <Card>
           <CardHeader>
@@ -725,7 +725,7 @@ export function ProductCheckoutBlock({
       </TabsContent>
 
       {/* Tab 2: Checkout */}
-      <TabsContent value="checkout" className="space-y-6 mt-6">
+      <TabsContent value="checkout" className="mt-6">
         {/* Stripe Configuration */}
         <Card>
           <CardHeader>
@@ -871,7 +871,7 @@ export function ProductCheckoutBlock({
       </TabsContent>
 
       {/* Tab 3: Download */}
-      <TabsContent value="download" className="space-y-6 mt-6">
+      <TabsContent value="download" className="mt-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Download Page Settings</CardTitle>

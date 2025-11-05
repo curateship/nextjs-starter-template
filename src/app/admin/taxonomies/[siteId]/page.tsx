@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/taxonomy-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -136,24 +137,23 @@ export default function TaxonomiesPage({ params }: { params: Promise<{ siteId: s
   }
 
   return (
-    <AdminLayout noPadding>
+    <>
       <StickyHeader
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { label: "Taxonomies", isPage: true }
         ]}
       />
-      <div className="w-full px-16 pt-[30px]">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Taxonomies</h1>
-            <p className="text-muted-foreground">Organize your content with hierarchical categories and tags</p>
-          </div>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Tag className="mr-2 h-4 w-4" />
-            Create Taxonomy Type
-          </Button>
-        </div>
+      <AdminLayout>
+        <div className="w-full">
+          <AdminPageHeader
+            title="Taxonomies"
+            subtitle="Organize your content with hierarchical categories and tags"
+            primaryAction={{
+              label: "Create Taxonomy Type",
+              onClick: () => setShowCreateModal(true)
+            }}
+          />
 
         <AdminCard>
           <div className="p-6 border-b">
@@ -293,67 +293,68 @@ export default function TaxonomiesPage({ params }: { params: Promise<{ siteId: s
             )}
           </div>
         </AdminCard>
-      </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <CreateTaxonomyTypeModal
-          siteId={siteId}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={handleTypeCreated}
-        />
-      )}
+        {/* Create Modal */}
+        {showCreateModal && (
+          <CreateTaxonomyTypeModal
+            siteId={siteId}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={handleTypeCreated}
+          />
+        )}
 
-      {/* Confirmation Dialog */}
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Taxonomy Type</DialogTitle>
-            <DialogDescription asChild>
-              <div className="space-y-2">
-                <div>Are you sure you want to delete this taxonomy type?</div>
-                <div className="font-medium text-red-600">
-                  This will permanently delete all terms in this taxonomy and remove them from any content they're assigned to. This action cannot be undone.
+        {/* Confirmation Dialog */}
+        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Taxonomy Type</DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2">
+                  <div>Are you sure you want to delete this taxonomy type?</div>
+                  <div className="font-medium text-red-600">
+                    This will permanently delete all terms in this taxonomy and remove them from any content they're assigned to. This action cannot be undone.
+                  </div>
                 </div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button
-              onClick={cancelDeleteType}
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmDeleteType}
-              variant="destructive"
-            >
-              Delete Type and All Terms
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={cancelDeleteType}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeleteType}
+                variant="destructive"
+              >
+                Delete Type and All Terms
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
-      {/* Error Dialog */}
-      <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Error</DialogTitle>
-            <DialogDescription>
-              {errorMessage}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end">
-            <Button
-              onClick={() => setErrorDialogOpen(false)}
-              variant="default"
-            >
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </AdminLayout>
+        {/* Error Dialog */}
+        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Error</DialogTitle>
+              <DialogDescription>
+                {errorMessage}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setErrorDialogOpen(false)}
+                variant="default"
+              >
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        </div>
+      </AdminLayout>
+    </>
   )
 }

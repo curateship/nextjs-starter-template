@@ -43,12 +43,12 @@ export function ProductGalleryBlock({
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       <div>
         <Label className="text-sm font-medium">Edit Product Gallery</Label>
       </div>
-      
-      <div className="space-y-4">
+
+      <div>
         <div className="flex items-center">
           <input
             id="showThumbnails"

@@ -20,7 +20,7 @@ export function AdminLayout({
   noPadding = false,
 }: AdminLayoutProps) {
   return (
-    <div className={noPadding ? "" : "px-16 pt-[30px]"}>
+    <div className={noPadding ? "" : "px-10 pt-[30px]"}>
       {headerActions && (
         <div className="mb-4">
           {headerActions}

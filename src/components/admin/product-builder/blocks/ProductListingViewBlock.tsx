@@ -74,7 +74,7 @@ export function ProductListingViewBlock({
   onViewAllLinkChange,
 }: ProductListingViewBlockProps) {
   return (
-    <div className="space-y-4">
+    <div>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>

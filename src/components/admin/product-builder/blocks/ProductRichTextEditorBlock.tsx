@@ -125,7 +125,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Header Settings Card - Only show if hideHeader is not true */}
       {!content.hideHeader && (
         <Card className="shadow-sm">

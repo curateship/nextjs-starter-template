@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/directory-builder/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -232,16 +233,14 @@ export default function DirectoriesPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Directory</h1>
-              <p className="text-muted-foreground mt-1">Manage your directory listings</p>
-            </div>
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Item
-            </Button>
-          </div>
+          <AdminPageHeader
+            title="Directory"
+            subtitle="Manage your directory listings"
+            primaryAction={{
+              label: "Create Item",
+              onClick: () => setShowCreateDialog(true)
+            }}
+          />
         
         <AdminCard>
             <div className="p-6 border-b">

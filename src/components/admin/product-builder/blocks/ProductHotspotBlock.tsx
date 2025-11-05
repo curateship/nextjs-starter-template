@@ -138,7 +138,7 @@ export function ProductHotspotBlock({
 
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Header Content Card */}
       <Card className="shadow-sm">
         <CardHeader>
