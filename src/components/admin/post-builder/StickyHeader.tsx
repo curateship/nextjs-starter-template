@@ -31,10 +31,9 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
-import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
-import { AIGenerationDialog } from "@/components/admin/ai-generation/AIGenerationDialog"
-import type { Product } from "@/lib/actions/products/product-actions"
+import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
+import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
+import type { Post } from "@/lib/actions/posts/post-actions"
 
 interface BreadcrumbItem {
   href?: string
@@ -45,55 +44,52 @@ interface BreadcrumbItem {
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
-  // Product builder specific props
-  products?: Product[]
-  selectedProduct?: string
-  onProductChange?: (product: string) => void
-  onProductCreated?: (product: Product) => void
-  onProductUpdated?: (product: Product) => void
+  // Post builder specific props
+  posts?: Post[]
+  selectedPost?: string
+  onPostChange?: (post: string) => void
+  onPostCreated?: (post: Post) => void
+  onPostUpdated?: (post: Post) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
-  onAIComplete?: () => void
 }
 
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  products,
-  selectedProduct,
-  onProductChange,
-  onProductCreated,
-  onProductUpdated,
+  posts,
+  selectedPost,
+  onPostChange,
+  onPostCreated,
+  onPostUpdated,
   saveMessage,
   isSaving = false,
-  onSave,
-  onAIComplete
+  onSave
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showAIDialog, setShowAIDialog] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  // Product builder mode - when products prop is provided
-  const isProductBuilder = products !== undefined
-  const currentProduct = products?.find(p => p.slug === selectedProduct)
+  // Post builder mode - when posts prop is provided
+  const isPostBuilder = posts !== undefined
+  const currentPost = posts?.find(p => p.slug === selectedPost)
 
-  const handleCreateProduct = () => {
+  const handleCreatePost = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  // Generate product URL for frontend viewing
-  const getProductUrl = (productSlug?: string) => {
-    const slug = productSlug || currentProduct?.slug
+  // Generate post URL for frontend viewing
+  const getPostUrl = (postSlug?: string) => {
+    const slug = postSlug || currentPost?.slug
     if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    const url = `http://localhost:3000/products/${slug}`
+    const url = `http://localhost:3000/posts/${slug}`
     return url
   }
 
@@ -115,9 +111,9 @@ export function StickyHeader({
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
-                      // Last item in product builder gets dropdown
+                      // Last item in post builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isProductBuilder
+                      const shouldShowDropdown = isLastItem && isPostBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -130,33 +126,33 @@ export function StickyHeader({
                                     className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentProduct ? currentProduct.title : item.label}
+                                      {currentPost ? currentPost.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {products?.map((product) => (
+                                  {posts?.map((post) => (
                                     <DropdownMenuItem
-                                      key={product.id}
+                                      key={post.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={product.slug === selectedProduct ? "bg-accent" : ""}
+                                      className={post.slug === selectedPost ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onProductChange) {
-                                              onProductChange(product.slug)
+                                            if (onPostChange) {
+                                              onPostChange(post.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {product.title}
-                                          {!product.is_published && " (Draft)"}
+                                          {post.title}
+                                          {!post.is_published && " (Draft)"}
                                         </span>
                                         <Link
-                                          href={getProductUrl(product.slug)}
+                                          href={getPostUrl(post.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -167,9 +163,9 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreateProduct}>
+                                  <DropdownMenuItem onClick={handleCreatePost}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Product
+                                    Create Post
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -195,19 +191,9 @@ export function StickyHeader({
             )}
           </div>
 
-          {/* Product Builder Actions */}
-          {isProductBuilder && (
+          {/* Post Builder Actions */}
+          {isPostBuilder && (
             <div className="flex items-center space-x-2">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setShowAIDialog(true)}
-                disabled={!currentProduct?.id}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                AI Generate
-              </Button>
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
                   saveMessage.includes('Error') || saveMessage.includes('Failed')
@@ -232,7 +218,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentProduct}
+                disabled={!currentPost}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -250,26 +236,26 @@ export function StickyHeader({
         </div>
       </header>
 
-      {/* Product Builder Dialogs */}
-      {isProductBuilder && (
+      {/* Post Builder Dialogs */}
+      {isPostBuilder && (
         <>
-          {/* Create Product Dialog */}
+          {/* Create Post Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
               <DialogHeader>
-                <DialogTitle>Create New Product</DialogTitle>
+                <DialogTitle>Create New Post</DialogTitle>
                 <DialogDescription>
-                  Add a new product to your catalog. You can customize the content after creation.
+                  Add a new post to your blog. You can customize the content after creation.
                 </DialogDescription>
               </DialogHeader>
-              <CreateProductModal
-                onSuccess={(product) => {
-                  if (onProductCreated) {
-                    onProductCreated(product)
+              <CreatePostModal
+                onSuccess={(post) => {
+                  if (onPostCreated) {
+                    onPostCreated(post)
                   }
                   setShowCreateDialog(false)
-                  if (onProductChange) {
-                    onProductChange(product.slug)
+                  if (onPostChange) {
+                    onPostChange(post.slug)
                   }
                 }}
                 onCancel={() => setShowCreateDialog(false)}
@@ -277,34 +263,18 @@ export function StickyHeader({
             </DialogContent>
           </Dialog>
 
-          {/* Edit Product Settings Modal */}
-          <ProductSettingsModal
+          {/* Edit Post Settings Modal */}
+          <PostSettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            product={currentProduct || null}
+            post={currentPost || null}
             site={currentSite}
-            onSuccess={(updatedProduct) => {
-              if (onProductUpdated) {
-                onProductUpdated(updatedProduct)
+            onSuccess={(updatedPost) => {
+              if (onPostUpdated) {
+                onPostUpdated(updatedPost)
               }
             }}
           />
-
-          {/* AI Generation Dialog - Only render when product is selected */}
-          {currentProduct?.id && (
-            <AIGenerationDialog
-              open={showAIDialog}
-              onOpenChange={setShowAIDialog}
-              contentType="product"
-              siteId={currentSite?.id}
-              productId={currentProduct.id}
-              onAIComplete={() => {
-                if (onAIComplete) {
-                  onAIComplete()
-                }
-              }}
-            />
-          )}
         </>
       )}
     </>

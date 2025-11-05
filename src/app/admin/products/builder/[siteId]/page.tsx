@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useProductData } from "@/hooks/useProductData"
@@ -209,7 +210,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <StickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
@@ -226,7 +227,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         onSave={builderState.handleSaveAllBlocks}
         onAIComplete={handleAIComplete}
       />
-      <div className="flex flex-col flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout>
         <div className="flex-1 flex">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
@@ -273,6 +275,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentProduct.blocks.map(b => b.type)}
         />
+        </AdminLayout>
       </div>
     </div>
   )

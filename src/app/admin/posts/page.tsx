@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/post-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -201,20 +202,29 @@ export default function PostsPage() {
     draft: posts.filter(p => !p.is_published).length
   }
 
-  
+
   return (
-    <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
-        <AdminPageHeader
-          title="Posts"
-          subtitle="Manage your blog posts and content"
-          primaryAction={{
-            label: "Create Post",
-            onClick: () => setShowCreateDialog(true)
-          }}
-        />
-        
-        <AdminCard>
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { label: "Posts", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Posts</h1>
+              <p className="text-muted-foreground mt-1">Manage your blog posts and content</p>
+            </div>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Post
+            </Button>
+          </div>
+
+          <AdminCard>
             <div className="p-6 border-b">
               <div className="flex justify-between items-center">
                 <div>
@@ -458,7 +468,7 @@ export default function PostsPage() {
               )}
             </div>
           </AdminCard>
-        
+
         {/* Create Post Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogPortal>
@@ -548,7 +558,8 @@ export default function PostsPage() {
             </div>
           </div>
         )}
-      </div>
-    </AdminLayout>
+        </div>
+      </AdminLayout>
+    </>
   )
 }

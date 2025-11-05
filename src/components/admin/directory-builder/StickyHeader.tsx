@@ -31,10 +31,9 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
-import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
-import { AIGenerationDialog } from "@/components/admin/ai-generation/AIGenerationDialog"
-import type { Product } from "@/lib/actions/products/product-actions"
+import { DirectorySettingsModal } from "@/components/admin/directory-builder/DirectorySettingsModal"
+import { CreateDirectoryModal } from "@/components/admin/directory-builder/CreateDirectoryModal"
+import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 interface BreadcrumbItem {
   href?: string
@@ -45,55 +44,52 @@ interface BreadcrumbItem {
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
-  // Product builder specific props
-  products?: Product[]
-  selectedProduct?: string
-  onProductChange?: (product: string) => void
-  onProductCreated?: (product: Product) => void
-  onProductUpdated?: (product: Product) => void
+  // Directory builder specific props
+  directories?: Directory[]
+  selectedDirectory?: string
+  onDirectoryChange?: (directory: string) => void
+  onDirectoryCreated?: (directory: Directory) => void
+  onDirectoryUpdated?: (directory: Directory) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
-  onAIComplete?: () => void
 }
 
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  products,
-  selectedProduct,
-  onProductChange,
-  onProductCreated,
-  onProductUpdated,
+  directories,
+  selectedDirectory,
+  onDirectoryChange,
+  onDirectoryCreated,
+  onDirectoryUpdated,
   saveMessage,
   isSaving = false,
-  onSave,
-  onAIComplete
+  onSave
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showAIDialog, setShowAIDialog] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  // Product builder mode - when products prop is provided
-  const isProductBuilder = products !== undefined
-  const currentProduct = products?.find(p => p.slug === selectedProduct)
+  // Directory builder mode - when directories prop is provided
+  const isDirectoryBuilder = directories !== undefined
+  const currentDirectory = directories?.find(d => d.slug === selectedDirectory)
 
-  const handleCreateProduct = () => {
+  const handleCreateDirectory = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  // Generate product URL for frontend viewing
-  const getProductUrl = (productSlug?: string) => {
-    const slug = productSlug || currentProduct?.slug
+  // Generate directory URL for frontend viewing
+  const getDirectoryUrl = (directorySlug?: string) => {
+    const slug = directorySlug || currentDirectory?.slug
     if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    const url = `http://localhost:3000/products/${slug}`
+    const url = `http://localhost:3000/directories/${slug}`
     return url
   }
 
@@ -115,9 +111,9 @@ export function StickyHeader({
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
-                      // Last item in product builder gets dropdown
+                      // Last item in directory builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isProductBuilder
+                      const shouldShowDropdown = isLastItem && isDirectoryBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -130,33 +126,33 @@ export function StickyHeader({
                                     className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentProduct ? currentProduct.title : item.label}
+                                      {currentDirectory ? currentDirectory.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {products?.map((product) => (
+                                  {directories?.map((directory) => (
                                     <DropdownMenuItem
-                                      key={product.id}
+                                      key={directory.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={product.slug === selectedProduct ? "bg-accent" : ""}
+                                      className={directory.slug === selectedDirectory ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onProductChange) {
-                                              onProductChange(product.slug)
+                                            if (onDirectoryChange) {
+                                              onDirectoryChange(directory.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {product.title}
-                                          {!product.is_published && " (Draft)"}
+                                          {directory.title}
+                                          {!directory.is_published && " (Draft)"}
                                         </span>
                                         <Link
-                                          href={getProductUrl(product.slug)}
+                                          href={getDirectoryUrl(directory.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -167,9 +163,9 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreateProduct}>
+                                  <DropdownMenuItem onClick={handleCreateDirectory}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Product
+                                    Create Directory
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -195,19 +191,9 @@ export function StickyHeader({
             )}
           </div>
 
-          {/* Product Builder Actions */}
-          {isProductBuilder && (
+          {/* Directory Builder Actions */}
+          {isDirectoryBuilder && (
             <div className="flex items-center space-x-2">
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setShowAIDialog(true)}
-                disabled={!currentProduct?.id}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                AI Generate
-              </Button>
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
                   saveMessage.includes('Error') || saveMessage.includes('Failed')
@@ -232,7 +218,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentProduct}
+                disabled={!currentDirectory}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -250,26 +236,26 @@ export function StickyHeader({
         </div>
       </header>
 
-      {/* Product Builder Dialogs */}
-      {isProductBuilder && (
+      {/* Directory Builder Dialogs */}
+      {isDirectoryBuilder && (
         <>
-          {/* Create Product Dialog */}
+          {/* Create Directory Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
               <DialogHeader>
-                <DialogTitle>Create New Product</DialogTitle>
+                <DialogTitle>Create New Directory</DialogTitle>
                 <DialogDescription>
-                  Add a new product to your catalog. You can customize the content after creation.
+                  Add a new directory to your site. You can customize the content after creation.
                 </DialogDescription>
               </DialogHeader>
-              <CreateProductModal
-                onSuccess={(product) => {
-                  if (onProductCreated) {
-                    onProductCreated(product)
+              <CreateDirectoryModal
+                onSuccess={(directory) => {
+                  if (onDirectoryCreated) {
+                    onDirectoryCreated(directory)
                   }
                   setShowCreateDialog(false)
-                  if (onProductChange) {
-                    onProductChange(product.slug)
+                  if (onDirectoryChange) {
+                    onDirectoryChange(directory.slug)
                   }
                 }}
                 onCancel={() => setShowCreateDialog(false)}
@@ -277,34 +263,18 @@ export function StickyHeader({
             </DialogContent>
           </Dialog>
 
-          {/* Edit Product Settings Modal */}
-          <ProductSettingsModal
+          {/* Edit Directory Settings Modal */}
+          <DirectorySettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            product={currentProduct || null}
+            directory={currentDirectory || null}
             site={currentSite}
-            onSuccess={(updatedProduct) => {
-              if (onProductUpdated) {
-                onProductUpdated(updatedProduct)
+            onSuccess={(updatedDirectory) => {
+              if (onDirectoryUpdated) {
+                onDirectoryUpdated(updatedDirectory)
               }
             }}
           />
-
-          {/* AI Generation Dialog - Only render when product is selected */}
-          {currentProduct?.id && (
-            <AIGenerationDialog
-              open={showAIDialog}
-              onOpenChange={setShowAIDialog}
-              contentType="product"
-              siteId={currentSite?.id}
-              productId={currentProduct.id}
-              onAIComplete={() => {
-                if (onAIComplete) {
-                  onAIComplete()
-                }
-              }}
-            />
-          )}
         </>
       )}
     </>

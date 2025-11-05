@@ -9,7 +9,7 @@ import Link from "next/link"
 import { useEventData } from "@/hooks/useEventData"
 import { useEventBuilder } from "@/hooks/useEventBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { EventBuilderHeader } from "@/components/admin/event-builder/EventBuilderHeader"
+import { StickyHeader } from "@/components/admin/event-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/event-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/event-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/event-builder/BlockSelectionModal"
@@ -205,21 +205,24 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
 
   return (
-    <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <EventBuilderHeader
-          events={events}
-          selectedEvent={selectedEvent}
-          onEventChange={handleEventChange}
-          onEventCreated={handleEventCreated}
-          onEventUpdated={handleEventUpdated}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-          onPreviewEvent={() => builderState.setSelectedBlock(null)}
-          eventsLoading={eventsLoading}
-        />
-
+    <div className="flex flex-col h-full overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/events", label: "Events" },
+          { label: currentEventData?.title || "Select Event", isPage: true }
+        ]}
+        events={events}
+        selectedEvent={selectedEvent}
+        onEventChange={handleEventChange}
+        onEventCreated={handleEventCreated}
+        onEventUpdated={handleEventUpdated}
+        saveMessage={builderState.saveMessage}
+        isSaving={builderState.isSaving}
+        onSave={builderState.handleSaveAllBlocks}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout>
         <div className="flex-1 flex">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
@@ -267,7 +270,8 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentEvent.blocks.map(b => b.type)}
         />
+        </AdminLayout>
       </div>
-    </AdminLayout>
+    </div>
   )
 }

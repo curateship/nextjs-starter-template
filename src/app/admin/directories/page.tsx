@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { StickyHeader } from "@/components/admin/directory-builder/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { 
   Dialog,
@@ -220,18 +221,27 @@ export default function DirectoriesPage() {
     private: directories.filter(d => isDirectoryPrivate(d)).length
   }
 
-  
+
   return (
-    <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
-        <AdminPageHeader
-          title="Directory"
-          subtitle="Manage your directory listings"
-          primaryAction={{
-            label: "Create Item",
-            onClick: () => setShowCreateDialog(true)
-          }}
-        />
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { label: "Directories", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Directory</h1>
+              <p className="text-muted-foreground mt-1">Manage your directory listings</p>
+            </div>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Item
+            </Button>
+          </div>
         
         <AdminCard>
             <div className="p-6 border-b">
@@ -568,6 +578,7 @@ export default function DirectoriesPage() {
           </div>
         )}
       </div>
-    </AdminLayout>
+      </AdminLayout>
+    </>
   )
 }

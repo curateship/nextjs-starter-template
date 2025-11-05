@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { StickyHeader } from "@/components/admin/event-builder/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { 
   Dialog,
@@ -216,16 +217,23 @@ export default function EventsPage() {
   }
 
   return (
-    <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto">
-        <AdminPageHeader
-          title="Events"
-          subtitle="Manage your event listings"
-          primaryAction={{
-            label: "Create Event Item",
-            onClick: () => setShowCreateDialog(true)
-          }}
-        />
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { label: "Events", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full max-w-6xl mx-auto">
+          <AdminPageHeader
+            title="Events"
+            subtitle="Manage your event listings"
+            primaryAction={{
+              label: "Create Event Item",
+              onClick: () => setShowCreateDialog(true)
+            }}
+          />
 
         <AdminCard>
             <div className="p-6 border-b">
@@ -515,5 +523,6 @@ export default function EventsPage() {
         />
       )}
     </AdminLayout>
+    </>
   )
 }

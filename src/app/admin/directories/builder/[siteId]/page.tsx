@@ -9,7 +9,7 @@ import Link from "next/link"
 import { useDirectoryData } from "@/hooks/useDirectoryData"
 import { useDirectoryBuilder } from "@/hooks/useDirectoryBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { DirectoryBuilderHeader } from "@/components/admin/directory-builder/DirectoryBuilderHeader"
+import { StickyHeader } from "@/components/admin/directory-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/directory-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/directory-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/directory-builder/BlockSelectionModal"
@@ -205,60 +205,63 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
 
   return (
-    <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <DirectoryBuilderHeader
-          directories={directories}
-          selectedDirectory={selectedDirectory}
-          onDirectoryChange={handleDirectoryChange}
-          onDirectoryCreated={handleDirectoryCreated}
-          onDirectoryUpdated={handleDirectoryUpdated}
-          saveMessage={builderState.saveMessage}
-          isSaving={builderState.isSaving}
-          onSave={builderState.handleSaveAllBlocks}
-          onPreviewDirectory={() => builderState.setSelectedBlock(null)}
-          directoriesLoading={directoriesLoading}
-        />
-
+    <div className="flex flex-col h-full overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/directories", label: "Directories" },
+          { label: currentDirectoryData?.title || "Select Directory", isPage: true }
+        ]}
+        directories={directories}
+        selectedDirectory={selectedDirectory}
+        onDirectoryChange={handleDirectoryChange}
+        onDirectoryCreated={handleDirectoryCreated}
+        onDirectoryUpdated={handleDirectoryUpdated}
+        saveMessage={builderState.saveMessage}
+        isSaving={builderState.isSaving}
+        onSave={builderState.handleSaveAllBlocks}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout>
         <div className="flex-1 flex">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-            siteId={siteId}
-            currentDirectory={{
-              ...currentDirectory,
-              id: currentDirectoryData?.id,
-              title: currentDirectoryData?.title,
-              meta_description: currentDirectoryData?.meta_description || undefined,
-              site_id: currentDirectoryData?.site_id,
-              featured_image: currentDirectoryData?.featured_image,
-              description: currentDirectoryData?.description
-            }}
-            site={{
-              id: siteId,
-              name: site?.name || 'Directory Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
-            }}
-            siteBlocks={siteBlocks}
-            blocksLoading={blocksLoading}
-            onTitleChange={handleTitleChange}
-            onDescriptionChange={handleDescriptionChange}
-            onFeaturedImageChange={handleFeaturedImageChange}
-            onStatusChange={handleStatusChange}
-          />
+            <BlockPropertiesPanel
+              selectedBlock={builderState.selectedBlock}
+              updateBlockContent={builderState.updateBlockContent}
+              siteId={siteId}
+              currentDirectory={{
+                ...currentDirectory,
+                id: currentDirectoryData?.id,
+                title: currentDirectoryData?.title,
+                meta_description: currentDirectoryData?.meta_description || undefined,
+                site_id: currentDirectoryData?.site_id,
+                featured_image: currentDirectoryData?.featured_image,
+                description: currentDirectoryData?.description
+              }}
+              site={{
+                id: siteId,
+                name: site?.name || 'Directory Site',
+                subdomain: site?.subdomain || 'preview',
+                settings: site?.settings
+              }}
+              siteBlocks={siteBlocks}
+              blocksLoading={blocksLoading}
+              onTitleChange={handleTitleChange}
+              onDescriptionChange={handleDescriptionChange}
+              onFeaturedImageChange={handleFeaturedImageChange}
+              onStatusChange={handleStatusChange}
+            />
 
-          <BlockListPanel
-            currentDirectory={currentDirectory}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
-            onPreviewDirectory={() => builderState.setSelectedBlock(null)}
-            deleting={null}
-            blocksLoading={blocksLoading}
-          />
+            <BlockListPanel
+              currentDirectory={currentDirectory}
+              selectedBlock={builderState.selectedBlock}
+              onSelectBlock={builderState.setSelectedBlock}
+              onDeleteBlock={builderState.handleDeleteBlock}
+              onReorderBlocks={builderState.handleReorderBlocks}
+              onOpenBlockModal={() => setBlockModalOpen(true)}
+              onPreviewDirectory={() => builderState.setSelectedBlock(null)}
+              deleting={null}
+              blocksLoading={blocksLoading}
+            />
         </div>
 
         <BlockSelectionModal
@@ -267,7 +270,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
         />
+        </AdminLayout>
       </div>
-    </AdminLayout>
+    </div>
   )
 }

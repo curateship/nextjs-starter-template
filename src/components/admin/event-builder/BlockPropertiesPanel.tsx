@@ -62,10 +62,10 @@ export function BlockPropertiesPanel({
   const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content
 
   return (
-    <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="flex-1 border-r bg-muted/30 overflow-y-auto">
       {selectedBlock ? (
         <div>
-          <div className="space-y-4">
+          <div className="space-y-4 p-4">
             {selectedBlock.type === 'event-default' && (
               <EventDefaultBlock
                 title={currentEvent?.title || currentEvent?.name || ''}

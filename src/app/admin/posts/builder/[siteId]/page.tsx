@@ -9,7 +9,7 @@ import Link from "next/link"
 import { usePostBuilder } from "@/hooks/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { PostBuilderHeader } from "@/components/admin/post-builder/PostBuilderHeader"
+import { StickyHeader } from "@/components/admin/post-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/post-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/post-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/post-builder/BlockSelectionModal"
@@ -201,24 +201,25 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     )
   }
 
-  // Remove loading skeleton - let components handle their own loading states like page builder does
-
   return (
-    <AdminLayout>
-      <div className="flex flex-col -m-4 -mt-6 h-full">
-        <PostBuilderHeader
-          posts={posts}
-          selectedPost={selectedPost}
-          onPostChange={handlePostChange}
-          onPostCreated={handlePostCreated}
-          onPostUpdated={handlePostUpdated}
-          saveMessage={builderState.saveMessage}
-          isSaving={false}
-          onSave={builderState.handleSaveAllBlocks}
-          onPreviewPost={() => builderState.setSelectedBlock(null)}
-          postsLoading={loading}
-        />
-        
+    <div className="flex flex-col h-full overflow-hidden">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/posts", label: "Posts" },
+          { label: currentPostData?.title || "Select Post", isPage: true }
+        ]}
+        posts={posts}
+        selectedPost={selectedPost}
+        onPostChange={handlePostChange}
+        onPostCreated={handlePostCreated}
+        onPostUpdated={handlePostUpdated}
+        saveMessage={builderState.saveMessage}
+        isSaving={false}
+        onSave={builderState.handleSaveAllBlocks}
+      />
+      <div className="flex-1 overflow-y-auto">
+        <AdminLayout>
         <div className="flex-1 flex">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
@@ -265,7 +266,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={Object.values(builderState.blocks).map(b => b.type)}
         />
+        </AdminLayout>
       </div>
-    </AdminLayout>
+    </div>
   )
 }

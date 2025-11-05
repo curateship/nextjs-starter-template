@@ -54,10 +54,10 @@ export function BlockPropertiesPanel({
   onPostTitleChange
 }: BlockPropertiesPanelProps) {
   return (
-    <div className="flex-1 border-r bg-muted/30 p-4 overflow-y-auto">
+    <div className="flex-1 border-r bg-muted/30 overflow-y-auto">
       {selectedBlock ? (
         <div>
-          <div className="space-y-4">
+          <div className="space-y-4 p-4">
             {(selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content') && (
               <PostContentBlock
                 block={selectedBlock as any}
