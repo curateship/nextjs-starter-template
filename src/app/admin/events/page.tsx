@@ -331,7 +331,7 @@ export default function EventsPage() {
               </div>
             </div>
 
-            <div className="divide-y">
+            <div className="divide-y divide-muted/80">
               {loading ? (
                 <div className="p-6">
                   <div className="space-y-4">

@@ -340,12 +340,12 @@ export default function SitePagesPage({ params }: PageProps) {
             </div>
           </div>
           
-          <div className="divide-y">
+          <div className="divide-y divide-muted/80">
             {loading ? (
               // Skeleton loading state for pages
               <div className="space-y-0">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="p-6 border-b">
+                  <div key={i} className="p-6 border-b border-muted/80">
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">

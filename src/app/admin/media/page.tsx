@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import Link from "next/link"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, Play, VideoIcon, Filter, CheckSquare } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, Filter, CheckSquare } from "lucide-react"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -86,7 +86,7 @@ export default function ImagesPage() {
     }
 
     try {
-      const { success, error } = await deleteImageAction(image.id)
+      const { error } = await deleteImageAction(image.id)
       if (error) {
         toast.error(`Failed to delete image: ${error}`)
       } else {
@@ -282,17 +282,24 @@ export default function ImagesPage() {
   }
 
   return (
-    <AdminLayout>
-      <div className="w-full">
-        <AdminPageHeader
-          title="Media Library"
-          subtitle={currentSite ? `Manage images and videos for ${currentSite.name}` : "Manage images and videos"}
-          primaryAction={{
-            label: isUploading ? "Uploading..." : "Upload Media",
-            onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
-          }}
-        />
-        
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { label: "Media Library", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full">
+          <AdminPageHeader
+            title="Media Library"
+            subtitle={currentSite ? `Manage images and videos for ${currentSite.name}` : "Manage images and videos"}
+            primaryAction={{
+              label: isUploading ? "Uploading..." : "Upload Media",
+              onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
+            }}
+          />
+
         {/* Hidden file input */}
         <input
           id="image-upload-input"
@@ -303,7 +310,7 @@ export default function ImagesPage() {
         />
         
         <AdminCard>
-          <div className="p-6 border-b">
+          <div className="p-6">
             <div className="flex justify-between items-center">
               {isLoading ? (
                 <div className="h-6 bg-muted rounded animate-pulse w-48"></div>
@@ -395,7 +402,7 @@ export default function ImagesPage() {
                 </div>
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-muted/80">
                 {[...Array(8)].map((_, i) => (
                   <div key={i} className="p-6 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -482,7 +489,7 @@ export default function ImagesPage() {
             </div>
           ) : (
             // List View
-            <div className="divide-y">
+            <div className="divide-y divide-muted/80">
               {images.map((media) => {
                 const isSelected = selectedIds.has(media.id)
                 return (
@@ -623,5 +630,6 @@ export default function ImagesPage() {
         </Dialog>
       </div>
     </AdminLayout>
+    </>
   )
 }
