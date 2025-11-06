@@ -210,7 +210,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/directories", label: "Directories" },
-          { label: currentDirectoryData?.title || "Select Directory", isPage: true }
+          { label: currentDirectoryData?.title || "", isPage: true }
         ]}
         directories={directories}
         selectedDirectory={selectedDirectory}

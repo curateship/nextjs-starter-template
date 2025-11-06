@@ -125,6 +125,9 @@ export function StickyHeader({
                         <React.Fragment key={index}>
                           <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
                             {shouldShowDropdown ? (
+                              !item.label ? (
+                                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
+                              ) : (
                               <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                                 <DropdownMenuTrigger asChild>
                                   <Button
@@ -174,8 +177,15 @@ export function StickyHeader({
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              )
                             ) : item.isPage ? (
-                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                              !item.label ? (
+                                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
+                              ) : (
+                                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                              )
+                            ) : !item.label ? (
+                              <div className="h-5 w-24 bg-muted rounded animate-pulse" />
                             ) : (
                               <BreadcrumbLink asChild>
                                 <Link href={item.href || "#"}>

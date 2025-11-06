@@ -210,7 +210,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/events", label: "Events" },
-          { label: currentEventData?.title || "Select Event", isPage: true }
+          { label: currentEventData?.title || "", isPage: true }
         ]}
         events={events}
         selectedEvent={selectedEvent}

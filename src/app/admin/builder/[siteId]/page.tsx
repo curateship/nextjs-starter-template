@@ -186,7 +186,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
-          { label: currentPageData?.title || currentPage.name || selectedPage, isPage: true }
+          { label: currentPageData?.title || "", isPage: true }
         ]}
         pages={pages}
         selectedPage={selectedPage}

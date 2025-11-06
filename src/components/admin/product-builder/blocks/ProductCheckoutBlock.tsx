@@ -622,7 +622,7 @@ export function ProductCheckoutBlock({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="grid w-full grid-cols-3 rounded-none gap-2">
         <TabsTrigger value="pricing">Pricing</TabsTrigger>
         <TabsTrigger value="checkout">Checkout</TabsTrigger>
         <TabsTrigger value="download">Download</TabsTrigger>

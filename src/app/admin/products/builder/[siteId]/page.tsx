@@ -215,7 +215,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/products", label: "Products" },
-          { label: currentProductData?.title || "Select Product", isPage: true }
+          { label: currentProductData?.title || "", isPage: true }
         ]}
         products={products}
         selectedProduct={selectedProduct}

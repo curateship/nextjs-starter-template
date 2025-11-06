@@ -207,7 +207,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/posts", label: "Posts" },
-          { label: currentPostData?.title || "Select Post", isPage: true }
+          { label: currentPostData?.title || "", isPage: true }
         ]}
         posts={posts}
         selectedPost={selectedPost}

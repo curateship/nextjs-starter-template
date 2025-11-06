@@ -138,7 +138,7 @@ export default function TaxonomyTermsPage({
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/taxonomies/${siteId}`, label: "Taxonomies" },
-          { label: taxonomyType?.name || 'Loading...', isPage: true }
+          { label: taxonomyType?.name || '', isPage: true }
         ]}
       />
       <AdminLayout>

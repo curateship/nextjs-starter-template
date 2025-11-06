@@ -221,8 +221,8 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/taxonomies/${siteId}`, label: "Taxonomies" },
-          { href: currentType ? `/admin/taxonomies/${siteId}/${currentType.slug}` : `/admin/taxonomies/${siteId}`, label: currentType?.name || "Type" },
-          { label: currentTaxonomyData?.title || currentTaxonomy.slug || selectedTaxonomy, isPage: true }
+          { href: currentType ? `/admin/taxonomies/${siteId}/${currentType.slug}` : `/admin/taxonomies/${siteId}`, label: currentType?.name || "" },
+          { label: currentTaxonomyData?.title || "", isPage: true }
         ]}
         taxonomies={taxonomies}
         selectedTaxonomy={selectedTaxonomy}

@@ -31,7 +31,6 @@ export default async function SiteDashboard({ params }: PageProps) {
         ]}
         rightActions={
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">Live</Badge>
             <Button asChild variant="outline" size="sm">
               <Link href={`/admin/sites/${siteId}/settings`}>
                 <Settings className="mr-2 h-4 w-4" />
@@ -52,10 +51,13 @@ export default async function SiteDashboard({ params }: PageProps) {
           <AdminPageHeader
             title={`${siteName} Dashboard`}
             subtitle={`Overview and analytics for ${siteName} (${siteUrl})`}
+            extraContent={
+              <Badge className="bg-green-500 hover:bg-green-600 text-white">Live</Badge>
+            }
           />
 
       {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Visitors</CardTitle>
@@ -110,7 +112,7 @@ export default async function SiteDashboard({ params }: PageProps) {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid lg:grid-cols-2">
         {/* Recent Activity */}
         <Card>
           <CardHeader>
@@ -195,23 +197,7 @@ export default async function SiteDashboard({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
-
-      {/* Performance Chart Placeholder */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance Overview</CardTitle>
-          <CardDescription>Site traffic and engagement metrics over time</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 bg-muted rounded-md flex items-center justify-center">
-            <div className="text-center">
-              <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mt-2">Chart visualization would go here</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-        </div>
+      </div>
       </AdminLayout>
     </>
   )
