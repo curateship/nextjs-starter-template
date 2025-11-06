@@ -1,4 +1,3 @@
-import { Suspense, use } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -6,6 +5,8 @@ import { BarChart3, Users, Globe, TrendingUp, Settings, Edit3 } from 'lucide-rea
 import Link from 'next/link'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
+import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
+import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 
 interface PageProps {
   params: Promise<{
@@ -22,31 +23,36 @@ export default async function SiteDashboard({ params }: PageProps) {
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
 
   return (
-    <AdminLayout>
-      <div className="flex-1 space-y-6">
-        <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{siteName} Dashboard</h1>
-          <p className="text-muted-foreground">
-            Overview and analytics for {siteName} ({siteUrl})
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="secondary">Live</Badge>
-          <Button asChild>
-            <Link href={`/admin/sites/${siteId}/settings`}>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/admin/builder/${siteId}`}>
-              <Edit3 className="mr-2 h-4 w-4" />
-              Edit Site
-            </Link>
-          </Button>
-        </div>
-      </div>
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: siteName },
+          { label: "Dashboard", isPage: true }
+        ]}
+        rightActions={
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Live</Badge>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/admin/sites/${siteId}/settings`}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href={`/admin/builder/${siteId}`}>
+                <Edit3 className="mr-2 h-4 w-4" />
+                Edit Site
+              </Link>
+            </Button>
+          </div>
+        }
+      />
+      <AdminLayout>
+        <div className="w-full space-y-6">
+          <AdminPageHeader
+            title={`${siteName} Dashboard`}
+            subtitle={`Overview and analytics for ${siteName} (${siteUrl})`}
+          />
 
       {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -205,7 +211,8 @@ export default async function SiteDashboard({ params }: PageProps) {
           </div>
         </CardContent>
       </Card>
-      </div>
-    </AdminLayout>
+        </div>
+      </AdminLayout>
+    </>
   )
 }
