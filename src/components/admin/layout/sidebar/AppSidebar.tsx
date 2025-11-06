@@ -154,6 +154,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/admin/users",
       icon: Users,
     },
+    {
+      name: "Settings",
+      url: "/admin/platform-settings",
+      icon: Settings,
+    },
   ]
   
   return (

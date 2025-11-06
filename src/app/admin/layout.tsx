@@ -7,6 +7,8 @@ import { SiteProvider } from "@/contexts/site-context"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"
+import { FontProvider } from "@/components/frontend/layout/font-provider"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
 export default function AdminLayout({
   children,
@@ -14,6 +16,8 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [fontFamily, setFontFamily] = useState("urbanist")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState("urbanist")
   const router = useRouter()
 
   useEffect(() => {
@@ -31,6 +35,22 @@ export default function AdminLayout({
 
     checkAuth()
   }, [router])
+
+  useEffect(() => {
+    async function loadAdminSettings() {
+      const result = await getAdminSettingsAction()
+
+      if (result.success && result.data) {
+        const settings = result.data.settings
+        setFontFamily(settings.font_family || "urbanist")
+        setSecondaryFontFamily(settings.secondary_font_family || "urbanist")
+      }
+    }
+
+    if (isAuthenticated) {
+      loadAdminSettings()
+    }
+  }, [isAuthenticated])
 
   // Don't render anything until auth check completes
   if (isAuthenticated === null) {
@@ -52,6 +72,10 @@ export default function AdminLayout({
       disableTransitionOnChange
       storageKey="admin-theme"
     >
+      <FontProvider
+        fontFamily={fontFamily}
+        secondaryFontFamily={secondaryFontFamily}
+      />
       <SiteProvider>
         <div className="min-h-screen bg-background">
           <SidebarProvider className="h-screen">
