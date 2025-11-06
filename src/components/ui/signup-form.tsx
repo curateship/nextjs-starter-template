@@ -51,7 +51,7 @@ export function SignupForm({
         email,
         password,
         options: {
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/login`,
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/login`,
         }
       })
 
@@ -60,7 +60,7 @@ export function SignupForm({
       } else {
         setSuccess(true)
         setTimeout(() => {
-          router.push("/login")
+          router.push("/auth/login")
         }, 3000)
       }
     } catch (err) {
@@ -150,7 +150,7 @@ export function SignupForm({
               </div>
               <div className="text-center text-sm">
                 Already have an account?{" "}
-                <Link href="/login" className="underline underline-offset-4">
+                <Link href="/auth/login" className="underline underline-offset-4">
                   Login
                 </Link>
               </div>

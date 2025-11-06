@@ -397,8 +397,8 @@ export default function SitePagesPage({ params }: PageProps) {
                 <div key={page.id} className="p-6">
                   <div className="grid grid-cols-5 gap-4 items-center">
                     <div className="col-span-2">
-                      <Link 
-                        href={`/admin/builder/${siteId}?page=${page.slug}`}
+                      <Link
+                        href={`/admin/pages/${siteId}?page=${page.slug}`}
                         className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                       >
                         <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
@@ -449,7 +449,7 @@ export default function SitePagesPage({ params }: PageProps) {
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/builder/${siteId}?page=${page.slug}`} className="flex items-center">
+                            <Link href={`/admin/pages/${siteId}?page=${page.slug}`} className="flex items-center">
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Content
                             </Link>

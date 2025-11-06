@@ -300,7 +300,7 @@ export default function SitesPage() {
                           <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem asChild>
-                              <Link href={`/admin/builder/${site.id}`} className="flex items-center">
+                              <Link href={`/admin/pages/${site.id}`} className="flex items-center">
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit in Builder
                               </Link>

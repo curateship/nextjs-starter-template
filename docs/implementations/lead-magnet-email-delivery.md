@@ -1004,7 +1004,7 @@ FLODESK_SEGMENT_ID=seg_your_segment_id_here  # Optional default segment
 ### 📋 Phase 3: NOT STARTED (User Dashboard)
 **Status:** Waiting for account creation feature before implementing
 - Will require Phase 2 (account creation) to be implemented first
-- User-facing dashboard at /dashboard
+- User-facing dashboard at /user-dashboard
 - Global template system (one template for all users)
 - Lead magnet list view with access links
 - Account settings page
@@ -1234,7 +1234,7 @@ Store account creation context in `auth.users` metadata:
 └───────────────┘          └──────────────────┘
         ↓                            ↓
   Redirects to                 Redirects to
-  /admin                       /dashboard
+  /admin                       /user-dashboard
         ↓                            ↓
   RLS allows                   RLS blocks
   admin tables                 admin tables
@@ -1794,7 +1794,7 @@ Token security remains the same as Phase 1:
 
 ### User Dashboard Concept
 
-**Route:** `/dashboard/my-lead-magnets`
+**Route:** `/user-dashboard/my-lead-magnets`
 
 **Purpose:** Allow users to view and re-access all their lead magnets
 
@@ -2095,7 +2095,7 @@ Create a user-facing dashboard where lead magnet recipients can view their conte
 ### Goals
 
 1. **Global Template**: Admin designs ONE dashboard template at `/admin/user-dashboard-builder`
-2. **User Access**: All users see the same layout at `/dashboard` with their own data
+2. **User Access**: All users see the same layout at `/user-dashboard` with their own data
 3. **Reuse Architecture**: Duplicate proven pages builder patterns
 4. **Lead Magnet Integration**: Display user's product_orders with access links
 5. **Future-Proof**: Leave room for Tenant Dashboard (site owner level) later
@@ -2118,7 +2118,7 @@ Create a user-facing dashboard where lead magnet recipients can view their conte
    - Higher permissions than regular users
    - Can configure integrations, view revenue, etc.
 
-3. **User Dashboard** (`/dashboard`) - **Phase 3 (This Implementation)**
+3. **User Dashboard** (`/user-dashboard`) - **Phase 3 (This Implementation)**
    - Regular end-user level
    - Lead magnet recipients, customers
    - View their own lead magnets, orders, account settings
@@ -2133,7 +2133,7 @@ Create a user-facing dashboard where lead magnet recipients can view their conte
 - `tenant_dashboard_settings` - Future: Tenant dashboard config
 
 **Routes:**
-- `/dashboard` - User dashboard (end users)
+- `/user-dashboard` - User dashboard (end users)
 - `/admin/user-dashboard-builder` - Template editor (admins only)
 - `/tenant-dashboard` - Future: Tenant dashboard
 - `/admin/tenant-dashboard-builder` - Future: Tenant template editor
@@ -2164,7 +2164,7 @@ CREATE TABLE user_dashboard_pages (
     title VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,  -- NO user_id, globally unique slugs
     icon VARCHAR(50),  -- Icon for sidebar menu
-    is_default BOOLEAN DEFAULT false,  -- Default page when accessing /dashboard
+    is_default BOOLEAN DEFAULT false,  -- Default page when accessing /user-dashboard
     is_published BOOLEAN DEFAULT true,
     display_order INTEGER DEFAULT 0,
     content_blocks JSONB DEFAULT '{}',  -- Same pattern as pages.content_blocks
@@ -2647,21 +2647,21 @@ export async function getUserStats(): Promise<UserStats> {
 
 ### Route Structure
 
-**Base Route:** `/dashboard`
+**Base Route:** `/user-dashboard`
 
-**Dynamic Pages:** `/dashboard/[slug]`
+**Dynamic Pages:** `/user-dashboard/[slug]`
 
-**Default Redirect:** `/dashboard` → `/dashboard/overview`
+**Default Redirect:** `/user-dashboard` → `/user-dashboard/overview`
 
 ### Dashboard Layout
 
-**File:** `src/app/dashboard/layout.tsx`
+**File:** `src/app/user-dashboard/layout.tsx`
 
 ```typescript
 export default async function DashboardLayout({ children }) {
   // Require authentication (redirect to /login if not logged in)
   const user = await getCurrentUser()
-  if (!user) redirect('/login?redirect=/dashboard')
+  if (!user) redirect('/login?redirect=/user-dashboard')
 
   // Load global sidebar config
   const settings = await getUserDashboardSettings()
@@ -2679,7 +2679,7 @@ export default async function DashboardLayout({ children }) {
 
 ### Dashboard Page Renderer
 
-**File:** `src/app/dashboard/[slug]/page.tsx`
+**File:** `src/app/user-dashboard/[slug]/page.tsx`
 
 ```typescript
 export default async function DashboardPage({ params }) {
@@ -2750,13 +2750,13 @@ No changes needed! Dashboard is a global template, so new users automatically se
 **Welcome email for new accounts** (from Phase 2):
 ```html
 <p>Your account is ready! Log in to access your dashboard.</p>
-<a href="${siteUrl}/dashboard/lead-magnets">View Your Lead Magnets</a>
+<a href="${siteUrl}/user-dashboard/lead-magnets">View Your Lead Magnets</a>
 ```
 
 **Existing user notification** (from Phase 2):
 ```html
 <p>A new lead magnet has been added to your account.</p>
-<a href="${siteUrl}/dashboard/lead-magnets">Go to Dashboard</a>
+<a href="${siteUrl}/user-dashboard/lead-magnets">Go to Dashboard</a>
 ```
 
 ### Redirect After Login
@@ -2767,7 +2767,7 @@ No changes needed! Dashboard is a global template, so new users automatically se
 if (redirectUrl) {
   redirect(redirectUrl)
 } else {
-  redirect('/dashboard')  // Default to dashboard overview
+  redirect('/user-dashboard')  // Default to dashboard overview
 }
 ```
 
@@ -2797,7 +2797,7 @@ All users see changes immediately
 ```
 Regular User
   ↓
-/dashboard (redirects to /dashboard/overview)
+/user-dashboard (redirects to /user-dashboard/overview)
   ↓
 Load global template (user_dashboard_pages + settings)
 Load user data (product_orders WHERE user_id = current_user)
@@ -2903,18 +2903,18 @@ User sees personalized dashboard
 - [ ] Create `UserDashboardAccountInfoBlock.tsx`
 
 ### Frontend Dashboard
-- [ ] Create `/dashboard/layout.tsx` (auth required, sidebar layout)
-- [ ] Create `/dashboard/[slug]/page.tsx` (dynamic page renderer)
+- [ ] Create `/user-dashboard/layout.tsx` (auth required, sidebar layout)
+- [ ] Create `/user-dashboard/[slug]/page.tsx` (dynamic page renderer)
 - [ ] Create `UserDashboardSidebar.tsx`
 - [ ] Create `UserDashboardBlockRenderer.tsx`
 - [ ] Create `UserDashboardLeadMagnetList.tsx`
 - [ ] Create `UserDashboardStats.tsx`
 - [ ] Create `UserDashboardAccountInfo.tsx`
 - [ ] Create `useUserDashboard.ts` hook
-- [ ] Add redirect from `/dashboard` to `/dashboard/overview`
+- [ ] Add redirect from `/user-dashboard` to `/user-dashboard/overview`
 
 ### Integration
-- [ ] Update login redirect to include `/dashboard` option
+- [ ] Update login redirect to include `/user-dashboard` option
 - [ ] Update Phase 2 welcome emails to link to dashboard
 - [ ] Test new user flow: Create account → Login → See dashboard
 - [ ] Test existing user flow: Login → See dashboard with lead magnets

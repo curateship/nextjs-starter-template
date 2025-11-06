@@ -156,7 +156,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
     {
       name: "Settings",
-      url: "/admin/platform-settings",
+      url: "/admin/platforms/settings",
       icon: Settings,
     },
   ]

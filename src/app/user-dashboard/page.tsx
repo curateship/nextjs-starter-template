@@ -38,7 +38,7 @@ export default function UserDashboard() {
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push('/login')
+        router.push('/auth/login')
         return
       }
 
@@ -87,7 +87,7 @@ export default function UserDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push('/auth/login')
   }
 
   if (isLoading) {

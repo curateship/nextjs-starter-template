@@ -149,35 +149,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     }
   }
 
-  if (loading) {
-    return (
-      <AdminLayout>
-        <div className="w-full">
-          <AdminPageHeader
-            title="Site Settings"
-            subtitle="Configure your site"
-            primaryAction={{
-              label: "Save Changes",
-              onClick: () => {}
-            }}
-          />
-          
-          {/* Skeleton loading - form field rows with card styling */}
-          <div className="bg-card border rounded-lg p-6 shadow-sm">
-            <div className="space-y-6">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                  <div className="h-10 bg-muted/60 rounded animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </AdminLayout>
-    )
-  }
-
   if (error && !site) {
     return (
       <AdminLayout>
@@ -241,6 +212,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             defaultTheme={defaultTheme}
             maintenanceEnabled={maintenanceEnabled}
             isEditMode={true}
+            loading={loading}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
             onCustomDomainChange={setCustomDomain}

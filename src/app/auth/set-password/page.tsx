@@ -44,7 +44,7 @@ export default function SetPasswordPage() {
 
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push('/user-dashboard')
       }, 2000)
     } catch (err: any) {
       setError(err.message || 'Failed to set password')

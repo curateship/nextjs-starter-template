@@ -26,7 +26,7 @@ export default function AdminLayout({
       const { data: { user }, error } = await supabase.auth.getUser()
 
       if (error || !user) {
-        router.push('/login?redirect=/admin')
+        router.push('/auth/login?redirect=/admin')
         return
       }
 

@@ -11,9 +11,9 @@ export default function PageBuilderPage() {
   useEffect(() => {
     // Immediately redirect to first available site or sites page
     if (currentSite) {
-      router.replace(`/admin/builder/${currentSite.id}`)
+      router.replace(`/admin/pages/${currentSite.id}`)
     } else if (sites.length > 0) {
-      router.replace(`/admin/builder/${sites[0].id}`)
+      router.replace(`/admin/pages/${sites[0].id}`)
     } else {
       router.replace('/admin/sites')
     }

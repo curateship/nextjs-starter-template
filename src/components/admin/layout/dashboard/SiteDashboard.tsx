@@ -30,6 +30,7 @@ interface SiteDashboardProps {
   secondaryFontFamily?: string
   defaultTheme?: 'system' | 'light' | 'dark'
   maintenanceEnabled?: boolean
+  loading?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onThemeIdChange: (value: string) => void
@@ -62,6 +63,7 @@ export function SiteDashboard({
   secondaryFontFamily = "inter",
   defaultTheme = 'system',
   maintenanceEnabled = false,
+  loading = false,
   onSiteNameChange,
   onStatusChange,
   onThemeIdChange,
@@ -151,6 +153,25 @@ export function SiteDashboard({
     }
   }
 
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="shadow-sm">
+            <CardContent className="p-6 space-y-6">
+              {[...Array(3)].map((_, j) => (
+                <div key={j} className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                  <div className="h-10 bg-muted/60 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

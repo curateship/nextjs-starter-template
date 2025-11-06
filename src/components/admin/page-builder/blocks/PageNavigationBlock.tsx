@@ -363,9 +363,9 @@ export function PageNavigationBlock({
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-start">
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 pr-4">
                   {logo && logo !== '/images/logo.png' ? (
-                    <div 
+                    <div
                       className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setShowPicker(true)}
                     >
@@ -386,25 +386,18 @@ export function PageNavigationBlock({
                       </div>
                     </div>
                   ) : siteFavicon ? (
-                    <div 
-                      className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
+                    <div
+                      className="cursor-pointer"
                       onClick={() => setShowPicker(true)}
                     >
                       <img
                         src={siteFavicon}
                         alt="Site favicon (used as logo)"
-                        className="h-10 w-10 object-contain p-0.5"
+                        className="h-10 w-10 object-contain cursor-pointer"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                          <p className="text-xs font-medium">Using favicon - Click to add logo</p>
-                        </div>
-                      </div>
                     </div>
                   ) : (
-                    <div 
+                    <div
                       className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
                       onClick={() => setShowPicker(true)}
                     >
@@ -415,7 +408,7 @@ export function PageNavigationBlock({
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex-1">
                   <input
                     id="logoUrl"
@@ -427,6 +420,12 @@ export function PageNavigationBlock({
                   />
                 </div>
               </div>
+
+              {siteFavicon && (!logo || logo === '/images/logo.png') && (
+                <p className="text-xs text-muted-foreground">
+                  Currently using favicon as fallback logo. Click on image to change
+                </p>
+              )}
               
             </div>
             

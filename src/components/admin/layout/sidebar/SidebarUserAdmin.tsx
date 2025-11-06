@@ -102,7 +102,7 @@ export function SidebarUserAdmin({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/admin/settings">
+                <Link href="/admin/users/settings">
                   <Settings />
                   Settings
                 </Link>

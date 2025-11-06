@@ -74,7 +74,7 @@ export default function NewSitePage() {
         localStorage.setItem('selectedSiteId', data.id)
         // The refreshSites will automatically set the current site from localStorage
         // Redirect to site builder for the new site
-        router.push(`/admin/builder/${data.id}`)
+        router.push(`/admin/pages/${data.id}`)
       }
     } catch (err) {
       console.error('Error creating site:', err)

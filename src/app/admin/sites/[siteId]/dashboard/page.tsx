@@ -38,7 +38,7 @@ export default async function SiteDashboard({ params }: PageProps) {
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link href={`/admin/builder/${siteId}`}>
+              <Link href={`/admin/pages/${siteId}`}>
                 <Edit3 className="mr-2 h-4 w-4" />
                 Edit Site
               </Link>
@@ -159,7 +159,7 @@ export default async function SiteDashboard({ params }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/builder/${siteId}`}>
+              <Link href={`/admin/pages/${siteId}`}>
                 <Edit3 className="mr-2 h-4 w-4" />
                 Edit Site Content
               </Link>
