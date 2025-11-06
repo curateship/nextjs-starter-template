@@ -354,7 +354,7 @@ export function PageNavigationBlock({
   return (
     <div className="space-y-4">
       {/* Top row with 3 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3">
         {/* Logo Card */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -362,7 +362,7 @@ export function PageNavigationBlock({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-start gap-4">
+              <div className="flex items-start">
                 <div className="flex-shrink-0">
                   {logo && logo !== '/images/logo.png' ? (
                     <div 
