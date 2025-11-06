@@ -356,7 +356,7 @@ export function PageNavigationBlock({
       {/* Top row with 3 columns */}
       <div className="grid grid-cols-1 md:grid-cols-3">
         {/* Logo Card */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm mr-0">
           <CardHeader>
             <CardTitle className="text-base">Logo</CardTitle>
           </CardHeader>
@@ -444,7 +444,7 @@ export function PageNavigationBlock({
         </Card>
 
         {/* Navigation Width Settings Card */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm mr-0">
           <CardHeader>
             <CardTitle className="text-base">Navigation Width</CardTitle>
           </CardHeader>

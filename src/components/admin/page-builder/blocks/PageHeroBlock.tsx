@@ -326,7 +326,7 @@ export function PageHeroBlock({
 
 
   return (
-    <div className="space-y-4">
+    <div className="">
       {/* Text Content Card */}
       <Card className="shadow-sm">
         <CardHeader>
@@ -482,9 +482,9 @@ export function PageHeroBlock({
       </Card>
 
       {/* Hero Image, Rainbow Button & Background Pattern Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3">
         {/* Hero Image Card */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm mr-0">
           <CardHeader>
             <CardTitle className="text-base">Hero Image</CardTitle>
           </CardHeader>
@@ -526,7 +526,7 @@ export function PageHeroBlock({
         </Card>
 
         {/* Rainbow Button Card */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm mr-0">
           <CardHeader>
             <CardTitle className="text-base">Rainbow Button</CardTitle>
           </CardHeader>

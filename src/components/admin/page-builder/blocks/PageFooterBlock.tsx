@@ -340,9 +340,9 @@ export function PageFooterBlock({
   return (
     <div className="space-y-4">
       {/* Logo & Copyright and Styling Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2">
         {/* Logo Card */}
-        <Card className="shadow-sm">
+        <Card className="shadow-sm mr-0">
           <CardHeader>
             <CardTitle className="text-base">Logo & Copyright</CardTitle>
           </CardHeader>
