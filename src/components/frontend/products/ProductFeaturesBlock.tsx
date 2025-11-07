@@ -77,7 +77,7 @@ const ProductFeaturesBlock = ({
         {displayFeatures.map((feature) => (
           <div key={feature.id} className="space-y-4">
             <Card
-              className="aspect-video overflow-hidden px-6 flex flex-col"
+              className="aspect-video overflow-hidden px-6 flex flex-col mx-0"
               variant="soft"
             >
               {feature.image ? (
