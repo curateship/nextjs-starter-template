@@ -164,14 +164,14 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         )}
         <div className="flex flex-col gap-2">
           {showTitle && (
-            <h3 className="text-xl tracking-tight">{product.title}</h3>
+            <h3 className="text-xl tracking-tight pt-3">{product.title}</h3>
           )}
           {showDescription && product.richText && (
-            <p className="text-muted-foreground text-base">
+            <p className="text-muted-foreground text-base py-2">
               {(() => {
                 // Strip HTML tags from rich text for preview
                 const plainText = product.richText.replace(/<[^>]*>/g, '').trim()
-                return plainText.length > 150 
+                return plainText.length > 150
                   ? plainText.substring(0, 150) + '...'
                   : plainText
               })()}

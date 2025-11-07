@@ -13,12 +13,14 @@ interface AdminPageHeaderProps {
     href?: string
     onClick?: () => void
     variant?: "default" | "outline" | "destructive"
+    disabled?: boolean
   }
   secondaryAction?: {
     label: string
     href?: string
     onClick?: () => void
     variant?: "default" | "outline" | "destructive"
+    disabled?: boolean
   }
   extraContent?: React.ReactNode
 }
@@ -58,6 +60,7 @@ export function AdminPageHeader({
               variant={secondaryAction.variant || "outline"}
               onClick={secondaryAction.onClick}
               asChild={!!secondaryAction.href}
+              disabled={secondaryAction.disabled}
             >
               {secondaryAction.href ? (
                 <Link href={secondaryAction.href}>
@@ -74,6 +77,7 @@ export function AdminPageHeader({
               variant={primaryAction.variant || "default"}
               onClick={primaryAction.onClick}
               asChild={!!primaryAction.href}
+              disabled={primaryAction.disabled}
             >
               {primaryAction.href ? (
                 <Link href={primaryAction.href}>

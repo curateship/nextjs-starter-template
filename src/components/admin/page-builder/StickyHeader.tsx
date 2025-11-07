@@ -281,7 +281,7 @@ export function StickyHeader({
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
             page={currentPage || null}
-            site={site}
+            site={site || null}
             onSuccess={(updatedPage) => {
               if (onPageUpdated) {
                 onPageUpdated(updatedPage)

@@ -266,8 +266,9 @@ export function StickyHeader({
               {site && taxonomyType && (
                 <CreateTaxonomyModal
                   siteId={site.id}
-                  taxonomyTypeId={taxonomyType.id}
-                  onSuccess={(taxonomy) => {
+                  taxonomyType={taxonomyType}
+                  existingTaxonomies={taxonomies || []}
+                  onCreated={(taxonomy: Taxonomy) => {
                     if (onTaxonomyCreated) {
                       onTaxonomyCreated(taxonomy)
                     }
@@ -276,7 +277,7 @@ export function StickyHeader({
                       onTaxonomyChange(taxonomy.slug)
                     }
                   }}
-                  onCancel={() => setShowCreateDialog(false)}
+                  onClose={() => setShowCreateDialog(false)}
                 />
               )}
             </DialogContent>
@@ -287,8 +288,9 @@ export function StickyHeader({
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
             taxonomy={currentTaxonomy || null}
-            site={site}
-            onSuccess={(updatedTaxonomy) => {
+            taxonomyType={taxonomyType || null}
+            existingTaxonomies={taxonomies || []}
+            onSuccess={(updatedTaxonomy: Taxonomy) => {
               if (onTaxonomyUpdated) {
                 onTaxonomyUpdated(updatedTaxonomy)
               }
