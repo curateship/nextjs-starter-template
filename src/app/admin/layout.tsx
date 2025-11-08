@@ -7,7 +7,7 @@ import { SiteProvider } from "@/contexts/site-context"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"
-import { FontProvider } from "@/components/frontend/layout/font-provider"
+import { AdminFontProvider } from "@/components/admin/layout/admin-font-provider"
 import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
 export default function AdminLayout({
@@ -72,12 +72,12 @@ export default function AdminLayout({
       disableTransitionOnChange
       storageKey="admin-theme"
     >
-      <FontProvider
+      <AdminFontProvider
         fontFamily={fontFamily}
         secondaryFontFamily={secondaryFontFamily}
       />
       <SiteProvider>
-        <div className="min-h-screen bg-background">
+        <div className="admin-layout min-h-screen bg-background">
           <SidebarProvider className="h-screen">
             <AppSidebar />
             <SidebarInset>

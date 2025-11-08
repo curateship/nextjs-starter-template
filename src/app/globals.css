@@ -155,6 +155,26 @@ h1, h2, h3, h4, h5, h6 {
 .font-primary { font-family: var(--font-primary); }
 .font-secondary { font-family: var(--font-secondary); }
 
+/* Admin-scoped fonts - only apply within admin layout */
+.admin-layout {
+  --font-primary: var(--admin-font-primary, var(--font-urbanist));
+  --font-secondary: var(--admin-font-secondary, var(--font-urbanist));
+  --font-sans: var(--admin-font-sans, var(--font-urbanist));
+}
+
+.admin-layout body {
+  font-family: var(--admin-font-secondary, var(--font-urbanist));
+}
+
+.admin-layout h1,
+.admin-layout h2,
+.admin-layout h3,
+.admin-layout h4,
+.admin-layout h5,
+.admin-layout h6 {
+  font-family: var(--admin-font-primary, var(--font-urbanist));
+}
+
 /* Force hand cursor on all links - outside of Tailwind layers */
 a[href] {
   cursor: pointer !important;

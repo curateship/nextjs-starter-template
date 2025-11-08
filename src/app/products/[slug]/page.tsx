@@ -95,9 +95,14 @@ export async function generateMetadata({ params }: ProductPageProps) {
       }
     }
     
+    // Strip HTML tags from description for meta tags
+    const cleanDescription = product.description
+      ? product.description.replace(/<[^>]*>/g, '').trim()
+      : `${product.title} from ${site.name}`
+
     return {
       title: `${product.title} | ${site.name}`,
-      description: product.description || `${product.title} from ${site.name}`,
+      description: cleanDescription,
     }
   } catch (error) {
     return {
