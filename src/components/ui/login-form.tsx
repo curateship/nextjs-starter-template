@@ -34,16 +34,20 @@ export function LoginForm({
 
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
         setError(error.message)
-      } else {
-        // Redirect to the original page or default to /admin
-        const redirectTo = searchParams.get('redirect') || '/admin'
+      } else if (data.user) {
+        // Role-based redirect
+        const role = data.user.app_metadata?.role
+        const defaultRedirect = role === 'super_admin' ? '/admin' : '/user-dashboard'
+
+        // Use redirect param if provided, otherwise use role-based default
+        const redirectTo = searchParams.get('redirect') || defaultRedirect
         window.location.href = redirectTo
       }
     } catch (err) {

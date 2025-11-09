@@ -19,6 +19,7 @@
 
 # production
 /build
+.cursor/
 
 # misc
 .DS_Store

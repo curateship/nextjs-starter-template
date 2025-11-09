@@ -1,11 +1,82 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 
 export default function UsersPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [users, setUsers] = useState<UserListItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchUsers() {
+      setLoading(true)
+      const result = await listUsers(1, 50)
+
+      if (result.error) {
+        setError(result.error)
+      } else if (result.success) {
+        setUsers(result.users)
+      }
+
+      setLoading(false)
+    }
+
+    fetchUsers()
+  }, [])
+
+  const getInitials = (email: string, displayName: string | null) => {
+    if (displayName) {
+      return displayName
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    }
+    return email.slice(0, 2).toUpperCase()
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return 'bg-blue-100 text-blue-800'
+      case 'end_user':
+        return 'bg-green-100 text-green-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return 'Super Admin'
+      case 'end_user':
+        return 'User'
+      default:
+        return role
+    }
+  }
+
+  const formatLastActive = (lastSignIn: string | null) => {
+    if (!lastSignIn) return 'Never'
+
+    const date = new Date(lastSignIn)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffHours < 1) return 'Just now'
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? 's' : ''} ago`
+    return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? 's' : ''} ago`
+  }
   
   return (
     <AdminLayout>
@@ -78,90 +149,46 @@ export default function UsersPage() {
           </div>
           
           <div className="divide-y">
-            {/* User 1 */}
-            <div className="p-6 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm font-medium">JD</span>
-                </div>
-                <div>
-                  <h4 className="font-medium">John Doe</h4>
-                  <p className="text-sm text-muted-foreground">john.doe@example.com</p>
-                </div>
+            {loading ? (
+              <div className="p-6 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading users...</p>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Last active: 2 hours ago</span>
-                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Admin</span>
+            ) : error ? (
+              <div className="p-6 text-center text-red-500">
+                <p>Error loading users: {error}</p>
               </div>
-            </div>
-
-            {/* User 2 */}
-            <div className="p-6 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm font-medium">JS</span>
+            ) : users.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                <p>No users found</p>
+              </div>
+            ) : (
+              users.map((user) => (
+                <div key={user.id} className="p-6 flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                      <span className="text-muted-foreground text-sm font-medium">
+                        {getInitials(user.email, user.display_name)}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium">
+                        {user.display_name || user.email.split('@')[0]}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-muted-foreground">
+                      Last active: {formatLastActive(user.last_sign_in_at)}
+                    </span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${getRoleBadgeColor(user.role)}`}>
+                      {getRoleLabel(user.role)}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium">Jane Smith</h4>
-                  <p className="text-sm text-muted-foreground">jane.smith@example.com</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Last active: 1 day ago</span>
-                <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">Editor</span>
-              </div>
-            </div>
-
-            {/* User 3 */}
-            <div className="p-6 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm font-medium">MB</span>
-                </div>
-                <div>
-                  <h4 className="font-medium">Mike Brown</h4>
-                  <p className="text-sm text-muted-foreground">mike.brown@example.com</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Last active: 3 days ago</span>
-                <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">User</span>
-              </div>
-            </div>
-
-            {/* User 4 */}
-            <div className="p-6 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm font-medium">SW</span>
-                </div>
-                <div>
-                  <h4 className="font-medium">Sarah Wilson</h4>
-                  <p className="text-sm text-muted-foreground">sarah.wilson@example.com</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Last active: 1 week ago</span>
-                <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">Editor</span>
-              </div>
-            </div>
-
-            {/* User 5 */}
-            <div className="p-6 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <span className="text-muted-foreground text-sm font-medium">TJ</span>
-                </div>
-                <div>
-                  <h4 className="font-medium">Tom Johnson</h4>
-                  <p className="text-sm text-muted-foreground">tom.johnson@example.com</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Last active: 2 weeks ago</span>
-                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">Guest</span>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </AdminCard>
       </div>

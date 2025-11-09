@@ -1,6 +1,7 @@
 'use server'
 
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -27,6 +28,18 @@ async function createClient() {
     }
   )
 }
+
+// Admin client for user management (requires service role key)
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+)
 
 export async function signOut() {
   const supabase = await createClient()
@@ -78,14 +91,14 @@ export async function updateProfile(formData: FormData) {
 
 export async function updatePassword(formData: FormData) {
   const supabase = await createClient()
-  
+
   const newPassword = formData.get('new_password') as string
   const confirmPassword = formData.get('confirm_password') as string
-  
+
   if (newPassword !== confirmPassword) {
     return { error: 'Passwords do not match' }
   }
-  
+
   if (newPassword.length < 12) {
     return { error: 'Password must be at least 12 characters' }
   }
@@ -99,16 +112,41 @@ export async function updatePassword(formData: FormData) {
   if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
     return { error: 'Password must contain uppercase, lowercase, numbers, and special characters' }
   }
-  
+
   try {
     const { error } = await supabase.auth.updateUser({
       password: newPassword
     })
-    
+
     if (error) throw error
-    
+
     return { success: true }
   } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+/**
+ * Assign end_user role to a newly created user
+ * This must be called after signup using the admin client
+ * @param userId - The user ID to assign the role to
+ */
+export async function assignEndUserRole(userId: string) {
+  try {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      {
+        app_metadata: {
+          role: 'end_user'
+        }
+      }
+    )
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error assigning end_user role:', error)
     return { error: error.message }
   }
 }

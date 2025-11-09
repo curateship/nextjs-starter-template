@@ -86,6 +86,9 @@ export async function createAutoAccount(params: {
         sites_interacted_with: [params.siteId],
         account_created_at: new Date().toISOString(),
       },
+      app_metadata: {
+        role: 'end_user', // Assign end_user role for lead magnet accounts
+      },
     })
 
     if (error) {

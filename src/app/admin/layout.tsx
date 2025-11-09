@@ -30,6 +30,13 @@ export default function AdminLayout({
         return
       }
 
+      // Verify super_admin role (middleware handles this too, but double-check)
+      const role = user.app_metadata?.role
+      if (role !== 'super_admin') {
+        router.push('/user-dashboard')
+        return
+      }
+
       setIsAuthenticated(true)
     }
 

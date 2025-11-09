@@ -20,6 +20,7 @@ export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -47,17 +48,32 @@ export function SignupForm({
 
     try {
       const supabase = createClient()
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          data: {
+            display_name: displayName,
+          },
           emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/login`,
         }
       })
 
       if (error) {
         setError(error.message)
-      } else {
+      } else if (data.user) {
+        // Assign end_user role to the newly created user
+        try {
+          await fetch('/api/auth/assign-role', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: data.user.id })
+          })
+        } catch (roleError) {
+          console.error('Failed to assign role:', roleError)
+          // Don't fail signup if role assignment fails - can be fixed later
+        }
+
         setSuccess(true)
         setTimeout(() => {
           router.push("/auth/login")
@@ -108,6 +124,18 @@ export function SignupForm({
                 </div>
               )}
               <div className="grid gap-6">
+                <div className="grid gap-3">
+                  <Label htmlFor="displayName">Name</Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
                 <div className="grid gap-3">
                   <Label htmlFor="email">Email</Label>
                   <Input

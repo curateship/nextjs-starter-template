@@ -1,10 +1,62 @@
-import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware() {
-  // Middleware is intentionally minimal to avoid unnecessary database calls
-  // Authentication is handled in the /admin layout.tsx server component
-  // This provides better error handling and a cleaner user experience
-  return NextResponse.next()
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          )
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const path = request.nextUrl.pathname
+
+  // Protect /admin routes - require super_admin role
+  if (path.startsWith('/admin')) {
+    if (!user) {
+      const redirectUrl = new URL('/auth/login', request.url)
+      redirectUrl.searchParams.set('redirect', path)
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    const role = user.app_metadata?.role
+
+    if (role !== 'super_admin') {
+      // Regular users trying to access admin should go to their dashboard
+      return NextResponse.redirect(new URL('/user-dashboard', request.url))
+    }
+  }
+
+  // Protect /user-dashboard routes - require authentication
+  if (path.startsWith('/user-dashboard')) {
+    if (!user) {
+      const redirectUrl = new URL('/auth/login', request.url)
+      redirectUrl.searchParams.set('redirect', path)
+      return NextResponse.redirect(redirectUrl)
+    }
+  }
+
+  return response
 }
 
 export const config = {
@@ -14,7 +66,8 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
+     * - auth (allow access to auth pages)
      */
-    '/((?!api|_next/static|_next/image).*)',
+    '/((?!api|_next/static|_next/image|auth).*)',
   ],
 }
