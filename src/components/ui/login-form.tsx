@@ -44,7 +44,7 @@ export function LoginForm({
       } else if (data.user) {
         // Role-based redirect
         const role = data.user.app_metadata?.role
-        const defaultRedirect = role === 'super_admin' ? '/admin' : '/user-dashboard'
+        const defaultRedirect = role === 'super_admin' ? '/admin' : '/user-pages'
 
         // Use redirect param if provided, otherwise use role-based default
         const redirectTo = searchParams.get('redirect') || defaultRedirect

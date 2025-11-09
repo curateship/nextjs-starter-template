@@ -15,6 +15,7 @@ import {
   FolderOpen,
   Calendar,
   Tag,
+  LayoutDashboard,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -119,6 +120,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Pages",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
       icon: FileText,
+    },
+    {
+      name: "User Pages",
+      url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites",
+      icon: LayoutDashboard,
     },
     {
       name: "Taxonomies",

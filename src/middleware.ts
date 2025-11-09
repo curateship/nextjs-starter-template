@@ -42,13 +42,13 @@ export async function middleware(request: NextRequest) {
     const role = user.app_metadata?.role
 
     if (role !== 'super_admin') {
-      // Regular users trying to access admin should go to their dashboard
-      return NextResponse.redirect(new URL('/user-dashboard', request.url))
+      // Regular users trying to access admin should go to their user pages
+      return NextResponse.redirect(new URL('/user-pages', request.url))
     }
   }
 
-  // Protect /user-dashboard routes - require authentication
-  if (path.startsWith('/user-dashboard')) {
+  // Protect /user-pages routes - require authentication
+  if (path.startsWith('/user-pages')) {
     if (!user) {
       const redirectUrl = new URL('/auth/login', request.url)
       redirectUrl.searchParams.set('redirect', path)
