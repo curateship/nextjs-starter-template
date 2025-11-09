@@ -13,6 +13,45 @@ interface UsePageDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
+// Helper function to build site-level blocks (navigation and footer)
+function buildSiteBlocks(siteData: SiteWithTheme | null): Array<{
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+  display_order: number
+}> {
+  const siteBlocks: Array<{
+    id: string
+    type: string
+    title: string
+    content: Record<string, any>
+    display_order: number
+  }> = []
+
+  if (siteData?.settings?.public_pages?.navigation) {
+    siteBlocks.push({
+      id: 'site-navigation',
+      type: 'navigation',
+      title: 'Navigation',
+      content: siteData.settings.public_pages.navigation,
+      display_order: -1 // Show at top
+    })
+  }
+
+  if (siteData?.settings?.public_pages?.footer) {
+    siteBlocks.push({
+      id: 'site-footer',
+      type: 'footer',
+      title: 'Footer',
+      content: siteData.settings.public_pages.footer,
+      display_order: 999 // Show at bottom
+    })
+  }
+
+  return siteBlocks
+}
+
 export function usePageData(siteId: string): UsePageDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [pages, setPages] = useState<Page[]>([])
@@ -53,25 +92,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
 
           // Add navigation and footer from site data to each page
           // This maintains the UI illusion that nav/footer are page blocks
-          const siteBlocks = []
-          if (siteResult.data?.settings?.navigation) {
-            siteBlocks.push({
-              id: 'site-navigation',
-              type: 'navigation',
-              title: 'Navigation',
-              content: siteResult.data.settings.navigation,
-              display_order: -1 // Show at top
-            })
-          }
-          if (siteResult.data?.settings?.footer) {
-            siteBlocks.push({
-              id: 'site-footer',
-              type: 'footer',
-              title: 'Footer',
-              content: siteResult.data.settings.footer,
-              display_order: 999 // Show at bottom
-            })
-          }
+          const siteBlocks = buildSiteBlocks(siteResult.data)
 
           // Combine and sort all blocks by display_order
           const allBlocks = [...siteBlocks, ...pageBlocks]
@@ -111,28 +132,10 @@ export function usePageData(siteId: string): UsePageDataReturn {
       const blocksData: Record<string, any[]> = {}
       pagesResult.data.forEach(page => {
         const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
-        
+
         // Add navigation and footer from site data to each page
-        const siteBlocks = []
-        if (siteResult.data?.settings?.navigation) {
-          siteBlocks.push({
-            id: 'site-navigation',
-            type: 'navigation',
-            title: 'Navigation',
-            content: siteResult.data.settings.navigation,
-            display_order: -1
-          })
-        }
-        if (siteResult.data?.settings?.footer) {
-          siteBlocks.push({
-            id: 'site-footer',
-            type: 'footer',
-            title: 'Footer', 
-            content: siteResult.data.settings.footer,
-            display_order: 999
-          })
-        }
-        
+        const siteBlocks = buildSiteBlocks(siteResult.data)
+
         // Combine and sort all blocks by display_order
         const allBlocks = [...siteBlocks, ...pageBlocks]
         allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))

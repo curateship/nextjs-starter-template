@@ -9,8 +9,8 @@ import Link from "next/link"
 import { useUserPageData } from "@/hooks/useUserPageData"
 import { useUserPageBuilder } from "@/hooks/useUserPageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/page-builder/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/page-builder/BlockPropertiesPanel"
+import { StickyHeader } from "@/components/admin/user-page-builder/StickyHeader"
+import { BlockPropertiesPanel } from "@/components/admin/user-page-builder/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/page-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/user-page-builder/BlockSelectionModal"
 import {
@@ -201,7 +201,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
       <StickyHeader
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { href: `/admin/user-pages-builder/${siteId}`, label: "User Pages Builder" },
+          { href: `/admin/user-pages/${siteId}`, label: "User Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
         pages={pages.map(p => ({
@@ -248,7 +248,12 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
               updateBlockContent={builderState.updateBlockContent}
               siteId={siteId}
               currentPage={currentPage}
-              site={undefined}
+              site={site ? {
+                id: site.id,
+                name: site.name,
+                subdomain: site.subdomain,
+                settings: site.settings
+              } : undefined}
               blocksLoading={blocksLoading}
             />
 

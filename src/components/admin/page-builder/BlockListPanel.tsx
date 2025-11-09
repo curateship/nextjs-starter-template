@@ -210,9 +210,9 @@ export function BlockListPanel({
   }
 
   const getBlockTypeName = (block: Block) => {
-    return block.type === 'hero' ? 'Hero Section' : 
+    return block.type === 'hero' ? 'Hero Section' :
            block.type === 'navigation' ? 'Navigation' :
-           block.type === 'footer' ? 'Footer' : 
+           block.type === 'footer' ? 'Footer' :
            block.type === 'rich-text' ? 'Rich Text' :
            block.type === 'faq' ? 'FAQ Section' :
            block.type === 'listing-views' ? 'Listing Views' :

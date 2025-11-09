@@ -110,6 +110,62 @@ export interface SiteWithBlocks {
 }
 
 /**
+ * Helper function to build blocks array for public pages
+ */
+function buildPublicPageBlocks(
+  site: any,
+  page: any | null
+): Array<{
+  id: string
+  type: string
+  content: Record<string, any>
+  display_order: number
+}> {
+  const blocks: Array<{
+    id: string
+    type: string
+    content: Record<string, any>
+    display_order: number
+  }> = []
+
+  // Add site-level navigation and footer blocks from public_pages settings
+  if (site.settings?.public_pages?.navigation) {
+    blocks.push({
+      id: 'site-navigation',
+      type: 'navigation',
+      content: site.settings.public_pages.navigation,
+      display_order: -1
+    })
+  }
+
+  if (site.settings?.public_pages?.footer) {
+    blocks.push({
+      id: 'site-footer',
+      type: 'footer',
+      content: site.settings.public_pages.footer,
+      display_order: 999
+    })
+  }
+
+  // Add page-specific blocks
+  if (page && page.content_blocks) {
+    // Convert JSON content_blocks to array format
+    const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
+      id,
+      type: block.type,
+      content: block.content,
+      display_order: block.display_order || 0
+    }))
+    blocks.push(...pageBlocks)
+  }
+
+  // Sort all blocks by display_order
+  blocks.sort((a, b) => a.display_order - b.display_order)
+
+  return blocks
+}
+
+/**
  * Get site data by subdomain for frontend rendering
  */
 export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
@@ -149,47 +205,8 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       // For sites without pages system or home page, continue with old behavior
     }
 
-    // Get blocks from page's content_blocks JSON column and site navigation/footer
-    let blocks: Array<{
-      id: string
-      type: string
-      content: Record<string, any>
-      display_order: number
-    }> = []
-
-    // Add site-level navigation and footer blocks
-    if (site.settings?.navigation) {
-      blocks.push({
-        id: 'site-navigation',
-        type: 'navigation',
-        content: site.settings?.navigation,
-        display_order: -1
-      })
-    }
-
-    if (site.settings?.footer) {
-      blocks.push({
-        id: 'site-footer',
-        type: 'footer',
-        content: site.settings?.footer,
-        display_order: 999
-      })
-    }
-
-    // Add page-specific blocks
-    if (page && page.content_blocks) {
-      // Convert JSON content_blocks to array format
-      const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
-        id,
-        type: block.type,
-        content: block.content,
-        display_order: block.display_order || 0
-      }))
-      blocks.push(...pageBlocks)
-    }
-
-    // Sort all blocks by display_order
-    blocks.sort((a, b) => a.display_order - b.display_order)
+    // Build blocks array using helper function
+    const blocks = buildPublicPageBlocks(site, page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
     let listingData: Record<string, any> = {}
@@ -365,47 +382,8 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       // For sites without pages system or home page, continue with old behavior
     }
 
-    // Get blocks from page's content_blocks JSON column and site navigation/footer
-    let blocks: Array<{
-      id: string
-      type: string
-      content: Record<string, any>
-      display_order: number
-    }> = []
-
-    // Add site-level navigation and footer blocks
-    if (site.settings?.navigation) {
-      blocks.push({
-        id: 'site-navigation',
-        type: 'navigation',
-        content: site.settings?.navigation,
-        display_order: -1
-      })
-    }
-
-    if (site.settings?.footer) {
-      blocks.push({
-        id: 'site-footer',
-        type: 'footer',
-        content: site.settings?.footer,
-        display_order: 999
-      })
-    }
-
-    // Add page-specific blocks
-    if (page && page.content_blocks) {
-      // Convert JSON content_blocks to array format
-      const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
-        id,
-        type: block.type,
-        content: block.content,
-        display_order: block.display_order || 0
-      }))
-      blocks.push(...pageBlocks)
-    }
-
-    // Sort all blocks by display_order
-    blocks.sort((a, b) => a.display_order - b.display_order)
+    // Build blocks array using helper function
+    const blocks = buildPublicPageBlocks(site, page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
     let listingData: Record<string, any> = {}

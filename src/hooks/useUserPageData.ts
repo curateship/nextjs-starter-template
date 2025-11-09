@@ -16,6 +16,47 @@ interface UseUserPagesDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
+// Helper function to build user pages config blocks (navigation and footer)
+function buildUserPagesConfigBlocks(siteData: Site | null): Array<{
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+  display_order: number
+}> {
+  const configBlocks: Array<{
+    id: string
+    type: string
+    title: string
+    content: Record<string, any>
+    display_order: number
+  }> = []
+
+  const userPagesSettings = siteData?.settings?.user_pages
+
+  if (userPagesSettings?.navigation) {
+    configBlocks.push({
+      id: 'user-pages-navigation',
+      type: 'navigation',
+      title: 'Navigation',
+      content: userPagesSettings.navigation,
+      display_order: -1 // Show at top
+    })
+  }
+
+  if (userPagesSettings?.footer) {
+    configBlocks.push({
+      id: 'user-pages-footer',
+      type: 'footer',
+      title: 'Footer',
+      content: userPagesSettings.footer,
+      display_order: 999 // Show at bottom
+    })
+  }
+
+  return configBlocks
+}
+
 export function useUserPageData(siteId: string): UseUserPagesDataReturn {
   const [site, setSite] = useState<Site | null>(null)
   const [pages, setPages] = useState<UserPage[]>([])
@@ -42,7 +83,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
         setConfigError(siteResult.error || 'Failed to load site data')
       }
 
-      if (pagesResult.data) {
+      if (pagesResult.data && siteResult.data) {
         setPages(pagesResult.data)
 
         // Convert JSON content_blocks to blocks format for each page
@@ -52,27 +93,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
 
           // Add navigation and footer from site.settings.user_pages to each page
           // This maintains the UI illusion that nav/footer are page blocks
-          const configBlocks = []
-          const userPagesSettings = siteResult.data?.settings?.user_pages
-
-          if (userPagesSettings?.navigation) {
-            configBlocks.push({
-              id: 'user-pages-navigation',
-              type: 'navigation',
-              title: 'Navigation',
-              content: userPagesSettings.navigation,
-              display_order: -1 // Show at top
-            })
-          }
-          if (userPagesSettings?.footer) {
-            configBlocks.push({
-              id: 'user-pages-footer',
-              type: 'footer',
-              title: 'Footer',
-              content: userPagesSettings.footer,
-              display_order: 999 // Show at bottom
-            })
-          }
+          const configBlocks = buildUserPagesConfigBlocks(siteResult.data)
 
           // Combine and sort all blocks by display_order
           const allBlocks = [...configBlocks, ...pageBlocks]
@@ -105,7 +126,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
       setSite(siteResult.data)
     }
 
-    if (pagesResult.data) {
+    if (pagesResult.data && siteResult.data) {
       setPages(pagesResult.data)
 
       // Convert JSON content_blocks to blocks format for each page
@@ -114,27 +135,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
         const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
 
         // Add navigation and footer from site.settings.user_pages to each page
-        const configBlocks = []
-        const userPagesSettings = siteResult.data?.settings?.user_pages
-
-        if (userPagesSettings?.navigation) {
-          configBlocks.push({
-            id: 'user-pages-navigation',
-            type: 'navigation',
-            title: 'Navigation',
-            content: userPagesSettings.navigation,
-            display_order: -1
-          })
-        }
-        if (userPagesSettings?.footer) {
-          configBlocks.push({
-            id: 'user-pages-footer',
-            type: 'footer',
-            title: 'Footer',
-            content: userPagesSettings.footer,
-            display_order: 999
-          })
-        }
+        const configBlocks = buildUserPagesConfigBlocks(siteResult.data)
 
         // Combine and sort all blocks by display_order
         const allBlocks = [...configBlocks, ...pageBlocks]

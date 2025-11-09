@@ -6,6 +6,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
+import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
@@ -108,13 +109,22 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         
         if (block.type === 'divider') {
           return (
-            <DividerBlock 
+            <DividerBlock
               key={`divider-${block.id}`}
               content={block.content}
             />
           )
         }
-        
+
+        if (block.type === 'user-profile') {
+          return (
+            <UserProfileBlock
+              key={`user-profile-${block.id}`}
+              {...block.content}
+            />
+          )
+        }
+
         return null
       })}
       

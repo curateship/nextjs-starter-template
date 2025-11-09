@@ -508,14 +508,18 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
 }
 
 /**
- * Update site navigation data
+ * Helper function to update site public pages settings (navigation or footer)
  */
-export async function updateSiteNavigationAction(siteId: string, navigationData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
+async function updateSitePublicPagesField(
+  siteId: string,
+  fieldName: 'navigation' | 'footer',
+  data: Record<string, any>
+): Promise<{ success: boolean; error: string | null }> {
   try {
     // Verify user is authenticated
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return { success: false, error: 'Authentication required' }
     }
@@ -543,10 +547,13 @@ export async function updateSiteNavigationAction(siteId: string, navigationData:
       return { success: false, error: `Failed to fetch site settings: ${fetchError.message}` }
     }
 
-    // Update navigation in settings
+    // Update field in settings under public_pages
     const updatedSettings = {
       ...currentSite.settings,
-      navigation: navigationData
+      public_pages: {
+        ...(currentSite.settings?.public_pages || {}),
+        [fieldName]: data
+      }
     }
 
     const { error } = await supabaseAdmin
@@ -555,7 +562,7 @@ export async function updateSiteNavigationAction(siteId: string, navigationData:
       .eq('id', siteId)
 
     if (error) {
-      return { success: false, error: `Failed to update navigation: ${error.message}` }
+      return { success: false, error: `Failed to update ${fieldName}: ${error.message}` }
     }
 
     // Invalidate cached site data so changes take effect immediately
@@ -563,73 +570,24 @@ export async function updateSiteNavigationAction(siteId: string, navigationData:
 
     return { success: true, error: null }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
+}
+
+/**
+ * Update site navigation data
+ */
+export async function updateSiteNavigationAction(siteId: string, navigationData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
+  return updateSitePublicPagesField(siteId, 'navigation', navigationData)
 }
 
 /**
  * Update site footer data
  */
 export async function updateSiteFooterAction(siteId: string, footerData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
-  try {
-    // Verify user is authenticated
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Verify user owns this site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (siteError || !site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
-
-    // Get current settings
-    const { data: currentSite, error: fetchError } = await supabaseAdmin
-      .from('sites')
-      .select('settings')
-      .eq('id', siteId)
-      .single()
-
-    if (fetchError) {
-      return { success: false, error: `Failed to fetch site settings: ${fetchError.message}` }
-    }
-
-    // Update footer in settings
-    const updatedSettings = {
-      ...currentSite.settings,
-      footer: footerData
-    }
-
-    const { error } = await supabaseAdmin
-      .from('sites')
-      .update({ settings: updatedSettings })
-      .eq('id', siteId)
-
-    if (error) {
-      return { success: false, error: `Failed to update footer: ${error.message}` }
-    }
-
-    // Invalidate cached site data so changes take effect immediately
-    revalidateTag('site-lookup')
-
-    return { success: true, error: null }
-  } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
+  return updateSitePublicPagesField(siteId, 'footer', footerData)
 }
 
