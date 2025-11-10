@@ -157,6 +157,8 @@ export function BlockTypesPanel({
 
 **Location:** `src/components/admin/product-builder/BlockListPanel.tsx`
 
+**⚠️ CRITICAL STEP - If skipped, blocks will show as "Block" with no icon**
+
 1. **Import the icon:**
 ```tsx
 import { FileText } from "lucide-react"
@@ -183,6 +185,8 @@ const getBlockIcon = (blockType: string) => {
   }
 }
 ```
+
+**Note:** This step is required even if you're using a block type config file (like `PAGE_BLOCK_TYPES`), because BlockListPanel uses its own icon/name mappings for the blocks list display.
 
 ### 6. Wire Up in Product Builder Page
 

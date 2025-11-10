@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Plus, Eye } from "lucide-react"
+import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Plus, Eye, LogIn } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -216,7 +216,8 @@ export function BlockListPanel({
            block.type === 'rich-text' ? 'Rich Text' :
            block.type === 'faq' ? 'FAQ Section' :
            block.type === 'listing-views' ? 'Listing Views' :
-           block.type === 'divider' ? 'Divider / Spacer' : 'Block'
+           block.type === 'divider' ? 'Divider / Spacer' :
+           block.type === 'auth' ? 'Authentication' : 'Block'
   }
 
   const getBlockIcon = (blockType: string) => {
@@ -235,6 +236,8 @@ export function BlockListPanel({
         return <Navigation className="w-4 h-4" />
       case 'footer':
         return <Mouse className="w-4 h-4" />
+      case 'auth':
+        return <LogIn className="w-4 h-4" />
       default:
         return <div className="w-4 h-4" />
     }

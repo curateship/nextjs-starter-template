@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LucideIcon } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, LucideIcon } from "lucide-react"
 
 export interface BlockTypeDefinition {
   type: string
@@ -63,6 +63,29 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       style: 'solid',
       width: 'full',
       color: '#e5e7eb'
+    }
+  },
+  {
+    type: 'auth',
+    name: 'Authentication',
+    icon: LogIn,
+    description: 'User login, registration, and password reset forms with tabbed interface',
+    defaultContent: {
+      defaultTab: 'login',
+      showLoginTab: true,
+      showRegisterTab: true,
+      loginRedirectPath: '/user-pages',
+      registerRedirectPath: '/user-pages',
+      emailVerificationEnabled: true,
+      loginButtonText: 'Sign In',
+      registerButtonText: 'Create Account',
+      resetButtonText: 'Send Reset Link',
+      loginTitle: 'Welcome back',
+      loginDescription: 'Login to your account',
+      registerTitle: 'Create an account',
+      registerDescription: 'Enter your details to get started',
+      resetTitle: 'Reset your password',
+      resetDescription: 'Enter your email to receive a reset link'
     }
   }
 ]

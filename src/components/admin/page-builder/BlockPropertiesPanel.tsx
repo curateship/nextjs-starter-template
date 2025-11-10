@@ -5,6 +5,7 @@ import { PageRichTextEditorBlock } from "./blocks/PageRichTextEditorBlock"
 import { PageFaqBlock } from "./blocks/PageFaqBlock"
 import { PageListingViewBlock } from "./blocks/PageListingViewBlock"
 import { PageDividerBlock } from "./blocks/PageDividerBlock"
+import { PageAuthBlock } from "./blocks/PageAuthBlock"
 import { PagePreview } from "./PagePreview"
 import type { PageBlock } from "@/lib/utils/page-block-utils"
 
@@ -134,6 +135,20 @@ export function BlockPropertiesPanel({
                 {...(createCallbacks(updateBlockContent, [
                   'spacingTop', 'spacingBottom', 'dividerStyle',
                   'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth'
+                ]) as any)}
+              />
+            )}
+
+            {selectedBlock.type === 'auth' && (
+              <PageAuthBlock
+                {...selectedBlock.content}
+                {...(createCallbacks(updateBlockContent, [
+                  'defaultTab', 'showLoginTab', 'showRegisterTab',
+                  'loginRedirectPath', 'registerRedirectPath', 'emailVerificationEnabled',
+                  'loginButtonText', 'registerButtonText', 'resetButtonText',
+                  'loginTitle', 'loginDescription',
+                  'registerTitle', 'registerDescription',
+                  'resetTitle', 'resetDescription'
                 ]) as any)}
               />
             )}

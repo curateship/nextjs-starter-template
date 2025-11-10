@@ -66,9 +66,10 @@ export function getPageBlockTitle(blockType: string): string {
     'faq': 'FAQ Section',
     'divider': 'Divider',
     'image-text': 'Image + Text',
-    'listing-views': 'Listing Views'
+    'listing-views': 'Listing Views',
+    'auth': 'Authentication'
   }
-  
+
   return titles[blockType] || blockType
 }
 
