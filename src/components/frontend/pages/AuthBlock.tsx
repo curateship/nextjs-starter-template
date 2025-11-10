@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -51,9 +51,21 @@ export function AuthBlock({
   resetDescription = 'Enter your email to receive a reset link'
 }: AuthBlockProps) {
   const [view, setView] = useState<'auth' | 'reset'>('auth')
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>(defaultTab)
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Check for tab query parameter and use it to override defaultTab
+  const tabParam = searchParams.get('tab')
+  const initialTab = (tabParam === 'register' || tabParam === 'login') ? tabParam : defaultTab
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>(initialTab)
+
+  // Update active tab if URL parameter changes
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam === 'register' || tabParam === 'login') {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("")
