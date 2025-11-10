@@ -175,6 +175,35 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--admin-font-primary, var(--font-urbanist));
 }
 
+/* Apply admin fonts to sidebar and all admin components */
+.admin-layout *:not([class*="font-"]) {
+  font-family: var(--admin-font-secondary, var(--font-urbanist));
+}
+
+.admin-layout h1:not([class*="font-"]),
+.admin-layout h2:not([class*="font-"]),
+.admin-layout h3:not([class*="font-"]),
+.admin-layout h4:not([class*="font-"]),
+.admin-layout h5:not([class*="font-"]),
+.admin-layout h6:not([class*="font-"]) {
+  font-family: var(--admin-font-primary, var(--font-urbanist));
+}
+
+/* Override admin fonts in preview - use site fonts instead */
+.preview-container,
+.preview-container * {
+  font-family: var(--font-secondary) !important;
+}
+
+.preview-container h1,
+.preview-container h2,
+.preview-container h3,
+.preview-container h4,
+.preview-container h5,
+.preview-container h6 {
+  font-family: var(--font-primary) !important;
+}
+
 /* Force hand cursor on all links - outside of Tailwind layers */
 a[href] {
   cursor: pointer !important;

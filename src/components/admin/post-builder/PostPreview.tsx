@@ -2,6 +2,7 @@
 
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
+import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
 
 interface PostBlock {
   id: string
@@ -72,10 +73,25 @@ export function PostPreview({ blocks, post, site, className = "", blocksLoading 
       display_order: block.display_order || 0
     }))
   }
-  
+
+  // Get font settings from site
+  const fontFamily = site?.settings?.font_family || 'playfair-display'
+  const secondaryFontFamily = site?.settings?.secondary_font_family || 'urbanist'
+
+  const primary = getFontByValue(fontFamily) ?? defaultFont
+  const secondary = getFontByValue(secondaryFontFamily) ?? primary
+  const primaryFontFamilyValue = getFontFamily(primary.value)
+  const secondaryFontFamilyValue = getFontFamily(secondary.value)
+
   return (
-    <div className={`overflow-x-hidden ${className}`}>
-      <div 
+    <div
+      className={`overflow-x-hidden ${className} preview-container`}
+      style={{
+        ['--font-primary' as string]: primaryFontFamilyValue,
+        ['--font-secondary' as string]: secondaryFontFamilyValue,
+      }}
+    >
+      <div
         style={{
           zoom: 0.8,
           width: '100%',

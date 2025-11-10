@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 )
 
 // Cached site lookup functions (include parameter in cache key)
-async function getCachedSiteByDomain(domain: string) {
+export async function getCachedSiteByDomain(domain: string) {
   return unstable_cache(
     async () => {
       const { data: site, error: siteError } = await supabaseAdmin
@@ -30,7 +30,7 @@ async function getCachedSiteByDomain(domain: string) {
   )()
 }
 
-async function getCachedSiteBySubdomain(subdomain: string) {
+export async function getCachedSiteBySubdomain(subdomain: string) {
   return unstable_cache(
     async () => {
       const { data: site, error: siteError } = await supabaseAdmin
@@ -87,8 +87,8 @@ const getCachedPage = unstable_cache(
 
     return page
   },
-  ['page-lookup'],
-  { 
+  (siteId: string, pageSlug: string) => ['page-lookup', siteId, pageSlug],
+  {
     revalidate: false,
     tags: ['page-lookup', 'all']
   }
@@ -239,7 +239,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
           }
         } catch (error) {
           // Silently continue - block will fall back to client loading
-          console.error('Failed to pre-fetch listing data for block', block.id, error)
         }
       }
     }
@@ -416,7 +415,6 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
           }
         } catch (error) {
           // Silently continue - block will fall back to client loading
-          console.error('Failed to pre-fetch listing data for block', block.id, error)
         }
       }
     }

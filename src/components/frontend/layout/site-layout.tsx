@@ -3,7 +3,6 @@
 import { NavBlock } from "@/components/frontend/pages/PageNavigationBlock"
 import { FooterBlock } from "@/components/frontend/pages/PageFooterBlock"
 import { SiteThemeProvider } from "./site-theme-provider"
-import { FontProvider } from "./font-provider"
 import { type ReactNode } from "react"
 
 interface SiteLayoutProps {
@@ -45,21 +44,9 @@ interface SiteLayoutProps {
 export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
   // Check if dark mode toggle is enabled in navigation settings
   const enableThemeToggle = navigation?.style?.showDarkModeToggle !== false
-  
-  // Get font settings from site settings
-  const fontFamily = site?.settings?.font_family
-  const fontWeights = site?.settings?.font_weights
-  const secondaryFontFamily = site?.settings?.secondary_font_family
-  const secondaryFontWeights = site?.settings?.secondary_font_weights
-  
+
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
-      <FontProvider 
-        fontFamily={fontFamily}
-        fontWeights={fontWeights}
-        secondaryFontFamily={secondaryFontFamily}
-        secondaryFontWeights={secondaryFontWeights}
-      />
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
         <NavBlock {...navigation} site={site} />

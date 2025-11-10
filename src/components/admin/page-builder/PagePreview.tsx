@@ -2,6 +2,7 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
+import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
 
 interface PagePreviewProps {
   blocks: PreviewBlock[]
@@ -22,10 +23,25 @@ interface PagePreviewProps {
 export function PagePreview({ blocks, site, className = "", blocksLoading = false }: PagePreviewProps) {
   // Create preview site - navigation and footer will be added from site.settings automatically
   const previewSite = createPreviewSite(blocks, site)
-  
+
+  // Get font settings from site
+  const fontFamily = site?.settings?.font_family || 'playfair-display'
+  const secondaryFontFamily = site?.settings?.secondary_font_family || 'urbanist'
+
+  const primary = getFontByValue(fontFamily) ?? defaultFont
+  const secondary = getFontByValue(secondaryFontFamily) ?? primary
+  const primaryFontFamilyValue = getFontFamily(primary.value)
+  const secondaryFontFamilyValue = getFontFamily(secondary.value)
+
   return (
-    <div className={`overflow-x-hidden ${className}`}>
-      <div 
+    <div
+      className={`overflow-x-hidden ${className} preview-container`}
+      style={{
+        ['--font-primary' as string]: primaryFontFamilyValue,
+        ['--font-secondary' as string]: secondaryFontFamilyValue,
+      }}
+    >
+      <div
         style={{
           zoom: 0.8,
           width: '100%',

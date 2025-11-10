@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { success, site } = await getSiteFromHeaders();
-    
+
     if (success && site && site.settings?.favicon) {
       return {
         icons: {
@@ -40,17 +40,34 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch (error) {
     // Fallback to default
   }
-  
+
   return {};
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { success, site } = await getSiteFromHeaders()
+  const { getFontFamily } = await import("@/lib/utils/font-config")
+
+  const fontPrimary = success && site?.settings ? getFontFamily(site.settings.font_family || 'playfair-display') : ''
+  const fontSecondary = success && site?.settings ? getFontFamily(site.settings.secondary_font_family || 'urbanist') : ''
+
+  const { FontLoader } = await import("@/components/frontend/layout/font-loader")
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={fontPrimary ? {
+        ['--font-primary' as string]: fontPrimary,
+        ['--font-secondary' as string]: fontSecondary,
+        ['--font-sans' as string]: fontSecondary
+      } : undefined}
+    >
+      <FontLoader />
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",

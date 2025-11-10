@@ -174,15 +174,6 @@ export function getGoogleFontUrl(fontValue: string, weights?: string[]): string 
   return `https://fonts.googleapis.com/css2?family=${fontName}:wght@${weightsParam}&display=swap`
 }
 
-export function getGoogleFontImport(fontValue: string, weights?: string[]): string {
-  const font = getFontByValue(fontValue)
-  if (!font) return ''
-
-  const fontName = font.label.replace(' ', '_').toLowerCase()
-  const fontWeights = weights || font.weights
-  
-  return `@import url('${getGoogleFontUrl(fontValue, fontWeights)}');`
-}
 
 export function getFontFamily(fontValue: string): string {
   const font = getFontByValue(fontValue)

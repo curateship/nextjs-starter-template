@@ -3,6 +3,7 @@
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
+import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
 
 interface ProductBlock {
   id: string
@@ -66,9 +67,24 @@ export function ProductPreview({ blocks, product, site, className = "", blocksLo
       display_order: block.display_order || 0
     }))
   }
-  
+
+  // Get font settings from site
+  const fontFamily = site?.settings?.font_family || 'playfair-display'
+  const secondaryFontFamily = site?.settings?.secondary_font_family || 'urbanist'
+
+  const primary = getFontByValue(fontFamily) ?? defaultFont
+  const secondary = getFontByValue(secondaryFontFamily) ?? primary
+  const primaryFontFamilyValue = getFontFamily(primary.value)
+  const secondaryFontFamilyValue = getFontFamily(secondary.value)
+
   return (
-    <div className={`overflow-x-hidden ${className}`}>
+    <div
+      className={`overflow-x-hidden ${className} preview-container`}
+      style={{
+        ['--font-primary' as string]: primaryFontFamilyValue,
+        ['--font-secondary' as string]: secondaryFontFamilyValue,
+      }}
+    >
       <div
         style={{
           zoom: 0.8,

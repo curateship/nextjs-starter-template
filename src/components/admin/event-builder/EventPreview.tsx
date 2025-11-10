@@ -2,6 +2,7 @@
 
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { EventBlockRenderer } from "@/components/frontend/events/EventBlockRenderer"
+import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
 
 interface EventBlock {
   id: string
@@ -64,8 +65,23 @@ export function EventPreview({ blocks, event, site, className = "", blocksLoadin
     }))
   }
 
+  // Get font settings from site
+  const fontFamily = site?.settings?.font_family || 'playfair-display'
+  const secondaryFontFamily = site?.settings?.secondary_font_family || 'urbanist'
+
+  const primary = getFontByValue(fontFamily) ?? defaultFont
+  const secondary = getFontByValue(secondaryFontFamily) ?? primary
+  const primaryFontFamilyValue = getFontFamily(primary.value)
+  const secondaryFontFamilyValue = getFontFamily(secondary.value)
+
   return (
-    <div className={`overflow-x-hidden ${className}`}>
+    <div
+      className={`overflow-x-hidden ${className} preview-container`}
+      style={{
+        ['--font-primary' as string]: primaryFontFamilyValue,
+        ['--font-secondary' as string]: secondaryFontFamilyValue,
+      }}
+    >
       <div
         style={{
           zoom: 0.8,

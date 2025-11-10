@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { revalidateTag } from 'next/cache'
+import { revalidateTag, revalidatePath } from 'next/cache'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -373,6 +373,8 @@ export async function updateSiteAction(
 
     // Invalidate cached site data so changes take effect immediately
     revalidateTag('site-lookup')
+    revalidateTag('all')
+    revalidatePath('/', 'layout')
 
     // Successfully updated site
     return { data: data as Site, error: null }
@@ -567,6 +569,8 @@ async function updateSitePublicPagesField(
 
     // Invalidate cached site data so changes take effect immediately
     revalidateTag('site-lookup')
+    revalidateTag('all')
+    revalidatePath('/', 'layout')
 
     return { success: true, error: null }
   } catch (error) {
