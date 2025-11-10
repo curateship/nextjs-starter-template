@@ -45,7 +45,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
         style={{
           zoom: 0.8,
           width: '100%',
-          contain: 'layout style', // Create new containing block
+          contain: 'layout style',
           position: 'relative',
         }}
       >

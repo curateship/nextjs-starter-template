@@ -63,7 +63,7 @@ export function BlockPropertiesPanel({
   const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content
 
   return (
-    <div className="flex-1 border-r bg-muted/30 overflow-y-auto pb-10">
+    <div className="flex-1 border-r bg-background overflow-y-auto pb-10">
       {selectedBlock ? (
         <div>
           <div className="space-y-4">

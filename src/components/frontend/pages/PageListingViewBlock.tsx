@@ -144,7 +144,9 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                   fill
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  priority={index < columns}
+                  {...(index < columns && { priority: true })}
+                  loading={index < columns ? "eager" : "lazy"}
+                  fetchPriority={index < columns ? "high" : "auto"}
                   onError={(e) => {
                     // Fallback to placeholder on error
                     const target = e.target as HTMLElement;
