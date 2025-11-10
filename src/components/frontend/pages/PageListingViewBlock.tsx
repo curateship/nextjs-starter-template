@@ -131,7 +131,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 
     : 'grid-cols-1'
 
-  const renderProduct = (product: any) => {
+  const renderProduct = (product: any, index: number) => {
     const productContent = (
       <div className={displayMode === 'list' ? 'flex gap-6' : 'flex flex-col gap-2'}>
         {showImage && (
@@ -144,6 +144,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                   fill
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority={index < columns}
                   onError={(e) => {
                     // Fallback to placeholder on error
                     const target = e.target as HTMLElement;
@@ -182,7 +183,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     )
 
     return (
-      <Link 
+      <Link
         key={product.id}
         href={`/${urlPrefix ? `${urlPrefix}/` : ''}${product.slug}`}
         className="block hover:opacity-75 transition-opacity"
@@ -357,7 +358,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         </div>
         
         <div className={`grid ${gridColumns} gap-8`}>
-          {data.products.map(renderProduct)}
+          {data.products.map((product, index) => renderProduct(product, index))}
         </div>
         
         {/* Mobile View All Button */}
