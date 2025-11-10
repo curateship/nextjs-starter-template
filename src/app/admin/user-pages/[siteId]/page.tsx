@@ -195,7 +195,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
     }
   }
 
-  const getStatusBadge = (page: Page) => {
+  const getStatusBadge = (page: UserPage) => {
     if (page.is_default) {
       return <Badge variant="default" className="bg-blue-100 text-blue-800">Default Page</Badge>
     }
@@ -217,7 +217,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
-  const handlePageUpdated = (updatedPage: Page) => {
+  const handlePageUpdated = (updatedPage: UserPage) => {
     setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
   }
 

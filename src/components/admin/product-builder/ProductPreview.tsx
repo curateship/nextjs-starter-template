@@ -33,6 +33,8 @@ interface ProductPreviewProps {
     settings?: {
       navigation?: any
       footer?: any
+      font_family?: string
+      secondary_font_family?: string
     }
   }
   // allBlocks removed - navigation/footer now come from site.settings

@@ -71,28 +71,30 @@ export async function resolveSiteByHost(hostname: string) {
 }
 
 // Cached page lookup function
-const getCachedPage = unstable_cache(
-  async (siteId: string, pageSlug: string) => {
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('site_id', siteId)
-      .eq('slug', pageSlug)
-      .eq('is_published', true)
-      .single()
+async function getCachedPage(siteId: string, pageSlug: string) {
+  return unstable_cache(
+    async () => {
+      const { data: page, error: pageError } = await supabaseAdmin
+        .from('pages')
+        .select('*')
+        .eq('site_id', siteId)
+        .eq('slug', pageSlug)
+        .eq('is_published', true)
+        .single()
 
-    if (pageError || !page) {
-      return null
+      if (pageError || !page) {
+        return null
+      }
+
+      return page
+    },
+    ['page-lookup', siteId, pageSlug],
+    {
+      revalidate: false,
+      tags: ['page-lookup', 'all']
     }
-
-    return page
-  },
-  (siteId: string, pageSlug: string) => ['page-lookup', siteId, pageSlug],
-  {
-    revalidate: false,
-    tags: ['page-lookup', 'all']
-  }
-)
+  )()
+}
 
 export interface SiteWithBlocks {
   id: string

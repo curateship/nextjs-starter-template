@@ -32,6 +32,8 @@ interface DirectoryPreviewProps {
     settings?: {
       navigation?: any
       footer?: any
+      font_family?: string
+      secondary_font_family?: string
     }
   }
   className?: string
