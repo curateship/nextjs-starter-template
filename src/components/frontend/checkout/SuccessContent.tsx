@@ -20,6 +20,8 @@ interface SessionData {
   metadata?: {
     productName?: string
     orderBumps?: string
+    tierId?: string
+    tierName?: string
   }
 }
 
