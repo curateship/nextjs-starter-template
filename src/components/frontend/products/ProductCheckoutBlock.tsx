@@ -51,10 +51,8 @@ interface PricingTier {
 
 interface CheckoutSettings {
   enabled: boolean
-  mode: 'payment' | 'subscription'
   successUrl: string
   cancelUrl: string
-  orderBumps: any[]
 }
 
 interface ProductCheckoutBlockProps {

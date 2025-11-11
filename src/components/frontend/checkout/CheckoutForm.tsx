@@ -21,10 +21,8 @@ interface OrderBump {
 
 interface CheckoutSettings {
   enabled: boolean
-  mode: 'payment' | 'subscription'
   successUrl: string
   cancelUrl: string
-  orderBumps: OrderBump[]
 }
 
 interface PricingTier {
@@ -35,6 +33,7 @@ interface PricingTier {
   description: string
   features: string[]
   stripePriceId: string
+  orderBumps?: OrderBump[]
 }
 
 interface Product {
@@ -65,9 +64,13 @@ export function CheckoutForm({
   checkoutSettings,
 }: CheckoutFormProps) {
   const router = useRouter()
+
+  // Get order bumps from the selected tier
+  const tierOrderBumps = selectedTier.orderBumps || []
+
   const [selectedBumps, setSelectedBumps] = useState<Set<string>>(
     new Set(
-      checkoutSettings.orderBumps
+      tierOrderBumps
         .filter((bump) => bump.isPreSelected)
         .map((bump) => bump.id)
     )
@@ -94,7 +97,7 @@ export function CheckoutForm({
     const mainPrice = parseFloat(selectedTier.price.replace(/[^0-9.-]+/g, ''))
 
     // Add selected order bump prices
-    const bumpsTotal = checkoutSettings.orderBumps
+    const bumpsTotal = tierOrderBumps
       .filter((bump) => selectedBumps.has(bump.id))
       .reduce((sum, bump) => sum + bump.price, 0)
 
@@ -149,9 +152,9 @@ export function CheckoutForm({
               )}
 
               {/* Order Bumps */}
-              {checkoutSettings.orderBumps.length > 0 && (
+              {tierOrderBumps.length > 0 && (
                 <div className="space-y-3">
-                  {checkoutSettings.orderBumps.map((bump) => (
+                  {tierOrderBumps.map((bump) => (
                     <div
                       key={bump.id}
                       className={`border-2 rounded-xl p-5 cursor-pointer transition-all bg-white ${

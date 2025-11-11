@@ -5,12 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-interface DownloadSettings {
-  enabled: boolean
-  thankYouMessage: string
-  content: string
-}
-
 interface Product {
   id: string
   slug: string
@@ -31,18 +25,19 @@ interface SessionData {
 
 interface SuccessContentProps {
   product: Product
-  downloadSettings?: DownloadSettings
+  showDownloads: boolean
+  downloadContent?: string
   sessionData?: SessionData | null
   sessionError?: string | null
 }
 
 export function SuccessContent({
   product,
-  downloadSettings,
+  showDownloads,
+  downloadContent,
   sessionData,
   sessionError,
 }: SuccessContentProps) {
-  const showDownloads = downloadSettings?.enabled && downloadSettings.content
 
   // Parse order bumps from metadata
   let orderBumps: Array<{ id: string; title: string; priceId: string }> = []
@@ -142,7 +137,7 @@ export function SuccessContent({
       )}
 
       {/* Content */}
-      {showDownloads && (
+      {showDownloads && downloadContent && (
         <Card>
           <CardHeader>
             <CardTitle>Your Purchase</CardTitle>
@@ -151,7 +146,7 @@ export function SuccessContent({
             {/* Rich text content */}
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: downloadSettings.content }}
+              dangerouslySetInnerHTML={{ __html: downloadContent }}
             />
           </CardContent>
         </Card>

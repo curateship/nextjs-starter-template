@@ -23,11 +23,12 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
 
   // Get checkout block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
-  const downloadSettings = pricingBlockData?.content?.downloadSettings
+  const pricingTiers = pricingBlockData?.content?.productPricingTiers || []
 
   // Verify payment - check for payment_intent (Payment Element) or session_id (Checkout Session)
   let sessionData = null
   let sessionError = null
+  let tierId: string | null = null
 
   if (payment_intent) {
     // Payment Element flow
@@ -35,6 +36,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
     if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
       const metadata = verificationResult.paymentIntent.metadata
+      tierId = metadata?.tierId as string | null
       sessionData = {
         id: verificationResult.paymentIntent.id,
         customerEmail: null, // Payment Intent doesn't have customer email by default
@@ -44,6 +46,8 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
         metadata: metadata ? {
           productName: metadata.productName as string | undefined,
           orderBumps: metadata.orderBumps as string | undefined,
+          tierId: metadata.tierId as string | undefined,
+          tierName: metadata.tierName as string | undefined,
         } : undefined,
       }
     } else {
@@ -55,11 +59,14 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
     if (verificationResult.success && verificationResult.session) {
       const session = verificationResult.session
       const metadata = session.metadata
+      tierId = metadata?.tierId as string | null
       sessionData = {
         ...session,
         metadata: metadata ? {
           productName: metadata.productName as string | undefined,
           orderBumps: metadata.orderBumps as string | undefined,
+          tierId: metadata.tierId as string | undefined,
+          tierName: metadata.tierName as string | undefined,
         } : undefined,
       }
     } else {
@@ -67,12 +74,18 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
     }
   }
 
+  // Find the purchased tier and get its download content
+  const purchasedTier = tierId ? pricingTiers.find((tier: any) => tier.id === tierId) : null
+  const tierDownloadContent = purchasedTier?.downloadContent
+  const showDownloads = purchasedTier?.enableDownloadPage === true && tierDownloadContent
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <SuccessContent
           product={product}
-          downloadSettings={downloadSettings}
+          showDownloads={showDownloads}
+          downloadContent={tierDownloadContent}
           sessionData={sessionData}
           sessionError={sessionError}
         />

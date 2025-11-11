@@ -132,6 +132,9 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     : 'grid-cols-1'
 
   const renderProduct = (product: any, index: number) => {
+    // First image in grid is likely LCP element - prioritize it aggressively
+    const isLCP = index === 0
+
     const productContent = (
       <div className={displayMode === 'list' ? 'flex gap-6' : 'flex flex-col gap-2'}>
         {showImage && (
@@ -144,9 +147,9 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                   fill
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  {...(index < columns && { priority: true })}
-                  loading={index < columns ? "eager" : "lazy"}
-                  fetchPriority={index < columns ? "high" : "auto"}
+                  priority={isLCP}
+                  loading={isLCP ? "eager" : (index < columns ? "eager" : "lazy")}
+                  fetchPriority={isLCP ? "high" : (index < columns ? "high" : "auto")}
                   onError={(e) => {
                     // Fallback to placeholder on error
                     const target = e.target as HTMLElement;
@@ -256,7 +259,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
   }
 
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div >
         <BlockContainer
@@ -277,7 +280,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
               )}
             </div>
           </div>
-          
+
           <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
             {Array.from({ length: itemsToShow }, (_, i) => (
               <div key={i} className="animate-pulse">

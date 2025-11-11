@@ -67,7 +67,6 @@ export default async function RootLayout({
         ['--font-sans' as string]: fontSecondary
       } : undefined}
     >
-      <FontLoader />
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",
@@ -75,6 +74,7 @@ export default async function RootLayout({
           geistMono.variable
         )}
       >
+        <FontLoader />
         {children}
         <Toaster />
         <Analytics />

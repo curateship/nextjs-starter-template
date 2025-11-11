@@ -21,8 +21,9 @@ export interface CheckoutSessionData {
   productSlug: string
   productName: string
   mainPriceId: string
+  tierId?: string
+  tierName?: string
   selectedBumps: OrderBump[]
-  mode: 'payment' | 'subscription'
   successUrl: string
   cancelUrl: string
   uiMode?: 'hosted' | 'embedded'
@@ -33,6 +34,10 @@ export interface CheckoutSessionData {
  */
 export async function createCheckoutSession(data: CheckoutSessionData) {
   try {
+    // Fetch the main price to determine if it's one-time or recurring
+    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+    const mode: 'payment' | 'subscription' = mainPrice.type === 'recurring' ? 'subscription' : 'payment'
+
     // Build line items array
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
@@ -51,11 +56,13 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
 
     // Create checkout session
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      mode: data.mode,
+      mode,
       line_items: lineItems,
       metadata: {
         productSlug: data.productSlug,
         productName: data.productName,
+        ...(data.tierId && { tierId: data.tierId }),
+        ...(data.tierName && { tierName: data.tierName }),
       },
       allow_promotion_codes: true,
       billing_address_collection: 'required',
@@ -135,8 +142,9 @@ export async function createPaymentIntent(data: {
   productSlug: string
   productName: string
   mainPriceId: string
+  tierId?: string
+  tierName?: string
   selectedBumps: OrderBump[]
-  mode: 'payment' | 'subscription'
 }) {
   try {
     // Get price details to calculate amount
@@ -158,6 +166,8 @@ export async function createPaymentIntent(data: {
         productSlug: data.productSlug,
         productName: data.productName,
         mainPriceId: data.mainPriceId,
+        ...(data.tierId && { tierId: data.tierId }),
+        ...(data.tierName && { tierName: data.tierName }),
         orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
           id: b.id,
           title: b.title,

@@ -25,10 +25,8 @@ interface OrderBump {
 
 interface CheckoutSettings {
   enabled: boolean
-  mode: 'payment' | 'subscription'
   successUrl: string
   cancelUrl: string
-  orderBumps: OrderBump[]
 }
 
 interface PricingTier {
@@ -39,6 +37,7 @@ interface PricingTier {
   description: string
   features: string[]
   stripePriceId: string
+  orderBumps?: OrderBump[]
 }
 
 interface Product {
@@ -70,8 +69,9 @@ export function EmbeddedCheckoutWrapper({
 
     const createSession = async () => {
       try {
-        // Get selected order bumps
-        const selectedOrderBumps = checkoutSettings.orderBumps.filter((bump) =>
+        // Get selected order bumps from the selected tier
+        const tierOrderBumps = selectedTier.orderBumps || []
+        const selectedOrderBumps = tierOrderBumps.filter((bump) =>
           selectedBumps.includes(bump.id)
         )
 
@@ -84,8 +84,9 @@ export function EmbeddedCheckoutWrapper({
           productSlug: product.slug,
           productName: product.title,
           mainPriceId: selectedTier.stripePriceId,
+          tierId: selectedTier.id,
+          tierName: selectedTier.name,
           selectedBumps: selectedOrderBumps,
-          mode: checkoutSettings.mode,
           successUrl,
           cancelUrl,
           uiMode: 'embedded',
