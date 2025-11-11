@@ -26,7 +26,6 @@ interface OrderBump {
 interface CheckoutSettings {
   enabled: boolean
   successUrl: string
-  cancelUrl: string
 }
 
 interface PricingTier {
@@ -77,7 +76,6 @@ export function EmbeddedCheckoutWrapper({
 
         // Replace [slug] placeholder in URLs
         const successUrl = checkoutSettings.successUrl.replace('[slug]', product.slug)
-        const cancelUrl = checkoutSettings.cancelUrl.replace('[slug]', product.slug)
 
         // Create checkout session with embedded mode
         const result = await createCheckoutSession({
@@ -88,7 +86,6 @@ export function EmbeddedCheckoutWrapper({
           tierName: selectedTier.name,
           selectedBumps: selectedOrderBumps,
           successUrl,
-          cancelUrl,
           uiMode: 'embedded',
         })
 

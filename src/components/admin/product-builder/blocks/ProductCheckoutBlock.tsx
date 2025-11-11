@@ -97,7 +97,6 @@ interface CheckoutSettings {
   enabled: boolean
   gumroadEnabled?: boolean
   successUrl: string
-  cancelUrl: string
 }
 
 interface ProductCheckoutBlockProps {
@@ -515,7 +514,6 @@ export function ProductCheckoutBlock({
     enabled: false,
     gumroadEnabled: hasGumroadUrls,
     successUrl: '/products/[slug]/success',
-    cancelUrl: '/products/[slug]/cancelled',
   }
 
   // Pricing tier functions
@@ -569,10 +567,9 @@ export function ProductCheckoutBlock({
   return (
     <>
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 rounded-none gap-2">
+      <TabsList className="grid w-full grid-cols-2 rounded-none gap-2">
         <TabsTrigger value="checkout">Checkout</TabsTrigger>
         <TabsTrigger value="success">Success Page</TabsTrigger>
-        <TabsTrigger value="cancel">Cancel Page</TabsTrigger>
       </TabsList>
 
       {/* Tab 1: Checkout */}
@@ -798,41 +795,6 @@ export function ProductCheckoutBlock({
         </Card>
       </TabsContent>
 
-      {/* Tab 3: Cancel Page */}
-      <TabsContent value="cancel" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Cancel Page Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="cancel-url">Cancel URL</Label>
-              <Input
-                id="cancel-url"
-                value={currentCheckoutSettings.cancelUrl}
-                onChange={(e) =>
-                  onCheckoutSettingsChange?.({
-                    ...currentCheckoutSettings,
-                    cancelUrl: e.target.value,
-                  })
-                }
-                placeholder="/products/[slug]/cancelled"
-                className="mt-1.5"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Use [slug] as placeholder for product slug
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-2">About Cancel Pages</p>
-              <p>
-                The cancel page is where customers are redirected if they abandon the checkout process
-                before completing payment.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
     </Tabs>
   </>
   )

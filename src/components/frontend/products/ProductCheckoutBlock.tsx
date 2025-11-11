@@ -52,7 +52,6 @@ interface PricingTier {
 interface CheckoutSettings {
   enabled: boolean
   successUrl: string
-  cancelUrl: string
 }
 
 interface ProductCheckoutBlockProps {

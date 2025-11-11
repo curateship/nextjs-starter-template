@@ -25,7 +25,6 @@ export interface CheckoutSessionData {
   tierName?: string
   selectedBumps: OrderBump[]
   successUrl: string
-  cancelUrl: string
   uiMode?: 'hosted' | 'embedded'
 }
 
@@ -74,7 +73,6 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
       sessionParams.return_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
     } else {
       sessionParams.success_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
-      sessionParams.cancel_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.cancelUrl}`
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams)

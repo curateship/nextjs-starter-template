@@ -30,7 +30,6 @@ interface OrderBump {
 interface CheckoutSettings {
   enabled: boolean
   successUrl: string
-  cancelUrl: string
 }
 
 interface PricingTier {
