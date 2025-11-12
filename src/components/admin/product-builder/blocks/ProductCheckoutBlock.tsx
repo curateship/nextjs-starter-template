@@ -68,7 +68,7 @@ interface PricingTier {
   id: string
   name: string
   price: string
-  period: string
+  interval?: string
   description: string
   features: string[]
   buttonText: string
@@ -222,7 +222,8 @@ function SortablePricingTierItem({
   updateTier,
   removeTier,
   updateFeatures,
-  showStripeFields
+  showStripeFields,
+  showGumroadFields
 }: {
   tier: PricingTier
   tierIndex: number
@@ -230,6 +231,7 @@ function SortablePricingTierItem({
   removeTier: (index: number) => void
   updateFeatures: (tierIndex: number, featuresText: string) => void
   showStripeFields: boolean
+  showGumroadFields: boolean
 }) {
   const [orderBumpsModalOpen, setOrderBumpsModalOpen] = useState(false)
   const {
@@ -286,7 +288,7 @@ function SortablePricingTierItem({
       </div>
 
       <div className="space-y-4">
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 0.3fr 1.7fr 1fr 1fr' }}>
+        <div className="grid grid-cols-4 gap-4 items-end">
           <div>
             <Label htmlFor={`tier-name-${tierIndex}`}>Plan Name</Label>
             <Input
@@ -306,24 +308,15 @@ function SortablePricingTierItem({
             />
           </div>
           <div>
-            <Label htmlFor={`tier-description-${tierIndex}`}>Description</Label>
+            <Label htmlFor={`tier-interval-${tierIndex}`}>Billing Period</Label>
             <Input
-              id={`tier-description-${tierIndex}`}
-              value={tier.description}
-              onChange={(e) => updateTier(tierIndex, 'description', sanitizeAdminInput(e.target.value))}
-              placeholder="Perfect for individuals getting started"
-            />
-          </div>
-          <div>
-            <Label htmlFor={`tier-period-${tierIndex}`}>Billing Period</Label>
-            <Input
-              id={`tier-period-${tierIndex}`}
-              value={tier.period}
-              onChange={(e) => updateTier(tierIndex, 'period', sanitizeAdminInput(e.target.value))}
+              id={`tier-interval-${tierIndex}`}
+              value={tier.interval || ''}
+              onChange={(e) => updateTier(tierIndex, 'interval', sanitizeAdminInput(e.target.value))}
               placeholder="per month"
             />
           </div>
-          <div className="flex items-center space-x-2 pt-6">
+          <div className="flex items-center space-x-2 h-10">
             <Checkbox
               id={`tier-highlighted-${tierIndex}`}
               checked={tier.highlighted}
@@ -331,6 +324,15 @@ function SortablePricingTierItem({
             />
             <Label htmlFor={`tier-highlighted-${tierIndex}`}>Most Popular</Label>
           </div>
+        </div>
+        <div>
+          <Label htmlFor={`tier-description-${tierIndex}`}>Description</Label>
+          <Input
+            id={`tier-description-${tierIndex}`}
+            value={tier.description}
+            onChange={(e) => updateTier(tierIndex, 'description', sanitizeAdminInput(e.target.value))}
+            placeholder="Perfect for individuals getting started"
+          />
         </div>
 
         <div>
@@ -467,6 +469,28 @@ function SortablePricingTierItem({
             </div>
           </div>
         )}
+
+        {/* Gumroad URL field - only show when Gumroad is enabled */}
+        {showGumroadFields && (
+          <div className="space-y-2 pt-4">
+            <Label htmlFor={`tier-gumroad-url-${tierIndex}`}>Gumroad URL</Label>
+            <Input
+              id={`tier-gumroad-url-${tierIndex}`}
+              value={tier.buttonUrl || ''}
+              onChange={(e) => {
+                const url = e.target.value
+                if (isValidPartialUrl(url)) {
+                  updateTier(tierIndex, 'buttonUrl', url)
+                }
+              }}
+              placeholder="https://yourname.gumroad.com/l/product-name"
+              className={!isValidPartialUrl(tier.buttonUrl || '') ? 'border-red-300' : ''}
+            />
+            <p className="text-xs text-muted-foreground">
+              The checkout link from your Gumroad product
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Order Bumps Modal */}
@@ -522,7 +546,7 @@ export function ProductCheckoutBlock({
       id: `tier-${Date.now()}-${Math.random()}`,
       name: `Plan ${(productPricingTiers?.length || 0) + 1}`,
       price: "$0",
-      period: "per month",
+      interval: "per month",
       description: "Perfect for getting started",
       features: [],
       buttonText: "Get Started",
@@ -673,37 +697,6 @@ export function ProductCheckoutBlock({
                 </Label>
               </div>
             </div>
-
-            {/* Gumroad URLs */}
-            {currentCheckoutSettings.gumroadEnabled && (
-              <div className="space-y-4 pt-2">
-                <div className="text-sm font-medium">Gumroad URLs</div>
-                {productPricingTiers?.map((tier, index) => (
-                  <div key={tier.id}>
-                    <Label htmlFor={`gumroad-url-${index}`} className="text-sm font-normal">
-                      {tier.name || `Tier ${index + 1}`}
-                    </Label>
-                    <Input
-                      id={`gumroad-url-${index}`}
-                      value={tier.buttonUrl || ''}
-                      onChange={(e) => {
-                        const url = e.target.value
-                        if (isValidPartialUrl(url)) {
-                          updateTier(index, 'buttonUrl', url)
-                        }
-                      }}
-                      placeholder="https://yourname.gumroad.com/l/product-name"
-                      className={`mt-1.5 ${!isValidPartialUrl(tier.buttonUrl) ? 'border-red-300' : ''}`}
-                    />
-                  </div>
-                ))}
-                {(!productPricingTiers || productPricingTiers.length === 0) && (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
-                    No pricing tiers available. Add tiers below first.
-                  </div>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -743,6 +736,7 @@ export function ProductCheckoutBlock({
                       removeTier={removeTier}
                       updateFeatures={updateFeatures}
                       showStripeFields={currentCheckoutSettings.enabled}
+                      showGumroadFields={currentCheckoutSettings.gumroadEnabled || false}
                     />
                   ))}
                 </div>

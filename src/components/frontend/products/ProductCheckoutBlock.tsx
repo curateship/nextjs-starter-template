@@ -110,9 +110,16 @@ const SinglePricingCard = ({
                 <h3 className="text-3xl font-semibold text-left">{sanitizeText(tier.name)}</h3>
                 <p className="mt-6 text-lg text-left">{sanitizeText(tier.description)}</p>
                 <div className="text-center">
-                  <span className="mb-6 mt-12 inline-block text-6xl font-bold">
-                    {sanitizeText(tier.price)}
-                  </span>
+                  <div className="mb-6 mt-12">
+                    <div className="text-6xl font-bold">
+                      {sanitizeText(tier.price)}
+                    </div>
+                    {tier.interval && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {sanitizeText(tier.interval)}
+                      </p>
+                    )}
+                  </div>
 
                   <div className="flex justify-center">
                     {checkoutEnabled && tier.stripePriceId && productSlug ? (

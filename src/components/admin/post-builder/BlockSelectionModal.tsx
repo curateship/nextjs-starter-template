@@ -96,7 +96,7 @@ export function BlockSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[840px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[900px] max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Blocks</DialogTitle>
           <DialogDescription>
@@ -104,7 +104,7 @@ export function BlockSelectionModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="grid grid-cols-3 gap-4 py-4">
           {POST_BLOCK_TYPES.map((blockType) => {
             const Icon = blockType.icon
             const isSelected = !!selections[blockType.type]

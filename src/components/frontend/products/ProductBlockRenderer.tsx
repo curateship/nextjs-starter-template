@@ -105,7 +105,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
             name: tier.name || '',
             description: tier.description || '',
             price: tier.price || '0',
-            interval: tier.period || tier.interval || 'month',
+            interval: tier.interval || '',
             buttonText: tier.buttonText || 'Get Started',
             buttonUrl: tier.buttonUrl || '',
             buttonVariant: 'default' as const,

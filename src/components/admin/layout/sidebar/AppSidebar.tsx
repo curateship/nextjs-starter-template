@@ -16,6 +16,7 @@ import {
   Calendar,
   Tag,
   LayoutDashboard,
+  ExternalLink,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -28,6 +29,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteContext } from "@/contexts/site-context"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
@@ -37,6 +39,7 @@ import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { currentSite } = useSiteContext()
+  const { state } = useSidebar()
   const [user, setUser] = useState<{
     name: string
     email: string
@@ -178,18 +181,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center justify-between gap-2 px-2 py-2">
-          <Button asChild variant="outline" size="sm" className="h-8 px-3 flex-1">
+        {state === "collapsed" ? (
+          <div className="flex flex-col items-center gap-2 py-2">
             <Link
               href={currentSite ? getSiteUrl(currentSite) : "/"}
               target="_blank"
               rel="noopener noreferrer"
+              className="p-2 hover:bg-muted rounded-md transition-colors"
             >
-              Visit site
+              <ExternalLink className="h-4 w-4" />
             </Link>
-          </Button>
-          <AdminThemeToggle />
-        </div>
+            <AdminThemeToggle />
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2 px-2 py-2">
+            <Button asChild variant="outline" size="sm" className="h-8 px-3 flex-1">
+              <Link
+                href={currentSite ? getSiteUrl(currentSite) : "/"}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Visit site
+              </Link>
+            </Button>
+            <AdminThemeToggle />
+          </div>
+        )}
         {!loading && user && <SidebarUserAdmin user={user} />}
       </SidebarFooter>
       <SidebarRail />
