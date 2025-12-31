@@ -29,11 +29,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com https://us.i.posthog.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' blob: data: https:;
       font-src 'self' data: https://fonts.gstatic.com;
-      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://api.stripe.com;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://api.stripe.com https://us.i.posthog.com;
       frame-src https://js.stripe.com;
       object-src 'none';
       frame-ancestors 'none';
@@ -44,6 +44,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    instrumentationHook: true,
+  },
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.

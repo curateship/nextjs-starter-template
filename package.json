@@ -61,6 +61,7 @@
     "motion": "^12.18.1",
     "next": "15.3.4",
     "next-themes": "^0.4.6",
+    "posthog-js": "^1.311.0",
     "react": "^19.1.1",
     "react-dom": "19.1.1",
     "resend": "^6.3.0",
