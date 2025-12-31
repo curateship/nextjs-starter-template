@@ -348,40 +348,38 @@ export default function ProductLeadMagnetBlock({
 
             {/* Settings Tab */}
             <TabsContent value="settings" className="space-y-4">
-              <div className="space-y-4 rounded-lg border p-4">
-                <h3 className="font-semibold text-gray-900">Thank You Message</h3>
+              <h3 className="font-semibold text-gray-900">Thank You Message</h3>
 
-                <div>
-                  <Label htmlFor="thankYouHeading">Heading</Label>
-                  <Input
-                    id="thankYouHeading"
-                    value={content.thankYouMessage?.heading || ''}
-                    onChange={(e) => onUpdate({
-                      thankYouMessage: {
-                        ...content.thankYouMessage,
-                        heading: e.target.value
-                      }
-                    })}
-                    placeholder="Check Your Email!"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="thankYouHeading">Heading</Label>
+                <Input
+                  id="thankYouHeading"
+                  value={content.thankYouMessage?.heading || ''}
+                  onChange={(e) => onUpdate({
+                    thankYouMessage: {
+                      ...content.thankYouMessage,
+                      heading: e.target.value
+                    }
+                  })}
+                  placeholder="Check Your Email!"
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="thankYouMessage">Message</Label>
-                  <textarea
-                    id="thankYouMessage"
-                    value={content.thankYouMessage?.message || ''}
-                    onChange={(e) => onUpdate({
-                      thankYouMessage: {
-                        ...content.thankYouMessage,
-                        message: e.target.value
-                      }
-                    })}
-                    placeholder="We've sent your content to your email address."
-                    rows={3}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="thankYouMessage">Message</Label>
+                <textarea
+                  id="thankYouMessage"
+                  value={content.thankYouMessage?.message || ''}
+                  onChange={(e) => onUpdate({
+                    thankYouMessage: {
+                      ...content.thankYouMessage,
+                      message: e.target.value
+                    }
+                  })}
+                  placeholder="We've sent your content to your email address."
+                  rows={3}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
               </div>
 
               <div>

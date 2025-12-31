@@ -40,7 +40,7 @@ export default async function SiteDashboard({ params }: PageProps) {
             <Button asChild size="sm">
               <Link href={`/admin/pages/${siteId}`}>
                 <Edit3 className="mr-2 h-4 w-4" />
-                Edit Site
+                Site Builder
               </Link>
             </Button>
           </div>
