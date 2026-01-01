@@ -3,10 +3,9 @@ import Script from 'next/script'
 interface PostHogScriptProps {
   siteId?: string
   siteName?: string
-  siteDomain?: string
 }
 
-export function PostHogScript({ siteId, siteName, siteDomain }: PostHogScriptProps) {
+export function PostHogScript({ siteId, siteName }: PostHogScriptProps) {
   return (
     <>
       <Script
@@ -20,7 +19,7 @@ export function PostHogScript({ siteId, siteName, siteDomain }: PostHogScriptPro
               api_host: 'https://us.i.posthog.com',
               person_profiles: 'identified_only',
               loaded: function(posthog) {
-                ${siteId ? `posthog.register({ site_id: '${siteId}', site_name: '${siteName}', site_domain: '${siteDomain}' });` : ''}
+                ${siteId ? `posthog.register({ site_id: '${siteId}', site_name: '${siteName}' });` : ''}
               }
             });
           `,

@@ -78,7 +78,6 @@ export default async function RootLayout({
         <PostHogScript
           siteId={site?.id}
           siteName={site?.name}
-          siteDomain={site?.domain}
         />
         <FontLoader />
         {children}
