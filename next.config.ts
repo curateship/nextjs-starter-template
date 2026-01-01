@@ -29,11 +29,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com https://us.i.posthog.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com https://*.posthog.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       img-src 'self' blob: data: https:;
       font-src 'self' data: https://fonts.gstatic.com;
-      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://api.stripe.com https://us.i.posthog.com;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://api.stripe.com https://*.posthog.com;
       frame-src https://js.stripe.com;
       object-src 'none';
       frame-ancestors 'none';
@@ -70,6 +70,10 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    // Disable CSP in development for testing
+    if (process.env.NODE_ENV === 'development') {
+      return [];
+    }
     return [
       {
         // Apply these headers to all routes

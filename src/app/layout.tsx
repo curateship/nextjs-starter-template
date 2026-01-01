@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
+import { PostHogScript } from "@/components/analytics/posthog-script";
 
 import { cn } from "@/lib/utils/tailwind-class-merger";
 
@@ -74,6 +75,11 @@ export default async function RootLayout({
           geistMono.variable
         )}
       >
+        <PostHogScript
+          siteId={site?.id}
+          siteName={site?.name}
+          siteDomain={site?.domain}
+        />
         <FontLoader />
         {children}
         <Toaster />
