@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/analytics/posthog-script";
+import { HeaderScripts } from "@/components/analytics/header-scripts";
 
 import { cn } from "@/lib/utils/tailwind-class-merger";
 
@@ -79,6 +80,7 @@ export default async function RootLayout({
           siteId={site?.id}
           siteName={site?.name}
         />
+        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
         <FontLoader />
         {children}
         <Toaster />
