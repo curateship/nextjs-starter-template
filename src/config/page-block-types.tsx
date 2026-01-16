@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, LucideIcon } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, LucideIcon } from "lucide-react"
 
 export interface BlockTypeDefinition {
   type: string
@@ -86,6 +86,16 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       registerDescription: 'Enter your details to get started',
       resetTitle: 'Reset your password',
       resetDescription: 'Enter your email to receive a reset link'
+    }
+  },
+  {
+    type: 'embedded',
+    name: 'Embedded',
+    icon: Code,
+    description: 'Embed HTML code, scripts, or newsletter signup forms',
+    defaultContent: {
+      code: '',
+      type: 'html'
     }
   }
 ]

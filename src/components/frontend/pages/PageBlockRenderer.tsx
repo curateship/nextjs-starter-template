@@ -7,6 +7,7 @@ import { RichTextBlock } from "@/components/frontend/pages/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
 import { AuthBlock } from "@/components/frontend/pages/AuthBlock"
+import { EmbeddedBlock } from "@/components/frontend/pages/PageEmbeddedBlock"
 import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -131,6 +132,17 @@ export function BlockRenderer({ site }: BlockRendererProps) {
             <AuthBlock
               key={`auth-${block.id}`}
               {...block.content}
+            />
+          )
+        }
+
+        if (block.type === 'embedded') {
+          return (
+            <EmbeddedBlock
+              key={`embedded-${block.id}`}
+              content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }

@@ -6,6 +6,7 @@ import { PageFaqBlock } from "./blocks/PageFaqBlock"
 import { PageListingViewBlock } from "./blocks/PageListingViewBlock"
 import { PageDividerBlock } from "./blocks/PageDividerBlock"
 import { PageAuthBlock } from "./blocks/PageAuthBlock"
+import { PageEmbeddedBlock } from "./blocks/PageEmbeddedBlock"
 import { PagePreview } from "./PagePreview"
 import type { PageBlock } from "@/lib/utils/page-block-utils"
 
@@ -149,6 +150,15 @@ export function BlockPropertiesPanel({
                   'loginTitle', 'loginDescription',
                   'registerTitle', 'registerDescription',
                   'resetTitle', 'resetDescription'
+                ]) as any)}
+              />
+            )}
+
+            {selectedBlock.type === 'embedded' && (
+              <PageEmbeddedBlock
+                {...selectedBlock.content}
+                {...(createCallbacks(updateBlockContent, [
+                  'code', 'type'
                 ]) as any)}
               />
             )}
