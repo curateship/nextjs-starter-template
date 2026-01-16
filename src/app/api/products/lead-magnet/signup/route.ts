@@ -3,6 +3,8 @@ import { getProductByIdAction } from '@/lib/actions/products/product-actions'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
+import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
+import { flodeskService } from '@/lib/actions/email/flodesk-service'
 
 /**
  * POST /api/products/lead-magnet/signup
@@ -109,6 +111,35 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error('Failed to send lead magnet email:', emailError)
       // Don't fail the request - order was still created
+    }
+
+    // Add to Flodesk if enabled
+    const flodeskSettings = leadMagnetBlock.flodeskSettings
+    if (flodeskSettings?.enabled) {
+      try {
+        // Get Flodesk configuration (site-specific or fallback to env)
+        const flodeskConfig = await getFlodeskConfig(siteId)
+
+        if (flodeskConfig) {
+          // Add subscriber to Flodesk with configured settings
+          const result = await flodeskService.addSubscriber(flodeskConfig, {
+            email,
+            segmentId: flodeskSettings.segmentId || flodeskConfig.segmentId,
+            tags: flodeskSettings.tags || [],
+          })
+
+          if (result.success) {
+            console.log('Added to Flodesk:', email, 'with tags:', flodeskSettings.tags)
+          } else {
+            console.error('Failed to add to Flodesk:', result.error)
+          }
+        } else {
+          console.warn('Flodesk enabled but no API key configured')
+        }
+      } catch (flodeskError) {
+        console.error('Error adding to Flodesk:', flodeskError)
+        // Don't fail the request - email was already sent
+      }
     }
 
     return NextResponse.json({
