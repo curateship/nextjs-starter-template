@@ -55,6 +55,7 @@ interface StickyHeaderProps {
   isSaving?: boolean
   onSave?: () => void
   onPreviewPage?: () => void
+  onOpenBlockModal?: () => void
   site?: SiteWithTheme | null
 }
 
@@ -70,6 +71,7 @@ export function StickyHeader({
   isSaving = false,
   onSave,
   onPreviewPage,
+  onOpenBlockModal,
   site
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -233,6 +235,16 @@ export function StickyHeader({
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
               </Button>
+              {onOpenBlockModal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenBlockModal}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Blocks
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={onSave}

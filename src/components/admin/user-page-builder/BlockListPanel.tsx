@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Eye, LogIn, User, Code } from "lucide-react"
+import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Plus, Eye, LogIn, User, Code } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -50,6 +50,7 @@ interface BlockListPanelProps {
   onSelectBlock: (block: Block) => void
   onDeleteBlock: (block: Block) => Promise<void>
   onReorderBlocks: (blocks: Block[]) => void
+  onOpenBlockModal: () => void
   onPreviewPage?: () => void
   deleting: string | null
   blocksLoading?: boolean
@@ -76,7 +77,7 @@ function SortableBlockItem({
   handleDeleteClick: (block: Block) => void
 }) {
   const isProtected = isBlockTypeProtected(block.type)
-  
+
   const {
     attributes,
     listeners,
@@ -84,7 +85,7 @@ function SortableBlockItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ 
+  } = useSortable({
     id: block.id,
     disabled: isProtected
   })
@@ -99,29 +100,29 @@ function SortableBlockItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-3 transition-colors cursor-pointer ${
+      className={`border rounded-lg p-4 transition-colors cursor-pointer ${
         selectedBlock?.id === block.id
-          ? 'bg-muted shadow-sm'
-          : 'opacity-60 hover:opacity-90'
+          ? 'border-primary bg-muted shadow-sm'
+          : 'border-border hover:border-muted-foreground opacity-60 hover:opacity-90'
       }`}
       onClick={() => onSelectBlock(block)}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           <div
             {...attributes}
             {...listeners}
-            className={`flex items-center justify-center w-7 h-7 rounded ${
+            className={`flex items-center justify-center w-8 h-8 rounded ${
               isProtected
                 ? 'text-gray-400 cursor-not-allowed'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted cursor-grab active:cursor-grabbing'
             }`}
           >
-            <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
+            <GripVertical className="w-4 h-4 pointer-events-none" />
           </div>
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
-            <h3 className="text-sm font-medium">{getBlockTypeName(block)}</h3>
+            <h3 className="font-medium">{getBlockTypeName(block)}</h3>
           </div>
         </div>
         <div className="flex items-center space-x-2">
@@ -130,13 +131,13 @@ function SortableBlockItem({
               className="p-1 text-gray-400 cursor-not-allowed"
               title={getBlockProtectionReason(block.type)}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </div>
           ) : (
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
               onClick={(e) => {
                 e.stopPropagation()
                 handleDeleteClick(block)
@@ -145,9 +146,9 @@ function SortableBlockItem({
               title="Delete block"
             >
               {deleting === block.id ? (
-                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
               ) : (
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               )}
             </Button>
           )}
@@ -163,13 +164,14 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
+  onOpenBlockModal,
   onPreviewPage,
   deleting,
   blocksLoading = false
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -187,7 +189,7 @@ export function BlockListPanel({
     if (over && active.id !== over.id) {
       const oldIndex = currentPage.blocks.findIndex((block) => block.id === active.id)
       const newIndex = currentPage.blocks.findIndex((block) => block.id === over.id)
-      
+
       if (oldIndex !== -1 && newIndex !== -1) {
         onReorderBlocks(arrayMove(currentPage.blocks, oldIndex, newIndex))
       }
@@ -223,68 +225,80 @@ export function BlockListPanel({
   const getBlockIcon = (blockType: string) => {
     switch (blockType) {
       case 'hero':
-        return <Zap className="w-3.5 h-3.5" />
+        return <Zap className="w-4 h-4" />
       case 'rich-text':
-        return <FileText className="w-3.5 h-3.5" />
+        return <FileText className="w-4 h-4" />
       case 'faq':
-        return <HelpCircle className="w-3.5 h-3.5" />
+        return <HelpCircle className="w-4 h-4" />
       case 'listing-views':
-        return <LayoutGrid className="w-3.5 h-3.5" />
+        return <LayoutGrid className="w-4 h-4" />
       case 'divider':
-        return <Minus className="w-3.5 h-3.5" />
+        return <Minus className="w-4 h-4" />
       case 'navigation':
-        return <Navigation className="w-3.5 h-3.5" />
+        return <Navigation className="w-4 h-4" />
       case 'footer':
-        return <Mouse className="w-3.5 h-3.5" />
+        return <Mouse className="w-4 h-4" />
       case 'auth':
-        return <LogIn className="w-3.5 h-3.5" />
+        return <LogIn className="w-4 h-4" />
       case 'embedded':
-        return <Code className="w-3.5 h-3.5" />
+        return <Code className="w-4 h-4" />
       case 'user-profile':
-        return <User className="w-3.5 h-3.5" />
+        return <User className="w-4 h-4" />
       default:
-        return <div className="w-3.5 h-3.5" />
+        return <div className="w-4 h-4" />
     }
   }
 
   return (
     <>
-      <div className="w-[250px] p-2.5 sticky top-0 self-start max-h-screen overflow-y-auto">
+      <div className="w-[350px] p-6 sticky top-0 self-start max-h-screen overflow-y-auto">
+        <div className="max-w-3xl mx-auto">
           {blocksLoading ? (
             <div className="mb-6">
               <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
             </div>
           ) : (
-            <div className="flex items-center justify-between mb-4 px-5">
-              <h2 className="text-lg font-semibold">
-                Blocks
-              </h2>
-              {onPreviewPage && (
-                <Button
-                  onClick={onPreviewPage}
-                  size="sm"
-                  variant="outline"
-                  className="flex items-center space-x-1"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Preview</span>
-                </Button>
-              )}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-semibold">
+                  Active Blocks
+                </h2>
+                {onPreviewPage && (
+                  <Button
+                    onClick={onPreviewPage}
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    title="Preview Page"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <Button
+                onClick={onOpenBlockModal}
+                size="sm"
+                variant="outline"
+                className="flex items-center space-x-1"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Blocks</span>
+              </Button>
             </div>
           )}
-          
+
           {blocksLoading ? (
             // Skeleton loading state
-            <div className="space-y-0">
+            <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="p-3">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
+                <div key={i} className="p-4 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-6 h-6 bg-muted rounded animate-pulse"></div>
                     <div className="flex-1">
                       <div className="h-4 bg-muted rounded animate-pulse mb-2"></div>
                       <div className="h-3 bg-muted/50 rounded animate-pulse w-2/3"></div>
                     </div>
-                    <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
+                    <div className="w-8 h-8 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
               ))}
@@ -292,8 +306,8 @@ export function BlockListPanel({
           ) : currentPage.blocks.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
-                <p className="text-base font-medium">No blocks added yet</p>
-                <p className="text-xs">Click "Add Blocks" in the header to start building your page</p>
+                <p className="text-lg font-medium">No blocks added yet</p>
+                <p className="text-sm">Click "Add Blocks" to start building your page</p>
               </div>
             </div>
           ) : (
@@ -306,7 +320,7 @@ export function BlockListPanel({
                 items={currentPage.blocks.map(block => block.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-0">
+                <div className="space-y-4">
                   {currentPage.blocks.map((block) => (
                     <SortableBlockItem
                       key={block.id}
@@ -324,6 +338,7 @@ export function BlockListPanel({
               </SortableContext>
             </DndContext>
           )}
+        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}

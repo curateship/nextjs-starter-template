@@ -31,9 +31,9 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
-import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
-import type { Page } from "@/lib/actions/pages/page-actions"
+import { UserPageSettingsModal } from "@/components/admin/user-page-builder/UserPageSettingsModal"
+import { CreateUserPageModal } from "@/components/admin/user-page-builder/CreateUserPageModal"
+import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface BreadcrumbItem {
@@ -45,11 +45,11 @@ interface BreadcrumbItem {
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
-  pages?: Page[]
+  pages?: UserPage[]
   selectedPage?: string
   onPageChange?: (page: string) => void
-  onPageCreated?: (page: Page) => void
-  onPageUpdated?: (page: Page) => void
+  onPageCreated?: (page: UserPage) => void
+  onPageUpdated?: (page: UserPage) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
@@ -154,7 +154,7 @@ export function StickyHeader({
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {page.is_homepage && "🏠 "}
+                                          {page.is_default && "🏠 "}
                                           {page.title}
                                           {!page.is_published && " (Draft)"}
                                         </span>
@@ -257,7 +257,7 @@ export function StickyHeader({
                 </DialogDescription>
               </DialogHeader>
               {site && (
-                <CreatePageModal
+                <CreateUserPageModal
                   siteId={site.id}
                   onSuccess={(page) => {
                     if (onPageCreated) {
@@ -275,7 +275,7 @@ export function StickyHeader({
           </Dialog>
 
           {/* Edit Page Settings Modal */}
-          <PageSettingsModal
+          <UserPageSettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
             page={currentPage || null}

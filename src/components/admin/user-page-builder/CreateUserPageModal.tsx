@@ -101,7 +101,7 @@ export function CreateUserPageModal({ siteId, onSuccess, onCancel }: CreateUserP
         is_published: false
       }
 
-      const response = await fetch('/api/user-pages-pages', {
+      const response = await fetch('/api/user-pages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,7 +143,7 @@ export function CreateUserPageModal({ siteId, onSuccess, onCancel }: CreateUserP
         is_published: true
       }
 
-      const response = await fetch('/api/user-pages-pages', {
+      const response = await fetch('/api/user-pages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

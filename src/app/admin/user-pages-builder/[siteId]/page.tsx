@@ -11,7 +11,7 @@ import { useUserPageBuilder } from "@/hooks/useUserPageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
 import { StickyHeader } from "@/components/admin/user-page-builder/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/user-page-builder/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/page-builder/BlockListPanel"
+import { BlockListPanel } from "@/components/admin/user-page-builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/user-page-builder/BlockSelectionModal"
 import {
   getUserPagesAction,
@@ -204,19 +204,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
           { href: `/admin/user-pages/${siteId}`, label: "User Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
-        pages={pages.map(p => ({
-          id: p.id,
-          site_id: p.site_id,
-          title: p.title,
-          slug: p.slug,
-          content_blocks: p.content_blocks,
-          meta_description: p.meta_description || null,
-          is_homepage: p.is_default,
-          is_published: p.is_published,
-          display_order: p.display_order,
-          created_at: p.created_at,
-          updated_at: p.updated_at
-        }))}
+        pages={pages}
         selectedPage={selectedPage}
         onPageChange={handlePageChange}
         onPageCreated={(pageData) => handlePageCreated({

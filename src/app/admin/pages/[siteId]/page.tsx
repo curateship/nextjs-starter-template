@@ -197,6 +197,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
         onPreviewPage={() => builderState.setSelectedBlock(null)}
+        onOpenBlockModal={() => setBlockModalOpen(true)}
         site={site}
       />
       <div className="flex-1 overflow-y-auto">
@@ -222,7 +223,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
               onSelectBlock={builderState.setSelectedBlock}
               onDeleteBlock={builderState.handleDeleteBlock}
               onReorderBlocks={builderState.handleReorderBlocks}
-              onOpenBlockModal={() => setBlockModalOpen(true)}
               onPreviewPage={() => builderState.setSelectedBlock(null)}
               deleting={builderState.deleting}
               blocksLoading={blocksLoading}

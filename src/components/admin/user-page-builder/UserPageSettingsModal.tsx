@@ -127,7 +127,7 @@ export function UserPageSettingsModal({
       setSaveMessage(null)
 
       const draftData = { ...formData, is_published: false }
-      const response = await fetch(`/api/user-pages-pages/${page.id}`, {
+      const response = await fetch(`/api/user-pages/${page.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ export function UserPageSettingsModal({
       setSaveMessage(null)
 
       const publishData = { ...formData, is_published: true }
-      const response = await fetch(`/api/user-pages-pages/${page.id}`, {
+      const response = await fetch(`/api/user-pages/${page.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
