@@ -143,11 +143,15 @@ export default function ThemesPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   useEffect(() => {
@@ -174,11 +178,50 @@ export default function ThemesPage() {
           />
 
           <AdminCard>
-            <div className="divide-y">
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Themes List</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {loading ? 'Loading...' : `${templates.length} theme${templates.length !== 1 ? 's' : ''} found`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Table Header */}
+            <div className="px-6 py-4 border-b bg-muted/30">
+              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
+                <div className="col-span-2">Theme</div>
+                <div>Created</div>
+                <div>Actions</div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
-                  <p className="text-muted-foreground">Loading themes...</p>
+                <div className="space-y-0">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-6 border-b border-muted/80">
+                      <div className="grid grid-cols-5 gap-4 items-center">
+                        <div className="col-span-2">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-muted rounded-lg animate-pulse"></div>
+                            <div>
+                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
+                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
+                        </div>
+                        <div>
+                          <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="p-8 text-center">
@@ -197,78 +240,81 @@ export default function ThemesPage() {
                 </div>
               ) : (
                 templates.map((template) => (
-                  <div key={template.id} className="p-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Link
-                        href={`/admin/pages/${template.id}`}
-                        className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center hover:opacity-80 transition-opacity"
-                      >
-                        <span className="text-white text-sm font-medium">
-                          {template.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
-                        </span>
-                      </Link>
-                      <div>
+                  <div key={template.id} className="p-6">
+                    <div className="grid grid-cols-5 gap-4 items-center">
+                      <div className="col-span-2">
                         <Link
                           href={`/admin/pages/${template.id}`}
-                          className="hover:underline"
+                          className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
-                          <h4 className="font-medium">{template.name}</h4>
+                          <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <span className="text-white text-sm font-medium">
+                              {template.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium hover:underline">{template.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {template.settings?.description || "Reusable template"}
+                            </p>
+                          </div>
                         </Link>
-                        <p className="text-sm text-muted-foreground">
-                          {template.settings?.description || `Created ${formatDate(template.created_at)}`}
-                        </p>
                       </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/admin/pages/${template.id}`}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setApplyDialog({
-                          open: true,
-                          templateId: template.id,
-                          templateName: template.name,
-                        })}
-                      >
-                        Apply
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setRenameName(template.name)
-                              setTimeout(() => {
-                                setRenameDialog({ open: true, templateId: template.id, currentName: template.name })
-                              }, 0)
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setTimeout(() => {
-                                setDeleteDialog({ open: true, templateId: template.id, templateName: template.name })
-                              }, 0)
-                            }}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Theme
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(template.created_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/pages/${template.id}`} className="flex items-center">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => setApplyDialog({
+                                open: true,
+                                templateId: template.id,
+                                templateName: template.name,
+                              })}
+                            >
+                              <Paintbrush className="h-4 w-4 mr-2" />
+                              Apply to Site
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setRenameName(template.name)
+                                setTimeout(() => {
+                                  setRenameDialog({ open: true, templateId: template.id, currentName: template.name })
+                                }, 0)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setTimeout(() => {
+                                  setDeleteDialog({ open: true, templateId: template.id, templateName: template.name })
+                                }, 0)
+                              }}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Theme
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </div>
                 ))

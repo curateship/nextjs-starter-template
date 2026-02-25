@@ -370,6 +370,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           }}
           onContentChange={(content) => setFormData(prev => ({ ...prev, content: content.content }))}
           compact={true}
+          inline={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the post body

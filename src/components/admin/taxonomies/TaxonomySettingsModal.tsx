@@ -7,7 +7,6 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -298,7 +297,7 @@ export function TaxonomySettingsModal({
       <DialogPortal>
         <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
              onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
+          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
                style={{ width: '840px', maxWidth: '95vw' }}
                onClick={(e) => e.stopPropagation()}>
             <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
@@ -332,16 +331,7 @@ export function TaxonomySettingsModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the basic settings for this {taxonomyType.name.toLowerCase()} term
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Term Title */}
+          {/* Term Title */}
               <div className="space-y-2">
                 <Label htmlFor="modal-title">Term Title *</Label>
                 <Input
@@ -468,16 +458,12 @@ export function TaxonomySettingsModal({
                     setRichTextContent(content.content)
                   }}
                   compact={true}
+                  inline={true}
                 />
                 <p className="text-xs text-muted-foreground">
                   Rich text content for the term description
                 </p>
               </div>
-
-            </CardContent>
-          </Card>
-
-
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">

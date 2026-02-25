@@ -514,7 +514,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
         
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+          <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
             <DialogHeader className="mb-6">
               <DialogTitle>Create New Page</DialogTitle>
             </DialogHeader>

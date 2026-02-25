@@ -7,7 +7,6 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -251,7 +250,7 @@ export function DirectorySettingsModal({
       <DialogPortal>
         <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
              onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
+          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
                style={{ width: '840px', maxWidth: '95vw' }}
                onClick={(e) => e.stopPropagation()}>
             <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
@@ -280,143 +279,134 @@ export function DirectorySettingsModal({
 
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the basic settings for this directory
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Directory Title */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-title">Directory Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter directory title"
-                  required
-                />
-              </div>
+          {/* Directory Title */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label htmlFor="modal-title">Directory Title *</Label>
+              <Input
+                id="modal-title"
+                value={formData.title || ''}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter directory title"
+                required
+              />
+            </div>
 
-              {/* Directory Slug */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-slug">Directory URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ''}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="directory-url-slug"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {slugManuallyEdited 
-                    ? "Custom URL slug. Clear this field to auto-generate from title again." 
-                    : "Auto-generated from title. You can edit this to customize the URL."}
-                </p>
-              </div>
+            {/* Directory Slug */}
+            <div className="col-span-2">
+              <Label htmlFor="modal-slug">Directory URL</Label>
+              <Input
+                id="modal-slug"
+                value={formData.slug || ''}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="directory-url-slug"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {slugManuallyEdited
+                  ? "Custom URL slug. Clear this field to auto-generate from title again."
+                  : "Auto-generated from title. You can edit this to customize the URL."}
+              </p>
+            </div>
+          </div>
 
-              {/* Featured Image */}
-              <div className="space-y-2">
-                <Label htmlFor="featured_image">Featured Image</Label>
-                <div className="mt-2">
-                  {featuredImage ? (
-                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-                      <img 
-                        src={featuredImage} 
-                        alt="Featured image preview" 
-                        className="w-full h-full object-contain"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                          <p className="text-sm font-medium">Click to change image</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div 
-                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center">
-                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Optional featured image for this directory
-                </p>
-              </div>
-
-              {/* Privacy Settings */}
-              <div className="space-y-2">
-                <Label>Privacy Settings</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="modal-is-private"
-                    checked={isPrivate}
-                    onCheckedChange={(checked) => {
-                      setIsPrivate(!!checked)
-                    }}
+          {/* Featured Image */}
+          <div>
+            <Label htmlFor="featured_image">Featured Image</Label>
+            <div className="mt-2">
+              {featuredImage ? (
+                <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={featuredImage}
+                    alt="Featured image preview"
+                    className="w-full h-full object-contain"
                   />
-                  <Label htmlFor="modal-is-private" className="text-sm font-normal">
-                    Private (accessible only via direct URL, hidden from directory listings)
-                  </Label>
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                    onClick={() => setShowImagePicker(true)}
+                  >
+                    <div className="text-white text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                      <p className="text-sm font-medium">Click to change image</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div
+                  className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  onClick={() => setShowImagePicker(true)}
+                >
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                    <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional featured image for this directory
+            </p>
+          </div>
 
-              {/* Rich Text Content */}
-              <div className="space-y-2">
-                <Label htmlFor="rich_text">Directory Description</Label>
-                <PageRichTextEditorBlock
-                  content={{
-                    content: richTextContent,
-                    hideHeader: true,
-                    hideEditorHeader: true
-                  }}
-                  onContentChange={(content) => {
-                    setRichTextContent(content.content)
-                  }}
-                  compact={true}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Rich text content for the directory description (will be saved as a directory block)
-                </p>
-              </div>
+          {/* Privacy Settings */}
+          <div className="space-y-3">
+            <Label>Privacy Settings</Label>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="modal-is-private"
+                checked={isPrivate}
+                onCheckedChange={(checked) => {
+                  setIsPrivate(!!checked)
+                }}
+              />
+              <Label htmlFor="modal-is-private" className="text-sm font-normal">
+                Private (accessible only via direct URL, hidden from directory listings)
+              </Label>
+            </div>
+          </div>
 
-              {/* Meta Description */}
-              <div className="space-y-2">
-                <Label htmlFor="meta_description">Meta Description</Label>
-                <Textarea
-                  id="meta_description"
-                  value={formData.meta_description}
-                  onChange={(e) => {
-                    setFormData(prev => ({ ...prev, meta_description: e.target.value }))
-                  }}
-                  placeholder="SEO meta description"
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
-                </p>
-              </div>
-                
-            </CardContent>
-          </Card>
+          {/* Rich Text Content */}
+          <div>
+            <Label htmlFor="rich_text">Directory Description</Label>
+            <PageRichTextEditorBlock
+              content={{
+                content: richTextContent,
+                hideHeader: true,
+                hideEditorHeader: true
+              }}
+              onContentChange={(content) => {
+                setRichTextContent(content.content)
+              }}
+              compact={true}
+              inline={true}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Rich text content for the directory description (will be saved as a directory block)
+            </p>
+          </div>
+
+          {/* Meta Description */}
+          <div>
+            <Label htmlFor="meta_description">Meta Description</Label>
+            <Textarea
+              id="meta_description"
+              value={formData.meta_description}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, meta_description: e.target.value }))
+              }}
+              placeholder="SEO meta description"
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
+            </p>
+          </div>
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">

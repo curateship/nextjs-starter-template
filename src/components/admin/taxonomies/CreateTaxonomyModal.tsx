@@ -215,7 +215,7 @@ export function CreateTaxonomyModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[840px]">
+      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
         <DialogHeader>
           <DialogTitle>Create {taxonomyType.name} Term</DialogTitle>
           <DialogDescription>
@@ -350,6 +350,7 @@ export function CreateTaxonomyModal({
               }}
               onContentChange={(content) => setRichTextContent(content.content)}
               compact={true}
+              inline={true}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Rich text content for the term description

@@ -82,7 +82,7 @@ export function CreateTaxonomyTypeModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Taxonomy Type</DialogTitle>

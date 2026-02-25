@@ -256,6 +256,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           }}
           onContentChange={(content) => setRichTextContent(content.content)}
           compact={true}
+          inline={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the directory description (will be saved as a directory block)

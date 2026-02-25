@@ -246,6 +246,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           }}
           onContentChange={(content) => setRichTextContent(content.content)}
           compact={true}
+          inline={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the event description (will be saved as an event block)

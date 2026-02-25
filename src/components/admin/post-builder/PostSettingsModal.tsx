@@ -7,7 +7,6 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -265,7 +264,7 @@ export function PostSettingsModal({
       <DialogPortal>
         <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
              onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
+          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
                style={{ width: '840px', maxWidth: '95vw' }}
                onClick={(e) => e.stopPropagation()}>
             <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
@@ -294,165 +293,145 @@ export function PostSettingsModal({
 
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Post Title */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-title">Post Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter post title"
-                  required
-                />
-              </div>
+          {/* Post Title */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label htmlFor="modal-title">Post Title *</Label>
+              <Input
+                id="modal-title"
+                value={formData.title || ''}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter post title"
+                required
+              />
+            </div>
 
-              {/* Post Slug */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-slug">Post URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ''}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="post-url-slug"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {slugManuallyEdited 
-                    ? "Custom URL slug. Clear this field to auto-generate from title again." 
-                    : "Auto-generated from title. You can edit this to customize the URL."}
-                </p>
-              </div>
+            {/* Post Slug */}
+            <div className="col-span-2">
+              <Label htmlFor="modal-slug">Post URL</Label>
+              <Input
+                id="modal-slug"
+                value={formData.slug || ''}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="post-url-slug"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {slugManuallyEdited
+                  ? "Custom URL slug. Clear this field to auto-generate from title again."
+                  : "Auto-generated from title. You can edit this to customize the URL."}
+              </p>
+            </div>
+          </div>
 
-              {/* Featured Image */}
-              <div className="space-y-2">
-                <Label htmlFor="featured_image">Featured Image</Label>
-                <div className="mt-2">
-                  {formData.featured_image ? (
-                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-                      <img 
-                        src={formData.featured_image} 
-                        alt="Featured image preview" 
-                        className="w-full h-full object-contain"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                          <p className="text-sm font-medium">Click to change image</p>
-                        </div>
-                      </div>
+          {/* Featured Image */}
+          <div>
+            <Label htmlFor="featured_image">Featured Image</Label>
+            <div className="mt-2">
+              {formData.featured_image ? (
+                <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={formData.featured_image}
+                    alt="Featured image preview"
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                    onClick={() => setShowImagePicker(true)}
+                  >
+                    <div className="text-white text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                      <p className="text-sm font-medium">Click to change image</p>
                     </div>
-                  ) : (
-                    <div 
-                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center">
-                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Optional featured image for this post
-                </p>
-              </div>
-
-              {/* Show Featured Image Toggle */}
-              {formData.featured_image && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show_featured_image">Show featured image on post page</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Control whether the featured image appears at the top of the post page
-                      </p>
-                    </div>
-                    <Switch
-                      id="show_featured_image"
-                      checked={showFeaturedImage}
-                      onCheckedChange={setShowFeaturedImage}
-                    />
+              ) : (
+                <div
+                  className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  onClick={() => setShowImagePicker(true)}
+                >
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                    <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
                   </div>
                 </div>
               )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional featured image for this post
+            </p>
+          </div>
 
-              {/* Post Excerpt */}
-              <div className="space-y-2">
-                <Label htmlFor="excerpt">Post Excerpt</Label>
-                <Input
-                  id="excerpt"
-                  value={formData.excerpt || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
-                  placeholder="A brief summary of your post content"
+          {/* Show Featured Image Toggle */}
+          {formData.featured_image && (
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="show_featured_image">Show featured image on post page</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Control whether the featured image appears at the top of the post page
+                  </p>
+                </div>
+                <Switch
+                  id="show_featured_image"
+                  checked={showFeaturedImage}
+                  onCheckedChange={setShowFeaturedImage}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Brief summary shown in post listings and previews
-                </p>
               </div>
+            </div>
+          )}
 
-              {/* Post Content */}
-              <div className="space-y-2">
-                <Label htmlFor="content">Post Content</Label>
-                <PageRichTextEditorBlock
-                  content={{
-                    content: extractedContent || '',
-                    hideHeader: true,
-                    hideEditorHeader: true
-                  }}
-                  onContentChange={(content) => setExtractedContent(content.content)}
-                  compact={true}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Rich text content for the post body
-                </p>
-              </div>
-                
-            </CardContent>
-          </Card>
+          {/* Post Excerpt */}
+          <div>
+            <Label htmlFor="excerpt">Post Excerpt</Label>
+            <Input
+              id="excerpt"
+              value={formData.excerpt || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
+              placeholder="A brief summary of your post content"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Brief summary shown in post listings and previews
+            </p>
+          </div>
 
-          {/* SEO Settings */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>SEO Settings</CardTitle>
-              <CardDescription>
-                Optimize this post for search engines
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Meta Description */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-meta_description">Meta Description</Label>
-                <Input
-                  id="modal-meta_description"
-                  value={formData.meta_description || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-                  placeholder="A brief description of this post for search engines"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
-                </p>
-              </div>
+          {/* Post Content */}
+          <div>
+            <Label htmlFor="content">Post Content</Label>
+            <PageRichTextEditorBlock
+              content={{
+                content: extractedContent || '',
+                hideHeader: true,
+                hideEditorHeader: true
+              }}
+              onContentChange={(content) => setExtractedContent(content.content)}
+              compact={true}
+              inline={true}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Rich text content for the post body
+            </p>
+          </div>
 
-            </CardContent>
-          </Card>
-
-
+          {/* Meta Description */}
+          <div>
+            <Label htmlFor="modal-meta_description">Meta Description</Label>
+            <Input
+              id="modal-meta_description"
+              value={formData.meta_description || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+              placeholder="A brief description of this post for search engines"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
+            </p>
+          </div>
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">

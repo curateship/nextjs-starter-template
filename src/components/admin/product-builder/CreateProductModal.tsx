@@ -347,6 +347,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           }}
           onContentChange={(content) => setRichTextContent(content.content)}
           compact={true}
+          inline={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
           Rich text content for the product description (will be saved as a product block)

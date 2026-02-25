@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -225,7 +224,7 @@ export function PageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
         <DialogHeader className="mb-6">
           <DialogTitle className="flex items-center gap-3">
             Configure settings for &quot;{page.title}&quot;
@@ -248,93 +247,69 @@ export function PageSettingsModal({
 
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Configure the basic settings for this page
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Page Title */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-title">Page Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter page title"
-                  required
-                />
-              </div>
+          {/* Page Title */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <Label htmlFor="modal-title">Page Title *</Label>
+              <Input
+                id="modal-title"
+                value={formData.title || ''}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter page title"
+                required
+              />
+            </div>
 
-              {/* Page Slug */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-slug">Page URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ''}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="page-url-slug"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {slugManuallyEdited 
-                    ? "Custom URL slug. Clear this field to auto-generate from title again." 
-                    : "Auto-generated from title. You can edit this to customize the URL."}
-                </p>
-              </div>
+            {/* Page Slug */}
+            <div className="col-span-2">
+              <Label htmlFor="modal-slug">Page URL</Label>
+              <Input
+                id="modal-slug"
+                value={formData.slug || ''}
+                onChange={(e) => handleSlugChange(e.target.value)}
+                placeholder="page-url-slug"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {slugManuallyEdited
+                  ? "Custom URL slug. Clear this field to auto-generate from title again."
+                  : "Auto-generated from title. You can edit this to customize the URL."}
+              </p>
+            </div>
 
-              {/* Homepage Checkbox */}
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="modal-is_homepage"
-                    checked={formData.is_homepage === true}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({ ...prev, is_homepage: checked === true }))
-                    }
-                  />
-                  <div>
-                    <Label htmlFor="modal-is_homepage">Set as homepage</Label>
-                    <p className="text-xs text-muted-foreground">
-                      This page will be the main landing page for your site
-                    </p>
-                  </div>
+            {/* Homepage Checkbox */}
+            <div className="col-span-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="modal-is_homepage"
+                  checked={formData.is_homepage === true}
+                  onCheckedChange={(checked) =>
+                    setFormData(prev => ({ ...prev, is_homepage: checked === true }))
+                  }
+                />
+                <div>
+                  <Label htmlFor="modal-is_homepage">Set as homepage</Label>
+                  <p className="text-xs text-muted-foreground">
+                    This page will be the main landing page for your site
+                  </p>
                 </div>
-                
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* SEO Settings */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>SEO Settings</CardTitle>
-              <CardDescription>
-                Optimize this page for search engines
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Meta Description */}
-              <div className="space-y-2">
-                <Label htmlFor="modal-meta_description">Meta Description</Label>
-                <Textarea
-                  id="modal-meta_description"
-                  value={formData.meta_description || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-                  placeholder="A brief description of this page for search engines"
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
-                </p>
-              </div>
-
-            </CardContent>
-          </Card>
-
-
+          {/* Meta Description */}
+          <div>
+            <Label htmlFor="modal-meta_description">Meta Description</Label>
+            <Textarea
+              id="modal-meta_description"
+              value={formData.meta_description || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+              placeholder="A brief description of this page for search engines"
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
+            </p>
+          </div>
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">

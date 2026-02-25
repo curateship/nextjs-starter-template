@@ -456,8 +456,10 @@ export default function EventsPage() {
       {/* Create Event Modal */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogPortal>
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4">
-            <div className="bg-background rounded-lg border shadow-lg w-[700px] max-w-[95vw] p-6 relative my-8">
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
+               onClick={(e) => e.target === e.currentTarget && setShowCreateDialog(false)}>
+            <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
+                 onClick={(e) => e.stopPropagation()}>
               <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100">
                 <X className="h-4 w-4" />
                 <span className="sr-only">Close</span>
