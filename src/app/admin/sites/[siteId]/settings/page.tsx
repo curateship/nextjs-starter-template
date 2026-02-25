@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
-import type { SiteWithTheme, AnimationSettings } from "@/lib/actions/sites/site-actions"
+import type { Site, AnimationSettings } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { CheckCircle } from "lucide-react"
 
@@ -18,12 +18,11 @@ interface SiteEditPageProps {
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
+  const [site, setSite] = useState<Site | null>(null)
   const [siteName, setSiteName] = useState("")
   const [subdomain, setSubdomain] = useState("")
   const [customDomain, setCustomDomain] = useState("")
   const [status, setStatus] = useState("draft")
-  const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
@@ -56,7 +55,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSubdomain(data.subdomain || "")
         setCustomDomain(data.custom_domain || "")
         setStatus(data.status)
-        setThemeId(data.theme_id)
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
@@ -90,11 +88,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       return
     }
 
-    if (!themeId) {
-      setError('Please select a theme')
-      return
-    }
-
     try {
       setIsSubmitting(true)
       setError(null)
@@ -104,7 +97,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         name: siteName.trim(),
         subdomain: subdomain.trim(),
         custom_domain: customDomain.trim() || null,
-        theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         settings: {
           ...site?.settings, // Preserve existing settings like navigation and footer
@@ -201,7 +193,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             subdomain={subdomain}
             customDomain={customDomain}
             status={status}
-            themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
@@ -217,7 +208,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             onSubdomainChange={setSubdomain}
             onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
-            onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}

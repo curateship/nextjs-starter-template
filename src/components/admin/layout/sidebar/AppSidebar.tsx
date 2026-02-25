@@ -140,6 +140,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: Image,
     },
     {
+      name: "Themes",
+      url: "/admin/themes",
+      icon: Palette,
+    },
+    {
       name: "Site Settings",
       url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
       icon: Settings,
@@ -152,11 +157,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Sites",
       url: "/admin/sites",
       icon: Globe,
-    },
-    {
-      name: "Themes",
-      url: "/admin/themes",
-      icon: Palette,
     },
     {
       name: "Users",

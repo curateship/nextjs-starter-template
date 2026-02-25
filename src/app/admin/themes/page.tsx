@@ -1,360 +1,378 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Trash2, MoreHorizontal, ExternalLink, Power, PowerOff } from "lucide-react"
-import type { Theme } from "@/lib/supabase/themes"
-import { getAllThemesAction, updateThemeStatusAction, deleteThemeAction } from "@/lib/actions/themes/theme-actions"
-
-type FilterStatus = 'all' | 'active' | 'inactive' | 'development'
-
-// Helper functions for theme status
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'active':
-      return 'bg-green-100 text-green-800'
-    case 'inactive':
-      return 'bg-red-100 text-red-800'
-    case 'development':
-      return 'bg-yellow-100 text-yellow-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
-function getStatusIcon(status: string): string {
-  switch (status) {
-    case 'active':
-      return '✓'
-    case 'inactive':
-      return '×'
-    case 'development':
-      return '⚠'
-    default:
-      return '?'
-  }
-}
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Trash2, MoreHorizontal, Edit, Paintbrush, Pencil } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
+import { createSiteAction, updateSiteAction } from "@/lib/actions/sites/site-actions"
+import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
+import type { Site } from "@/lib/actions/sites/site-actions"
 
 export default function ThemesPage() {
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [themes, setThemes] = useState<Theme[]>([])
+  const router = useRouter()
+  const [templates, setTemplates] = useState<Site[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterStatus>('all')
-  const [updating, setUpdating] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; templateId: string; templateName: string }>({
+    open: false,
+    templateId: "",
+    templateName: "",
+  })
+  const [creating, setCreating] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createName, setCreateName] = useState("")
+  const [renameDialog, setRenameDialog] = useState<{ open: boolean; templateId: string; currentName: string }>({
+    open: false,
+    templateId: "",
+    currentName: "",
+  })
+  const [renameName, setRenameName] = useState("")
+  const [renaming, setRenaming] = useState(false)
+  const [applyDialog, setApplyDialog] = useState<{ open: boolean; templateId: string; templateName: string }>({
+    open: false,
+    templateId: "",
+    templateName: "",
+  })
 
-  const loadThemes = async () => {
+  const loadTemplates = async () => {
     try {
       setLoading(true)
       setError(null)
-      const { data, error } = await getAllThemesAction()
-      
+      const { data, error } = await getTemplateSitesAction()
+
       if (error) {
-        console.error('Error loading themes:', error)
         setError(error)
         return
       }
-      
-      if (data) {
-        setThemes(data)
-      }
-    } catch (err) {
-      console.error('Error loading themes:', err)
-      setError('Failed to load themes')
+
+      setTemplates(data || [])
+    } catch {
+      setError("Failed to load themes")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleStatusChange = async (themeId: string, newStatus: 'active' | 'inactive' | 'development') => {
+  const handleDeleteConfirm = async () => {
     try {
-      setUpdating(themeId)
-      const { data, error } = await updateThemeStatusAction(themeId, newStatus)
-      
-      if (error) {
-        console.error('Error updating theme status:', error)
-        setError(error)
-        return
-      }
-      
-      // Update local state
-      setThemes(prev => prev.map(theme => 
-        theme.id === themeId ? { ...theme, status: newStatus, updated_at: data?.updated_at || theme.updated_at } : theme
-      ))
-    } catch (err) {
-      console.error('Error updating theme status:', err)
-      setError('Failed to update theme status')
-    } finally {
-      setUpdating(null)
-    }
-  }
+      setDeleting(deleteDialog.templateId)
+      const { success, error } = await deleteTemplateAction(deleteDialog.templateId)
 
-  const handleDelete = async (themeId: string) => {
-    if (!confirm('Are you sure you want to delete this theme? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      setDeleting(themeId)
-      const { success, error } = await deleteThemeAction(themeId)
-      
       if (error) {
-        console.error('Error deleting theme:', error)
         alert(`Failed to delete theme: ${error}`)
         return
       }
-      
+
       if (success) {
-        // Remove from local state
-        setThemes(prev => prev.filter(theme => theme.id !== themeId))
+        setTemplates(prev => prev.filter(t => t.id !== deleteDialog.templateId))
       }
-    } catch (err) {
-      console.error('Error deleting theme:', err)
-      alert('Failed to delete theme')
+      setDeleteDialog(prev => ({ ...prev, open: false }))
+    } catch {
+      alert("Failed to delete theme")
     } finally {
       setDeleting(null)
     }
   }
 
-  const handleFilterChange = (newFilter: FilterStatus) => {
-    setFilter(newFilter)
-    setIsFilterOpen(false)
+  const handleCreateTheme = async () => {
+    const trimmed = createName.trim()
+    if (!trimmed) return
+
+    try {
+      setCreating(true)
+      const { data, error } = await createSiteAction({
+        name: trimmed,
+        is_template: true,
+      })
+
+      if (error) {
+        alert(`Failed to create theme: ${error}`)
+        return
+      }
+
+      if (data) {
+        setCreateDialogOpen(false)
+        router.push(`/admin/pages/${data.id}`)
+      }
+    } catch {
+      alert("Failed to create theme")
+    } finally {
+      setCreating(false)
+    }
   }
 
-  const filteredThemes = themes.filter(theme => {
-    if (filter === 'all') return true
-    return theme.status === filter
-  })
+  const handleRenameSubmit = async () => {
+    const trimmed = renameName.trim()
+    if (!trimmed || trimmed === renameDialog.currentName) return
+
+    try {
+      setRenaming(true)
+      const { error } = await updateSiteAction(renameDialog.templateId, { name: trimmed })
+      if (error) {
+        alert(`Failed to rename theme: ${error}`)
+        return
+      }
+      setTemplates(prev => prev.map(t => t.id === renameDialog.templateId ? { ...t, name: trimmed } : t))
+      setRenameDialog(prev => ({ ...prev, open: false }))
+    } catch {
+      alert("Failed to rename theme")
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
 
   useEffect(() => {
-    loadThemes()
+    loadTemplates()
   }, [])
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      const dropdownContainer = target.closest('.dropdown-container')
-      
-      if (openDropdown && !dropdownContainer) {
-        setOpenDropdown(null)
-      }
-    }
-
-    if (openDropdown) {
-      document.addEventListener('click', handleClickOutside)
-    }
-    
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [openDropdown])
-  
   return (
-    <AdminLayout>
-      <div className="w-full">
-        <AdminPageHeader
-          title="Themes"
-          subtitle="Manage themes for multi-site deployments"
-          primaryAction={{
-            label: "Add Theme",
-            href: "/admin/themes/new"
-          }}
-        />
-        
-        <AdminCard>
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Themes List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {loading ? 'Loading...' : `${filteredThemes.length} theme${filteredThemes.length !== 1 ? 's' : ''} found`}
-                </p>
-              </div>
-              <div className="relative">
-                <Button 
-                  variant="outline"
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className="flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>Filter</span>
-                  <svg className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </Button>
-                {isFilterOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
-                    <div className="py-1">
-                      <button 
-                        onClick={() => handleFilterChange('all')}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filter === 'all' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        All Themes
-                      </button>
-                      <button 
-                        onClick={() => handleFilterChange('active')}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filter === 'active' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        Active
-                      </button>
-                      <button 
-                        onClick={() => handleFilterChange('development')}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filter === 'development' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        Development
-                      </button>
-                      <button 
-                        onClick={() => handleFilterChange('inactive')}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filter === 'inactive' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        Inactive
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="divide-y">
-            {loading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading themes...</p>
-              </div>
-            ) : error ? (
-              <div className="p-8 text-center">
-                <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={loadThemes} variant="outline" size="sm">
-                  Try Again
-                </Button>
-              </div>
-            ) : filteredThemes.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-muted-foreground">
-                  {filter === 'all' ? 'No themes found' : `No ${filter} themes found`}
-                </p>
-              </div>
-            ) : (
-              filteredThemes.map((theme) => (
-                <div key={theme.id} className="p-6 flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <Link 
-                      href={`/admin/themes/${theme.id}/edit`}
-                      className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center hover:opacity-80 transition-opacity"
-                    >
-                      <span className="text-white text-sm font-medium">
-                        {theme.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)}
-                      </span>
-                    </Link>
-                    <div>
-                      <Link 
-                        href={`/admin/themes/${theme.id}/edit`}
-                        className="hover:underline"
-                      >
-                        <h4 className="font-medium">{theme.name}</h4>
-                      </Link>
-                      <p className="text-sm text-muted-foreground">
-                        {theme.description || 'No description available'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    {theme.status !== 'active' && (
-                      <Button 
-                        onClick={() => handleStatusChange(theme.id, 'active')}
-                        disabled={updating === theme.id}
-                        variant="outline" 
-                        size="sm"
-                      >
-                        {updating === theme.id ? 'Activating...' : 'Activate'}
-                      </Button>
-                    )}
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      getStatusColor(theme.status)
-                    }`}>
-                      {theme.status.charAt(0).toUpperCase() + theme.status.slice(1)}
-                    </span>
-                    <div className="relative dropdown-container">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0"
-                        onClick={() => setOpenDropdown(openDropdown === theme.id ? null : theme.id)}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                      {openDropdown === theme.id && (
-                        <div className="absolute right-0 mt-1 w-48 bg-card border rounded-md shadow-lg z-10">
-                          <div className="py-1">
-                            {theme.status !== 'inactive' && (
-                              <button 
-                                onClick={() => {
-                                  setOpenDropdown(null)
-                                  handleStatusChange(theme.id, 'inactive')
-                                }}
-                                disabled={updating === theme.id}
-                                className="flex items-center w-full px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
-                              >
-                                {updating === theme.id ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                                    Deactivating...
-                                  </>
-                                ) : (
-                                  <>
-                                    <PowerOff className="h-4 w-4 mr-2" />
-                                    Deactivate
-                                  </>
-                                )}
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => {
-                                setOpenDropdown(null)
-                                handleDelete(theme.id)
-                              }}
-                              disabled={deleting === theme.id}
-                              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                            >
-                              {deleting === theme.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Theme
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+    <>
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Admin" },
+          { label: "Themes", isPage: true }
+        ]}
+      />
+      <AdminLayout>
+        <div className="w-full">
+          <AdminPageHeader
+            title="Themes"
+            subtitle="Save and manage reusable site templates"
+            primaryAction={{
+              label: "Create Theme",
+              onClick: () => { setCreateName(""); setCreateDialogOpen(true) },
+            }}
+          />
+
+          <AdminCard>
+            <div className="divide-y">
+              {loading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+                  <p className="text-muted-foreground">Loading themes...</p>
                 </div>
-              ))
-            )}
-          </div>
-        </AdminCard>
-      </div>
-    </AdminLayout>
+              ) : error ? (
+                <div className="p-8 text-center">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Button onClick={loadTemplates} variant="outline" size="sm">
+                    Try Again
+                  </Button>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Paintbrush className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                  <p className="text-muted-foreground mb-1">No themes yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    Click &ldquo;Create Theme&rdquo; to start building a reusable template.
+                  </p>
+                </div>
+              ) : (
+                templates.map((template) => (
+                  <div key={template.id} className="p-6 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <Link
+                        href={`/admin/pages/${template.id}`}
+                        className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center hover:opacity-80 transition-opacity"
+                      >
+                        <span className="text-white text-sm font-medium">
+                          {template.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                        </span>
+                      </Link>
+                      <div>
+                        <Link
+                          href={`/admin/pages/${template.id}`}
+                          className="hover:underline"
+                        >
+                          <h4 className="font-medium">{template.name}</h4>
+                        </Link>
+                        <p className="text-sm text-muted-foreground">
+                          {template.settings?.description || `Created ${formatDate(template.created_at)}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/admin/pages/${template.id}`}>
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setApplyDialog({
+                          open: true,
+                          templateId: template.id,
+                          templateName: template.name,
+                        })}
+                      >
+                        Apply
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setRenameName(template.name)
+                              setTimeout(() => {
+                                setRenameDialog({ open: true, templateId: template.id, currentName: template.name })
+                              }, 0)
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setTimeout(() => {
+                                setDeleteDialog({ open: true, templateId: template.id, templateName: template.name })
+                              }, 0)
+                            }}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Theme
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </AdminCard>
+        </div>
+
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Theme</DialogTitle>
+              <DialogDescription>
+                Enter a name for your new theme template.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Label htmlFor="create-theme-name" className="sr-only">Name</Label>
+              <Input
+                id="create-theme-name"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && createName.trim()) handleCreateTheme() }}
+                placeholder="Theme name"
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateTheme}
+                disabled={creating || !createName.trim()}
+              >
+                {creating ? "Creating..." : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={renameDialog.open} onOpenChange={(open) => setRenameDialog(prev => ({ ...prev, open }))}>
+          <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Rename Theme</DialogTitle>
+              <DialogDescription>
+                Enter a new name for this theme.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Label htmlFor="theme-name" className="sr-only">Name</Label>
+              <Input
+                id="theme-name"
+                value={renameName}
+                onChange={(e) => setRenameName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit() }}
+                placeholder="Theme name"
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRenameDialog(prev => ({ ...prev, open: false }))}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRenameSubmit}
+                disabled={renaming || !renameName.trim() || renameName.trim() === renameDialog.currentName}
+              >
+                {renaming ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+          <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Delete Theme</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &ldquo;{deleteDialog.templateName}&rdquo;? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteDialog(prev => ({ ...prev, open: false }))}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleting === deleteDialog.templateId}
+              >
+                {deleting === deleteDialog.templateId ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <ApplyThemeDialog
+          templateId={applyDialog.templateId}
+          templateName={applyDialog.templateName}
+          open={applyDialog.open}
+          onOpenChange={(open) => setApplyDialog(prev => ({ ...prev, open }))}
+        />
+      </AdminLayout>
+    </>
   )
 }
-
-// claude.md followed

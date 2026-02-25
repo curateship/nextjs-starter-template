@@ -201,10 +201,9 @@ export default function SitesPage() {
           
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
-            <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
+            <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
               <div className="col-span-2">Site</div>
               <div>User</div>
-              <div>Theme</div>
               <div>Created</div>
               <div>Status</div>
               <div>Actions</div>
@@ -239,7 +238,7 @@ export default function SitesPage() {
                 
                 return (
                   <div key={site.id} className="p-6">
-                    <div className="grid grid-cols-7 gap-4 items-center">
+                    <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <Link 
                           href={`/admin/sites/${site.id}/settings`}
@@ -261,7 +260,7 @@ export default function SitesPage() {
                           <div>
                             <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>
                             <p className="text-sm text-muted-foreground">
-                              {site.theme_description || site.name}
+                              {site.name}
                             </p>
                           </div>
                         </Link>
@@ -271,9 +270,6 @@ export default function SitesPage() {
                           <span className="text-blue-600 text-xs font-medium">Y</span>
                         </div>
                         <span className="text-sm">You</span>
-                      </div>
-                      <div>
-                        <span className="text-sm">{site.theme_name}</span>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">

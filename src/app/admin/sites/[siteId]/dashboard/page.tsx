@@ -7,6 +7,7 @@ import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
+import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
 
 interface PageProps {
   params: Promise<{
@@ -164,12 +165,7 @@ export default async function SiteDashboard({ params }: PageProps) {
                 Edit Site Content
               </Link>
             </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/themes`}>
-                <Settings className="mr-2 h-4 w-4" />
-                Customize Theme
-              </Link>
-            </Button>
+            <SaveAsThemeButton siteId={siteId} siteName={siteName} fullWidth />
             <Button asChild variant="outline" className="w-full justify-start">
               <Link href={`/admin/posts/new`}>
                 <Edit3 className="mr-2 h-4 w-4" />

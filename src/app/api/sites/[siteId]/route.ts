@@ -62,18 +62,10 @@ export async function GET(
       )
     }
 
-    // Get the site with theme information
+    // Get the site
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select(`
-        *,
-        themes(
-          id,
-          name,
-          description,
-          metadata
-        )
-      `)
+      .select('*')
       .eq('id', siteId)
       .single()
 

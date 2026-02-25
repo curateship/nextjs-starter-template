@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
-import { StylingSettingsCard } from "./StylingSettingsCard"
+import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { CacheSettingsCard } from "./CacheSettingsCard"
 import { AnimationSettingsCard } from "./AnimationSettingsCard"
 import { TrackingSettingsCard } from "./TrackingSettingsCard"
@@ -17,7 +17,6 @@ import { Switch } from "@/components/ui/switch"
 interface SiteDashboardProps {
   siteName: string
   status: string
-  themeId: string
   subdomain?: string
   customDomain?: string
   favicon?: string
@@ -33,7 +32,6 @@ interface SiteDashboardProps {
   loading?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
-  onThemeIdChange: (value: string) => void
   onSubdomainChange?: (value: string) => void
   onCustomDomainChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
@@ -50,7 +48,6 @@ interface SiteDashboardProps {
 export function SiteDashboard({
   siteName,
   status,
-  themeId,
   subdomain = "",
   customDomain = "",
   favicon = "",
@@ -66,7 +63,6 @@ export function SiteDashboard({
   loading = false,
   onSiteNameChange,
   onStatusChange,
-  onThemeIdChange,
   onSubdomainChange,
   onCustomDomainChange,
   onFaviconChange,
@@ -326,14 +322,12 @@ export function SiteDashboard({
 
     {/* Styling Settings Card */}
     <StylingSettingsCard
-      themeId={themeId}
       fontFamily={fontFamily}
       secondaryFontFamily={secondaryFontFamily}
       favicon={favicon}
       siteWidth={siteWidth}
       customWidth={customWidth}
       defaultTheme={defaultTheme}
-      onThemeIdChange={onThemeIdChange}
       onFontFamilyChange={onFontFamilyChange}
       onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
       onFaviconChange={onFaviconChange}

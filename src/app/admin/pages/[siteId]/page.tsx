@@ -29,14 +29,17 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const initialPage = searchParams.get('page') || 'home'
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  
-  // Redirect when site changes in sidebar
+
+  // Custom hooks for data and state management
+  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
+
+  // Redirect when site changes in sidebar (skip while loading or when editing a template)
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
+    if (currentSite && currentSite.id !== siteId && !siteLoading && !site?.is_template) {
       router.push(`/admin/pages/${currentSite.id}`)
     }
-  }, [currentSite, siteId, router])
-  
+  }, [currentSite, siteId, router, siteLoading, site])
+
   // Load pages data
   useEffect(() => {
     async function loadPages() {
@@ -49,7 +52,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           return
         }
         setPages(data || [])
-        
+
         // If initial page doesn't exist, redirect to homepage
         if (data && data.length > 0) {
           const pageExists = data.some(p => p.slug === initialPage)
@@ -65,12 +68,9 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         setPagesLoading(false)
       }
     }
-    
+
     loadPages()
   }, [siteId, initialPage, router])
-  
-  // Custom hooks for data and state management
-  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change
@@ -180,8 +180,15 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     )
   }
 
+  const isTemplate = site?.is_template === true
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {isTemplate && (
+        <div className="bg-violet-600 text-white text-center text-sm py-1.5 px-4">
+          Editing Theme: {site?.name}
+        </div>
+      )}
       <StickyHeader
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },

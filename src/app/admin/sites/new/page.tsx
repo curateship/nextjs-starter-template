@@ -14,7 +14,6 @@ export default function NewSitePage() {
   const [subdomain, setSubdomain] = useState("")
   const [customDomain, setCustomDomain] = useState("")
   const [status, setStatus] = useState("draft")
-  const [themeId, setThemeId] = useState("")
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
@@ -37,11 +36,6 @@ export default function NewSitePage() {
       return
     }
 
-    if (!themeId) {
-      setError('Please select a theme')
-      return
-    }
-
     try {
       setIsSubmitting(true)
       setError(null)
@@ -50,7 +44,6 @@ export default function NewSitePage() {
         name: siteName.trim(),
         subdomain: subdomain.trim(),
         custom_domain: customDomain.trim() || undefined,
-        theme_id: themeId,
         status: status as 'active' | 'inactive' | 'draft',
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
@@ -112,7 +105,6 @@ export default function NewSitePage() {
             subdomain={subdomain}
             customDomain={customDomain}
             status={status}
-            themeId={themeId}
             fontFamily={fontFamily}
             secondaryFontFamily={secondaryFontFamily}
             favicon={favicon}
@@ -120,7 +112,6 @@ export default function NewSitePage() {
             onSubdomainChange={setSubdomain}
             onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
-            onThemeIdChange={setThemeId}
             onFontFamilyChange={setFontFamily}
             onSecondaryFontFamilyChange={setSecondaryFontFamily}
             onFaviconChange={setFavicon}
