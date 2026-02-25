@@ -18,9 +18,30 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
     defaultContent: {
       title: 'Welcome to Our Site',
       subtitle: 'Your subtitle here',
-      buttonText: 'Get Started',
-      buttonUrl: '#',
-      backgroundImage: ''
+      primaryButton: 'Get Started',
+      primaryButtonLink: '#',
+      primaryButtonStyle: 'primary',
+      secondaryButton: 'Learn More',
+      secondaryButtonLink: '#',
+      secondaryButtonStyle: 'outline',
+      heroStyle: 'default',
+      styleConfig: {
+        default: {
+          heroImage: '',
+          showHeroImage: false,
+          rainbowButtonText: '',
+          rainbowButtonIcon: 'star',
+          rainbowButtonLink: '',
+          trustedByText: '',
+          trustedByAvatars: [],
+          showTrustedByBadge: false,
+          backgroundPattern: 'dots',
+          backgroundPatternSize: 'medium',
+          backgroundPatternOpacity: 80,
+          showParticles: false,
+          githubLink: '',
+        }
+      }
     }
   },
   {

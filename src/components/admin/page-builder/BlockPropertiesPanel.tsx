@@ -57,15 +57,8 @@ export function BlockPropertiesPanel({
           <div className="space-y-4">
             {selectedBlock.type === 'hero' && (
               <PageHeroBlock
-                {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, [
-                  'title', 'subtitle', 'primaryButton', 'secondaryButton', 
-                  'primaryButtonLink', 'secondaryButtonLink', 'primaryButtonStyle', 'secondaryButtonStyle',
-                  'showRainbowButton', 'rainbowButtonText', 'rainbowButtonIcon',
-                  'githubLink', 'showParticles', 'trustedByText', 
-                  'trustedByCount', 'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-                  'backgroundPatternOpacity', 'heroImage', 'showHeroImage', 'showTrustedByBadge'
-                ]) as any)}
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />
