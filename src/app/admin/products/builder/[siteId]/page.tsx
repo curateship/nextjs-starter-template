@@ -226,6 +226,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
         onAIComplete={handleAIComplete}
+        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 overflow-y-auto">
         <AdminLayout noPadding>
@@ -262,7 +263,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
             onPreviewProduct={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}

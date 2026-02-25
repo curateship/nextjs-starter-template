@@ -238,6 +238,7 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
         onSave={builderState.handleSaveAllBlocks}
         site={site}
         taxonomyType={currentType}
+        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 overflow-y-auto">
         <AdminLayout noPadding>
@@ -275,7 +276,6 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
               onSelectBlock={builderState.setSelectedBlock}
               onDeleteBlock={builderState.handleDeleteBlock}
               onReorderBlocks={builderState.handleReorderBlocks}
-              onOpenBlockModal={() => setBlockModalOpen(true)}
               onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
               deleting={null}
               blocksLoading={blocksLoading}

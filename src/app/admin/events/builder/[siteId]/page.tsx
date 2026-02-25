@@ -220,6 +220,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
+        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 overflow-y-auto">
         <AdminLayout noPadding>
@@ -257,7 +258,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
             onPreviewEvent={() => builderState.setSelectedBlock(null)}
             deleting={null}
             blocksLoading={blocksLoading}

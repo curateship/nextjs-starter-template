@@ -53,6 +53,7 @@ interface StickyHeaderProps {
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
+  onOpenBlockModal?: () => void
 }
 
 export function StickyHeader({
@@ -65,7 +66,8 @@ export function StickyHeader({
   onEventUpdated,
   saveMessage,
   isSaving = false,
-  onSave
+  onSave,
+  onOpenBlockModal
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -227,6 +229,17 @@ export function StickyHeader({
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
               </Button>
+              {onOpenBlockModal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenBlockModal}
+                  disabled={!currentEvent}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Blocks
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={onSave}

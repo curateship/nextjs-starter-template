@@ -57,6 +57,7 @@ interface StickyHeaderProps {
   onSave?: () => void
   site?: SiteWithTheme | null
   taxonomyType?: TaxonomyType
+  onOpenBlockModal?: () => void
 }
 
 export function StickyHeader({
@@ -71,7 +72,8 @@ export function StickyHeader({
   isSaving = false,
   onSave,
   site,
-  taxonomyType
+  taxonomyType,
+  onOpenBlockModal
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -238,6 +240,17 @@ export function StickyHeader({
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
               </Button>
+              {onOpenBlockModal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onOpenBlockModal}
+                  disabled={!currentTaxonomy}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Blocks
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={onSave}

@@ -217,6 +217,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         saveMessage={builderState.saveMessage}
         isSaving={false}
         onSave={builderState.handleSaveAllBlocks}
+        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 overflow-y-auto">
         <AdminLayout noPadding>
@@ -247,7 +248,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onOpenBlockModal={() => setBlockModalOpen(true)}
             onPreviewPost={() => builderState.setSelectedBlock(null)}
             onCleanupCorrupted={builderState.handleCleanupCorrupted}
             deleting={null}

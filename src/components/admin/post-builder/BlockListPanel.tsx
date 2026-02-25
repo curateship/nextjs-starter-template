@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, FileText, Info, Plus, Eye } from "lucide-react"
+import { Trash2, GripVertical, FileText, Info, Eye } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -47,7 +47,6 @@ interface BlockListPanelProps {
   onSelectBlock: (block: PostBlock | null) => void
   onDeleteBlock: (block: PostBlock) => void
   onReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
-  onOpenBlockModal: () => void
   onPreviewPost?: () => void
   onCleanupCorrupted?: () => void
   deleting: string | null
@@ -96,25 +95,25 @@ function SortablePostBlockItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`border rounded-lg p-4 transition-colors cursor-pointer ${
+      className={`p-3 transition-colors cursor-pointer ${
         selectedBlock?.id === block.id
-          ? 'border-primary bg-muted shadow-sm'
-          : 'border-border hover:border-muted-foreground opacity-60 hover:opacity-90'
+          ? 'bg-muted shadow-sm'
+          : 'opacity-60 hover:opacity-90'
       }`}
       onClick={() => onSelectBlock(block)}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           <div
             {...attributes}
             {...listeners}
-            className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+            className="flex items-center justify-center w-7 h-7 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-grab active:cursor-grabbing"
           >
-            <GripVertical className="w-4 h-4" />
+            <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
           </div>
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
-            <h3 className="font-medium">
+            <h3 className="text-sm font-medium">
               {isDefaultBlock(block) ? 'Rich Text Editor' : (block.content?.title || getBlockTypeName(block))}
             </h3>
           </div>
@@ -124,7 +123,7 @@ function SortablePostBlockItem({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
               onClick={(e) => {
                 e.stopPropagation()
                 handleDeleteClick(block)
@@ -133,9 +132,9 @@ function SortablePostBlockItem({
               title="Delete block"
             >
               {deleting === block.id ? (
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
               ) : (
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
               )}
             </Button>
           ) : (
@@ -155,7 +154,6 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
-  onOpenBlockModal,
   onPreviewPost,
   onCleanupCorrupted,
   deleting,
@@ -221,64 +219,52 @@ export function BlockListPanel({
     switch (blockType) {
       case 'post-content':
       case 'rich-text':
-        return <FileText className="w-4 h-4" />
+        return <FileText className="w-3.5 h-3.5" />
       case 'post-information':
-        return <Info className="w-4 h-4" />
+        return <Info className="w-3.5 h-3.5" />
       default:
-        return <div className="w-4 h-4" />
+        return <div className="w-3.5 h-3.5" />
     }
   }
 
   return (
     <>
-      <div className="w-[350px] p-6 sticky top-0 self-start max-h-screen overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
+      <div className="w-[250px] p-2.5 sticky top-0 self-start max-h-screen overflow-y-auto">
           {blocksLoading ? (
-            <div className="mb-6">
+            <div className="mb-4 px-5">
               <div className="h-7 bg-muted rounded animate-pulse w-1/2"></div>
             </div>
           ) : (
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-semibold">
-                  Active Blocks
-                </h2>
-                {onPreviewPost && (
-                  <Button
-                    onClick={onPreviewPost}
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0"
-                    title="Preview Post"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              <Button
-                onClick={onOpenBlockModal}
-                size="sm"
-                variant="outline"
-                className="flex items-center space-x-1"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Blocks</span>
-              </Button>
+            <div className="flex items-center justify-between mb-4 px-5">
+              <h2 className="text-lg font-semibold">
+                Blocks
+              </h2>
+              {onPreviewPost && (
+                <Button
+                  onClick={onPreviewPost}
+                  size="sm"
+                  variant="outline"
+                  className="flex items-center space-x-1"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview</span>
+                </Button>
+              )}
             </div>
           )}
           
           {blocksLoading ? (
             // Skeleton loading state
-            <div className="space-y-4">
+            <div className="space-y-0">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-muted rounded animate-pulse"></div>
+                <div key={i} className="p-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
                     <div className="flex-1">
                       <div className="h-4 bg-muted rounded animate-pulse mb-2"></div>
                       <div className="h-3 bg-muted/50 rounded animate-pulse w-2/3"></div>
                     </div>
-                    <div className="w-8 h-8 bg-muted rounded animate-pulse"></div>
+                    <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
               ))}
@@ -286,8 +272,8 @@ export function BlockListPanel({
           ) : currentPost.blocks.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-muted-foreground mb-4">
-                <p className="text-lg font-medium">No blocks added yet</p>
-                <p className="text-sm">Click "Add Blocks" to start building your post</p>
+                <p className="text-base font-medium">No blocks added yet</p>
+                <p className="text-xs">Click "Add Blocks" to start building your post</p>
               </div>
             </div>
           ) : (
@@ -300,21 +286,21 @@ export function BlockListPanel({
                 items={currentPost.blocks.filter(block => block && block.id && block.type).map(block => block.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-4">
+                <div className="space-y-0">
                   {currentPost.blocks.map((block, index) => {
                     // Show corrupted blocks visibly but safely
                     if (!block || !block.id || !block.type) {
                       return (
-                        <div key={`corrupted-${index}`} className="border rounded-lg p-4 bg-red-50 border-red-300">
+                        <div key={`corrupted-${index}`} className="p-3 bg-red-50">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
+                            <div className="flex items-center space-x-2">
                               <div className="text-red-600">⚠️</div>
-                              <h3 className="font-medium text-red-800">Corrupted Block</h3>
+                              <h3 className="text-sm font-medium text-red-800">Corrupted Block</h3>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
                               onClick={() => {
                                 if (onCleanupCorrupted) {
                                   onCleanupCorrupted()
@@ -322,7 +308,7 @@ export function BlockListPanel({
                               }}
                               title="Remove corrupted blocks"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </div>
@@ -348,7 +334,6 @@ export function BlockListPanel({
               </SortableContext>
             </DndContext>
           )}
-        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
