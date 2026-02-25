@@ -516,7 +516,7 @@ export async function deleteTaxonomyAction(taxonomyId: string) {
 
     // Check if there are content relationships
     const { data: relationships, error: relationshipsError } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .select('id')
       .eq('taxonomy_id', taxonomyId)
       .limit(1)

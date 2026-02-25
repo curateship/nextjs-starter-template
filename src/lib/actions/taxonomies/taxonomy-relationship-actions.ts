@@ -121,7 +121,7 @@ export async function assignTaxonomyToContentAction(
 
     // Check if relationship already exists
     const { data: existingRelationship } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .select('id')
       .eq('content_id', contentId)
       .eq('taxonomy_id', taxonomyId)
@@ -134,7 +134,7 @@ export async function assignTaxonomyToContentAction(
 
     // Create the relationship
     const { error: createError } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .insert({
         content_id: contentId,
         content_type: contentType,
@@ -191,7 +191,7 @@ export async function removeTaxonomyFromContentAction(
 
     // Delete the relationship
     const { error: deleteError } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .delete()
       .eq('content_id', contentId)
       .eq('taxonomy_id', taxonomyId)
@@ -228,7 +228,7 @@ export async function getContentTaxonomiesAction(contentId: string, contentType:
 
     // Get taxonomies with their type information
     const { data: relationships, error: relationshipsError } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .select(`
         id,
         taxonomy_id,
@@ -324,7 +324,7 @@ export async function getTaxonomyContentAction(
 
     // Build query
     let query = supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .select('content_id, content_type, created_at')
       .eq('taxonomy_id', taxonomyId)
 
@@ -418,7 +418,7 @@ export async function bulkAssignTaxonomiesToContentAction(
 
     // First, remove all existing taxonomies for this content
     await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .delete()
       .eq('content_id', contentId)
       .eq('content_type', contentType)
@@ -431,7 +431,7 @@ export async function bulkAssignTaxonomiesToContentAction(
     }))
 
     const { error: insertError } = await supabaseAdmin
-      .from('content_taxonomy_relationships')
+      .from('taxonomy_relationships')
       .insert(relationships)
 
     if (insertError) {

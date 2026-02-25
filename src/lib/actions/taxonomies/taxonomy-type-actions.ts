@@ -407,7 +407,7 @@ export async function deleteTaxonomyTypeAction(typeId: string) {
       const taxonomyIds = taxonomiesToDelete.map(t => t.id)
 
       const { error: deleteRelationshipsError } = await supabaseAdmin
-        .from('content_taxonomy_relationships')
+        .from('taxonomy_relationships')
         .delete()
         .in('taxonomy_id', taxonomyIds)
 
