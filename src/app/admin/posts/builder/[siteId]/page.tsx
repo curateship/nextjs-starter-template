@@ -221,7 +221,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       />
       <div className="flex-1 overflow-y-auto">
         <AdminLayout noPadding>
-        <div className="flex-1 flex">
+        <div className="flex min-h-screen">
           <BlockPropertiesPanel
             selectedBlock={builderState.selectedBlock}
             updateBlockContent={builderState.handleUpdateBlock}

@@ -99,9 +99,9 @@ function SortableBlockItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-3 transition-colors cursor-pointer ${
+      className={`p-3 transition-colors cursor-pointer rounded-lg ${
         selectedBlock?.id === block.id
-          ? 'bg-muted shadow-sm'
+          ? 'bg-muted/60'
           : 'opacity-60 hover:opacity-90'
       }`}
       onClick={() => onSelectBlock(block)}
