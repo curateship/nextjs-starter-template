@@ -48,23 +48,18 @@ async function createServerSupabaseClient() {
 export interface Site {
   id: string
   user_id: string
-  theme_id: string
   name: string
   subdomain: string
   custom_domain: string | null
   status: 'active' | 'inactive' | 'draft' | 'suspended'
+  is_template: boolean
   settings: Record<string, any>
-  navigation_data: Record<string, any> | null
-  footer_data: Record<string, any> | null
   created_at: string
   updated_at: string
 }
 
-export interface SiteWithTheme extends Site {
-  theme_name: string
-  theme_description: string | null
-  theme_metadata: Record<string, any>
-}
+// Kept as alias for backward compatibility across the codebase
+export type SiteWithTheme = Site
 
 export interface AnimationSettings {
   enabled: boolean
@@ -78,8 +73,8 @@ export interface CreateSiteData {
   name: string
   subdomain?: string
   custom_domain?: string | null
-  theme_id: string
   status?: 'active' | 'inactive' | 'draft'
+  is_template?: boolean
   settings?: Record<string, any>
   font_family?: string
   font_weights?: string[]
@@ -108,7 +103,7 @@ function sanitizeCustomDomain(input?: string | null): string | null {
   return d
 }
 
-export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | null; error: string | null }> {
+export async function getAllSitesAction(): Promise<{ data: Site[] | null; error: string | null }> {
   try {
     // Verify user is authenticated
     const supabase = await createServerSupabaseClient()
@@ -118,19 +113,12 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
       return { data: null, error: 'Authentication required' }
     }
 
-    // Fetch only sites owned by the authenticated user
+    // Fetch only non-template sites owned by the authenticated user
     const { data, error } = await supabaseAdmin
       .from('sites')
-      .select(`
-        *,
-        themes(
-          id,
-          name,
-          description,
-          metadata
-        )
-      `)
+      .select('*')
       .eq('user_id', user.id)
+      .eq('is_template', false)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -139,7 +127,7 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
     }
 
     // Successfully fetched sites
-    return { data: data as SiteWithTheme[], error: null }
+    return { data: data as Site[], error: null }
   } catch (error) {
       // Unexpected error fetching sites
     return {
@@ -151,80 +139,42 @@ export async function getAllSitesAction(): Promise<{ data: SiteWithTheme[] | nul
 
 export async function createSiteAction(siteData: CreateSiteData): Promise<{ data: Site | null; error: string | null }> {
   try {
-    // Creating new site
-    
     // Use provided subdomain or generate from name
     let subdomain = siteData.subdomain || siteData.name.toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
-    
+
     // Check if subdomain is available
     let subdomainSuffix = ''
     let attempts = 0
     while (attempts < 10) {
       const testSubdomain = subdomain + subdomainSuffix
-      
+
       const { data: existing } = await supabaseAdmin
         .from('sites')
         .select('id')
         .eq('subdomain', testSubdomain)
         .single()
-      
+
       if (!existing) {
         subdomain = testSubdomain
         break
       }
-      
+
       attempts++
       subdomainSuffix = `-${attempts}`
-    }
-    
-    // Get theme ID - use provided theme or default to active Marketplace theme
-    let themeId = siteData.theme_id
-    
-    if (!themeId) {
-      const { data: defaultTheme } = await supabaseAdmin
-        .from('themes')
-        .select('id')
-        .eq('status', 'active')
-        .eq('name', 'Marketplace')
-        .single()
-      
-      if (defaultTheme) {
-        themeId = defaultTheme.id
-      }
-    }
-    
-    if (!themeId) {
-      return { data: null, error: 'No theme selected and no default theme available' }
-    }
-    
-    // Validate theme exists and is active
-    const { data: theme, error: themeError } = await supabaseAdmin
-      .from('themes')
-      .select('id, status')
-      .eq('id', themeId)
-      .single()
-
-    if (themeError || !theme) {
-      return { data: null, error: 'Selected theme not found' }
-    }
-
-    if (theme.status !== 'active') {
-      return { data: null, error: 'Selected theme is not active' }
     }
 
     // Get the authenticated user's ID from the session
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
-    
+
     const actualUserId = user.id
-    // Creating site for authenticated user
 
     // Prepare settings with font, favicon, and animation configuration
     const settings = {
@@ -239,7 +189,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700'],
       favicon: siteData.favicon || null,
       animations: siteData.animations || {
-        enabled: false, // Performance-first: disabled by default
+        enabled: false,
         preset: 'fade',
         duration: 0.6,
         stagger: 0.1,
@@ -252,10 +202,10 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       .from('sites')
       .insert([{
         name: siteData.name,
-        theme_id: themeId,
         user_id: actualUserId,
         subdomain,
         status: siteData.status || 'draft',
+        is_template: siteData.is_template || false,
         custom_domain: sanitizeCustomDomain(siteData.custom_domain ?? null),
         settings
       }])
@@ -263,59 +213,23 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       .single()
 
     if (error) {
-      // Database error creating site
       return { data: null, error: `Failed to create site: ${error.message}` }
     }
 
-    // Copy theme blocks to site blocks for the new site
-    const { error: copyError } = await supabaseAdmin
-      .rpc('copy_theme_blocks_to_site', {
-        p_site_id: data.id,
-        p_theme_id: themeId
-      })
-
-    if (copyError) {
-      // Log detailed error for debugging
-      console.error('Failed to copy theme blocks:', copyError)
-      console.error('Error details:', copyError.message, copyError.details, copyError.hint)
-      return { data: null, error: `Failed to copy theme blocks: ${copyError.message}` }
-    }
-
-    // Successfully created site
     return { data: data as Site, error: null }
   } catch (error) {
-    // Unexpected error creating site
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
 
 export async function updateSiteAction(
-  siteId: string, 
+  siteId: string,
   updates: Partial<CreateSiteData>
 ): Promise<{ data: Site | null; error: string | null }> {
   try {
-    // Updating site
-    
-    // If updating theme, validate it exists and is active
-    if (updates.theme_id) {
-      const { data: theme, error: themeError } = await supabaseAdmin
-        .from('themes')
-        .select('id, status')
-        .eq('id', updates.theme_id)
-        .single()
-
-      if (themeError || !theme) {
-        return { data: null, error: 'Selected theme not found' }
-      }
-
-      if (theme.status !== 'active') {
-        return { data: null, error: 'Selected theme is not active' }
-      }
-    }
-
     // Prepare updates
     let finalUpdates: any = { ...updates }
 
@@ -438,33 +352,23 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
   }
 }
 
-export async function getSiteByIdAction(siteId: string): Promise<{ data: SiteWithTheme | null; error: string | null }> {
+export async function getSiteByIdAction(siteId: string): Promise<{ data: Site | null; error: string | null }> {
   try {
     const { data, error } = await supabaseAdmin
       .from('sites')
-      .select(`
-        *,
-        themes(
-          id,
-          name,
-          description,
-          metadata
-        )
-      `)
+      .select('*')
       .eq('id', siteId)
       .single()
 
     if (error) {
-      // Database error fetching site
       return { data: null, error: `Failed to fetch site: ${error.message}` }
     }
 
-    return { data: data as SiteWithTheme, error: null }
+    return { data: data as Site, error: null }
   } catch (error) {
-    // Unexpected error fetching site
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
