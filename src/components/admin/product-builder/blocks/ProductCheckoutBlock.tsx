@@ -591,10 +591,12 @@ export function ProductCheckoutBlock({
   return (
     <>
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-2 rounded-none gap-2">
-        <TabsTrigger value="checkout">Checkout</TabsTrigger>
-        <TabsTrigger value="success">Success Page</TabsTrigger>
-      </TabsList>
+      <div className="px-6 pt-6">
+        <TabsList>
+          <TabsTrigger value="checkout">Checkout</TabsTrigger>
+          <TabsTrigger value="success">Success Page</TabsTrigger>
+        </TabsList>
+      </div>
 
       {/* Tab 1: Checkout */}
       <TabsContent value="checkout" className="mt-6">
