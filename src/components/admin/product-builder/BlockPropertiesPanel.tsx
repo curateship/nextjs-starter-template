@@ -93,54 +93,8 @@ export function BlockPropertiesPanel({
             
             {selectedBlock.type === 'product-hero' && (
               <ProductHeroBlock
-                title={selectedBlock.content.title || ''}
-                subtitle={selectedBlock.content.subtitle || ''}
-                primaryButton={selectedBlock.content.primaryButton || ''}
-                secondaryButton={selectedBlock.content.secondaryButton || ''}
-                primaryButtonLink={selectedBlock.content.primaryButtonLink || ''}
-                secondaryButtonLink={selectedBlock.content.secondaryButtonLink || ''}
-                primaryButtonStyle={selectedBlock.content.primaryButtonStyle || 'primary'}
-                secondaryButtonStyle={selectedBlock.content.secondaryButtonStyle || 'outline'}
-                showRainbowButton={selectedBlock.content.showRainbowButton || false}
-                rainbowButtonText={selectedBlock.content.rainbowButtonText || ''}
-                rainbowButtonIcon={selectedBlock.content.rainbowButtonIcon || 'github'}
-                githubLink={selectedBlock.content.githubLink || ''}
-                showParticles={selectedBlock.content.showParticles || false}
-                trustedByText={selectedBlock.content.trustedByText || ''}
-                trustedByCount={selectedBlock.content.trustedByCount || ''}
-                trustedByAvatars={selectedBlock.content.trustedByAvatars || [
-                  { src: "", alt: "User 1", fallback: "U1" },
-                  { src: "", alt: "User 2", fallback: "U2" },
-                  { src: "", alt: "User 3", fallback: "U3" }
-                ]}
-                backgroundPattern={selectedBlock.content.backgroundPattern || 'dots'}
-                backgroundPatternSize={selectedBlock.content.backgroundPatternSize || 'medium'}
-                backgroundPatternOpacity={selectedBlock.content.backgroundPatternOpacity || 80}
-                heroImage={selectedBlock.content.heroImage || ''}
-                showHeroImage={selectedBlock.content.showHeroImage || false}
-                showTrustedByBadge={selectedBlock.content.showTrustedByBadge ?? true}
-                onTitleChange={(value) => updateBlockContent('title', value)}
-                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
-                onPrimaryButtonChange={(value) => updateBlockContent('primaryButton', value)}
-                onSecondaryButtonChange={(value) => updateBlockContent('secondaryButton', value)}
-                onPrimaryButtonLinkChange={(value) => updateBlockContent('primaryButtonLink', value)}
-                onSecondaryButtonLinkChange={(value) => updateBlockContent('secondaryButtonLink', value)}
-                onPrimaryButtonStyleChange={(value) => updateBlockContent('primaryButtonStyle', value)}
-                onSecondaryButtonStyleChange={(value) => updateBlockContent('secondaryButtonStyle', value)}
-                onShowRainbowButtonChange={(value) => updateBlockContent('showRainbowButton', value)}
-                onRainbowButtonTextChange={(value) => updateBlockContent('rainbowButtonText', value)}
-                onRainbowButtonIconChange={(value) => updateBlockContent('rainbowButtonIcon', value)}
-                onGithubLinkChange={(value) => updateBlockContent('githubLink', value)}
-                onShowParticlesChange={(value) => updateBlockContent('showParticles', value)}
-                onTrustedByTextChange={(value) => updateBlockContent('trustedByText', value)}
-                onTrustedByCountChange={(value) => updateBlockContent('trustedByCount', value)}
-                onTrustedByAvatarsChange={(avatars) => updateBlockContent('trustedByAvatars', avatars)}
-                onBackgroundPatternChange={(value) => updateBlockContent('backgroundPattern', value)}
-                onBackgroundPatternSizeChange={(value) => updateBlockContent('backgroundPatternSize', value)}
-                onBackgroundPatternOpacityChange={(value) => updateBlockContent('backgroundPatternOpacity', value)}
-                onHeroImageChange={(value) => updateBlockContent('heroImage', value)}
-                onShowHeroImageChange={(value) => updateBlockContent('showHeroImage', value)}
-                onShowTrustedByBadgeChange={(value) => updateBlockContent('showTrustedByBadge', value)}
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
               />

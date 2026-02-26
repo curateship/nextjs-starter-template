@@ -106,7 +106,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="px-6 pt-6">
-        <TabsList>
+        <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
         </TabsList>

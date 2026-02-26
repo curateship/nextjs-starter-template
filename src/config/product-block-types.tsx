@@ -27,16 +27,29 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     defaultContent: {
       title: 'New Product Hero',
       subtitle: 'Add your subtitle here',
-      buttons: [
-        {
-          text: 'Primary Action',
-          variant: 'default',
-          link: ''
+      primaryButton: 'Get Started',
+      primaryButtonLink: '#',
+      primaryButtonStyle: 'primary',
+      secondaryButton: 'Learn More',
+      secondaryButtonLink: '#',
+      secondaryButtonStyle: 'outline',
+      heroStyle: 'default',
+      styleConfig: {
+        default: {
+          heroImage: '',
+          showHeroImage: false,
+          rainbowButtonText: '',
+          rainbowButtonIcon: 'star',
+          rainbowButtonLink: '',
+          trustedByText: '',
+          trustedByAvatars: [],
+          showTrustedByBadge: false,
+          backgroundPattern: 'dots',
+          backgroundPatternSize: 'medium',
+          backgroundPatternOpacity: 80,
+          showParticles: false,
+          githubLink: '',
         }
-      ],
-      colors: {
-        background: '#ffffff',
-        text: '#000000'
       }
     }
   },
