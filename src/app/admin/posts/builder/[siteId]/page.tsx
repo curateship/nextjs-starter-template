@@ -219,46 +219,43 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-        <div className="flex min-h-screen">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.handleUpdateBlock}
-            siteId={siteId}
-            currentPost={currentPost}
-            site={{
-              id: siteId,
-              name: site?.name || 'Post Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
-            }}
-            siteBlocks={{
-              navigation: site?.settings?.navigation,
-              footer: site?.settings?.footer,
-              show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image
-            }}
-            blocksLoading={loading}
-            onPostTitleChange={handlePostTitleChange}
-          />
-          
-          <BlockListPanel
-            currentPost={currentPost}
-            selectedBlock={builderState.selectedBlock as any}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewPost={() => builderState.setSelectedBlock(null)}
-            onCleanupCorrupted={builderState.handleCleanupCorrupted}
-            deleting={null}
-            blocksLoading={loading}
-            postData={{
-              title: currentPostData?.title,
-              meta_description: currentPostData?.meta_description || undefined,
-              excerpt: currentPostData?.excerpt || undefined
-            }}
-          />
-        </div>
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.handleUpdateBlock}
+          siteId={siteId}
+          currentPost={currentPost}
+          site={{
+            id: siteId,
+            name: site?.name || 'Post Site',
+            subdomain: site?.subdomain || 'preview',
+            settings: site?.settings
+          }}
+          siteBlocks={{
+            navigation: site?.settings?.navigation,
+            footer: site?.settings?.footer,
+            show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image
+          }}
+          blocksLoading={loading}
+          onPostTitleChange={handlePostTitleChange}
+        />
+
+        <BlockListPanel
+          currentPost={currentPost}
+          selectedBlock={builderState.selectedBlock as any}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewPost={() => builderState.setSelectedBlock(null)}
+          onCleanupCorrupted={builderState.handleCleanupCorrupted}
+          deleting={null}
+          blocksLoading={loading}
+          postData={{
+            title: currentPostData?.title,
+            meta_description: currentPostData?.meta_description || undefined,
+            excerpt: currentPostData?.excerpt || undefined
+          }}
+        />
 
         <BlockSelectionModal
           open={blockModalOpen}
@@ -266,7 +263,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={Object.values(builderState.blocks).map(b => b.type)}
         />
-        </AdminLayout>
       </div>
     </div>
   )

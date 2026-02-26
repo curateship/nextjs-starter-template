@@ -229,42 +229,38 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         site={undefined}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-          <div className="flex min-h-screen">
-            <BlockPropertiesPanel
-              selectedBlock={builderState.selectedBlock}
-              updateBlockContent={builderState.updateBlockContent}
-              siteId={siteId}
-              currentPage={currentPage}
-              site={site ? {
-                id: site.id,
-                name: site.name,
-                subdomain: site.subdomain,
-                settings: site.settings
-              } : undefined}
-              blocksLoading={blocksLoading}
-            />
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.updateBlockContent}
+          siteId={siteId}
+          currentPage={currentPage}
+          site={site ? {
+            id: site.id,
+            name: site.name,
+            subdomain: site.subdomain,
+            settings: site.settings
+          } : undefined}
+          blocksLoading={blocksLoading}
+        />
 
-            <BlockListPanel
-              currentPage={currentPage}
-              selectedBlock={builderState.selectedBlock}
-              onSelectBlock={builderState.setSelectedBlock}
-              onDeleteBlock={builderState.handleDeleteBlock}
-              onReorderBlocks={builderState.handleReorderBlocks}
-              onPreviewPage={() => builderState.setSelectedBlock(null)}
-              deleting={builderState.deleting}
-              blocksLoading={blocksLoading}
-            />
-          </div>
+        <BlockListPanel
+          currentPage={currentPage}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewPage={() => builderState.setSelectedBlock(null)}
+          deleting={builderState.deleting}
+          blocksLoading={blocksLoading}
+        />
 
-          <BlockSelectionModal
-            open={blockModalOpen}
-            onOpenChange={setBlockModalOpen}
-            onAddBlocks={builderState.handleAddBlocks}
-            existingBlockTypes={currentPage.blocks.map(b => b.type)}
-          />
-        </AdminLayout>
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentPage.blocks.map(b => b.type)}
+        />
       </div>
     </div>
   )

@@ -222,47 +222,44 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         onSave={builderState.handleSaveAllBlocks}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-        <div className="flex min-h-screen">
-            <BlockPropertiesPanel
-              selectedBlock={builderState.selectedBlock}
-              updateBlockContent={builderState.updateBlockContent}
-              siteId={siteId}
-              currentDirectory={{
-                ...currentDirectory,
-                id: currentDirectoryData?.id,
-                title: currentDirectoryData?.title,
-                meta_description: currentDirectoryData?.meta_description || undefined,
-                site_id: currentDirectoryData?.site_id,
-                featured_image: currentDirectoryData?.featured_image,
-                description: currentDirectoryData?.description
-              }}
-              site={{
-                id: siteId,
-                name: site?.name || 'Directory Site',
-                subdomain: site?.subdomain || 'preview',
-                settings: site?.settings
-              }}
-              siteBlocks={siteBlocks}
-              blocksLoading={blocksLoading}
-              onTitleChange={handleTitleChange}
-              onDescriptionChange={handleDescriptionChange}
-              onFeaturedImageChange={handleFeaturedImageChange}
-              onStatusChange={handleStatusChange}
-            />
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.updateBlockContent}
+          siteId={siteId}
+          currentDirectory={{
+            ...currentDirectory,
+            id: currentDirectoryData?.id,
+            title: currentDirectoryData?.title,
+            meta_description: currentDirectoryData?.meta_description || undefined,
+            site_id: currentDirectoryData?.site_id,
+            featured_image: currentDirectoryData?.featured_image,
+            description: currentDirectoryData?.description
+          }}
+          site={{
+            id: siteId,
+            name: site?.name || 'Directory Site',
+            subdomain: site?.subdomain || 'preview',
+            settings: site?.settings
+          }}
+          siteBlocks={siteBlocks}
+          blocksLoading={blocksLoading}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onFeaturedImageChange={handleFeaturedImageChange}
+          onStatusChange={handleStatusChange}
+        />
 
-            <BlockListPanel
-              currentDirectory={currentDirectory}
-              selectedBlock={builderState.selectedBlock}
-              onSelectBlock={builderState.setSelectedBlock}
-              onDeleteBlock={builderState.handleDeleteBlock}
-              onReorderBlocks={builderState.handleReorderBlocks}
-              onPreviewDirectory={() => builderState.setSelectedBlock(null)}
-              deleting={null}
-              blocksLoading={blocksLoading}
-            />
-        </div>
+        <BlockListPanel
+          currentDirectory={currentDirectory}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewDirectory={() => builderState.setSelectedBlock(null)}
+          deleting={null}
+          blocksLoading={blocksLoading}
+        />
 
         <BlockSelectionModal
           open={blockModalOpen}
@@ -270,7 +267,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
         />
-        </AdminLayout>
       </div>
     </div>
   )

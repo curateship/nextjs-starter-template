@@ -228,46 +228,43 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         onAIComplete={handleAIComplete}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-        <div className="flex min-h-screen">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-            siteId={siteId}
-            currentProduct={{
-              ...currentProduct,
-              id: currentProductData?.id,
-              title: currentProductData?.title,
-              meta_description: currentProductData?.description || undefined,
-              site_id: currentProductData?.site_id,
-              featured_image: currentProductData?.featured_image,
-              description: currentProductData?.description
-            }}
-            site={{
-              id: siteId,
-              name: site?.name || 'Product Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
-            }}
-            blocksLoading={blocksLoading}
-            onTitleChange={handleTitleChange}
-            onDescriptionChange={handleDescriptionChange}
-            onFeaturedImageChange={handleFeaturedImageChange}
-            onStatusChange={handleStatusChange}
-          />
-          
-          <BlockListPanel
-            currentProduct={currentProduct}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewProduct={() => builderState.setSelectedBlock(null)}
-            deleting={null}
-            blocksLoading={blocksLoading}
-          />
-        </div>
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.updateBlockContent}
+          siteId={siteId}
+          currentProduct={{
+            ...currentProduct,
+            id: currentProductData?.id,
+            title: currentProductData?.title,
+            meta_description: currentProductData?.description || undefined,
+            site_id: currentProductData?.site_id,
+            featured_image: currentProductData?.featured_image,
+            description: currentProductData?.description
+          }}
+          site={{
+            id: siteId,
+            name: site?.name || 'Product Site',
+            subdomain: site?.subdomain || 'preview',
+            settings: site?.settings
+          }}
+          blocksLoading={blocksLoading}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onFeaturedImageChange={handleFeaturedImageChange}
+          onStatusChange={handleStatusChange}
+        />
+
+        <BlockListPanel
+          currentProduct={currentProduct}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewProduct={() => builderState.setSelectedBlock(null)}
+          deleting={null}
+          blocksLoading={blocksLoading}
+        />
 
         <BlockSelectionModal
           open={blockModalOpen}
@@ -275,7 +272,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentProduct.blocks.map(b => b.type)}
         />
-        </AdminLayout>
       </div>
     </div>
   )

@@ -240,55 +240,51 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
         taxonomyType={currentType}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-          <div className="flex min-h-screen">
-            <BlockPropertiesPanel
-              selectedBlock={builderState.selectedBlock}
-              updateBlockContent={builderState.updateBlockContent}
-              siteId={siteId}
-              currentTaxonomy={{
-                ...currentTaxonomy,
-                id: currentTaxonomyData?.id,
-                title: currentTaxonomyData?.title,
-                meta_description: currentTaxonomyData?.meta_description || undefined,
-                site_id: currentTaxonomyData?.site_id,
-                featured_image: currentTaxonomyData?.featured_image,
-                description: currentTaxonomyData?.description
-              }}
-              site={{
-                id: siteId,
-                name: site?.name || 'Taxonomy Site',
-                subdomain: site?.subdomain || 'preview',
-                settings: site?.settings
-              }}
-              siteBlocks={siteBlocks}
-              blocksLoading={blocksLoading}
-              onTitleChange={handleTitleChange}
-              onDescriptionChange={handleDescriptionChange}
-              onFeaturedImageChange={handleFeaturedImageChange}
-              onStatusChange={handleStatusChange}
-            />
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.updateBlockContent}
+          siteId={siteId}
+          currentTaxonomy={{
+            ...currentTaxonomy,
+            id: currentTaxonomyData?.id,
+            title: currentTaxonomyData?.title,
+            meta_description: currentTaxonomyData?.meta_description || undefined,
+            site_id: currentTaxonomyData?.site_id,
+            featured_image: currentTaxonomyData?.featured_image,
+            description: currentTaxonomyData?.description
+          }}
+          site={{
+            id: siteId,
+            name: site?.name || 'Taxonomy Site',
+            subdomain: site?.subdomain || 'preview',
+            settings: site?.settings
+          }}
+          siteBlocks={siteBlocks}
+          blocksLoading={blocksLoading}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onFeaturedImageChange={handleFeaturedImageChange}
+          onStatusChange={handleStatusChange}
+        />
 
-            <BlockListPanel
-              currentTaxonomy={currentTaxonomy}
-              selectedBlock={builderState.selectedBlock}
-              onSelectBlock={builderState.setSelectedBlock}
-              onDeleteBlock={builderState.handleDeleteBlock}
-              onReorderBlocks={builderState.handleReorderBlocks}
-              onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
-              deleting={null}
-              blocksLoading={blocksLoading}
-            />
-          </div>
+        <BlockListPanel
+          currentTaxonomy={currentTaxonomy}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewTaxonomy={() => builderState.setSelectedBlock(null)}
+          deleting={null}
+          blocksLoading={blocksLoading}
+        />
 
-          <BlockSelectionModal
-            open={blockModalOpen}
-            onOpenChange={setBlockModalOpen}
-            onAddBlocks={builderState.handleAddBlocks}
-            existingBlockTypes={currentTaxonomy.blocks.map(b => b.type)}
-          />
-        </AdminLayout>
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={builderState.handleAddBlocks}
+          existingBlockTypes={currentTaxonomy.blocks.map(b => b.type)}
+        />
       </div>
     </div>
   )

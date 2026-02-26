@@ -222,47 +222,44 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         onSave={builderState.handleSaveAllBlocks}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
-      <div className="flex-1 overflow-y-auto">
-        <AdminLayout noPadding>
-        <div className="flex min-h-screen">
-          <BlockPropertiesPanel
-            selectedBlock={builderState.selectedBlock}
-            updateBlockContent={builderState.updateBlockContent}
-            siteId={siteId}
-            currentEvent={{
-              ...currentEvent,
-              id: currentEventData?.id,
-              title: currentEventData?.title,
-              meta_description: currentEventData?.meta_description || undefined,
-              site_id: currentEventData?.site_id,
-              featured_image: currentEventData?.featured_image,
-              description: currentEventData?.description
-            }}
-            site={{
-              id: siteId,
-              name: site?.name || 'Event Site',
-              subdomain: site?.subdomain || 'preview',
-              settings: site?.settings
-            }}
-            siteBlocks={siteBlocks}
-            blocksLoading={blocksLoading}
-            onTitleChange={handleTitleChange}
-            onDescriptionChange={handleDescriptionChange}
-            onFeaturedImageChange={handleFeaturedImageChange}
-            onStatusChange={handleStatusChange}
-          />
+      <div className="flex-1 flex overflow-hidden">
+        <BlockPropertiesPanel
+          selectedBlock={builderState.selectedBlock}
+          updateBlockContent={builderState.updateBlockContent}
+          siteId={siteId}
+          currentEvent={{
+            ...currentEvent,
+            id: currentEventData?.id,
+            title: currentEventData?.title,
+            meta_description: currentEventData?.meta_description || undefined,
+            site_id: currentEventData?.site_id,
+            featured_image: currentEventData?.featured_image,
+            description: currentEventData?.description
+          }}
+          site={{
+            id: siteId,
+            name: site?.name || 'Event Site',
+            subdomain: site?.subdomain || 'preview',
+            settings: site?.settings
+          }}
+          siteBlocks={siteBlocks}
+          blocksLoading={blocksLoading}
+          onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
+          onFeaturedImageChange={handleFeaturedImageChange}
+          onStatusChange={handleStatusChange}
+        />
 
-          <BlockListPanel
-            currentEvent={currentEvent}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewEvent={() => builderState.setSelectedBlock(null)}
-            deleting={null}
-            blocksLoading={blocksLoading}
-          />
-        </div>
+        <BlockListPanel
+          currentEvent={currentEvent}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
+          onDeleteBlock={builderState.handleDeleteBlock}
+          onReorderBlocks={builderState.handleReorderBlocks}
+          onPreviewEvent={() => builderState.setSelectedBlock(null)}
+          deleting={null}
+          blocksLoading={blocksLoading}
+        />
 
         <BlockSelectionModal
           open={blockModalOpen}
@@ -270,7 +267,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentEvent.blocks.map(b => b.type)}
         />
-        </AdminLayout>
       </div>
     </div>
   )
