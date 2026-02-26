@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage', 'showRainbowButton',
-  'rainbowButtonText', 'rainbowButtonIcon', 'githubLink',
+  'heroImage', 'showHeroImage',
   'showParticles', 'trustedByText', 'trustedByCount',
   'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
   'backgroundPatternOpacity', 'showTrustedByBadge',

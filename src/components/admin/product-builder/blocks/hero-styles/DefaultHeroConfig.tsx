@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical, X } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   DndContext,
@@ -28,18 +28,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "./index"
-
-// Helper
-const validateUrl = (value: string, onChange: (value: string) => void) => {
-  const trimmed = value.trim()
-  if (trimmed === '') { onChange(trimmed); return }
-  if (trimmed.startsWith('/')) { onChange(trimmed); return }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) { onChange(trimmed); return }
-  if (trimmed.toLowerCase().includes('javascript:') ||
-      trimmed.toLowerCase().includes('data:') ||
-      trimmed.toLowerCase().includes('vbscript:')) { return }
-  onChange(trimmed)
-}
 
 // Sortable avatar item component
 function SortableAvatarItem({
@@ -118,9 +106,6 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
   const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
 
   const heroImage = config.heroImage || ''
-  const rainbowButtonText = config.rainbowButtonText || ''
-  const rainbowButtonIcon = config.rainbowButtonIcon || 'star'
-  const githubLink = config.githubLink || ''
   const trustedByText = config.trustedByText || ''
   const trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }> = config.trustedByAvatars || []
   const backgroundPattern = config.backgroundPattern || 'none'
@@ -253,168 +238,123 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
         </CardContent>
       </Card>
 
-      {/* Hero Image, Rainbow Button & Background Pattern Cards */}
-      <div className="grid grid-cols-3">
-        {/* Hero Image Card */}
-        <Card className="shadow-sm mr-0">
-          <CardHeader>
-            <CardTitle className="text-base">Hero Image</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="relative">
-                {heroImage ? (
-                  <div
-                    className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <img
-                      src={heroImage}
-                      alt="Hero preview"
-                      className="w-full h-24 object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-6 w-6 mb-1" />
-                        <p className="text-xs font-medium">Click to change image</p>
-                      </div>
-                    </div>
+      {/* Hero Image Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Hero Image</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="relative">
+            {heroImage ? (
+              <div
+                className="relative w-[100px] h-[100px] rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setShowHeroImagePicker(true)}
+              >
+                <img
+                  src={heroImage}
+                  alt="Hero preview"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                  <div className="text-white text-center">
+                    <ImageIcon className="mx-auto h-6 w-6 mb-1" />
+                    <p className="text-xs font-medium">Click to change image</p>
                   </div>
-                ) : (
-                  <div
-                    className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
-                      <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
-                    </div>
-                  </div>
-                )}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfigChange('heroImage', '');
+                  }}
+                  className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            ) : (
+              <div
+                className="flex items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                onClick={() => setShowHeroImagePicker(true)}
+              >
+                <div className="text-center">
+                  <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                  <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Rainbow Button Card */}
-        <Card className="shadow-sm mr-0">
-          <CardHeader>
-            <CardTitle className="text-base">Rainbow Button</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      {/* Background Pattern Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Background Pattern</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="inline-flex items-end gap-3">
             <div className="space-y-2">
-              <Label>Rainbow Button Settings</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  value={rainbowButtonText}
-                  onChange={(e) => onConfigChange('rainbowButtonText', e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button text"
-                />
-                <Select
-                  value={rainbowButtonIcon}
-                  onValueChange={(v) => onConfigChange('rainbowButtonIcon', v)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Icon</SelectItem>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="arrow-right">Arrow Right</SelectItem>
-                    <SelectItem value="download">Download</SelectItem>
-                    <SelectItem value="external-link">External Link</SelectItem>
-                    <SelectItem value="star">Star</SelectItem>
-                    <SelectItem value="rocket">Rocket</SelectItem>
-                    <SelectItem value="zap">Zap</SelectItem>
-                  </SelectContent>
-                </Select>
-                <input
-                  type="url"
-                  value={githubLink}
-                  onChange={(e) => validateUrl(e.target.value, (v) => onConfigChange('githubLink', v))}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button link URL"
-                />
-              </div>
+              <Label className="text-xs">Pattern Type</Label>
+              <Select
+                value={backgroundPattern || 'none'}
+                onValueChange={(v) => onConfigChange('backgroundPattern', v)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Background</SelectItem>
+                  <SelectItem value="dots">Dots</SelectItem>
+                  <SelectItem value="grid">Grid</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Add text to display a rainbow call-to-action button
-            </p>
-          </CardContent>
-        </Card>
 
-        {/* Background Pattern Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Background Pattern</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs">Pattern Type</Label>
-                <Select
-                  value={backgroundPattern || 'none'}
-                  onValueChange={(v) => onConfigChange('backgroundPattern', v)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Background</SelectItem>
-                    <SelectItem value="dots">Dots</SelectItem>
-                    <SelectItem value="grid">Grid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {backgroundPattern !== 'none' && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-xs">Size</Label>
+                  <Select
+                    value={backgroundPatternSize || 'medium'}
+                    onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {backgroundPattern !== 'none' && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Size</Label>
-                    <Select
-                      value={backgroundPatternSize || 'medium'}
-                      onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-2">
+                  <Label className="text-xs">Opacity</Label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={backgroundPatternOpacity}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 100) {
+                          onConfigChange('backgroundPatternOpacity', value);
+                        }
+                      }}
+                      className="w-20 px-2 py-1 border rounded-md text-sm"
+                      placeholder="80"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs">Opacity</Label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={backgroundPatternOpacity}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (!isNaN(value) && value >= 0 && value <= 100) {
-                            onConfigChange('backgroundPatternOpacity', value);
-                          }
-                        }}
-                        className="w-20 px-2 py-1 border rounded-md text-sm"
-                        placeholder="80"
-                      />
-                      <span className="text-xs text-muted-foreground">%</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Image Picker Modal for Avatars */}
       <MediaPicker

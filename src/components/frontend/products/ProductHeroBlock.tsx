@@ -7,8 +7,7 @@ import { HERO_STYLE_RENDERERS } from "./hero-styles";
 
 // Fields that were previously at the content root before the styleConfig migration
 const LEGACY_STYLE_FIELDS = [
-  'heroImage', 'showHeroImage', 'showRainbowButton',
-  'rainbowButtonText', 'rainbowButtonIcon', 'githubLink',
+  'heroImage', 'showHeroImage',
   'showParticles', 'trustedByText', 'trustedByCount',
   'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
   'backgroundPatternOpacity', 'showTrustedByBadge',
@@ -27,9 +26,6 @@ interface ProductHeroBlockProps {
   heroStyle?: string;
   styleConfig?: Record<string, Record<string, any>>;
   // Legacy fields (for migration fallback)
-  rainbowButtonText?: string;
-  rainbowButtonIcon?: string;
-  rainbowButtonLink?: string;
   trustedByText?: string;
   trustedByCount?: string;
   trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>;
@@ -37,9 +33,7 @@ interface ProductHeroBlockProps {
   backgroundPatternSize?: string;
   backgroundPatternOpacity?: number;
   heroImage?: string;
-  githubLink?: string;
   showHeroImage?: boolean;
-  showRainbowButton?: boolean;
   showParticles?: boolean;
   showTrustedByBadge?: boolean;
   [key: string]: any;

@@ -5,7 +5,6 @@ import DotPattern from "@/components/ui/dot-pattern";
 import Image from "next/image";
 import { AnimatedGroup } from "@/components/ui/animated-group";
 import { cn } from "@/lib/utils/tailwind-class-merger";
-import { RainbowButton } from "@/components/ui/rainbow-button";
 import { GradientOverlays } from "@/components/ui/gradient-overlays";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
 import type { HeroStyleRendererProps } from "./index";
@@ -117,9 +116,6 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
 export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroStyleRendererProps) => {
   const {
     heroImage,
-    rainbowButtonText,
-    rainbowButtonIcon,
-    githubLink,
     trustedByText,
     trustedByAvatars,
     backgroundPattern,
@@ -143,16 +139,6 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
       <div className="relative z-10 w-full flex flex-col items-center">
         <AnimatedGroup customSettings={{ stagger: 0.2 }}>
           <div className="relative z-10 text-center max-w-3xl space-y-6">
-            {rainbowButtonText && rainbowButtonText.trim() && (
-              <RainbowButton
-                href={githubLink || "#"}
-                icon={rainbowButtonIcon as any}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {rainbowButtonText}
-              </RainbowButton>
-            )}
             {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
             {children}
             {trustedByAvatars && trustedByAvatars.length > 0 && (
