@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use, useRef } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
@@ -24,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateUserPageModal } from "@/components/admin/user-page-builder/CreateUserPageModal"
 import { UserPageSettingsModal } from "@/components/admin/user-page-builder/UserPageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
@@ -49,12 +50,12 @@ export default function UserUserPagesPage({ params }: PageProps) {
   const [duplicatingPageId, setDuplicatingPageId] = useState<string | null>(null)
   const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
+
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
+
 
   // Load site and pages data
   useEffect(() => {
@@ -92,21 +93,6 @@ export default function UserUserPagesPage({ params }: PageProps) {
     loadData()
   }, [siteId])
 
-  // Close filter dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setIsFilterOpen(false)
-      }
-    }
-
-    if (isFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [isFilterOpen])
 
   const handleDeletePage = async (pageId: string) => {
     const page = pages.find(p => p.id === pageId)
@@ -282,51 +268,13 @@ export default function UserUserPagesPage({ params }: PageProps) {
                   )}
                 </div>
               </div>
-              <div className="relative" ref={filterRef}>
-                <Button 
-                  variant="outline"
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className="flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>Filter</span>
-                  <svg className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </Button>
-                {isFilterOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
-                    <div className="py-1">
-                      <button 
-                        onClick={() => { setFilterStatus('all'); setIsFilterOpen(false) }}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filterStatus === 'all' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        All Pages ({statusCounts.all})
-                      </button>
-                      <button 
-                        onClick={() => { setFilterStatus('published'); setIsFilterOpen(false) }}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filterStatus === 'published' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        Published ({statusCounts.published})
-                      </button>
-                      <button 
-                        onClick={() => { setFilterStatus('draft'); setIsFilterOpen(false) }}
-                        className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                          filterStatus === 'draft' ? 'bg-muted font-medium' : ''
-                        }`}
-                      >
-                        Draft ({statusCounts.draft})
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           </div>
           

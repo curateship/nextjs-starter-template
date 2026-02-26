@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
@@ -24,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Calendar, X, AlertCircle, ExternalLink } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"
@@ -35,7 +36,6 @@ import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 export default function EventsPage() {
   const router = useRouter()
   const { currentSite } = useSiteContext()
-  const filterRef = useRef<HTMLDivElement>(null)
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +45,6 @@ export default function EventsPage() {
   const [settingsEventId, setSettingsEventId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -249,75 +248,13 @@ export default function EventsPage() {
                     )}
                   </div>
                 </div>
-                <div className="relative" ref={filterRef}>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                    className="flex items-center space-x-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    <span>Filter</span>
-                    <svg className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </Button>
-                  {isFilterOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
-                      <div className="py-1">
-                        <button 
-                          onClick={() => { setFilterStatus('all'); setIsFilterOpen(false) }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                            filterStatus === 'all' ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          All Events ({statusCounts.all})
-                        </button>
-                        <button 
-                          onClick={() => { setFilterStatus('published'); setIsFilterOpen(false) }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                            filterStatus === 'published' ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          Published ({statusCounts.published})
-                        </button>
-                        <button 
-                          onClick={() => { setFilterStatus('draft'); setIsFilterOpen(false) }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                            filterStatus === 'draft' ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          Draft ({statusCounts.draft})
-                        </button>
-                        <div className="border-t my-1"></div>
-                        <button 
-                          onClick={() => { setFilterPrivacy('private'); setIsFilterOpen(false) }}
-                          className={`block w-full text-left px-4 py-2 text-sm hover:bg-muted ${
-                            filterPrivacy === 'private' ? 'bg-muted font-medium' : ''
-                          }`}
-                        >
-                          Private Only ({privacyCounts.private})
-                        </button>
-                        {(filterStatus !== 'all' || filterPrivacy !== 'all') && (
-                          <>
-                            <div className="border-t my-1"></div>
-                            <button 
-                              onClick={() => { 
-                                setFilterStatus('all')
-                                setFilterPrivacy('all')
-                                setIsFilterOpen(false)
-                              }}
-                              className="block w-full text-left px-4 py-2 text-sm hover:bg-muted text-red-600"
-                            >
-                              Clear Filters
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
               </div>
             </div>
             

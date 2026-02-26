@@ -5,7 +5,7 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, Filter, CheckSquare } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, CheckSquare } from "lucide-react"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -20,13 +20,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 
 export default function ImagesPage() {
@@ -343,28 +338,14 @@ export default function ImagesPage() {
                   </>
                 )}
 
-                {/* Filter Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Filter className="w-4 h-4 mr-2" />
-                      {filterType === 'all' ? 'All Media' : filterType === 'image' ? 'Images' : 'Videos'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleFilterChange('all')}>
-                      All Media
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleFilterChange('image')}>
-                      <ImageIcon className="w-4 h-4 mr-2" />
-                      Images Only
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleFilterChange('video')}>
-                      <VideoIcon className="w-4 h-4 mr-2" />
-                      Videos Only
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* Filter Tabs */}
+                <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="image">Images</TabsTrigger>
+                    <TabsTrigger value="video">Videos</TabsTrigger>
+                  </TabsList>
+                </Tabs>
 
                 {/* View Mode Toggle */}
                 <div className="flex items-center border rounded-md">

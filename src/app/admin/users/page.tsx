@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 
 export default function UsersPage() {
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [users, setUsers] = useState<UserListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -94,57 +94,15 @@ export default function UsersPage() {
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Users List</h3>
-              <div className="relative">
-                <Button 
-                  variant="outline"
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className="flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>Filter</span>
-                  <svg className={`w-4 h-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </Button>
-                {isFilterOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-card border rounded-md shadow-lg z-10">
-                    <div className="py-1">
-                      <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                      >
-                        All Users
-                      </button>
-                      <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                      >
-                        Admin
-                      </button>
-                      <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                      >
-                        Editor
-                      </button>
-                      <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                      >
-                        User
-                      </button>
-                      <button 
-                        onClick={() => setIsFilterOpen(false)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                      >
-                        Guest
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Tabs defaultValue="all">
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="admin">Admin</TabsTrigger>
+                  <TabsTrigger value="editor">Editor</TabsTrigger>
+                  <TabsTrigger value="user">User</TabsTrigger>
+                  <TabsTrigger value="guest">Guest</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           </div>
           
