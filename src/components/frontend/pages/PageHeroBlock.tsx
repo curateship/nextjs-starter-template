@@ -26,6 +26,8 @@ interface PageHeroBlockProps {
   secondaryButtonStyle?: string;
   heroStyle?: string;
   styleConfig?: Record<string, Record<string, any>>;
+  siteWidth?: string;
+  customWidth?: number;
   // Legacy fields (for migration fallback)
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
@@ -56,17 +58,17 @@ const HeroTitle = ({ title }: { title?: string }) => {
 };
 
 // Hero subtitle component
-const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => {
+const HeroSubtitle = ({ subtitle, alignment }: { subtitle?: string; alignment?: string }) => {
   if (!subtitle || !subtitle.trim()) return null;
   return (
-    <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+    <p className={`text-lg text-muted-foreground max-w-xl ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}>
       {subtitle}
     </p>
   );
 };
 
 // Call-to-action buttons component
-const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string | any; secondaryButton?: string | any; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
+const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink, alignment }: { primaryButton?: string | any; secondaryButton?: string | any; primaryButtonLink?: string; secondaryButtonLink?: string; alignment?: string }) => {
   const getPrimaryButtonText = () => {
     if (typeof primaryButton === 'string') return primaryButton;
     if (typeof primaryButton === 'object' && primaryButton?.text) return primaryButton.text;
@@ -109,7 +111,7 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
   if (!validPrimaryLink && !validSecondaryLink) return null;
 
   return (
-    <div className="mt-8 flex justify-center gap-4 flex-wrap">
+    <div className={`mt-8 flex gap-4 flex-wrap ${alignment === 'left' ? 'justify-start' : alignment === 'right' ? 'justify-end' : 'justify-center'}`}>
       {validPrimaryLink && (
         <Link href={validPrimaryLink}>
           <Button size="lg">{getPrimaryButtonText()}</Button>
@@ -138,12 +140,14 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     secondaryButtonStyle,
     heroStyle = 'default',
     styleConfig,
+    siteWidth,
+    customWidth,
   } = props;
 
   // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
   let resolvedConfig: Record<string, any>;
   if (styleConfig && styleConfig[heroStyle]) {
-    resolvedConfig = styleConfig[heroStyle];
+    resolvedConfig = { ...styleConfig[heroStyle] };
   } else {
     // Legacy fallback: pull style fields from the root props
     resolvedConfig = {};
@@ -154,7 +158,13 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     });
   }
 
+  // Default contentMaxWidth to the site-level width if not explicitly set
+  if (resolvedConfig.contentMaxWidth === undefined && customWidth) {
+    resolvedConfig.contentMaxWidth = customWidth;
+  }
+
   const StyleRenderer = HERO_STYLE_RENDERERS[heroStyle] || HERO_STYLE_RENDERERS.default;
+  const alignment = resolvedConfig.alignment || 'center';
 
   const sharedContent = {
     title,
@@ -172,12 +182,13 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
         {/* Shared content rendered by orchestrator, placed by the style renderer */}
         <HeroTitle title={title} />
-        <HeroSubtitle subtitle={subtitle} />
+        <HeroSubtitle subtitle={subtitle} alignment={alignment} />
         <CTAButtons
           primaryButton={primaryButton}
           secondaryButton={secondaryButton}
           primaryButtonLink={primaryButtonLink}
           secondaryButtonLink={secondaryButtonLink}
+          alignment={alignment}
         />
       </StyleRenderer>
     </section>

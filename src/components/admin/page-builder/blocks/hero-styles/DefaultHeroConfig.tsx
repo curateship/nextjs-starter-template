@@ -2,11 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical, X } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   DndContext,
@@ -28,18 +30,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "./index"
-
-// Helper
-const validateUrl = (value: string, onChange: (value: string) => void) => {
-  const trimmed = value.trim()
-  if (trimmed === '') { onChange(trimmed); return }
-  if (trimmed.startsWith('/')) { onChange(trimmed); return }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) { onChange(trimmed); return }
-  if (trimmed.toLowerCase().includes('javascript:') ||
-      trimmed.toLowerCase().includes('data:') ||
-      trimmed.toLowerCase().includes('vbscript:')) { return }
-  onChange(trimmed)
-}
 
 // Sortable avatar item component
 function SortableAvatarItem({
@@ -117,10 +107,10 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
   const [showPicker, setShowPicker] = useState<number | null>(null)
   const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
 
+  const alignment = config.alignment || 'center'
+  const contentWidth = config.contentWidth || 'full'
+  const contentMaxWidth = config.contentMaxWidth ?? 1152
   const heroImage = config.heroImage || ''
-  const rainbowButtonText = config.rainbowButtonText || ''
-  const rainbowButtonIcon = config.rainbowButtonIcon || 'star'
-  const githubLink = config.githubLink || ''
   const trustedByText = config.trustedByText || ''
   const trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }> = config.trustedByAvatars || []
   const backgroundPattern = config.backgroundPattern || 'none'
@@ -187,6 +177,69 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
 
   return (
     <div className="">
+      {/* Alignment Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Content Alignment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            {(['left', 'center', 'right'] as const).map((option) => (
+              <div key={option} className="flex items-center gap-2">
+                <Checkbox
+                  id={`alignment-${option}`}
+                  checked={alignment === option}
+                  onCheckedChange={() => onConfigChange('alignment', option)}
+                />
+                <Label htmlFor={`alignment-${option}`} className="text-sm capitalize cursor-pointer">{option}</Label>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Content Width Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Content Width</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="contentWidth"
+              checked={contentWidth === 'fixed'}
+              onCheckedChange={(checked) => onConfigChange('contentWidth', checked ? 'fixed' : 'full')}
+            />
+            <Label htmlFor="contentWidth" className="text-sm cursor-pointer">Constrain to fixed width</Label>
+            {contentWidth === 'fixed' && (
+              <>
+                <input
+                  type="number"
+                  min="600"
+                  max="2000"
+                  value={contentMaxWidth}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') return;
+                    const value = parseInt(raw);
+                    if (!isNaN(value)) {
+                      onConfigChange('contentMaxWidth', value);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (isNaN(value) || value < 600) onConfigChange('contentMaxWidth', 600);
+                    else if (value > 2000) onConfigChange('contentMaxWidth', 2000);
+                  }}
+                  className="w-20 px-2 py-1 border rounded-md text-sm"
+                />
+                <span className="text-xs text-muted-foreground">px</span>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Trusted By Section Card */}
       <Card className="shadow-sm">
         <CardHeader>
@@ -253,168 +306,174 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
         </CardContent>
       </Card>
 
-      {/* Hero Image, Rainbow Button & Background Pattern Cards */}
-      <div className="grid grid-cols-3">
-        {/* Hero Image Card */}
-        <Card className="shadow-sm mr-0">
-          <CardHeader>
-            <CardTitle className="text-base">Hero Image</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-4">
-              <div className="relative">
-                {heroImage ? (
-                  <div
-                    className="relative rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <img
-                      src={heroImage}
-                      alt="Hero preview"
-                      className="w-full h-24 object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-6 w-6 mb-1" />
-                        <p className="text-xs font-medium">Click to change image</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                    onClick={() => setShowHeroImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
-                      <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Rainbow Button Card */}
-        <Card className="shadow-sm mr-0">
-          <CardHeader>
-            <CardTitle className="text-base">Rainbow Button</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Rainbow Button Settings</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  value={rainbowButtonText}
-                  onChange={(e) => onConfigChange('rainbowButtonText', e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button text"
+      {/* Hero Background Image & Pattern Card */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">Hero Background Image & Pattern</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Image picker */}
+          <div className="relative">
+            {heroImage ? (
+              <div
+                className="relative w-[100px] h-[100px] rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setShowHeroImagePicker(true)}
+              >
+                <img
+                  src={heroImage}
+                  alt="Hero preview"
+                  className="w-full h-full object-cover"
                 />
-                <Select
-                  value={rainbowButtonIcon}
-                  onValueChange={(v) => onConfigChange('rainbowButtonIcon', v)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Icon</SelectItem>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="arrow-right">Arrow Right</SelectItem>
-                    <SelectItem value="download">Download</SelectItem>
-                    <SelectItem value="external-link">External Link</SelectItem>
-                    <SelectItem value="star">Star</SelectItem>
-                    <SelectItem value="rocket">Rocket</SelectItem>
-                    <SelectItem value="zap">Zap</SelectItem>
-                  </SelectContent>
-                </Select>
-                <input
-                  type="url"
-                  value={githubLink}
-                  onChange={(e) => validateUrl(e.target.value, (v) => onConfigChange('githubLink', v))}
-                  className="px-3 py-2 border rounded-md text-sm"
-                  placeholder="Button link URL"
-                />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Add text to display a rainbow call-to-action button
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Background Pattern Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Background Pattern</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs">Pattern Type</Label>
-                <Select
-                  value={backgroundPattern || 'none'}
-                  onValueChange={(v) => onConfigChange('backgroundPattern', v)}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Background</SelectItem>
-                    <SelectItem value="dots">Dots</SelectItem>
-                    <SelectItem value="grid">Grid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {backgroundPattern !== 'none' && (
-                <>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Size</Label>
-                    <Select
-                      value={backgroundPatternSize || 'medium'}
-                      onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="small">Small</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="large">Large</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                  <div className="text-white text-center">
+                    <ImageIcon className="mx-auto h-6 w-6 mb-1" />
+                    <p className="text-xs font-medium">Click to change image</p>
                   </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfigChange('heroImage', '');
+                  }}
+                  className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                onClick={() => setShowHeroImagePicker(true)}
+              >
+                <div className="text-center">
+                  <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                  <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
+                </div>
+              </div>
+            )}
+          </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs">Opacity</Label>
-                    <div className="flex items-center space-x-2">
+          {/* Image options */}
+          {heroImage && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">Image Alignment</Label>
+                <div className="flex gap-4">
+                  {(['left', 'center', 'right'] as const).map((option) => (
+                    <div key={option} className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`heroImageAlign-${option}`}
+                        checked={(config.heroImageAlign || 'center') === option}
+                        onCheckedChange={() => onConfigChange('heroImageAlign', option)}
+                      />
+                      <Label htmlFor={`heroImageAlign-${option}`} className="text-xs capitalize cursor-pointer">{option}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Image Size</Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="heroImageCustomSize"
+                    checked={!!config.heroImageSize}
+                    onCheckedChange={(checked) => onConfigChange('heroImageSize', checked ? 600 : null)}
+                  />
+                  <Label htmlFor="heroImageCustomSize" className="text-xs cursor-pointer">Custom size</Label>
+                  {config.heroImageSize && (
+                    <>
                       <input
                         type="number"
-                        min="0"
-                        max="100"
-                        value={backgroundPatternOpacity}
+                        min="100"
+                        max="2000"
+                        value={config.heroImageSize}
                         onChange={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (!isNaN(value) && value >= 0 && value <= 100) {
-                            onConfigChange('backgroundPatternOpacity', value);
+                          const raw = e.target.value;
+                          if (raw === '') return;
+                          const value = parseInt(raw);
+                          if (!isNaN(value)) {
+                            onConfigChange('heroImageSize', value);
                           }
                         }}
-                        className="w-20 px-2 py-1 border rounded-md text-sm"
-                        placeholder="80"
+                        onBlur={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (isNaN(value) || value < 100) onConfigChange('heroImageSize', 100);
+                          else if (value > 2000) onConfigChange('heroImageSize', 2000);
+                        }}
+                        className="w-20 px-2 py-1 border rounded-md text-xs"
                       />
-                      <span className="text-xs text-muted-foreground">%</span>
-                    </div>
+                      <span className="text-xs text-muted-foreground">px</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Background Pattern */}
+          <div className="inline-flex items-center gap-3 pt-2">
+            <Field orientation="horizontal" className="w-auto">
+              <FieldLabel>Pattern</FieldLabel>
+              <Select
+                value={backgroundPattern || 'none'}
+                onValueChange={(v) => onConfigChange('backgroundPattern', v)}
+              >
+                <SelectTrigger className="bg-background w-auto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="dots">Dots</SelectItem>
+                  <SelectItem value="grid">Grid</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            {backgroundPattern !== 'none' && (
+              <>
+                <Field orientation="horizontal" className="w-auto">
+                  <FieldLabel>Size</FieldLabel>
+                  <Select
+                    value={backgroundPatternSize || 'medium'}
+                    onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
+                  >
+                    <SelectTrigger className="bg-background w-auto">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field orientation="horizontal" className="w-auto">
+                  <FieldLabel>Opacity</FieldLabel>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={backgroundPatternOpacity}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 100) {
+                          onConfigChange('backgroundPatternOpacity', value);
+                        }
+                      }}
+                      className="w-16 px-2 py-1 border rounded-md text-sm"
+                      placeholder="80"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                </Field>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Image Picker Modal for Avatars */}
       <MediaPicker

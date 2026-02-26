@@ -61,6 +61,8 @@ export function BlockRenderer({ site }: BlockRendererProps) {
             <PageHeroBlock
               key={`hero-${block.id}`}
               {...block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }
