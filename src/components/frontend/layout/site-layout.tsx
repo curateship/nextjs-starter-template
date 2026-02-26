@@ -17,19 +17,7 @@ interface SiteLayoutProps {
       [key: string]: any
     }
   }
-  navigation?: {
-    logo?: string
-    logoUrl?: string
-    links?: Array<{ text: string; url: string }>
-    buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>
-    style?: { 
-      backgroundColor: string
-      textColor: string
-      containerWidth?: 'full' | 'custom'
-      customWidth?: number
-      [key: string]: any // Allow additional properties to pass through
-    }
-  }
+  navigation?: Record<string, any>
   footer?: {
     logo?: string
     logoUrl?: string
@@ -43,7 +31,13 @@ interface SiteLayoutProps {
 
 export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
   // Check if dark mode toggle is enabled in navigation settings
-  const enableThemeToggle = navigation?.style?.showDarkModeToggle !== false
+  // Resolve from styleConfig (new) or style (legacy)
+  const resolvedNavStyle = (() => {
+    const activeStyle = navigation?.navigationStyle || 'default'
+    if (navigation?.styleConfig?.[activeStyle]) return navigation.styleConfig[activeStyle]
+    return navigation?.style
+  })()
+  const enableThemeToggle = resolvedNavStyle?.showDarkModeToggle !== false
 
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>

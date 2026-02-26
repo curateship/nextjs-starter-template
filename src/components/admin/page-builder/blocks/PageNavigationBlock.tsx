@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical, Globe } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical, Globe, Check } from "lucide-react"
+import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DndContext,
@@ -23,13 +23,13 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { NAVIGATION_STYLES } from "./navigation-styles"
 
 interface NavigationLink {
   text: string
@@ -45,26 +45,9 @@ interface NavigationButton {
   id?: string
 }
 
-interface NavigationStyle {
-  backgroundColor: string
-  textColor: string
-  blurEffect: 'none' | 'light' | 'medium' | 'heavy'
-  containerWidth?: 'full' | 'custom'
-  customWidth?: number
-  showDarkModeToggle?: boolean
-}
-
-interface NavigationBlockProps {
-  logo: string
-  logoUrl: string
-  links: NavigationLink[]
-  buttons: NavigationButton[]
-  style: NavigationStyle
-  onLogoChange: (value: string) => void
-  onLogoUrlChange: (value: string) => void
-  onLinksChange: (links: NavigationLink[]) => void
-  onButtonsChange: (buttons: NavigationButton[]) => void
-  onStyleChange: (style: NavigationStyle) => void
+interface PageNavigationBlockProps {
+  content: Record<string, any>
+  onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
   siteFavicon?: string
@@ -236,127 +219,176 @@ function SortableLinkItem({
   )
 }
 
-export function PageNavigationBlock({
-  logo,
-  logoUrl,
-  links = [],
-  buttons = [],
-  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152, showDarkModeToggle: true },
-  onLogoChange,
-  onLogoUrlChange,
-  onLinksChange,
-  onButtonsChange,
-  onStyleChange,
-  siteId,
-  siteFavicon,
-}: NavigationBlockProps) {
+export function PageNavigationBlock({ content, onContentChange, siteId, blockId, siteFavicon }: PageNavigationBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState(false)
-  
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
 
+  const logo = content.logo || ''
+  const logoUrl = content.logoUrl || ''
+  const links: NavigationLink[] = content.links || []
+  const buttons: NavigationButton[] = content.buttons || []
+  const navigationStyle = content.navigationStyle || 'default'
+  const styleConfig = content.styleConfig || {}
+  const currentStyleConfig = styleConfig[navigationStyle] || {}
+
+  // Lazy migration: move legacy flat `style` object into styleConfig.default
+  useEffect(() => {
+    if (content.style && !content.styleConfig) {
+      onContentChange('styleConfig', {
+        default: { ...content.style },
+      })
+      onContentChange('style', undefined)
+      if (!content.navigationStyle) {
+        onContentChange('navigationStyle', 'default')
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleStyleConfigChange = useCallback((field: string, value: any) => {
+    const updated = {
+      ...styleConfig,
+      [navigationStyle]: {
+        ...currentStyleConfig,
+        [field]: value,
+      },
+    }
+    onContentChange('styleConfig', updated)
+  }, [styleConfig, navigationStyle, currentStyleConfig, onContentChange])
+
   // Ensure all links and buttons have unique IDs
   useEffect(() => {
     if (!links || !Array.isArray(links)) return
     const linksNeedIds = links.some(link => !link.id)
     if (linksNeedIds) {
-      const linksWithIds = (links || []).map((link, index) => ({
+      const linksWithIds = links.map((link, index) => ({
         ...link,
         id: link.id || `link-${Date.now()}-${index}-${Math.random()}`
       }))
-      onLinksChange(linksWithIds)
+      onContentChange('links', linksWithIds)
     }
-  }, [links, onLinksChange])
+  }, [links, onContentChange])
 
   useEffect(() => {
     if (!buttons || !Array.isArray(buttons)) return
     const buttonsNeedIds = buttons.some(button => !button.id)
     if (buttonsNeedIds) {
-      const buttonsWithIds = (buttons || []).map((button, index) => ({
+      const buttonsWithIds = buttons.map((button, index) => ({
         ...button,
         id: button.id || `button-${Date.now()}-${index}-${Math.random()}`
       }))
-      onButtonsChange(buttonsWithIds)
+      onContentChange('buttons', buttonsWithIds)
     }
-  }, [buttons, onButtonsChange])
-  
+  }, [buttons, onContentChange])
+
   const addLink = () => {
-    const currentLinks = links || []
-    const newLinks = [...currentLinks, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }]
-    onLinksChange(newLinks)
+    onContentChange('links', [...links, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }])
   }
 
   const removeLink = (index: number) => {
-    const newLinks = (links || []).filter((_, i) => i !== index)
-    onLinksChange(newLinks)
+    onContentChange('links', links.filter((_, i) => i !== index))
   }
 
   const updateLink = (index: number, field: 'text' | 'url', value: string) => {
     const newLinks = [...links]
     newLinks[index] = { ...newLinks[index], [field]: value }
-    onLinksChange(newLinks)
-  }
-
-  const updateStyle = (field: keyof NavigationStyle, value: string | number | boolean | undefined) => {
-    onStyleChange({ ...style, [field]: value })
+    onContentChange('links', newLinks)
   }
 
   const handleLinkDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-
     if (over && active.id !== over.id) {
       const oldIndex = links.findIndex((link) => link.id === active.id)
       const newIndex = links.findIndex((link) => link.id === over.id)
-      
       if (oldIndex !== -1 && newIndex !== -1) {
-        onLinksChange(arrayMove(links, oldIndex, newIndex))
+        onContentChange('links', arrayMove(links, oldIndex, newIndex))
       }
     }
   }
 
   const addButton = () => {
-    const newButtons = [...buttons, { text: "", url: "", style: "primary" as const, id: `button-${Date.now()}-${Math.random()}` }]
-    onButtonsChange(newButtons)
+    onContentChange('buttons', [...buttons, { text: "", url: "", style: "primary" as const, id: `button-${Date.now()}-${Math.random()}` }])
   }
 
   const removeButton = (index: number) => {
-    const newButtons = (buttons || []).filter((_, i) => i !== index)
-    onButtonsChange(newButtons)
+    onContentChange('buttons', buttons.filter((_, i) => i !== index))
   }
 
   const updateButton = (index: number, field: keyof NavigationButton, value: string | boolean) => {
     const newButtons = [...buttons]
     newButtons[index] = { ...newButtons[index], [field]: value }
-    onButtonsChange(newButtons)
+    onContentChange('buttons', newButtons)
   }
 
   const handleButtonDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-
     if (over && active.id !== over.id) {
       const oldIndex = buttons.findIndex((button) => button.id === active.id)
       const newIndex = buttons.findIndex((button) => button.id === over.id)
-      
       if (oldIndex !== -1 && newIndex !== -1) {
-        onButtonsChange(arrayMove(buttons, oldIndex, newIndex))
+        onContentChange('buttons', arrayMove(buttons, oldIndex, newIndex))
       }
     }
   }
 
+  const ActivePanel = NAVIGATION_STYLES[navigationStyle]?.AdminPanel
+
   return (
-    <div className="space-y-4">
-      {/* Top row with 3 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6">
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
+        </TabsList>
+      </div>
+
+      {/* Content Tab */}
+      <TabsContent value="content" className="mt-6">
+        {/* Navigation Style Selector */}
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Navigation Style</Label>
+          <div className="grid gap-2 max-w-[260px]">
+            {Object.entries(NAVIGATION_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('navigationStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  navigationStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  navigationStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {navigationStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Logo Card */}
-        <Card className="shadow-sm mr-0">
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Logo</CardTitle>
           </CardHeader>
@@ -413,8 +445,8 @@ export function PageNavigationBlock({
                   <input
                     id="logoUrl"
                     type="text"
-                    value={logoUrl || ''}
-                    onChange={(e) => onLogoUrlChange(e.target.value)}
+                    value={logoUrl}
+                    onChange={(e) => onContentChange('logoUrl', e.target.value)}
                     className="w-full px-3 py-2 border rounded-md text-sm"
                     placeholder="https://example.com (leave empty for site homepage)"
                   />
@@ -426,15 +458,14 @@ export function PageNavigationBlock({
                   Currently using favicon as fallback logo. Click on image to change
                 </p>
               )}
-              
             </div>
-            
+
             {/* Image Picker Modal */}
             <MediaPicker
               open={showPicker}
               onOpenChange={setShowPicker}
               onSelectMedia={(imageUrl) => {
-                onLogoChange(imageUrl)
+                onContentChange('logo', imageUrl)
                 setShowPicker(false)
               }}
               currentMediaUrl={logo}
@@ -442,241 +473,114 @@ export function PageNavigationBlock({
           </CardContent>
         </Card>
 
-        {/* Navigation Width Settings Card */}
-        <Card className="shadow-sm mr-0">
-          <CardHeader>
-            <CardTitle className="text-base">Navigation Width</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                {style.containerWidth !== 'full' && (
-                  <div className="w-32">
-                    <Input
-                      type="number"
-                      min="320"
-                      max="2560"
-                      value={style.customWidth || ''}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        if (value === '') {
-                          updateStyle('customWidth', undefined)
-                        } else {
-                          const numValue = parseInt(value)
-                          updateStyle('customWidth', isNaN(numValue) ? undefined : numValue)
-                        }
-                      }}
-                      placeholder="1152"
-                    />
-                  </div>
-                )}
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={style.containerWidth === 'full'}
-                    onCheckedChange={(checked) => updateStyle('containerWidth', checked ? 'full' : 'custom')}
-                  />
-                  <Label className="text-sm">
-                    Full Width
-                  </Label>
-                </div>
-              </div>
-              
-              {style.containerWidth !== 'full' && (
-                <p className="text-xs text-muted-foreground">
-                  Default: 1152px • Range: 320-2560px
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Dark Mode Settings Card */}
+        {/* Navigation Links Card */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Dark Mode</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Navigation Links</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addLink}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="showDarkModeToggle">Show Toggle</Label>
-                  <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleLinkDragEnd}
+            >
+              <SortableContext
+                items={links.map(l => l.id || '')}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {links.map((link, index) => (
+                    <SortableLinkItem
+                      key={link.id || `nav-link-${index}`}
+                      link={link}
+                      index={index}
+                      updateLink={updateLink}
+                      removeLink={removeLink}
+                    />
+                  ))}
                 </div>
-                <Switch
-                  id="showDarkModeToggle"
-                  checked={style.showDarkModeToggle !== false}
-                  onCheckedChange={(checked) => updateStyle('showDarkModeToggle', checked)}
-                />
+              </SortableContext>
+            </DndContext>
+
+            {links.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                No navigation links. Click + to add one.
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Navigation Links Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Navigation Links</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLink}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleLinkDragEnd}
-          >
-            <SortableContext
-              items={(links || []).map(l => l.id || '')}
-              strategy={horizontalListSortingStrategy}
-            >
-              <div className="flex flex-wrap gap-2">
-                {(links || []).map((link, index) => (
-                  <SortableLinkItem
-                    key={link.id || `nav-link-${index}`}
-                    link={link}
-                    index={index}
-                    updateLink={updateLink}
-                    removeLink={removeLink}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {links.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-              No navigation links. Click + to add one.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Action Buttons</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addButton}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleButtonDragEnd}
-          >
-            <SortableContext
-              items={(buttons || []).map(b => b.id || '')}
-              strategy={horizontalListSortingStrategy}
-            >
-              <div className="flex flex-wrap gap-2">
-                {(buttons || []).map((button, index) => (
-                  <SortableButtonItem
-                    key={button.id || `nav-button-${index}`}
-                    button={button}
-                    index={index}
-                    updateButton={updateButton}
-                    removeButton={removeButton}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {buttons.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-              No action buttons. Click + to add one.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Style Settings Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Styling</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="navBgColor">Background Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navBgColor"
-                  type="color"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                />
-                <input
-                  type="text"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#ffffff"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="navBlurEffect">Glass Blur Effect</Label>
-              <Select 
-                value={style.blurEffect || 'medium'} 
-                onValueChange={(value) => updateStyle('blurEffect', value as 'none' | 'light' | 'medium' | 'heavy')}
+        {/* Action Buttons Card */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Action Buttons</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addButton}
+                className="h-8 w-8 p-0"
               >
-                <SelectTrigger className="text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="heavy">Heavy</SelectItem>
-                </SelectContent>
-              </Select>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="navTextColor">Text Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navTextColor"
-                  type="color"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                />
-                <input
-                  type="text"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#000000"
-                />
+          </CardHeader>
+          <CardContent>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleButtonDragEnd}
+            >
+              <SortableContext
+                items={buttons.map(b => b.id || '')}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {buttons.map((button, index) => (
+                    <SortableButtonItem
+                      key={button.id || `nav-button-${index}`}
+                      button={button}
+                      index={index}
+                      updateButton={updateButton}
+                      removeButton={removeButton}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            {buttons.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                No action buttons. Click + to add one.
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
+        {ActivePanel && (
+          <ActivePanel
+            config={currentStyleConfig}
+            onConfigChange={handleStyleConfigChange}
+            siteId={siteId}
+            blockId={blockId}
+          />
+        )}
+      </TabsContent>
+    </Tabs>
   )
 }

@@ -32,6 +32,8 @@ interface NavBlockProps {
   };
   links?: Array<{ text: string; url: string }>;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>;
+  navigationStyle?: string;
+  styleConfig?: Record<string, Record<string, any>>;
   style?: {
     backgroundColor: string;
     textColor: string;
@@ -267,7 +269,16 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, style }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, style: legacyStyle }: NavBlockProps) {
+  // Resolve style: prefer styleConfig[navigationStyle], fallback to legacy style object
+  const style = useMemo(() => {
+    const activeStyle = navigationStyle || 'default'
+    if (styleConfig && styleConfig[activeStyle]) {
+      return styleConfig[activeStyle] as NavBlockProps['style']
+    }
+    return legacyStyle
+  }, [navigationStyle, styleConfig, legacyStyle])
+
   // Transform database links to MenuItem format, fallback to defaults
   const menuItems: MenuItem[] = useMemo(() => {
     if (links && links.length > 0) {

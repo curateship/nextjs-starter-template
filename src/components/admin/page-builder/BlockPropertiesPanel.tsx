@@ -65,8 +65,8 @@ export function BlockPropertiesPanel({
             )}
             {selectedBlock.type === 'navigation' && (
               <PageNavigationBlock
-                {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'links', 'buttons', 'style']) as any)}
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
                 siteFavicon={site?.settings?.favicon}
