@@ -40,7 +40,7 @@ const validateUrl = (value: string, onChange: (value: string) => void) => {
 // Reusable button style selector
 const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (value: 'primary' | 'outline' | 'ghost') => void }) => (
   <Select value={value} onValueChange={onChange}>
-    <SelectTrigger className="w-full">
+    <SelectTrigger className="w-fit">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
@@ -185,12 +185,12 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
             {/* Primary Button */}
             <div className="space-y-2">
               <Label>Primary Button</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex gap-2 w-fit">
                 <input
                   type="text"
                   value={content.primaryButton || ''}
                   onChange={(e) => onContentChange('primaryButton', e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm"
+                  className="w-40 px-3 py-2 border rounded-md text-sm"
                   placeholder="Get Started"
                   required
                 />
@@ -198,7 +198,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
                   type="url"
                   value={content.primaryButtonLink || ''}
                   onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
-                  className="px-3 py-2 border rounded-md text-sm"
+                  className="w-48 px-3 py-2 border rounded-md text-sm"
                   placeholder="https://example.com or /page"
                 />
                 <ButtonStyleSelect
@@ -211,12 +211,12 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
             {/* Secondary Button */}
             <div className="space-y-2">
               <Label>Secondary Button</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex gap-2 w-fit">
                 <input
                   type="text"
                   value={content.secondaryButton || ''}
                   onChange={(e) => onContentChange('secondaryButton', e.target.value)}
-                  className="px-3 py-2 border rounded-md text-sm"
+                  className="w-40 px-3 py-2 border rounded-md text-sm"
                   placeholder="Browse Components"
                   required
                 />
@@ -224,7 +224,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
                   type="url"
                   value={content.secondaryButtonLink || ''}
                   onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
-                  className="px-3 py-2 border rounded-md text-sm"
+                  className="w-48 px-3 py-2 border rounded-md text-sm"
                   placeholder="https://example.com or /page"
                 />
                 <ButtonStyleSelect

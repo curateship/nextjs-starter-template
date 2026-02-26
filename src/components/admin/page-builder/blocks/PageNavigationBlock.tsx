@@ -99,21 +99,21 @@ function SortableButtonItem({
             type="text"
             value={button.text}
             onChange={(e) => updateButton(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 rounded-md text-sm"
             placeholder="Button Text"
           />
           <input
             type="text"
             value={button.url}
             onChange={(e) => updateButton(index, 'url', e.target.value)}
-            className="w-28 px-3 py-2 border rounded-md text-sm"
+            className="w-28 px-3 py-2 rounded-md text-sm"
             placeholder="URL"
           />
           <Select
             value={button.style}
             onValueChange={(value) => updateButton(index, 'style', value)}
           >
-            <SelectTrigger className="w-20">
+            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -123,8 +123,8 @@ function SortableButtonItem({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="flex items-center gap-1">
+        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+          <div className="flex items-center gap-2">
             <Checkbox
               checked={button.showOnMobile || false}
               onCheckedChange={(checked) => updateButton(index, 'showOnMobile', checked === true)}
@@ -194,14 +194,14 @@ function SortableLinkItem({
             type="text"
             value={link.text}
             onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 rounded-md text-sm"
             placeholder="Link Text"
           />
           <input
             type="text"
             value={link.url}
             onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 rounded-md text-sm"
             placeholder="URL"
           />
         </div>

@@ -112,14 +112,14 @@ function SortableFooterLinkItem({
             type="text"
             value={link.text}
             onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 border rounded-md text-sm"
+            className="w-24 px-3 py-2 rounded-md text-sm"
             placeholder="Link Text"
           />
           <input
             type="text"
             value={link.url}
             onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 rounded-md text-sm"
             placeholder="URL"
           />
         </div>
@@ -183,7 +183,7 @@ function SortableSocialLinkItem({
             value={socialLink.platform}
             onValueChange={(value) => updateSocialLink(index, 'platform', value)}
           >
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
               <SelectValue placeholder="Platform" />
             </SelectTrigger>
             <SelectContent>
@@ -198,7 +198,7 @@ function SortableSocialLinkItem({
             type="text"
             value={socialLink.url}
             onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 border rounded-md text-sm"
+            className="w-32 px-3 py-2 rounded-md text-sm"
             placeholder="Social URL"
           />
         </div>
