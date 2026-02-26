@@ -114,6 +114,41 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
 
       {/* Content Tab */}
       <TabsContent value="content" className="mt-6">
+        {/* Hero Style Selector */}
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Hero Style</Label>
+          <div className="grid gap-2 max-w-[260px]">
+            {Object.entries(HERO_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('heroStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  heroStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  heroStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {heroStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Text Content</CardTitle>
@@ -200,45 +235,11 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
             </div>
           </CardContent>
         </Card>
+
       </TabsContent>
 
       {/* Styling Tab */}
       <TabsContent value="styling" className="mt-6">
-        {/* Style Selector Cards */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Hero Style</Label>
-          <div className="grid gap-2 max-w-sm">
-            {Object.entries(HERO_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('heroStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  heroStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  heroStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {heroStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Active style's admin panel */}
         {ActivePanel && (
           <ActivePanel

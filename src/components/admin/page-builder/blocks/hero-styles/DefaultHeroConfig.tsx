@@ -313,7 +313,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Image picker */}
-          <div className="relative">
+          <div className="relative pb-2">
             {heroImage ? (
               <div
                 className="relative w-[100px] h-[100px] rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
@@ -356,8 +356,8 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
 
           {/* Image options */}
           {heroImage && (
-            <>
-              <div className="space-y-1">
+            <div className="space-y-5">
+              <div className="space-y-1.5">
                 <Label className="text-xs">Image Alignment</Label>
                 <div className="flex gap-4">
                   {(['left', 'center', 'right'] as const).map((option) => (
@@ -372,7 +372,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                   ))}
                 </div>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs">Image Size</Label>
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -381,25 +381,31 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                     onCheckedChange={(checked) => onConfigChange('heroImageSize', checked ? 600 : null)}
                   />
                   <Label htmlFor="heroImageCustomSize" className="text-xs cursor-pointer">Custom size</Label>
-                  {config.heroImageSize && (
+                  {config.heroImageSize != null && (
                     <>
                       <input
                         type="number"
                         min="100"
                         max="2000"
-                        value={config.heroImageSize}
+                        value={config.heroImageSize ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
-                          if (raw === '') return;
+                          if (raw === '') {
+                            onConfigChange('heroImageSize', '');
+                            return;
+                          }
                           const value = parseInt(raw);
                           if (!isNaN(value)) {
                             onConfigChange('heroImageSize', value);
                           }
                         }}
                         onBlur={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (isNaN(value) || value < 100) onConfigChange('heroImageSize', 100);
-                          else if (value > 2000) onConfigChange('heroImageSize', 2000);
+                          const raw = e.target.value;
+                          if (raw === '' || isNaN(parseInt(raw)) || parseInt(raw) < 100) {
+                            onConfigChange('heroImageSize', 100);
+                          } else if (parseInt(raw) > 2000) {
+                            onConfigChange('heroImageSize', 2000);
+                          }
                         }}
                         className="w-20 px-2 py-1 border rounded-md text-xs"
                       />
@@ -408,7 +414,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                   )}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Background Pattern */}
