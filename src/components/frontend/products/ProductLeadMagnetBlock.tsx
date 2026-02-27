@@ -1,14 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo } from 'react'
 import { Mail, Check, Loader2 } from 'lucide-react'
+
+const COLOR_MAP: Record<string, { border: string; bgFrom: string; bgTo: string; iconBg: string; iconText: string; button: string; buttonHover: string; ring: string }> = {
+  indigo: { border: 'border-indigo-100', bgFrom: 'from-indigo-50', bgTo: 'to-purple-50', iconBg: 'bg-indigo-100', iconText: 'text-indigo-600', button: 'bg-indigo-600', buttonHover: 'hover:bg-indigo-700', ring: 'focus:ring-indigo-300' },
+  blue: { border: 'border-blue-100', bgFrom: 'from-blue-50', bgTo: 'to-cyan-50', iconBg: 'bg-blue-100', iconText: 'text-blue-600', button: 'bg-blue-600', buttonHover: 'hover:bg-blue-700', ring: 'focus:ring-blue-300' },
+  green: { border: 'border-green-100', bgFrom: 'from-green-50', bgTo: 'to-emerald-50', iconBg: 'bg-green-100', iconText: 'text-green-600', button: 'bg-green-600', buttonHover: 'hover:bg-green-700', ring: 'focus:ring-green-300' },
+  rose: { border: 'border-rose-100', bgFrom: 'from-rose-50', bgTo: 'to-pink-50', iconBg: 'bg-rose-100', iconText: 'text-rose-600', button: 'bg-rose-600', buttonHover: 'hover:bg-rose-700', ring: 'focus:ring-rose-300' },
+  amber: { border: 'border-amber-100', bgFrom: 'from-amber-50', bgTo: 'to-yellow-50', iconBg: 'bg-amber-100', iconText: 'text-amber-600', button: 'bg-amber-600', buttonHover: 'hover:bg-amber-700', ring: 'focus:ring-amber-300' },
+  violet: { border: 'border-violet-100', bgFrom: 'from-violet-50', bgTo: 'to-purple-50', iconBg: 'bg-violet-100', iconText: 'text-violet-600', button: 'bg-violet-600', buttonHover: 'hover:bg-violet-700', ring: 'focus:ring-violet-300' },
+  teal: { border: 'border-teal-100', bgFrom: 'from-teal-50', bgTo: 'to-cyan-50', iconBg: 'bg-teal-100', iconText: 'text-teal-600', button: 'bg-teal-600', buttonHover: 'hover:bg-teal-700', ring: 'focus:ring-teal-300' },
+}
 
 interface LeadMagnetBlockContent {
   heading?: string
   subheading?: string
   buttonText?: string
-  productBenefits?: string[]
   emailSettings?: {
     subject?: string
     fromName?: string
@@ -24,6 +32,8 @@ interface LeadMagnetBlockContent {
     heading?: string
     message?: string
   }
+  leadMagnetStyle?: string
+  styleConfig?: Record<string, Record<string, any>>
 }
 
 interface ProductLeadMagnetBlockProps {
@@ -39,7 +49,16 @@ export default function ProductLeadMagnetBlock({
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState('')
-  const router = useRouter()
+
+  const styleConfig = useMemo(() => {
+    const style = content.leadMagnetStyle || 'default'
+    return content.styleConfig?.[style] || {}
+  }, [content.leadMagnetStyle, content.styleConfig])
+
+  const accentColor = styleConfig.accentColor || 'indigo'
+  const showMailIcon = styleConfig.showMailIcon ?? true
+  const showPrivacyNote = styleConfig.showPrivacyNote ?? true
+  const colors = COLOR_MAP[accentColor] || COLOR_MAP.indigo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,7 +66,6 @@ export default function ProductLeadMagnetBlock({
     setIsLoading(true)
 
     try {
-      // Validate email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(email)) {
         setError('Please enter a valid email address')
@@ -55,12 +73,9 @@ export default function ProductLeadMagnetBlock({
         return
       }
 
-      // Submit to API
       const response = await fetch('/api/products/lead-magnet/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           productId: product.id,
@@ -74,7 +89,6 @@ export default function ProductLeadMagnetBlock({
         throw new Error(data.error || 'Failed to sign up')
       }
 
-      // Show success message
       setIsSuccess(true)
       setIsLoading(false)
     } catch (err: any) {
@@ -83,7 +97,6 @@ export default function ProductLeadMagnetBlock({
     }
   }
 
-  // Success state
   if (isSuccess) {
     return (
       <div className="mx-auto my-16 max-w-2xl">
@@ -105,40 +118,25 @@ export default function ProductLeadMagnetBlock({
     )
   }
 
-  // Main form
   return (
     <div className="mx-auto my-16 max-w-2xl">
-      <div className="rounded-xl border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-8 shadow-xl md:p-12">
-        {/* Icon */}
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
-          <Mail className="h-8 w-8 text-indigo-600" />
-        </div>
+      <div className={`rounded-xl border-2 ${colors.border} bg-gradient-to-br ${colors.bgFrom} ${colors.bgTo} p-8 shadow-xl md:p-12`}>
+        {showMailIcon && (
+          <div className={`mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full ${colors.iconBg}`}>
+            <Mail className={`h-8 w-8 ${colors.iconText}`} />
+          </div>
+        )}
 
-        {/* Heading */}
         <h2 className="mb-3 text-center text-3xl font-bold text-gray-900">
           {content.heading || 'Get Your Free Download'}
         </h2>
 
-        {/* Subheading */}
         {content.subheading && (
           <p className="mb-6 text-center text-lg text-gray-700">
             {content.subheading}
           </p>
         )}
 
-        {/* Benefits List */}
-        {content.productBenefits && content.productBenefits.length > 0 && (
-          <ul className="mb-8 space-y-3">
-            {content.productBenefits.map((benefit, index) => (
-              <li key={index} className="flex items-start">
-                <Check className="mr-3 mt-1 h-5 w-5 flex-shrink-0 text-green-600" />
-                <span className="text-gray-700">{benefit}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="sr-only">
@@ -165,7 +163,7 @@ export default function ProductLeadMagnetBlock({
           <button
             type="submit"
             disabled={isLoading}
-            className="flex w-full items-center justify-center rounded-lg bg-indigo-600 px-6 py-4 text-lg font-semibold text-white shadow-lg transition-all hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`flex w-full items-center justify-center rounded-lg ${colors.button} px-6 py-4 text-lg font-semibold text-white shadow-lg transition-all ${colors.buttonHover} focus:outline-none focus:ring-4 ${colors.ring} disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {isLoading ? (
               <>
@@ -178,10 +176,11 @@ export default function ProductLeadMagnetBlock({
           </button>
         </form>
 
-        {/* Privacy note */}
-        <p className="mt-6 text-center text-sm text-gray-600">
-          We respect your privacy. Unsubscribe at any time.
-        </p>
+        {showPrivacyNote && (
+          <p className="mt-6 text-center text-sm text-gray-600">
+            We respect your privacy. Unsubscribe at any time.
+          </p>
+        )}
       </div>
     </div>
   )

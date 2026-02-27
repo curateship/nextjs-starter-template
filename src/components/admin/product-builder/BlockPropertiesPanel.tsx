@@ -5,7 +5,7 @@ import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/P
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/ProductCheckoutBlock"
-import ProductLeadMagnetBlock from "@/components/admin/product-builder/blocks/ProductLeadMagnetBlock"
+import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/ProductRichTextEditorBlock"
@@ -169,12 +169,10 @@ export function BlockPropertiesPanel({
 
             {selectedBlock.type === 'product-lead-magnet' && (
               <ProductLeadMagnetBlock
-                block={selectedBlock as any}
-                onUpdate={(updates) => {
-                  Object.entries(updates).forEach(([key, value]) => {
-                    updateBlockContent(key, value)
-                  })
-                }}
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
 

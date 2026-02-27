@@ -85,7 +85,7 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
   },
   {
     type: 'product-lead-magnet',
-    name: 'Product Lead Magnet',
+    name: 'Lead Magnet',
     icon: Mail,
     description: 'Collect email addresses with lead magnet offer',
     defaultContent: {

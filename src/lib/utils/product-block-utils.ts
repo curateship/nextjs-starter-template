@@ -29,7 +29,7 @@ export function getProductBlockTitle(blockType: string): string {
     case 'product-checkout':
       return 'Product Checkout'
     case 'product-lead-magnet':
-      return 'Product Lead Magnet'
+      return 'Lead Magnet'
     case 'product-faq':
       return 'FAQ'
     case 'listing-views':
