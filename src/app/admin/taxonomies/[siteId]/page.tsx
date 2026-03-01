@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useSiteContext } from "@/contexts/site-context"
 import { getSiteTaxonomyTypesAction, deleteTaxonomyTypeAction, type TaxonomyType } from "@/lib/actions/taxonomies/taxonomy-type-actions"
-import { CreateTaxonomyTypeModal } from "@/components/admin/taxonomies/CreateTaxonomyTypeModal"
+import { CreateTaxonomyTypeModal } from "@/components/admin/taxonomy-builder/CreateTaxonomyTypeModal"
 import { Tag, Settings, MoreHorizontal, Trash2 } from "lucide-react"
 import Link from "next/link"
 import {

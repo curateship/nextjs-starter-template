@@ -37,7 +37,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
   // Redirect when site changes in sidebar
   useEffect(() => {
     if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/user-pages-builder/${currentSite.id}`)
+      router.push(`/admin/user-pages/builder/${currentSite.id}`)
     }
   }, [currentSite, siteId, router])
 
@@ -60,7 +60,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
           if (!pageExists) {
             const defaultPage = data.find(p => p.is_default) || data[0]
             setSelectedPage(defaultPage.slug)
-            router.replace(`/admin/user-pages-builder/${siteId}?page=${defaultPage.slug}`)
+            router.replace(`/admin/user-pages/builder/${siteId}?page=${defaultPage.slug}`)
           }
         }
       } catch (err) {
@@ -117,7 +117,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         ...prev,
         [pageSlug]: prev[pageSlug] || []
       }))
-      router.replace(`/admin/user-pages-builder/${siteId}?page=${pageSlug}`)
+      router.replace(`/admin/user-pages/builder/${siteId}?page=${pageSlug}`)
     }
   }
 
@@ -137,7 +137,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
     }))
     // Switch to the newly created page
     setSelectedPage(newPage.slug)
-    router.replace(`/admin/user-pages-builder/${siteId}?page=${newPage.slug}`)
+    router.replace(`/admin/user-pages/builder/${siteId}?page=${newPage.slug}`)
   }
 
   // Handle page updates
@@ -165,7 +165,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
 
       // Update selected page and URL
       setSelectedPage(updatedPage.slug)
-      router.replace(`/admin/user-pages-builder/${siteId}?page=${updatedPage.slug}`)
+      router.replace(`/admin/user-pages/builder/${siteId}?page=${updatedPage.slug}`)
     }
   }
 

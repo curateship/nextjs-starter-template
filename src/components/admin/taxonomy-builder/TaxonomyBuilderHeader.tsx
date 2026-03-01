@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Save, Eye, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { useSiteContext } from "@/contexts/site-context"
-import { TaxonomySettingsModal } from "@/components/admin/taxonomies/TaxonomySettingsModal"
+import { TaxonomySettingsModal } from "@/components/admin/taxonomy-builder/TaxonomySettingsModal"
 import type { TaxonomyType } from "@/lib/actions/taxonomies/taxonomy-type-actions"
 import type { Taxonomy } from "@/lib/actions/taxonomies/taxonomy-actions"
 

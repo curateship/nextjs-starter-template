@@ -176,11 +176,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     updateCurrentProduct({ is_published: status === 'published' })
   }
 
-  const handleAIComplete = () => {
-    // Reload product data from database after AI generation
-    reloadBlocks()
-  }
-
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
@@ -225,7 +220,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
-        onAIComplete={handleAIComplete}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">

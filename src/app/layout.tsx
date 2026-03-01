@@ -5,8 +5,8 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
-import { PostHogScript } from "@/components/analytics/posthog-script";
-import { HeaderScripts } from "@/components/analytics/header-scripts";
+import { PostHogScript } from "@/components/admin/analytics/posthog-script";
+import { HeaderScripts } from "@/components/admin/analytics/header-scripts";
 
 import { cn } from "@/lib/utils/tailwind-class-merger";
 
