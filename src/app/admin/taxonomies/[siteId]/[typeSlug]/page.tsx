@@ -7,13 +7,13 @@ import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHe
 import { StickyHeader } from "@/components/admin/taxonomy-builder/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
 import { getTaxonomyTypeBySlugAction, type TaxonomyType } from "@/lib/actions/taxonomies/taxonomy-type-actions"
 import { getTaxonomiesForTypeAction, type Taxonomy } from "@/lib/actions/taxonomies/taxonomy-actions"
 import { CreateTaxonomyModal } from "@/components/admin/taxonomy-builder/CreateTaxonomyModal"
 import { TaxonomyTree } from "@/components/admin/taxonomy-builder/TaxonomyTree"
-import { ArrowLeft, Plus, FolderTree, Tag } from "lucide-react"
-import Link from "next/link"
+import { Tag } from "lucide-react"
 
 export default function TaxonomyTermsPage({
   params
@@ -29,7 +29,7 @@ export default function TaxonomyTermsPage({
   const [error, setError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [filterHierarchy, setFilterHierarchy] = useState<'all' | 'parents' | 'children'>('all')
+  const [filterLevel, setFilterLevel] = useState<string>('all')
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -86,6 +86,22 @@ export default function TaxonomyTermsPage({
     setTaxonomies(prev => prev.filter(t => t.id !== taxonomyId))
   }
 
+  // Compute depth level for a taxonomy
+  const getDepth = (taxonomy: Taxonomy): number => {
+    let depth = 0
+    let current = taxonomy
+    while (current.parent_id) {
+      depth++
+      const parent = taxonomies.find(t => t.id === current.parent_id)
+      if (!parent) break
+      current = parent
+    }
+    return depth
+  }
+
+  // Get unique depth levels present in the data
+  const depthLevels = [...new Set(taxonomies.map(getDepth))].sort((a, b) => a - b)
+
   // Filter taxonomies
   const filteredTaxonomies = taxonomies.filter(taxonomy => {
     // Status filter
@@ -93,12 +109,10 @@ export default function TaxonomyTermsPage({
     if (filterStatus === 'published') statusMatch = taxonomy.is_published
     if (filterStatus === 'draft') statusMatch = !taxonomy.is_published
 
-    // Hierarchy filter
-    let hierarchyMatch = true
-    if (filterHierarchy === 'parents') hierarchyMatch = !taxonomy.parent_id
-    if (filterHierarchy === 'children') hierarchyMatch = !!taxonomy.parent_id
+    // Level filter
+    const levelMatch = filterLevel === 'all' || getDepth(taxonomy) === Number(filterLevel)
 
-    return statusMatch && hierarchyMatch
+    return statusMatch && levelMatch
   })
 
   // Get counts
@@ -106,12 +120,6 @@ export default function TaxonomyTermsPage({
     all: taxonomies.length,
     published: taxonomies.filter(t => t.is_published).length,
     draft: taxonomies.filter(t => !t.is_published).length
-  }
-
-  const hierarchyCounts = {
-    all: taxonomies.length,
-    parents: taxonomies.filter(t => !t.parent_id).length,
-    children: taxonomies.filter(t => !!t.parent_id).length
   }
 
   return (
@@ -125,27 +133,54 @@ export default function TaxonomyTermsPage({
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title={taxonomyType?.name || 'Loading...'}
-            subtitle={taxonomyType?.description || ''}
-            primaryAction={{
-              label: "Create Term",
-              onClick: () => setShowCreateModal(true)
-            }}
-          />
+          {loading ? (
+            <div className="flex items-center justify-between my-6 mx-6">
+              <div>
+                <div className="h-9 w-48 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-64 bg-muted/60 rounded animate-pulse mt-2" />
+              </div>
+              <div className="h-9 w-28 bg-muted rounded animate-pulse" />
+            </div>
+          ) : (
+            <AdminPageHeader
+              title={taxonomyType?.name || ''}
+              subtitle={taxonomyType?.description || ''}
+              primaryAction={{
+                label: "Create Term",
+                onClick: () => setShowCreateModal(true)
+              }}
+            />
+          )}
 
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Terms</h3>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {loading ? (
-                    <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${filteredTaxonomies.length} term${filteredTaxonomies.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
-                  )}
+              <div className="flex items-start gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">Terms</h3>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {loading ? (
+                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                    ) : (
+                      `${filteredTaxonomies.length} term${filteredTaxonomies.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                    )}
+                  </div>
                 </div>
+                {depthLevels.length > 1 && (
+                  <Select value={filterLevel} onValueChange={setFilterLevel}>
+                    <SelectTrigger size="sm">
+                      <SelectValue placeholder="All levels" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All levels</SelectItem>
+                      {depthLevels.map(level => (
+                        <SelectItem key={level} value={String(level)}>
+                          {level === 0 ? 'Top-level' : `Level ${level}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
                 <TabsList className="gap-1">
