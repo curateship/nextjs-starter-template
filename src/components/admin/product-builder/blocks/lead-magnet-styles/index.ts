@@ -1,5 +1,6 @@
 import { ComponentType } from "react"
 import { DefaultLeadMagnetConfig } from "./DefaultLeadMagnetConfig"
+import { CardLeadMagnetConfig } from "./CardLeadMagnetConfig"
 
 export interface LeadMagnetStyleDefinition {
   label: string
@@ -17,7 +18,12 @@ export interface LeadMagnetStyleAdminProps {
 export const LEAD_MAGNET_STYLES: Record<string, LeadMagnetStyleDefinition> = {
   default: {
     label: 'Default',
-    description: 'Gradient card with email capture form',
+    description: 'Two-column layout with showcase image and email capture',
     AdminPanel: DefaultLeadMagnetConfig,
+  },
+  card: {
+    label: 'Card',
+    description: 'Gradient card with email capture form',
+    AdminPanel: CardLeadMagnetConfig,
   },
 }

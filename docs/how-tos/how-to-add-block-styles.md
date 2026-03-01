@@ -77,8 +77,8 @@ This receives `config` (the current variant's config object) and `onConfigChange
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import type { MyBlockStyleAdminProps } from "./index"
 
 export function DefaultMyBlockConfig({ config, onConfigChange }: MyBlockStyleAdminProps) {
@@ -89,12 +89,13 @@ export function DefaultMyBlockConfig({ config, onConfigChange }: MyBlockStyleAdm
           <CardTitle className="text-base">Appearance</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <Label>Show Border</Label>
-            <Switch
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="showBorder"
               checked={config.showBorder !== false}
-              onCheckedChange={(checked) => onConfigChange('showBorder', checked)}
+              onCheckedChange={(checked) => onConfigChange('showBorder', !!checked)}
             />
+            <Label htmlFor="showBorder">Show Border</Label>
           </div>
         </CardContent>
       </Card>
@@ -102,6 +103,8 @@ export function DefaultMyBlockConfig({ config, onConfigChange }: MyBlockStyleAdm
   )
 }
 ```
+
+> **Important:** Always use shadcn components (`Checkbox`, `Switch`, `Select`, etc.) instead of native HTML elements. Never use `<input type="checkbox">` — use `<Checkbox>` from `@/components/ui/checkbox` with `onCheckedChange`.
 
 ### 3. Restructure the Block Component with Tabs
 
@@ -166,7 +169,7 @@ export function PageMyBlock({ content, onContentChange, siteId, blockId }: PageM
         {/* Style Selector - at top, no card wrapper */}
         <div className="space-y-2 mb-4 px-6">
           <Label className="text-sm font-medium px-1">Block Style</Label>
-          <div className="grid gap-2 max-w-[260px]">
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
             {Object.entries(MY_BLOCK_STYLES).map(([key, style]) => (
               <button
                 key={key}

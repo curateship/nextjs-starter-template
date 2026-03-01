@@ -138,6 +138,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               key={`product-lead-magnet-${block.id}`}
               content={block.content as any}
               product={product}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }

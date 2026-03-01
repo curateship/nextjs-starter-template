@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, Check } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -100,7 +101,7 @@ export function ProductLeadMagnetBlock({
         {/* Style Selector */}
         <div className="space-y-2 mb-4 px-6">
           <Label className="text-sm font-medium px-1">Lead Magnet Style</Label>
-          <div className="grid gap-2 max-w-sm">
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
             {Object.entries(LEAD_MAGNET_STYLES).map(([key, style]) => (
               <button
                 key={key}
@@ -300,17 +301,15 @@ export function ProductLeadMagnetBlock({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="flodeskEnabled"
                 checked={content.flodeskSettings?.enabled || false}
-                onChange={(e) =>
+                onCheckedChange={(checked) =>
                   onContentChange('flodeskSettings', {
                     ...content.flodeskSettings,
-                    enabled: e.target.checked,
+                    enabled: !!checked,
                   })
                 }
-                className="h-4 w-4"
               />
               <Label htmlFor="flodeskEnabled">
                 Enable Flodesk Integration
@@ -361,7 +360,7 @@ export function ProductLeadMagnetBlock({
                       value={newTag}
                       onChange={(e) => setNewTag(e.target.value)}
                       placeholder="Add a tag"
-                      onKeyPress={(e) => {
+                      onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
                           handleAddTag()
