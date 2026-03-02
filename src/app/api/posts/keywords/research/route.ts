@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call DataForSEO
-    const suggestions = await getKeywordSuggestions(seedKeyword.trim())
+    const suggestions = await getKeywordSuggestions(seedKeyword.trim(), { siteId })
 
     // Upsert results into posts_keywords table
     const rows = suggestions.map(item => ({

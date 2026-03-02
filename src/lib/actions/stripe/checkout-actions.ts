@@ -1,11 +1,26 @@
 'use server'
 
 import Stripe from 'stripe'
+import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 
-// Initialize Stripe with secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-09-30.clover',
-})
+/**
+ * Create a Stripe client for a specific site.
+ * Reads from DB integration config first, falls back to env vars.
+ */
+async function getStripeClient(siteId?: string): Promise<Stripe> {
+  let secretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder'
+
+  if (siteId) {
+    const config = await getStripeConfig(siteId)
+    if (config) {
+      secretKey = config.secretKey
+    }
+  }
+
+  return new Stripe(secretKey, {
+    apiVersion: '2025-09-30.clover',
+  })
+}
 
 export interface OrderBump {
   id: string
@@ -26,6 +41,7 @@ export interface CheckoutSessionData {
   selectedBumps: OrderBump[]
   successUrl: string
   uiMode?: 'hosted' | 'embedded'
+  siteId?: string
 }
 
 /**
@@ -33,6 +49,8 @@ export interface CheckoutSessionData {
  */
 export async function createCheckoutSession(data: CheckoutSessionData) {
   try {
+    const stripe = await getStripeClient(data.siteId)
+
     // Fetch the main price to determine if it's one-time or recurring
     const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
     const mode: 'payment' | 'subscription' = mainPrice.type === 'recurring' ? 'subscription' : 'payment'
@@ -62,6 +80,7 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
         productName: data.productName,
         ...(data.tierId && { tierId: data.tierId }),
         ...(data.tierName && { tierName: data.tierName }),
+        ...(data.siteId && { siteId: data.siteId }),
       },
       allow_promotion_codes: true,
       billing_address_collection: 'required',
@@ -95,8 +114,10 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
 /**
  * Verify a checkout session and retrieve session details
  */
-export async function verifyCheckoutSession(sessionId: string) {
+export async function verifyCheckoutSession(sessionId: string, siteId?: string) {
   try {
+    const stripe = await getStripeClient(siteId)
+
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['line_items', 'customer'],
     })
@@ -143,8 +164,11 @@ export async function createPaymentIntent(data: {
   tierId?: string
   tierName?: string
   selectedBumps: OrderBump[]
+  siteId?: string
 }) {
   try {
+    const stripe = await getStripeClient(data.siteId)
+
     // Get price details to calculate amount
     const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
 
@@ -166,6 +190,7 @@ export async function createPaymentIntent(data: {
         mainPriceId: data.mainPriceId,
         ...(data.tierId && { tierId: data.tierId }),
         ...(data.tierName && { tierName: data.tierName }),
+        ...(data.siteId && { siteId: data.siteId }),
         orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
           id: b.id,
           title: b.title,
@@ -198,8 +223,11 @@ export async function updatePaymentIntent(data: {
   paymentIntentId: string
   mainPriceId: string
   selectedBumps: OrderBump[]
+  siteId?: string
 }) {
   try {
+    const stripe = await getStripeClient(data.siteId)
+
     // Get price details to calculate new amount
     const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
 
@@ -244,8 +272,10 @@ export async function updatePaymentIntent(data: {
 /**
  * Verify a payment intent and retrieve details
  */
-export async function verifyPaymentIntent(paymentIntentId: string) {
+export async function verifyPaymentIntent(paymentIntentId: string, siteId?: string) {
   try {
+    const stripe = await getStripeClient(siteId)
+
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
     if (paymentIntent.status !== 'succeeded') {
@@ -283,8 +313,11 @@ export async function createStripePrice(params: {
   currency: string
   interval?: 'month' | 'year'
   intervalCount?: number
+  siteId?: string
 }) {
   try {
+    const stripe = await getStripeClient(params.siteId)
+
     // First, create or retrieve product
     const products = await stripe.products.search({
       query: `name:'${params.productName}'`,

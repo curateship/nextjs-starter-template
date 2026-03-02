@@ -4,10 +4,12 @@ interface LeadMagnetEmailParams {
   to: string
   subject: string
   fromName: string
+  fromEmail?: string
   replyTo?: string
   content: string
   productName: string
   siteUrl: string
+  apiKey?: string
 }
 
 /**
@@ -17,10 +19,10 @@ interface LeadMagnetEmailParams {
 export async function sendLeadMagnetDeliveryEmail(
   params: LeadMagnetEmailParams
 ): Promise<void> {
-  const { to, subject, fromName, replyTo, content, productName, siteUrl } = params
+  const { to, subject, fromName, fromEmail, replyTo, content, productName, siteUrl, apiKey } = params
 
-  // Initialize Resend lazily to avoid build-time errors
-  const resend = new Resend(process.env.RESEND_API_KEY)
+  // Use provided apiKey or fall back to env var
+  const resend = new Resend(apiKey || process.env.RESEND_API_KEY)
 
   const html = `
     <!DOCTYPE html>
@@ -92,7 +94,7 @@ export async function sendLeadMagnetDeliveryEmail(
   `
 
   await resend.emails.send({
-    from: `${fromName} <${process.env.DEFAULT_FROM_EMAIL || 'noreply@yourdomain.com'}>`,
+    from: `${fromName} <${fromEmail || process.env.DEFAULT_FROM_EMAIL || 'noreply@yourdomain.com'}>`,
     to,
     subject,
     html,

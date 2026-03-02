@@ -1,17 +1,20 @@
-import { DataForSEOClient } from './client'
+import { DataForSEOClient, createDataForSEOClient } from './client'
 import type { DataForSEOResponse, KeywordSuggestionResult, KeywordSuggestionItem } from './types'
 
 interface KeywordSuggestionOptions {
   locationCode?: number
   languageCode?: string
   limit?: number
+  siteId?: string
 }
 
 export async function getKeywordSuggestions(
   seedKeyword: string,
   options?: KeywordSuggestionOptions
 ): Promise<KeywordSuggestionItem[]> {
-  const client = new DataForSEOClient()
+  const client = options?.siteId
+    ? await createDataForSEOClient(options.siteId)
+    : await createDataForSEOClient('')
 
   const locationCode = options?.locationCode ?? 2840 // US
   const languageCode = options?.languageCode ?? 'en'

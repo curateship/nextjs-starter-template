@@ -1,18 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js'
 import { createCheckoutSession } from '@/lib/actions/stripe/checkout-actions'
 import { Loader2 } from 'lucide-react'
-
-// Initialize Stripe with publishable key
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-console.log('Stripe publishable key:', publishableKey ? `${publishableKey.substring(0, 20)}...` : 'NOT SET')
-if (!publishableKey) {
-  console.error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set')
-}
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null
 
 interface OrderBump {
   id: string
@@ -50,6 +42,7 @@ interface EmbeddedCheckoutWrapperProps {
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
   selectedBumps: string[]
+  stripePublishableKey?: string
 }
 
 export function EmbeddedCheckoutWrapper({
@@ -57,7 +50,11 @@ export function EmbeddedCheckoutWrapper({
   selectedTier,
   checkoutSettings,
   selectedBumps,
+  stripePublishableKey,
 }: EmbeddedCheckoutWrapperProps) {
+  const resolvedKey = stripePublishableKey || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  const stripePromiseRef = useRef(resolvedKey ? loadStripe(resolvedKey) : null)
+
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -103,7 +100,7 @@ export function EmbeddedCheckoutWrapper({
     createSession()
   }, [product, selectedTier, checkoutSettings, selectedBumps])
 
-  if (!stripePromise) {
+  if (!stripePromiseRef.current) {
     return (
       <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg">
         Stripe configuration error. Please check your environment variables.
@@ -129,7 +126,7 @@ export function EmbeddedCheckoutWrapper({
 
   return (
     <EmbeddedCheckoutProvider
-      stripe={stripePromise}
+      stripe={stripePromiseRef.current}
       options={{ clientSecret }}
     >
       <EmbeddedCheckout />

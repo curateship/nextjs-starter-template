@@ -14,10 +14,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-// Initialize Stripe
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null
-
 interface OrderBump {
   id: string
   title: string
@@ -54,6 +50,7 @@ interface PaymentElementWrapperProps {
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
   selectedBumps: string[]
+  stripePublishableKey?: string
 }
 
 function CheckoutForm({
@@ -175,7 +172,11 @@ export function PaymentElementWrapper({
   selectedTier,
   checkoutSettings,
   selectedBumps,
+  stripePublishableKey,
 }: PaymentElementWrapperProps) {
+  const resolvedKey = stripePublishableKey || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  const stripePromiseRef = useRef(resolvedKey ? loadStripe(resolvedKey) : null)
+
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [totalAmount, setTotalAmount] = useState<number>(0)
@@ -293,7 +294,7 @@ export function PaymentElementWrapper({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBumps])
 
-  if (!stripePromise) {
+  if (!stripePromiseRef.current) {
     return (
       <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-lg">
         Stripe configuration error. Please check your environment variables.
@@ -380,7 +381,7 @@ export function PaymentElementWrapper({
 
   return (
     <Elements
-      stripe={stripePromise}
+      stripe={stripePromiseRef.current}
       options={{
         clientSecret,
         appearance,

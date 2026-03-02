@@ -3,7 +3,7 @@ import { getProductByIdAction } from '@/lib/actions/products/product-actions'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
-import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
+import { getFlodeskConfig, getResendConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
 
 /**
@@ -92,16 +92,21 @@ export async function POST(request: NextRequest) {
     // Get email content
     const emailContent = emailSettings.content || ''
 
+    // Get per-site Resend config
+    const resendConfig = await getResendConfig(siteId)
+
     // Send delivery email with content
     try {
       await sendLeadMagnetDeliveryEmail({
         to: email,
         subject: emailSettings.subject || `Your ${product.title} is ready!`,
         fromName: emailSettings.fromName || site.name || 'Your Company',
+        fromEmail: resendConfig.fromEmail,
         replyTo: emailSettings.replyTo,
         content: emailContent,
         productName: product.title,
         siteUrl,
+        apiKey: resendConfig.apiKey,
       })
 
       // Mark email as sent
