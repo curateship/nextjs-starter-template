@@ -93,7 +93,7 @@ export default function UsersPage() {
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Users List</h3>
+              <h3 className="text-lg font-semibold">Users</h3>
               <Tabs defaultValue="all">
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All</TabsTrigger>

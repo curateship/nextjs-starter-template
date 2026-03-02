@@ -126,12 +126,13 @@ export default function SitesPage() {
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Sites List</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {loading ? 'Loading...' : `${filteredSites.length} site${filteredSites.length !== 1 ? 's' : ''} found`}
-                </p>
-              </div>
+              <h3 className="text-lg font-semibold">
+                {loading ? (
+                  <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
+                ) : (
+                  `${filteredSites.length} site${filteredSites.length !== 1 ? 's' : ''} found`
+                )}
+              </h3>
               <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All</TabsTrigger>

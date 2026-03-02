@@ -156,16 +156,13 @@ export default function TaxonomyTermsPage({
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
               <div className="flex items-start gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold">Terms</h3>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {loading ? (
-                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                    ) : (
-                      `${filteredTaxonomies.length} term${filteredTaxonomies.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
-                    )}
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">
+                  {loading ? (
+                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
+                  ) : (
+                    `${filteredTaxonomies.length} term${filteredTaxonomies.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                  )}
+                </h3>
                 {depthLevels.length > 1 && (
                   <Select value={filterLevel} onValueChange={setFilterLevel}>
                     <SelectTrigger size="sm">

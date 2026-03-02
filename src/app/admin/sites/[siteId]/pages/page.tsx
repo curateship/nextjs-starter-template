@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
@@ -255,15 +256,27 @@ export default function SitePagesPage({ params }: PageProps) {
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Pages List</h3>
-                <div className="text-sm text-muted-foreground mt-1">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold">
                   {loading ? (
-                    <div className="h-4 bg-muted rounded animate-pulse w-20"></div>
+                    <div className="h-5 bg-muted rounded animate-pulse w-20"></div>
                   ) : (
                     `${filteredPages.length} page${filteredPages.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
                   )}
-                </div>
+                </h3>
+                <Select value="pages" onValueChange={(value) => {
+                  if (value === 'user-pages') {
+                    router.push(`/admin/user-pages/${siteId}`)
+                  }
+                }}>
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pages">Pages</SelectItem>
+                    <SelectItem value="user-pages">User Pages</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
                 <TabsList className="gap-1">

@@ -158,16 +158,13 @@ export default function TaxonomiesPage({ params }: { params: Promise<{ siteId: s
         <AdminCard>
           <div className="p-6 border-b">
             <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Taxonomy Types</h3>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {loading ? (
-                    <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${taxonomyTypes.length} type${taxonomyTypes.length !== 1 ? 's' : ''} total`
-                  )}
-                </div>
-              </div>
+              <h3 className="text-lg font-semibold">
+                {loading ? (
+                  <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
+                ) : (
+                  `${taxonomyTypes.length} type${taxonomyTypes.length !== 1 ? 's' : ''} total`
+                )}
+              </h3>
             </div>
           </div>
 

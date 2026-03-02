@@ -102,15 +102,12 @@ export default function KeywordsPage({ params }: { params: Promise<{ siteId: str
           <AdminCard>
             <div className="p-6 border-b">
               <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-semibold">Keywords</h3>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {activeTab === 'research'
-                      ? `${researchCount} keyword${researchCount !== 1 ? 's' : ''} found`
-                      : `${libraryCount} keyword${libraryCount !== 1 ? 's' : ''} saved`
-                    }
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">
+                  {activeTab === 'research'
+                    ? `${researchCount} keyword${researchCount !== 1 ? 's' : ''} found`
+                    : `${libraryCount} keyword${libraryCount !== 1 ? 's' : ''} saved`
+                  }
+                </h3>
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'research' | 'library')}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="research">Research ({researchCount})</TabsTrigger>

@@ -237,17 +237,14 @@ export default function EventsPage() {
         <AdminCard>
             <div className="p-6 border-b">
               <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-semibold">Events List</h3>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {loading ? (
-                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                    ) : (
-                      `${filteredEvents.length} ${filteredEvents.length !== 1 ? 'events' : 'event'} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' : 
-                        `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
-                    )}
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">
+                  {loading ? (
+                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
+                  ) : (
+                    `${filteredEvents.length} ${filteredEvents.length !== 1 ? 'events' : 'event'} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' :
+                      `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
+                  )}
+                </h3>
               <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>

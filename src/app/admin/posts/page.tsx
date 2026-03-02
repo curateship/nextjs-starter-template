@@ -212,16 +212,13 @@ export default function PostsPage() {
           <AdminCard>
             <div className="p-6 border-b">
               <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-semibold">Posts List</h3>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {loading ? (
-                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
-                    ) : (
-                      `${filteredPosts.length} post${filteredPosts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
-                    )}
-                  </div>
-                </div>
+                <h3 className="text-lg font-semibold">
+                  {loading ? (
+                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
+                  ) : (
+                    `${filteredPosts.length} post${filteredPosts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                  )}
+                </h3>
               <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
