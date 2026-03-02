@@ -446,40 +446,44 @@ export async function deleteCategoryAction(categoryId: string) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Check if there are child categories
-    const { data: children, error: childrenError } = await supabaseAdmin
-      .from('categories')
-      .select('id')
-      .eq('parent_id', categoryId)
-      .limit(1)
+    // Collect all descendant IDs (children, grandchildren, etc.)
+    const allIdsToDelete = [categoryId]
+    const queue = [categoryId]
 
-    if (childrenError) {
-      return { success: false, error: childrenError.message }
+    while (queue.length > 0) {
+      const parentId = queue.shift()!
+      const { data: children, error: childrenError } = await supabaseAdmin
+        .from('categories')
+        .select('id')
+        .eq('parent_id', parentId)
+
+      if (childrenError) {
+        return { success: false, error: childrenError.message }
+      }
+
+      if (children) {
+        for (const child of children) {
+          allIdsToDelete.push(child.id)
+          queue.push(child.id)
+        }
+      }
     }
 
-    if (children && children.length > 0) {
-      return { success: false, error: 'Cannot delete category that has child categories. Delete children first or reassign them.' }
-    }
-
-    // Check if there are content relationships
-    const { data: relationships, error: relationshipsError } = await supabaseAdmin
+    // Delete all content relationships for these categories
+    const { error: relDeleteError } = await supabaseAdmin
       .from('category_relationships')
-      .select('id')
-      .eq('category_id', categoryId)
-      .limit(1)
+      .delete()
+      .in('category_id', allIdsToDelete)
 
-    if (relationshipsError) {
-      return { success: false, error: relationshipsError.message }
+    if (relDeleteError) {
+      return { success: false, error: relDeleteError.message }
     }
 
-    if (relationships && relationships.length > 0) {
-      return { success: false, error: 'Cannot delete category that is assigned to content. Remove all assignments first.' }
-    }
-
+    // Delete all categories (children first, then parent)
     const { error: deleteError } = await supabaseAdmin
       .from('categories')
       .delete()
-      .eq('id', categoryId)
+      .in('id', allIdsToDelete)
 
     if (deleteError) {
       return { success: false, error: deleteError.message }

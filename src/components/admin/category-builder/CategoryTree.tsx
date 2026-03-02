@@ -15,15 +15,13 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 
 interface CategoryTreeProps {
@@ -221,31 +219,48 @@ export function CategoryTree({
         onSuccess={handleSettingsSuccess}
       />
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Category?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{categoryToDelete?.title}&quot;?
-              {categories.some(c => c.parent_id === categoryToDelete?.id) && (
-                <span className="block mt-2 text-red-600 font-medium">
-                  Warning: This category has child categories. Delete or reassign them first.
-                </span>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete Category?</DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                Are you sure you want to delete &quot;{categoryToDelete?.title}&quot;?
+                {(() => {
+                  if (!categoryToDelete) return null
+                  const countDescendants = (parentId: string): number => {
+                    const children = allCategories.filter(c => c.parent_id === parentId)
+                    return children.reduce((sum, child) => sum + 1 + countDescendants(child.id), 0)
+                  }
+                  const count = countDescendants(categoryToDelete.id)
+                  if (count === 0) return null
+                  return (
+                    <span className="block mt-2 text-red-600 font-medium">
+                      Deleting this will also delete {count} child {count === 1 ? 'category' : 'categories'}.
+                    </span>
+                  )
+                })()}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700"
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
