@@ -91,7 +91,7 @@ export function PostSettingsModal({
       let content = ''
       if (post.content_blocks && typeof post.content_blocks === 'object') {
         const blocks = Object.values(post.content_blocks)
-        const firstBlock = blocks.find((block: any) => block.type === 'rich-text')
+        const firstBlock = blocks.find((block: any) => block.type === 'post-content')
         if (firstBlock && firstBlock.content) {
           content = firstBlock.content.body || firstBlock.content.text || ''
         }

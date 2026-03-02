@@ -27,8 +27,7 @@ export interface PostBuilderHookResult {
   loading: boolean
   saveMessage: string
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddRichTextBlock: () => void
-  handleAddPostInformationBlock: () => void
+  handleAddPostContentBlock: () => void
   handleDeleteBlock: (block: PostBlock) => void
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => void
   handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
@@ -100,39 +99,16 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     }
   }
 
-  // Add a new post information block (local-first)
-  const handleAddPostInformationBlock = () => {
+  // Add a new post content block (local-first)
+  const handleAddPostContentBlock = () => {
     const currentBlocks = Object.values(blocks)
     const timestamp = Date.now()
 
     const newBlock: PostBlock = {
-      id: `post-information-${timestamp}`,
-      type: 'post-information',
+      id: `post-content-${timestamp}`,
+      type: 'post-content',
       display_order: currentBlocks.length + 1,
-      content: { showAuthor: true, showDate: true },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    // Update blocks using setBlocks
-    setBlocks(prev => ({
-      ...prev,
-      [newBlock.id]: newBlock
-    }))
-
-    setSelectedBlock(newBlock)
-  }
-
-  // Add a new rich text block (local-first)
-  const handleAddRichTextBlock = () => {
-    const currentBlocks = Object.values(blocks)
-    const timestamp = Date.now()
-
-    const newBlock: PostBlock = {
-      id: `rich-text-${timestamp}`,
-      type: 'rich-text',
-      display_order: currentBlocks.length + 1,
-      content: { title: '', body: '', format: 'html' },
+      content: { showAuthor: true, showDate: true, body: '', format: 'html' },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -250,8 +226,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     loading,
     saveMessage,
     handleAddBlocks,
-    handleAddRichTextBlock,
-    handleAddPostInformationBlock,
+    handleAddPostContentBlock,
     handleDeleteBlock,
     handleUpdateBlock,
     handleReorderBlocks,

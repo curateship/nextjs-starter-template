@@ -99,9 +99,35 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           actualBlocks[key] = value
         }
       })
+      // Auto-add a post-content block if none exists
+      const hasPostContent = Object.values(actualBlocks).some(
+        (b: any) => b.type === 'post-content'
+      )
+      if (!hasPostContent) {
+        const blockId = `post-content-${Date.now()}`
+        actualBlocks[blockId] = {
+          id: blockId,
+          type: 'post-content',
+          display_order: 0,
+          content: { showAuthor: true, showDate: true, body: '', format: 'html' },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
       setLocalBlocks(actualBlocks)
     } else {
-      setLocalBlocks({})
+      // No content_blocks at all — start with a default post-content block
+      const blockId = `post-content-${Date.now()}`
+      setLocalBlocks({
+        [blockId]: {
+          id: blockId,
+          type: 'post-content',
+          display_order: 1,
+          content: { showAuthor: true, showDate: true, body: '', format: 'html' },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      })
     }
   }, [selectedPost, currentPostData?.id])
   

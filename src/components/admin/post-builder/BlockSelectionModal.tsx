@@ -105,7 +105,7 @@ export function BlockSelectionModal({
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-4 py-4">
-          {POST_BLOCK_TYPES.map((blockType) => {
+          {POST_BLOCK_TYPES.filter(bt => bt.type !== 'post-content').map((blockType) => {
             const Icon = blockType.icon
             const isSelected = !!selections[blockType.type]
             const isDisabled = disabledBlocks.has(blockType.type)

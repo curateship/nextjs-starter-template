@@ -1,5 +1,3 @@
-'use server'
-
 /**
  * Re-exports from the centralized integrations module.
  * Kept for backward compatibility — all existing importers continue to work.

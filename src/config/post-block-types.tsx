@@ -1,4 +1,4 @@
-import { FileText, Info, Image as ImageIcon, Code, Quote, Minus, LucideIcon } from "lucide-react"
+import { FileText, Image as ImageIcon, Code, Quote, Minus, LucideIcon } from "lucide-react"
 
 export interface BlockTypeDefinition {
   type: string
@@ -11,24 +11,15 @@ export interface BlockTypeDefinition {
 
 export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'post-information',
-    name: 'Post Information',
-    icon: Info,
-    description: 'Display post metadata like author, date, and categories',
+    type: 'post-content',
+    name: 'Post Content',
+    icon: FileText,
+    description: 'Post title, display options, and rich text content',
     defaultContent: {
       showAuthor: true,
       showDate: true,
-      showCategories: true
-    }
-  },
-  {
-    type: 'rich-text',
-    name: 'Rich Text',
-    icon: FileText,
-    description: 'Add formatted text content with rich editing capabilities',
-    defaultContent: {
-      title: '',
-      body: '<p>Start writing your content here...</p>'
+      body: '<p>Start writing your content here...</p>',
+      format: 'html'
     }
   },
   {
@@ -80,7 +71,7 @@ export function getBlockTypeDefinition(type: string): BlockTypeDefinition | unde
 
 export function getBlockIcon(type: string): LucideIcon {
   const definition = getBlockTypeDefinition(type)
-  return definition?.icon || Info
+  return definition?.icon || FileText
 }
 
 export function getBlockName(type: string): string {

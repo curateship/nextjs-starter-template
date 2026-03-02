@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, FileText, Info, Eye } from "lucide-react"
+import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -114,7 +114,7 @@ function SortablePostBlockItem({
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
             <h3 className="text-sm font-medium">
-              {isDefaultBlock(block) ? 'Rich Text Editor' : (block.content?.title || getBlockTypeName(block))}
+              {isDefaultBlock(block) ? 'Post Content' : (block.content?.title || getBlockTypeName(block))}
             </h3>
           </div>
         </div>
@@ -206,8 +206,7 @@ export function BlockListPanel({
   }
 
   const getBlockTypeName = (block: PostBlock) => {
-    if (block.type === 'post-content' || block.type === 'rich-text') return 'Rich Text Editor'
-    if (block.type === 'post-information') return 'Post Information'
+    if (block.type === 'post-content') return 'Post Content'
     return 'Block'
   }
 
@@ -218,10 +217,7 @@ export function BlockListPanel({
   const getBlockIcon = (blockType: string) => {
     switch (blockType) {
       case 'post-content':
-      case 'rich-text':
         return <FileText className="w-3.5 h-3.5" />
-      case 'post-information':
-        return <Info className="w-3.5 h-3.5" />
       default:
         return <div className="w-3.5 h-3.5" />
     }

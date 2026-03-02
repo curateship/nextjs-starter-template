@@ -119,8 +119,8 @@ export function usePostBlocks(
 
 function getDefaultContentForType(type: PostBlock['type']): Record<string, any> {
   switch (type) {
-    case 'rich-text':
-      return { title: '', body: '', format: 'html' }
+    case 'post-content':
+      return { showAuthor: true, showDate: true, body: '', format: 'html' }
     case 'image':
       return { url: '', alt: '', caption: '' }
     case 'code':

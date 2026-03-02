@@ -1,6 +1,6 @@
-import { format } from "date-fns"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useMemo } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { POST_CONTENT_STYLE_RENDERERS } from "./post-content-styles"
 
 interface PostContentBlockProps {
   blocks: Array<{
@@ -25,18 +25,6 @@ export function PostContentBlock({
   siteWidth = 'custom',
   customWidth
 }: PostContentBlockProps) {
-  // Default author info (you can enhance this later to get from post data)
-  const defaultAuthor = {
-    name: "Author",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/avatar-2.webp"
-  }
-
-  // Find post-information block to get display settings
-  const postInfoBlock = blocks.find(block => block.type === 'post-information')
-  const showAuthor = postInfoBlock?.content?.showAuthor ?? true
-  const showDate = postInfoBlock?.content?.showDate ?? true
-
-
   return (
     <BlockContainer
       siteWidth={siteWidth}
@@ -45,57 +33,8 @@ export function PostContentBlock({
         <div className="mx-auto max-w-5xl">
           {blocks.map((block) => (
             <div key={block.id} className="mb-10">
-              {block.type === 'post-information' && (
-                <div className="flex flex-col items-center gap-4 text-center">
-                  <h1 className="max-w-3xl text-pretty text-5xl font-semibold md:text-6xl">
-                    {post.title}
-                  </h1>
-                  {post.excerpt && (
-                    <h3 className="text-muted-foreground max-w-3xl text-lg md:text-xl">
-                      {post.excerpt}
-                    </h3>
-                  )}
-                  {(showAuthor || showDate) && (
-                    <div className="flex items-center gap-3 text-sm md:text-base">
-                      {showAuthor && (
-                        <Avatar className="h-8 w-8 border">
-                          <AvatarImage src={defaultAuthor.image} />
-                          <AvatarFallback>{defaultAuthor.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <span>
-                        {showAuthor && (
-                          <a href="#" className="font-semibold">
-                            {defaultAuthor.name}
-                          </a>
-                        )}
-                        {showDate && (
-                          <span className={showAuthor ? "ml-1" : ""}>
-                            {showAuthor ? "on " : ""}{format(new Date(post.created_at), "MMMM d, yyyy")}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {post.featured_image && post.show_featured_image !== false && (
-                    <img
-                      src={post.featured_image}
-                      alt="Featured image"
-                      className="mt-4 aspect-video w-full rounded-lg border object-cover"
-                    />
-                  )}
-                </div>
-              )}
-
-              {block.type === 'rich-text' && (
-                <div className="prose dark:prose-invert mx-auto max-w-3xl">
-                  {block.content.title && (
-                    <h2 className="text-4xl font-extrabold">{block.content.title}</h2>
-                  )}
-                  {block.content.body && (
-                    <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: block.content.body }} />
-                  )}
-                </div>
+              {block.type === 'post-content' && (
+                <PostContentStyled block={block} post={post} />
               )}
 
               {block.type === 'image' && block.content.url && (
@@ -137,12 +76,6 @@ export function PostContentBlock({
                 </div>
               )}
 
-              {block.type === 'post-content' && block.content.content && (
-                <div className="prose dark:prose-invert mx-auto max-w-3xl">
-                  <div className="text-lg" dangerouslySetInnerHTML={{ __html: block.content.content }} />
-                </div>
-              )}
-
               {block.type === 'divider' && (
                 <div className="mx-auto max-w-3xl">
                   <hr className="my-8 border-t border-border" />
@@ -152,5 +85,39 @@ export function PostContentBlock({
           ))}
         </div>
     </BlockContainer>
+  )
+}
+
+/** Renders post-content block using the style renderer registry */
+function PostContentStyled({ block, post }: {
+  block: { id: string; type: string; content: Record<string, any> }
+  post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
+}) {
+  const postContentStyle = block.content.postContentStyle || 'default'
+  const styleConfig = block.content.styleConfig || {}
+
+  const resolvedConfig = useMemo(() => {
+    if (styleConfig[postContentStyle]) {
+      return styleConfig[postContentStyle]
+    }
+    return {}
+  }, [postContentStyle, styleConfig])
+
+  const StyleRenderer = POST_CONTENT_STYLE_RENDERERS[postContentStyle] || POST_CONTENT_STYLE_RENDERERS.default
+
+  return (
+    <StyleRenderer
+      config={resolvedConfig}
+      sharedContent={{
+        title: post.title,
+        excerpt: post.excerpt,
+        featuredImage: post.featured_image,
+        showFeaturedImage: post.show_featured_image,
+        createdAt: post.created_at,
+        showAuthor: block.content.showAuthor ?? true,
+        showDate: block.content.showDate ?? true,
+        body: block.content.body,
+      }}
+    />
   )
 }

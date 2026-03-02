@@ -1,5 +1,4 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
-import { PostInformationBlock } from "@/components/admin/post-builder/blocks/PostInformationBlock"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -57,21 +56,17 @@ export function BlockPropertiesPanel({
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
         <div>
-          <div className="space-y-4 p-4">
-            {(selectedBlock.type === 'rich-text' || selectedBlock.type === 'post-content') && (
+          <div className="">
+            {selectedBlock.type === 'post-content' && (
               <PostContentBlock
-                block={selectedBlock as any}
-                onContentChange={(content: Record<string, any>) =>
-                  updateBlockContent(selectedBlock.id, { content })
+                content={selectedBlock.content || {}}
+                onContentChange={(field: string, value: any) =>
+                  updateBlockContent(selectedBlock.id, {
+                    content: { ...selectedBlock.content, [field]: value }
+                  })
                 }
-              />
-            )}
-            {selectedBlock.type === 'post-information' && (
-              <PostInformationBlock
-                block={selectedBlock as any}
-                onContentChange={(content: Record<string, any>) =>
-                  updateBlockContent(selectedBlock.id, { content })
-                }
+                siteId={siteId}
+                blockId={selectedBlock.id}
                 postData={currentPost}
                 onPostTitleChange={onPostTitleChange}
               />
