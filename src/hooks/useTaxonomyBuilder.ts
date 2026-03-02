@@ -34,12 +34,6 @@ interface UseTaxonomyBuilderReturn {
   handleDeleteBlock: (block: TaxonomyBlock) => void
   handleReorderBlocks: (blocks: TaxonomyBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddTaxonomyDefaultBlock: () => void
-  handleAddTaxonomyHeroBlock: () => void
-  handleAddTaxonomyStatsBlock: () => void
-  handleAddTaxonomyRichTextBlock: () => void
-  handleAddTaxonomyListingViewsBlock: () => void
-  handleAddTaxonomyFAQBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -92,22 +86,6 @@ export function useTaxonomyBuilder({
     setBlocks(updatedBlocks)
   }
 
-  const addBlock = (type: string, title: string, defaultContent: Record<string, any>) => {
-    const newBlock: TaxonomyBlock = {
-      id: `${type}-${Date.now()}`,
-      type,
-      title,
-      content: defaultContent
-    }
-
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedTaxonomy] || []
-    updatedBlocks[selectedTaxonomy] = [...currentBlocks, newBlock]
-
-    setBlocks(updatedBlocks)
-    setSelectedBlock(newBlock)
-  }
-
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
     const currentBlocks = updatedBlocks[selectedTaxonomy] || []
@@ -141,84 +119,6 @@ export function useTaxonomyBuilder({
     if (newBlocksToAdd.length > 0) {
       setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }
-  }
-
-  const handleAddTaxonomyDefaultBlock = () => {
-    addBlock('taxonomy-default', 'Tag Information', {
-      viewOnly: true
-    })
-  }
-
-  const handleAddTaxonomyHeroBlock = () => {
-    addBlock('taxonomy-hero', 'Hero Section', {
-      title: 'Taxonomy Hero',
-      subtitle: 'Add your subtitle here',
-      primaryButton: 'Learn More',
-      secondaryButton: 'View All',
-      primaryButtonLink: '',
-      secondaryButtonLink: '',
-      primaryButtonStyle: 'primary',
-      secondaryButtonStyle: 'outline',
-      backgroundColor: '#ffffff'
-    })
-  }
-
-  const handleAddTaxonomyStatsBlock = () => {
-    addBlock('taxonomy-stats', 'Statistics', {
-      headerTitle: 'Key Statistics',
-      headerSubtitle: 'Important numbers and facts',
-      stats: [
-        {
-          id: `stat-${Date.now()}-1`,
-          label: 'Total Items',
-          value: '0',
-          icon: '📊'
-        }
-      ]
-    })
-  }
-
-  const handleAddTaxonomyRichTextBlock = () => {
-    addBlock('rich-text', 'Rich Text', {
-      content: '<p>Add your content here...</p>'
-    })
-  }
-
-  const handleAddTaxonomyListingViewsBlock = () => {
-    addBlock('listing-views', 'Content Listings', {
-      title: 'Related Content',
-      subtitle: 'Explore content in this category',
-      headerAlign: 'left',
-      contentType: 'directory', // Default to directories
-      displayMode: 'grid',
-      itemsToShow: 6,
-      columns: 3,
-      sortBy: 'date',
-      sortOrder: 'desc',
-      showImage: true,
-      showTitle: true,
-      showDescription: true,
-      isPaginated: false,
-      itemsPerPage: 12,
-      viewAllText: '',
-      viewAllLink: '',
-      backgroundColor: '#ffffff',
-      filterByCurrentTaxonomy: true // Auto-filter by current taxonomy
-    })
-  }
-
-  const handleAddTaxonomyFAQBlock = () => {
-    addBlock('faq', 'FAQ', {
-      title: 'Frequently Asked Questions',
-      subtitle: 'Common questions about this category',
-      faqItems: [
-        {
-          id: 'item-1',
-          question: 'What is included in this category?',
-          answer: 'This category includes various items related to the topic.'
-        }
-      ]
-    })
   }
 
   const handleSaveAllBlocks = async () => {
@@ -281,12 +181,6 @@ export function useTaxonomyBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
-    handleAddTaxonomyDefaultBlock,
-    handleAddTaxonomyHeroBlock,
-    handleAddTaxonomyStatsBlock,
-    handleAddTaxonomyRichTextBlock,
-    handleAddTaxonomyListingViewsBlock,
-    handleAddTaxonomyFAQBlock,
     handleSaveAllBlocks
   }
 }

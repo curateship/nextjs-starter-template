@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { Trash2, Info, Eye } from "lucide-react"
+import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
@@ -26,6 +27,8 @@ interface BlockListPanelProps {
   deleting: string | null
   blocksLoading?: boolean
 }
+
+const NON_DELETABLE_TYPES = ['taxonomy-content']
 
 function SortableBlockItem({
   block,
@@ -57,16 +60,18 @@ function SortableBlockItem({
 
   const getBlockIcon = (blockType: string) => {
     switch (blockType) {
-      case 'taxonomy-default':
-        return <Info className="w-3.5 h-3.5" />
+      case 'taxonomy-content':
+        return <FileText className="w-3.5 h-3.5" />
       default:
         return <div className="w-3.5 h-3.5" />
     }
   }
 
   const getBlockTypeName = (block: TaxonomyBlock) => {
-    return block.type === 'taxonomy-default' ? 'Tag Information' : 'Block'
+    return block.type === 'taxonomy-content' ? 'Content' : 'Block'
   }
+
+  const isRequired = NON_DELETABLE_TYPES.includes(block.type)
 
   return (
     <div
@@ -76,27 +81,38 @@ function SortableBlockItem({
         isSelected ? 'bg-muted/60' : 'opacity-60 hover:opacity-90'
       }`}
       onClick={onSelect}
-      {...attributes}
-      {...listeners}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          {getBlockIcon(block.type)}
-          <span className="font-medium text-sm">{getBlockTypeName(block)}</span>
+          <div
+            {...attributes}
+            {...listeners}
+            className="flex items-center justify-center w-7 h-7 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-grab active:cursor-grabbing"
+          >
+            <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
+          </div>
+          <div className="flex items-center space-x-2">
+            {getBlockIcon(block.type)}
+            <span className="font-medium text-sm">{getBlockTypeName(block)}</span>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-          disabled={isDeleting}
-          title="Delete block"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
+        {isRequired ? (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Required</Badge>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+            disabled={isDeleting}
+            title="Delete block"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -113,7 +129,11 @@ export function BlockListPanel({
   blocksLoading = false
 }: BlockListPanelProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })

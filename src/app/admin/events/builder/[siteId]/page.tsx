@@ -21,9 +21,9 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const router = useRouter()
   const searchParams = useSearchParams()
   const { currentSite } = useSiteContext()
-  const [events, setDirectories] = useState<Event[]>([])
-  const [eventsLoading, setDirectoriesLoading] = useState(true)
-  const [eventsError, setDirectoriesError] = useState<string | null>(null)
+  const [events, setEvents] = useState<Event[]>([])
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [eventsError, setEventsError] = useState<string | null>(null)
   // Get initial event from URL params or default to first event
   const initialEvent = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(initialEvent)
@@ -38,16 +38,16 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   // Load events data
   useEffect(() => {
-    async function loadDirectories() {
+    async function loadEvents() {
       try {
-        setDirectoriesLoading(true)
-        setDirectoriesError(null)
+        setEventsLoading(true)
+        setEventsError(null)
         const { data, error } = await getSiteEventsAction(siteId)
         if (error) {
-          setDirectoriesError(error)
+          setEventsError(error)
           return
         }
-        setDirectories(data || [])
+        setEvents(data || [])
 
         // If initial event doesn't exist, redirect to first event
         if (data && data.length > 0) {
@@ -59,17 +59,17 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           }
         }
       } catch (err) {
-        setDirectoriesError('Failed to load events')
+        setEventsError('Failed to load events')
       } finally {
-        setDirectoriesLoading(false)
+        setEventsLoading(false)
       }
     }
 
-    loadDirectories()
+    loadEvents()
   }, [siteId, initialEvent, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
+  const { site, blocks, siteBlocks, blocksLoading, siteError } = useEventData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change, auto-add event-content if missing
@@ -123,7 +123,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   // Handle event creation
   const handleEventCreated = (newEvent: Event) => {
-    setDirectories(prev => [...prev, newEvent])
+    setEvents(prev => [...prev, newEvent])
     // Initialize blocks array for the new event
     setLocalBlocks(prev => ({
       ...prev,
@@ -136,7 +136,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   // Handle event updates
   const handleEventUpdated = (updatedEvent: Event) => {
-    setDirectories(prev => prev.map(d => d.id === updatedEvent.id ? updatedEvent : d))
+    setEvents(prev => prev.map(d => d.id === updatedEvent.id ? updatedEvent : d))
 
     // If the slug changed, we need to update our local blocks and URL
     const currentEvent = events.find(d => d.id === updatedEvent.id)
@@ -177,18 +177,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   const handleTitleChange = (title: string) => {
     updateCurrentEvent({ title })
-  }
-
-  const handleDescriptionChange = (description: string) => {
-    updateCurrentEvent({ description })
-  }
-
-  const handleFeaturedImageChange = (featured_image: string) => {
-    updateCurrentEvent({ featured_image })
-  }
-
-  const handleStatusChange = (status: string) => {
-    updateCurrentEvent({ is_published: status === 'published' })
   }
 
   // Only show loading state for critical errors (not during normal loading)
@@ -260,9 +248,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           siteBlocks={siteBlocks}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
-          onDescriptionChange={handleDescriptionChange}
-          onFeaturedImageChange={handleFeaturedImageChange}
-          onStatusChange={handleStatusChange}
         />
 
         <BlockListPanel

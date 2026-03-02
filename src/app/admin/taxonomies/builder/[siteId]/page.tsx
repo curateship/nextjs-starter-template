@@ -118,9 +118,24 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
   const { site, blocks, siteBlocks, blocksLoading, siteError } = useTaxonomyData(siteId, selectedTypeId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change
+  // Update local blocks when server blocks change, auto-add taxonomy-content if missing
   useEffect(() => {
-    setLocalBlocks(blocks)
+    const updated = { ...blocks }
+    for (const slug of Object.keys(updated)) {
+      const hasContentBlock = updated[slug]?.some(b => b.type === 'taxonomy-content')
+      if (!hasContentBlock) {
+        updated[slug] = [
+          {
+            id: `taxonomy-content-${Date.now()}`,
+            type: 'taxonomy-content',
+            title: 'Content',
+            content: { showFeaturedImage: true, body: '', format: 'html' }
+          },
+          ...(updated[slug] || [])
+        ]
+      }
+    }
+    setLocalBlocks(updated)
   }, [blocks])
 
   const builderState = useTaxonomyBuilder({
@@ -172,18 +187,6 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
 
   const handleTitleChange = (title: string) => {
     updateCurrentTaxonomy({ title })
-  }
-
-  const handleDescriptionChange = (description: string) => {
-    updateCurrentTaxonomy({ description })
-  }
-
-  const handleFeaturedImageChange = (featured_image: string) => {
-    updateCurrentTaxonomy({ featured_image })
-  }
-
-  const handleStatusChange = (status: string) => {
-    updateCurrentTaxonomy({ is_published: status === 'published' })
   }
 
   // Only show loading state for critical errors (not during normal loading)
@@ -263,9 +266,6 @@ export default function TaxonomyBuilderEditor({ params }: { params: Promise<{ si
           siteBlocks={siteBlocks}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
-          onDescriptionChange={handleDescriptionChange}
-          onFeaturedImageChange={handleFeaturedImageChange}
-          onStatusChange={handleStatusChange}
         />
 
         <BlockListPanel

@@ -124,7 +124,7 @@ export function BlockSelectionModal({
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-4 py-4">
-          {TAXONOMY_BLOCK_TYPES.map((blockType) => {
+          {TAXONOMY_BLOCK_TYPES.filter(bt => bt.type !== 'taxonomy-content').map((blockType) => {
             const Icon = blockType.icon
             const isSelected = !!selections[blockType.type]
             const isDisabled = disabledBlocks.has(blockType.type)

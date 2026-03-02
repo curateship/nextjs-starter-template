@@ -34,7 +34,6 @@ interface UseEventBuilderReturn {
   handleDeleteBlock: (block: EventBlock) => void
   handleReorderBlocks: (blocks: EventBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddEventContentBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -87,22 +86,6 @@ export function useEventBuilder({
     setBlocks(updatedBlocks)
   }
 
-  const addBlock = (type: string, title: string, defaultContent: Record<string, any>) => {
-    const newBlock: EventBlock = {
-      id: `${type}-${Date.now()}`,
-      type,
-      title,
-      content: defaultContent
-    }
-
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedEvent] || []
-    updatedBlocks[selectedEvent] = [...currentBlocks, newBlock]
-
-    setBlocks(updatedBlocks)
-    setSelectedBlock(newBlock)
-  }
-
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
     const currentBlocks = updatedBlocks[selectedEvent] || []
@@ -139,14 +122,6 @@ export function useEventBuilder({
     if (newBlocks.length > 0) {
       setSelectedBlock(newBlocks[newBlocks.length - 1])
     }
-  }
-
-  const handleAddEventContentBlock = () => {
-    addBlock('event-content', 'Content', {
-      showFeaturedImage: true,
-      body: '',
-      format: 'html'
-    })
   }
 
   const handleSaveAllBlocks = async () => {
@@ -209,7 +184,6 @@ export function useEventBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
-    handleAddEventContentBlock,
     handleSaveAllBlocks
   }
 }

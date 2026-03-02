@@ -14,8 +14,8 @@ export interface TaxonomyBlock {
  */
 export function getTaxonomyBlockTitle(blockType: string): string {
   switch (blockType) {
-    case 'taxonomy-default':
-      return 'Tag Information'
+    case 'taxonomy-content':
+      return 'Content'
     default:
       return 'Taxonomy Block'
   }
@@ -67,7 +67,7 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
 
   if (contentBlocks && typeof contentBlocks === 'object') {
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['taxonomy-default']
+    const allowedBlockTypes = ['taxonomy-content']
 
     Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
       // Skip _settings and other metadata fields
@@ -102,117 +102,3 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
   return blocks
 }
 
-/**
- * Get human-readable title for block type (for builder UI)
- */
-function getBlockTitle(blockType: string): string {
-  const titleMap: Record<string, string> = {
-    'taxonomy-default': 'Tag Information',
-    'taxonomy-hero': 'Hero Section',
-    'taxonomy-stats': 'Statistics',
-    'rich-text': 'Rich Text',
-    'listing-views': 'Content Listings',
-    'faq': 'FAQ',
-    'gallery': 'Gallery'
-  }
-
-  return titleMap[blockType] || blockType
-}
-
-/**
- * Get the default content for a new block type
- */
-function getDefaultBlockContent(blockType: string): Record<string, any> {
-  const defaults: Record<string, Record<string, any>> = {
-    'taxonomy-default': {
-      viewOnly: true
-    },
-    'taxonomy-hero': {
-      title: 'Taxonomy Hero',
-      subtitle: 'Add your subtitle here',
-      primaryButton: 'Learn More',
-      secondaryButton: 'View All',
-      primaryButtonLink: '',
-      secondaryButtonLink: '',
-      primaryButtonStyle: 'primary',
-      secondaryButtonStyle: 'outline',
-      backgroundColor: '#ffffff'
-    },
-    'taxonomy-stats': {
-      headerTitle: 'Key Statistics',
-      headerSubtitle: 'Important numbers and facts',
-      stats: []
-    },
-    'rich-text': {
-      content: '<p>Add your content here...</p>'
-    },
-    'listing-views': {
-      title: 'Related Content',
-      subtitle: 'Explore content in this category',
-      headerAlign: 'left',
-      contentType: 'directory',
-      displayMode: 'grid',
-      itemsToShow: 6,
-      columns: 3,
-      sortBy: 'date',
-      sortOrder: 'desc',
-      showImage: true,
-      showTitle: true,
-      showDescription: true,
-      isPaginated: false,
-      itemsPerPage: 12,
-      viewAllText: '',
-      viewAllLink: '',
-      backgroundColor: '#ffffff',
-      filterByCurrentTaxonomy: true
-    },
-    'faq': {
-      title: 'Frequently Asked Questions',
-      subtitle: 'Common questions about this category',
-      faqItems: []
-    }
-  }
-
-  return defaults[blockType] || {}
-}
-
-/**
- * Validate taxonomy block content
- */
-function validateBlockContent(blockType: string, content: Record<string, any>): {
-  isValid: boolean
-  errors: string[]
-} {
-  const errors: string[] = []
-
-  switch (blockType) {
-    case 'taxonomy-hero':
-      if (!content.title) {
-        errors.push('Hero block requires a title')
-      }
-      break
-
-    case 'taxonomy-stats':
-      if (!content.stats || !Array.isArray(content.stats)) {
-        errors.push('Stats block requires a stats array')
-      }
-      break
-
-    case 'listing-views':
-      if (!content.contentType) {
-        errors.push('Listing views block requires a content type')
-      }
-      break
-
-    case 'rich-text':
-      if (!content.content) {
-        errors.push('Rich text block requires content')
-      }
-      break
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
-  }
-}

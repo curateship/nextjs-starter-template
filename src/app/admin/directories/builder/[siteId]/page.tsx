@@ -69,7 +69,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }, [siteId, initialDirectory, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
+  const { site, blocks, siteBlocks, blocksLoading, siteError } = useDirectoryData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change, auto-add directory-content if missing
@@ -179,18 +179,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     updateCurrentDirectory({ title })
   }
 
-  const handleDescriptionChange = (description: string) => {
-    updateCurrentDirectory({ description })
-  }
-
-  const handleFeaturedImageChange = (featured_image: string) => {
-    updateCurrentDirectory({ featured_image })
-  }
-
-  const handleStatusChange = (status: string) => {
-    updateCurrentDirectory({ is_published: status === 'published' })
-  }
-
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
@@ -260,9 +248,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           siteBlocks={siteBlocks}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
-          onDescriptionChange={handleDescriptionChange}
-          onFeaturedImageChange={handleFeaturedImageChange}
-          onStatusChange={handleStatusChange}
         />
 
         <BlockListPanel

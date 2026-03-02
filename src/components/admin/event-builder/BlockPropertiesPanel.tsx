@@ -35,11 +35,7 @@ interface BlockPropertiesPanelProps {
   }
   siteBlocks?: Record<string, any[]>
   blocksLoading?: boolean
-  onOpenEventSettings?: () => void
   onTitleChange?: (title: string) => void
-  onDescriptionChange?: (description: string) => void
-  onFeaturedImageChange?: (featuredImage: string) => void
-  onStatusChange?: (status: string) => void
 }
 
 export function BlockPropertiesPanel({

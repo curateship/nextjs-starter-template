@@ -123,9 +123,15 @@ export function CreateTaxonomyModal({
     setIsSubmitting(true)
 
     try {
-      const contentBlocks = {
+      const contentBlocks: Record<string, any> = {
         _settings: {
           is_private: isPrivate
+        },
+        'taxonomy-content': {
+          showFeaturedImage: true,
+          body: richTextContent.trim() || '',
+          format: 'html',
+          display_order: 0
         }
       }
 
@@ -170,9 +176,15 @@ export function CreateTaxonomyModal({
     setIsSubmitting(true)
 
     try {
-      const contentBlocks = {
+      const contentBlocks: Record<string, any> = {
         _settings: {
           is_private: isPrivate
+        },
+        'taxonomy-content': {
+          showFeaturedImage: true,
+          body: richTextContent.trim() || '',
+          format: 'html',
+          display_order: 0
         }
       }
 

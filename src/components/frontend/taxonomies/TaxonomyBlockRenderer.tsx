@@ -3,6 +3,7 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { TAXONOMY_CONTENT_STYLE_RENDERERS } from "./taxonomy-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface TaxonomyWithBlocks {
@@ -24,6 +25,43 @@ interface TaxonomyBlockRendererProps {
   taxonomy: TaxonomyWithBlocks
 }
 
+function TaxonomyContentStyled({
+  block,
+  taxonomy,
+  siteWidth,
+  customWidth,
+}: {
+  block: { id: string; type: string; content: Record<string, any> }
+  taxonomy: TaxonomyWithBlocks
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
+}) {
+  const styleName = block.content.taxonomyContentStyle || 'default'
+  const styleConfig = block.content.styleConfig || {}
+  const config = styleConfig[styleName] || {}
+
+  const Renderer = TAXONOMY_CONTENT_STYLE_RENDERERS[styleName] || TAXONOMY_CONTENT_STYLE_RENDERERS.default
+
+  return (
+    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+      <div className="py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <Renderer
+            config={config}
+            sharedContent={{
+              title: taxonomy.title,
+              description: taxonomy.description,
+              featuredImage: taxonomy.featured_image,
+              showFeaturedImage: block.content.showFeaturedImage ?? true,
+              body: block.content.body,
+            }}
+          />
+        </div>
+      </div>
+    </BlockContainer>
+  )
+}
+
 export function TaxonomyBlockRenderer({ site, taxonomy }: TaxonomyBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: taxonomyBlocks = [] } = taxonomy
@@ -39,34 +77,12 @@ export function TaxonomyBlockRenderer({ site, taxonomy }: TaxonomyBlockRendererP
   const animationSettings = site.settings?.animations;
 
   // Get site width from site settings
-  const siteWidth = site.settings?.site_width || 'custom';
+  const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
     <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
-        {/* Taxonomy Header */}
-        <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-          <div className="py-12 px-4">
-            <div className="max-w-4xl mx-auto">
-              <h1 className="text-4xl font-bold mb-4">{taxonomy.title}</h1>
-              {taxonomy.description && (
-                <div
-                  className="prose prose-sm max-w-none mb-6 dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: taxonomy.description }}
-                />
-              )}
-              {taxonomy.featured_image && (
-                <img
-                  src={taxonomy.featured_image}
-                  alt={taxonomy.title}
-                  className="w-full h-64 object-cover rounded-lg"
-                />
-              )}
-            </div>
-          </div>
-        </BlockContainer>
-
         {/* Taxonomy Blocks */}
         {sortedBlocks.map((block) => {
           // Skip navigation and footer blocks as they're handled by SiteLayout
@@ -74,25 +90,15 @@ export function TaxonomyBlockRenderer({ site, taxonomy }: TaxonomyBlockRendererP
             return null
           }
 
-          // Render taxonomy-specific blocks here
-          if (block.type === 'taxonomy-default') {
+          if (block.type === 'taxonomy-content') {
             return (
-              <BlockContainer
-                key={`taxonomy-default-${block.id}`}
+              <TaxonomyContentStyled
+                key={`taxonomy-content-${block.id}`}
+                block={block}
+                taxonomy={taxonomy}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
-              >
-                <div className="py-8 px-4">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="border rounded-lg p-6 bg-card text-card-foreground">
-                      <h3 className="text-lg font-semibold mb-2">Tag Information</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This is a taxonomy default block. Additional content can be added here.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </BlockContainer>
+              />
             )
           }
 

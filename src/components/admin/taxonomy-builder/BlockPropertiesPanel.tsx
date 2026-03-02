@@ -1,4 +1,4 @@
-import { TaxonomyDefaultBlock } from "@/components/admin/taxonomy-builder/blocks/TaxonomyDefaultBlock"
+import { TaxonomyContentBlock } from "@/components/admin/taxonomy-builder/blocks/TaxonomyContentBlock"
 import { TaxonomyPreview } from "./TaxonomyPreview"
 
 interface TaxonomyBlock {
@@ -36,11 +36,7 @@ interface BlockPropertiesPanelProps {
   }
   siteBlocks?: Record<string, any[]>
   blocksLoading?: boolean
-  onOpenTaxonomySettings?: () => void
   onTitleChange?: (title: string) => void
-  onDescriptionChange?: (description: string) => void
-  onFeaturedImageChange?: (featuredImage: string) => void
-  onStatusChange?: (status: string) => void
 }
 
 export function BlockPropertiesPanel({
@@ -51,11 +47,7 @@ export function BlockPropertiesPanel({
   site,
   siteBlocks,
   blocksLoading = false,
-  onOpenTaxonomySettings,
   onTitleChange,
-  onDescriptionChange,
-  onFeaturedImageChange,
-  onStatusChange
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current taxonomy
   const currentSiteBlocks = siteBlocks?.[currentTaxonomy?.slug || ''] || []
@@ -66,18 +58,18 @@ export function BlockPropertiesPanel({
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
         <div>
-          <div className="space-y-4">
-            {selectedBlock.type === 'taxonomy-default' && (
-              <TaxonomyDefaultBlock
-                title={currentTaxonomy?.title || currentTaxonomy?.name || ''}
-                richText={currentTaxonomy?.description || ''}
-                featuredImage={currentTaxonomy?.featured_image || ''}
-                status={currentTaxonomy?.is_published ? 'published' : 'draft'}
-                onTitleChange={onTitleChange}
-                onRichTextChange={onDescriptionChange}
-                onFeaturedImageChange={onFeaturedImageChange}
-                onStatusChange={onStatusChange}
-                onOpenSettings={onOpenTaxonomySettings}
+          <div className="">
+            {selectedBlock.type === 'taxonomy-content' && (
+              <TaxonomyContentBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
+                taxonomyData={{
+                  title: currentTaxonomy?.title || currentTaxonomy?.name,
+                  name: currentTaxonomy?.name,
+                }}
+                onTaxonomyTitleChange={onTitleChange}
               />
             )}
           </div>

@@ -34,7 +34,6 @@ interface UseDirectoryBuilderReturn {
   handleDeleteBlock: (block: DirectoryBlock) => void
   handleReorderBlocks: (blocks: DirectoryBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddDirectoryContentBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -87,22 +86,6 @@ export function useDirectoryBuilder({
     setBlocks(updatedBlocks)
   }
 
-  const addBlock = (type: string, title: string, defaultContent: Record<string, any>) => {
-    const newBlock: DirectoryBlock = {
-      id: `${type}-${Date.now()}`,
-      type,
-      title,
-      content: defaultContent
-    }
-
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedDirectory] || []
-    updatedBlocks[selectedDirectory] = [...currentBlocks, newBlock]
-
-    setBlocks(updatedBlocks)
-    setSelectedBlock(newBlock)
-  }
-
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
     const currentBlocks = updatedBlocks[selectedDirectory] || []
@@ -139,14 +122,6 @@ export function useDirectoryBuilder({
     if (newBlocks.length > 0) {
       setSelectedBlock(newBlocks[newBlocks.length - 1])
     }
-  }
-
-  const handleAddDirectoryContentBlock = () => {
-    addBlock('directory-content', 'Content', {
-      showFeaturedImage: true,
-      body: '',
-      format: 'html'
-    })
   }
 
   const handleSaveAllBlocks = async () => {
@@ -209,7 +184,6 @@ export function useDirectoryBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
-    handleAddDirectoryContentBlock,
     handleSaveAllBlocks
   }
 }
