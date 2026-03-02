@@ -3,6 +3,7 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { EVENT_CONTENT_STYLE_RENDERERS } from "./event-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface EventWithBlocks {
@@ -24,6 +25,43 @@ interface EventBlockRendererProps {
   event: EventWithBlocks
 }
 
+function EventContentStyled({
+  block,
+  event,
+  siteWidth,
+  customWidth,
+}: {
+  block: { id: string; type: string; content: Record<string, any> }
+  event: EventWithBlocks
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
+}) {
+  const styleName = block.content.eventContentStyle || 'default'
+  const styleConfig = block.content.styleConfig || {}
+  const config = styleConfig[styleName] || {}
+
+  const Renderer = EVENT_CONTENT_STYLE_RENDERERS[styleName] || EVENT_CONTENT_STYLE_RENDERERS.default
+
+  return (
+    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+      <div className="py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <Renderer
+            config={config}
+            sharedContent={{
+              title: event.title,
+              description: event.description,
+              featuredImage: event.featured_image,
+              showFeaturedImage: block.content.showFeaturedImage ?? true,
+              body: block.content.body,
+            }}
+          />
+        </div>
+      </div>
+    </BlockContainer>
+  )
+}
+
 export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: eventBlocks = [] } = event
@@ -39,34 +77,12 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const animationSettings = site.settings?.animations;
 
   // Get site width from site settings
-  const siteWidth = site.settings?.site_width || 'custom';
+  const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
     <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
-        {/* Event Header */}
-        <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-          <div className="py-12 px-4">
-            <div className="max-w-4xl mx-auto">
-              <h1 className="text-4xl font-bold mb-4">{event.title}</h1>
-              {event.description && (
-                <div
-                  className="prose prose-sm max-w-none mb-6 dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: event.description }}
-                />
-              )}
-              {event.featured_image && (
-                <img
-                  src={event.featured_image}
-                  alt={event.title}
-                  className="w-full h-64 object-cover rounded-lg"
-                />
-              )}
-            </div>
-          </div>
-        </BlockContainer>
-
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
           // Skip navigation and footer blocks as they're handled by SiteLayout
@@ -74,25 +90,15 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
             return null
           }
 
-          // Render event-specific blocks here
-          if (block.type === 'event-default') {
+          if (block.type === 'event-content') {
             return (
-              <BlockContainer
-                key={`event-default-${block.id}`}
+              <EventContentStyled
+                key={`event-content-${block.id}`}
+                block={block}
+                event={event}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
-              >
-                <div className="py-8 px-4">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="border rounded-lg p-6 bg-card text-card-foreground">
-                      <h3 className="text-lg font-semibold mb-2">Event Information</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This is an event default block. Additional content can be added here.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </BlockContainer>
+              />
             )
           }
 

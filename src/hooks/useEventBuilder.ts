@@ -34,7 +34,7 @@ interface UseEventBuilderReturn {
   handleDeleteBlock: (block: EventBlock) => void
   handleReorderBlocks: (blocks: EventBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddEventDefaultBlock: () => void
+  handleAddEventContentBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -141,9 +141,11 @@ export function useEventBuilder({
     }
   }
 
-  const handleAddEventDefaultBlock = () => {
-    addBlock('event-default', 'Event Information', {
-      viewOnly: true
+  const handleAddEventContentBlock = () => {
+    addBlock('event-content', 'Content', {
+      showFeaturedImage: true,
+      body: '',
+      format: 'html'
     })
   }
 
@@ -207,7 +209,7 @@ export function useEventBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
-    handleAddEventDefaultBlock,
+    handleAddEventContentBlock,
     handleSaveAllBlocks
   }
 }

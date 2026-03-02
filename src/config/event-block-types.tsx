@@ -1,4 +1,4 @@
-import { Info, LucideIcon } from "lucide-react"
+import { FileText, LucideIcon } from "lucide-react"
 
 export interface BlockTypeDefinition {
   type: string
@@ -11,12 +11,14 @@ export interface BlockTypeDefinition {
 
 export const EVENT_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'event-default',
-    name: 'Event Information',
-    icon: Info,
+    type: 'event-content',
+    name: 'Content',
+    icon: FileText,
     description: 'Display event details and information',
     defaultContent: {
-      viewOnly: true
+      showFeaturedImage: true,
+      body: '',
+      format: 'html'
     }
   }
 ]
@@ -27,7 +29,7 @@ export function getBlockTypeDefinition(type: string): BlockTypeDefinition | unde
 
 export function getBlockIcon(type: string): LucideIcon {
   const definition = getBlockTypeDefinition(type)
-  return definition?.icon || Info
+  return definition?.icon || FileText
 }
 
 export function getBlockName(type: string): string {

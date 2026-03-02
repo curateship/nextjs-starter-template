@@ -1,0 +1,18 @@
+import { ComponentType, ReactNode } from "react"
+import { DefaultEventContentRenderer } from "./DefaultEventContentRenderer"
+
+export interface EventContentStyleRendererProps {
+  config: Record<string, any>
+  sharedContent: {
+    title?: string
+    description?: string | null
+    featuredImage?: string | null
+    showFeaturedImage?: boolean
+    body?: string
+  }
+  children?: ReactNode
+}
+
+export const EVENT_CONTENT_STYLE_RENDERERS: Record<string, ComponentType<EventContentStyleRendererProps>> = {
+  default: DefaultEventContentRenderer,
+}

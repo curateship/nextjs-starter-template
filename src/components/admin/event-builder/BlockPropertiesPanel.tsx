@@ -1,4 +1,4 @@
-import { EventDefaultBlock } from "@/components/admin/event-builder/blocks/EventDefaultBlock"
+import { EventContentBlock } from "@/components/admin/event-builder/blocks/EventContentBlock"
 import { EventPreview } from "./EventPreview"
 
 interface EventBlock {
@@ -50,11 +50,7 @@ export function BlockPropertiesPanel({
   site,
   siteBlocks,
   blocksLoading = false,
-  onOpenEventSettings,
   onTitleChange,
-  onDescriptionChange,
-  onFeaturedImageChange,
-  onStatusChange
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current event
   const currentSiteBlocks = siteBlocks?.[currentEvent?.slug || ''] || []
@@ -65,18 +61,18 @@ export function BlockPropertiesPanel({
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
         <div>
-          <div className="space-y-4 p-4">
-            {selectedBlock.type === 'event-default' && (
-              <EventDefaultBlock
-                title={currentEvent?.title || currentEvent?.name || ''}
-                richText={currentEvent?.description || ''}
-                featuredImage={currentEvent?.featured_image || ''}
-                status={currentEvent?.is_published ? 'published' : 'draft'}
-                onTitleChange={onTitleChange}
-                onRichTextChange={onDescriptionChange}
-                onFeaturedImageChange={onFeaturedImageChange}
-                onStatusChange={onStatusChange}
-                onOpenSettings={onOpenEventSettings}
+          <div className="">
+            {selectedBlock.type === 'event-content' && (
+              <EventContentBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
+                eventData={{
+                  title: currentEvent?.title || currentEvent?.name,
+                  name: currentEvent?.name,
+                }}
+                onEventTitleChange={onTitleChange}
               />
             )}
           </div>

@@ -72,9 +72,24 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change
+  // Update local blocks when server blocks change, auto-add event-content if missing
   useEffect(() => {
-    setLocalBlocks(blocks)
+    const updated = { ...blocks }
+    for (const slug of Object.keys(updated)) {
+      const hasContentBlock = updated[slug]?.some(b => b.type === 'event-content')
+      if (!hasContentBlock) {
+        updated[slug] = [
+          {
+            id: `event-content-${Date.now()}`,
+            type: 'event-content',
+            title: 'Content',
+            content: { showFeaturedImage: true, body: '', format: 'html' }
+          },
+          ...(updated[slug] || [])
+        ]
+      }
+    }
+    setLocalBlocks(updated)
   }, [blocks])
 
   const builderState = useEventBuilder({

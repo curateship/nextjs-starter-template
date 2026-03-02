@@ -14,8 +14,8 @@ export interface EventBlock {
  */
 export function getEventBlockTitle(blockType: string): string {
   switch (blockType) {
-    case 'event-default':
-      return 'Event Information'
+    case 'event-content':
+      return 'Content'
     default:
       return 'Event Block'
   }
@@ -67,7 +67,7 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
 
   if (contentBlocks && typeof contentBlocks === 'object') {
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['event-default']
+    const allowedBlockTypes = ['event-content']
 
     Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
       // Skip _settings and other metadata fields

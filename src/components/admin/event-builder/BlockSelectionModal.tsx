@@ -78,7 +78,7 @@ export function BlockSelectionModal({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
-          {EVENT_BLOCK_TYPES.map((blockType) => {
+          {EVENT_BLOCK_TYPES.filter(bt => bt.type !== 'event-content').map((blockType) => {
             const isDisabled = isBlockDisabled(blockType.type)
             const quantity = selections[blockType.type] || 0
             const Icon = blockType.icon

@@ -98,7 +98,15 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         is_published: publish,
-        content_blocks: isPrivate ? { _settings: { is_private: true } } : {}
+        content_blocks: {
+          ...(isPrivate ? { _settings: { is_private: true } } : {}),
+          'event-content': {
+            showFeaturedImage: true,
+            body: richTextContent.trim() || '',
+            format: 'html',
+            display_order: 0
+          }
+        }
       }
       
       const response = await fetch('/api/events', {
