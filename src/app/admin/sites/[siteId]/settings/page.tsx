@@ -38,6 +38,8 @@ import { CheckCircle, Eye, EyeOff, Loader2, Trash2, MoreHorizontal, Edit, Paintb
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
+import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
+import { AnimationSettingsCard } from "@/components/admin/layout/dashboard/AnimationSettingsCard"
 
 // --- IntegrationCard ---
 
@@ -290,6 +292,7 @@ interface SiteEditPageProps {
 
 const TABS = [
   { id: 'general', label: 'General Settings' },
+  { id: 'style', label: 'Style' },
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
@@ -473,7 +476,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       setError(null)
       setSaveMessage(null)
 
-      if (activeTab === 'general') {
+      if (activeTab === 'general' || activeTab === 'style') {
         if (!siteName.trim()) {
           setError('Site name is required')
           return
@@ -607,14 +610,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     subdomain={subdomain}
                     customDomain={customDomain}
                     status={status}
-                    fontFamily={fontFamily}
-                    secondaryFontFamily={secondaryFontFamily}
-                    favicon={favicon}
-                    animations={animations}
                     trackingScripts={trackingScripts}
-                    siteWidth={siteWidth}
-                    customWidth={customWidth}
-                    defaultTheme={defaultTheme}
                     maintenanceEnabled={maintenanceEnabled}
                     isEditMode={true}
                     loading={loading}
@@ -622,17 +618,33 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onSubdomainChange={setSubdomain}
                     onCustomDomainChange={setCustomDomain}
                     onStatusChange={setStatus}
-                    onFontFamilyChange={setFontFamily}
-                    onSecondaryFontFamilyChange={setSecondaryFontFamily}
-                    onFaviconChange={setFavicon}
-                    onAnimationsChange={setAnimations}
                     onTrackingScriptsChange={setTrackingScripts}
-                    onSiteWidthChange={setSiteWidth}
-                    onCustomWidthChange={setCustomWidth}
-                    onDefaultThemeChange={setDefaultTheme}
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
                 </form>
+              )}
+
+              {activeTab === 'style' && (
+                <div className="space-y-6">
+                  <StylingSettingsCard
+                    fontFamily={fontFamily}
+                    secondaryFontFamily={secondaryFontFamily}
+                    favicon={favicon}
+                    siteWidth={siteWidth}
+                    customWidth={customWidth}
+                    defaultTheme={defaultTheme}
+                    onFontFamilyChange={setFontFamily}
+                    onSecondaryFontFamilyChange={setSecondaryFontFamily}
+                    onFaviconChange={setFavicon}
+                    onSiteWidthChange={setSiteWidth}
+                    onCustomWidthChange={setCustomWidth}
+                    onDefaultThemeChange={setDefaultTheme}
+                  />
+                  <AnimationSettingsCard
+                    animations={animations}
+                    onAnimationsChange={setAnimations}
+                  />
+                </div>
               )}
 
               {activeTab === 'payments' && (

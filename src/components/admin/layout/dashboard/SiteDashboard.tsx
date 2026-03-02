@@ -7,10 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
-import type { AnimationSettings } from "@/lib/actions/sites/site-actions"
-import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { CacheSettingsCard } from "./CacheSettingsCard"
-import { AnimationSettingsCard } from "./AnimationSettingsCard"
 import { TrackingSettingsCard } from "./TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
 
@@ -19,29 +16,15 @@ interface SiteDashboardProps {
   status: string
   subdomain?: string
   customDomain?: string
-  favicon?: string
-  animations?: AnimationSettings
   trackingScripts?: string
-  siteWidth?: 'full' | 'custom'
-  customWidth?: number
   isEditMode?: boolean
-  fontFamily?: string
-  secondaryFontFamily?: string
-  defaultTheme?: 'system' | 'light' | 'dark'
   maintenanceEnabled?: boolean
   loading?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onSubdomainChange?: (value: string) => void
   onCustomDomainChange?: (value: string) => void
-  onFaviconChange?: (value: string) => void
-  onFontFamilyChange?: (value: string) => void
-  onSecondaryFontFamilyChange?: (value: string) => void
-  onAnimationsChange?: (value: AnimationSettings) => void
   onTrackingScriptsChange?: (value: string) => void
-  onSiteWidthChange?: (value: 'full' | 'custom') => void
-  onCustomWidthChange?: (value: number | undefined) => void
-  onDefaultThemeChange?: (value: 'system' | 'light' | 'dark') => void
   onMaintenanceChange?: (value: boolean) => void
 }
 
@@ -50,29 +33,15 @@ export function SiteDashboard({
   status,
   subdomain = "",
   customDomain = "",
-  favicon = "",
-  animations = { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' },
   trackingScripts = "",
-  siteWidth = 'custom',
-  customWidth,
   isEditMode = false,
-  fontFamily = "playfair-display",
-  secondaryFontFamily = "inter",
-  defaultTheme = 'system',
   maintenanceEnabled = false,
   loading = false,
   onSiteNameChange,
   onStatusChange,
   onSubdomainChange,
   onCustomDomainChange,
-  onFaviconChange,
-  onFontFamilyChange,
-  onSecondaryFontFamilyChange,
-  onAnimationsChange,
   onTrackingScriptsChange,
-  onSiteWidthChange,
-  onCustomWidthChange,
-  onDefaultThemeChange,
   onMaintenanceChange,
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
@@ -319,30 +288,6 @@ export function SiteDashboard({
 
       </CardContent>
     </Card>
-
-    {/* Styling Settings Card */}
-    <StylingSettingsCard
-      fontFamily={fontFamily}
-      secondaryFontFamily={secondaryFontFamily}
-      favicon={favicon}
-      siteWidth={siteWidth}
-      customWidth={customWidth}
-      defaultTheme={defaultTheme}
-      onFontFamilyChange={onFontFamilyChange}
-      onSecondaryFontFamilyChange={onSecondaryFontFamilyChange}
-      onFaviconChange={onFaviconChange}
-      onSiteWidthChange={onSiteWidthChange}
-      onCustomWidthChange={onCustomWidthChange}
-      onDefaultThemeChange={onDefaultThemeChange}
-    />
-
-    {/* Animation Settings Card */}
-    {onAnimationsChange && (
-      <AnimationSettingsCard
-        animations={animations}
-        onAnimationsChange={onAnimationsChange}
-      />
-    )}
 
     {/* Tracking Settings Card */}
     {onTrackingScriptsChange && (

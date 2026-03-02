@@ -105,16 +105,10 @@ export default function NewSitePage() {
             subdomain={subdomain}
             customDomain={customDomain}
             status={status}
-            fontFamily={fontFamily}
-            secondaryFontFamily={secondaryFontFamily}
-            favicon={favicon}
             onSiteNameChange={setSiteName}
             onSubdomainChange={setSubdomain}
             onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
-            onFontFamilyChange={setFontFamily}
-            onSecondaryFontFamilyChange={setSecondaryFontFamily}
-            onFaviconChange={setFavicon}
           />
         </form>
       </div>
