@@ -72,9 +72,24 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change
+  // Update local blocks when server blocks change, auto-add directory-content if missing
   useEffect(() => {
-    setLocalBlocks(blocks)
+    const updated = { ...blocks }
+    for (const slug of Object.keys(updated)) {
+      const hasContentBlock = updated[slug]?.some(b => b.type === 'directory-content')
+      if (!hasContentBlock) {
+        updated[slug] = [
+          {
+            id: `directory-content-${Date.now()}`,
+            type: 'directory-content',
+            title: 'Content',
+            content: { showFeaturedImage: true, body: '', format: 'html' }
+          },
+          ...(updated[slug] || [])
+        ]
+      }
+    }
+    setLocalBlocks(updated)
   }, [blocks])
 
   const builderState = useDirectoryBuilder({

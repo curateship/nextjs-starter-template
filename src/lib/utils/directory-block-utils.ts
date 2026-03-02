@@ -14,8 +14,8 @@ export interface DirectoryBlock {
  */
 export function getDirectoryBlockTitle(blockType: string): string {
   switch (blockType) {
-    case 'directory-default':
-      return 'Directory Information'
+    case 'directory-content':
+      return 'Content'
     default:
       return 'Directory Block'
   }
@@ -67,7 +67,7 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
 
   if (contentBlocks && typeof contentBlocks === 'object') {
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['directory-default']
+    const allowedBlockTypes = ['directory-content']
 
     Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
       // Skip _settings and other metadata fields

@@ -90,14 +90,14 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setError(null)
 
     try {
-      const contentBlocks = {
+      const contentBlocks: Record<string, any> = {
         ...(isPrivate ? { _settings: { is_private: true } } : {}),
-        ...(richTextContent.trim() ? {
-          richText: {
-            content: richTextContent,
-            display_order: 0
-          }
-        } : {})
+        'directory-content': {
+          showFeaturedImage: true,
+          body: richTextContent.trim() || '',
+          format: 'html',
+          display_order: 0
+        }
       }
 
       const directoryData = {

@@ -78,7 +78,7 @@ export function BlockSelectionModal({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
-          {DIRECTORY_BLOCK_TYPES.map((blockType) => {
+          {DIRECTORY_BLOCK_TYPES.filter(bt => bt.type !== 'directory-content').map((blockType) => {
             const isDisabled = isBlockDisabled(blockType.type)
             const quantity = selections[blockType.type] || 0
             const Icon = blockType.icon

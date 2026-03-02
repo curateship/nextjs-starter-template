@@ -3,6 +3,7 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface DirectoryWithBlocks {
@@ -24,6 +25,43 @@ interface DirectoryBlockRendererProps {
   directory: DirectoryWithBlocks
 }
 
+function DirectoryContentStyled({
+  block,
+  directory,
+  siteWidth,
+  customWidth,
+}: {
+  block: { id: string; type: string; content: Record<string, any> }
+  directory: DirectoryWithBlocks
+  siteWidth?: 'full' | 'custom'
+  customWidth?: number
+}) {
+  const styleName = block.content.directoryContentStyle || 'default'
+  const styleConfig = block.content.styleConfig || {}
+  const config = styleConfig[styleName] || {}
+
+  const Renderer = DIRECTORY_CONTENT_STYLE_RENDERERS[styleName] || DIRECTORY_CONTENT_STYLE_RENDERERS.default
+
+  return (
+    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+      <div className="py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <Renderer
+            config={config}
+            sharedContent={{
+              title: directory.title,
+              description: directory.description,
+              featuredImage: directory.featured_image,
+              showFeaturedImage: block.content.showFeaturedImage ?? true,
+              body: block.content.body,
+            }}
+          />
+        </div>
+      </div>
+    </BlockContainer>
+  )
+}
+
 export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: directoryBlocks = [] } = directory
@@ -39,34 +77,12 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
   const animationSettings = site.settings?.animations;
 
   // Get site width from site settings
-  const siteWidth = site.settings?.site_width || 'custom';
+  const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
     <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
-        {/* Directory Header */}
-        <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-          <div className="py-12 px-4">
-            <div className="max-w-4xl mx-auto">
-              <h1 className="text-4xl font-bold mb-4">{directory.title}</h1>
-              {directory.description && (
-                <div
-                  className="prose prose-sm max-w-none mb-6 dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: directory.description }}
-                />
-              )}
-              {directory.featured_image && (
-                <img
-                  src={directory.featured_image}
-                  alt={directory.title}
-                  className="w-full h-64 object-cover rounded-lg"
-                />
-              )}
-            </div>
-          </div>
-        </BlockContainer>
-
         {/* Directory Blocks */}
         {sortedBlocks.map((block) => {
           // Skip navigation and footer blocks as they're handled by SiteLayout
@@ -74,25 +90,15 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
             return null
           }
 
-          // Render directory-specific blocks here
-          if (block.type === 'directory-default') {
+          if (block.type === 'directory-content') {
             return (
-              <BlockContainer
-                key={`directory-default-${block.id}`}
+              <DirectoryContentStyled
+                key={`directory-content-${block.id}`}
+                block={block}
+                directory={directory}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
-              >
-                <div className="py-8 px-4">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="border rounded-lg p-6 bg-card text-card-foreground">
-                      <h3 className="text-lg font-semibold mb-2">Directory Information</h3>
-                      <p className="text-sm text-muted-foreground">
-                        This is a directory default block. Additional content can be added here.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </BlockContainer>
+              />
             )
           }
 

@@ -1,4 +1,4 @@
-import { DirectoryDefaultBlock } from "@/components/admin/directory-builder/blocks/DirectoryDefaultBlock"
+import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
 import { DirectoryPreview } from "./DirectoryPreview"
 
 interface DirectoryBlock {
@@ -50,11 +50,7 @@ export function BlockPropertiesPanel({
   site,
   siteBlocks,
   blocksLoading = false,
-  onOpenDirectorySettings,
   onTitleChange,
-  onDescriptionChange,
-  onFeaturedImageChange,
-  onStatusChange
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current directory
   const currentSiteBlocks = siteBlocks?.[currentDirectory?.slug || ''] || []
@@ -65,18 +61,18 @@ export function BlockPropertiesPanel({
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
         <div>
-          <div className="space-y-4 p-4">
-            {selectedBlock.type === 'directory-default' && (
-              <DirectoryDefaultBlock
-                title={currentDirectory?.title || currentDirectory?.name || ''}
-                richText={currentDirectory?.description || ''}
-                featuredImage={currentDirectory?.featured_image || ''}
-                status={currentDirectory?.is_published ? 'published' : 'draft'}
-                onTitleChange={onTitleChange}
-                onRichTextChange={onDescriptionChange}
-                onFeaturedImageChange={onFeaturedImageChange}
-                onStatusChange={onStatusChange}
-                onOpenSettings={onOpenDirectorySettings}
+          <div className="">
+            {selectedBlock.type === 'directory-content' && (
+              <DirectoryContentBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
+                directoryData={{
+                  title: currentDirectory?.title || currentDirectory?.name,
+                  name: currentDirectory?.name,
+                }}
+                onDirectoryTitleChange={onTitleChange}
               />
             )}
           </div>

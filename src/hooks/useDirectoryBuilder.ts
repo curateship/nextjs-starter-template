@@ -34,7 +34,7 @@ interface UseDirectoryBuilderReturn {
   handleDeleteBlock: (block: DirectoryBlock) => void
   handleReorderBlocks: (blocks: DirectoryBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddDirectoryDefaultBlock: () => void
+  handleAddDirectoryContentBlock: () => void
   handleSaveAllBlocks: () => void
 }
 
@@ -141,9 +141,11 @@ export function useDirectoryBuilder({
     }
   }
 
-  const handleAddDirectoryDefaultBlock = () => {
-    addBlock('directory-default', 'Directory Information', {
-      viewOnly: true
+  const handleAddDirectoryContentBlock = () => {
+    addBlock('directory-content', 'Content', {
+      showFeaturedImage: true,
+      body: '',
+      format: 'html'
     })
   }
 
@@ -207,7 +209,7 @@ export function useDirectoryBuilder({
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
-    handleAddDirectoryDefaultBlock,
+    handleAddDirectoryContentBlock,
     handleSaveAllBlocks
   }
 }
