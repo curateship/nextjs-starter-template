@@ -123,8 +123,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: FileText,
     },
     {
-      name: "Taxonomies",
-      url: currentSite ? `/admin/taxonomies/${currentSite.id}` : "/admin/sites",
+      name: "Categories",
+      url: currentSite ? `/admin/categories/${currentSite.id}` : "/admin/sites",
       icon: Tag,
     },
     {
