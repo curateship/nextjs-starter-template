@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client"
 import {
   Globe,
   Users,
-  Palette,
   Image,
   FileText,
   Package,
@@ -15,7 +14,6 @@ import {
   FolderOpen,
   Calendar,
   Tag,
-  LayoutDashboard,
   ExternalLink,
 } from "lucide-react"
 
@@ -125,11 +123,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: FileText,
     },
     {
-      name: "User Pages",
-      url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites",
-      icon: LayoutDashboard,
-    },
-    {
       name: "Taxonomies",
       url: currentSite ? `/admin/taxonomies/${currentSite.id}` : "/admin/sites",
       icon: Tag,
@@ -138,11 +131,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Media Library",
       url: "/admin/media",
       icon: Image,
-    },
-    {
-      name: "Themes",
-      url: "/admin/themes",
-      icon: Palette,
     },
     {
       name: "Site Settings",
