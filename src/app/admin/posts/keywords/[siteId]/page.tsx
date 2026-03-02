@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Loader2 } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { KeywordResearchPanel } from "@/components/admin/posts/keywords/KeywordResearchPanel"
-import { KeywordLibraryPanel } from "@/components/admin/posts/keywords/KeywordLibraryPanel"
+import { KeywordResearchPanel } from "@/components/admin/post-builder/ai-keywords/KeywordResearchPanel"
+import { KeywordLibraryPanel } from "@/components/admin/post-builder/ai-keywords/KeywordLibraryPanel"
 import { getSavedKeywordsAction } from "@/lib/actions/posts/keyword-actions"
 
 export default function KeywordsPage({ params }: { params: Promise<{ siteId: string }> }) {
