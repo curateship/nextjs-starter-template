@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
 import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
+import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/category-relationship-actions"
 import { CreateCategoryModal } from "@/components/admin/category-builder/CreateCategoryModal"
 import { CategoryTree } from "@/components/admin/category-builder/CategoryTree"
 import { Tag } from "lucide-react"
@@ -23,6 +24,7 @@ export default function CategoriesPage({
   const router = useRouter()
   const { currentSite } = useSiteContext()
   const [categories, setCategories] = useState<Category[]>([])
+  const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -50,7 +52,13 @@ export default function CategoriesPage({
           return
         }
 
-        setCategories(categoriesData || [])
+        const cats = categoriesData || []
+        setCategories(cats)
+
+        if (cats.length > 0) {
+          const { data: counts } = await getCategoryAssignmentCountsAction(cats.map(c => c.id))
+          if (counts) setAssignmentCounts(counts)
+        }
       } catch (err) {
         setError('Failed to load categories')
       } finally {
@@ -173,10 +181,11 @@ export default function CategoriesPage({
           {/* Table Header */}
           {(loading || categories.length > 0) && (
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2">Category</div>
                 <div>Parent</div>
                 <div>Status</div>
+                <div>Assigned</div>
                 <div>Modified</div>
                 <div>Actions</div>
               </div>
@@ -188,7 +197,7 @@ export default function CategoriesPage({
               <div className="space-y-0">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="p-6 border-b border-muted/80">
-                    <div className="grid grid-cols-6 gap-4 items-center">
+                    <div className="grid grid-cols-7 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <div className="w-10 h-10 bg-muted rounded animate-pulse"></div>
@@ -203,6 +212,9 @@ export default function CategoriesPage({
                       </div>
                       <div>
                         <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
+                      </div>
+                      <div>
+                        <div className="h-3 bg-muted/60 rounded animate-pulse w-8"></div>
                       </div>
                       <div>
                         <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
@@ -237,6 +249,7 @@ export default function CategoriesPage({
               <CategoryTree
                 categories={filteredCategories}
                 allCategories={categories}
+                assignmentCounts={assignmentCounts}
                 siteId={siteId}
                 onCategoryDeleted={handleCategoryDeleted}
                 onCategoryUpdated={(updated) => {

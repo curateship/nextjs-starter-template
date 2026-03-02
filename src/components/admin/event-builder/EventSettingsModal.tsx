@@ -13,8 +13,10 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface EventSettingsModalProps {
@@ -46,6 +48,7 @@ export function EventSettingsModal({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -99,6 +102,11 @@ export function EventSettingsModal({
       setIsPrivate(event.content_blocks?._settings?.is_private === true)
       setRichTextContent(event.description || '')
       setSlugManuallyEdited(false)
+
+      // Fetch existing category assignments
+      getContentCategoriesAction(event.id, 'event').then(({ data }) => {
+        if (data) setSelectedCategoryIds(data.map((c) => c.id))
+      })
     }
   }, [event])
 
@@ -135,6 +143,9 @@ export function EventSettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage('Event saved as draft successfully!')
         
         // Call success callback with updated event
@@ -187,6 +198,9 @@ export function EventSettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage(event?.is_published ? 'Event saved successfully!' : 'Event published successfully!')
         
         // Call success callback with updated event
@@ -340,6 +354,21 @@ export function EventSettingsModal({
               </Label>
             </div>
           </div>
+
+          {/* Categories */}
+          {event?.site_id && (
+            <div>
+              <Label>Categories</Label>
+              <CategoryPicker
+                siteId={event.site_id}
+                selectedCategoryIds={selectedCategoryIds}
+                onSelectionChange={setSelectedCategoryIds}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Assign this event to one or more categories
+              </p>
+            </div>
+          )}
 
           {/* Rich Text Content */}
           <div>

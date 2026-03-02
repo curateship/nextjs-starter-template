@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
+import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 interface CreateDirectoryModalProps {
@@ -33,6 +35,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -133,6 +136,9 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         return
       }
 
+      if (selectedCategoryIds.length > 0) {
+        bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+      }
       onSuccess(result.data)
     } catch (err) {
       setError("Failed to create directory")
@@ -244,6 +250,21 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           </Label>
         </div>
       </div>
+
+      {/* Categories */}
+      {currentSite?.id && (
+        <div>
+          <Label>Categories</Label>
+          <CategoryPicker
+            siteId={currentSite.id}
+            selectedCategoryIds={selectedCategoryIds}
+            onSelectionChange={setSelectedCategoryIds}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Assign this directory to one or more categories
+          </p>
+        </div>
+      )}
 
       {/* Rich Text Content */}
       <div>

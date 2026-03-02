@@ -8,8 +8,10 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
+import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 interface CreatePostData {
@@ -44,6 +46,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [showFeaturedImage, setShowFeaturedImage] = useState(true)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -164,6 +167,9 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
+        }
         onSuccess(result.data)
       }
     } catch (err) {
@@ -232,6 +238,9 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
+        }
         onSuccess(result.data)
       }
     } catch (err) {
@@ -384,6 +393,21 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           Brief summary shown in post listings and previews
         </p>
       </div>
+
+      {/* Categories */}
+      {currentSite?.id && (
+        <div>
+          <Label>Categories</Label>
+          <CategoryPicker
+            siteId={currentSite.id}
+            selectedCategoryIds={selectedCategoryIds}
+            onSelectionChange={setSelectedCategoryIds}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Assign this post to one or more categories
+          </p>
+        </div>
+      )}
 
       {/* Post Content */}
       <div>

@@ -27,6 +27,7 @@ import { CategorySettingsModal } from "./CategorySettingsModal"
 interface CategoryTreeProps {
   categories: Category[]
   allCategories: Category[]
+  assignmentCounts: Record<string, number>
   siteId: string
   onCategoryDeleted: (categoryId: string) => void
   onCategoryUpdated: (category: Category) => void
@@ -35,6 +36,7 @@ interface CategoryTreeProps {
 export function CategoryTree({
   categories,
   allCategories,
+  assignmentCounts,
   siteId,
   onCategoryDeleted,
   onCategoryUpdated
@@ -105,7 +107,7 @@ export function CategoryTree({
     <>
       {categories.map((category) => (
         <div key={category.id} className="p-6">
-          <div className="grid grid-cols-6 gap-4 items-center">
+          <div className="grid grid-cols-7 gap-4 items-center">
             <div className="col-span-2">
               <div className="flex items-center space-x-4">
                 {category.featured_image ? (
@@ -168,6 +170,12 @@ export function CategoryTree({
                   Draft
                 </span>
               )}
+            </div>
+
+            <div>
+              <span className="text-sm text-muted-foreground">
+                {assignmentCounts[category.id] || 0}
+              </span>
             </div>
 
             <div>

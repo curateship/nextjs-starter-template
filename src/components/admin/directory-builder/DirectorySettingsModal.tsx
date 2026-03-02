@@ -14,8 +14,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 interface DirectorySettingsModalProps {
@@ -47,6 +49,7 @@ export function DirectorySettingsModal({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -100,6 +103,11 @@ export function DirectorySettingsModal({
       setIsPrivate(directory.content_blocks?._settings?.is_private === true)
       setRichTextContent(directory.content_blocks?.richText?.content || '')
         setSlugManuallyEdited(false)
+
+      // Fetch existing category assignments
+      getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
+        if (data) setSelectedCategoryIds(data.map((c) => c.id))
+      })
     }
   }, [directory])
 
@@ -150,6 +158,9 @@ export function DirectorySettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage('Directory saved as draft successfully!')
         
         // Call success callback with updated directory
@@ -216,6 +227,9 @@ export function DirectorySettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage(directory?.is_published ? 'Directory saved successfully!' : 'Directory published successfully!')
         
         // Call success callback with updated directory
@@ -370,6 +384,21 @@ export function DirectorySettingsModal({
               </Label>
             </div>
           </div>
+
+          {/* Categories */}
+          {directory?.site_id && (
+            <div>
+              <Label>Categories</Label>
+              <CategoryPicker
+                siteId={directory.site_id}
+                selectedCategoryIds={selectedCategoryIds}
+                onSelectionChange={setSelectedCategoryIds}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Assign this directory to one or more categories
+              </p>
+            </div>
+          )}
 
           {/* Rich Text Content */}
           <div>

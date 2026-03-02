@@ -13,8 +13,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -41,6 +43,7 @@ export function PostSettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [extractedContent, setExtractedContent] = useState('')
   const [showFeaturedImage, setShowFeaturedImage] = useState(true)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -118,6 +121,13 @@ export function PostSettingsModal({
       // Only reset error state, preserve success message if it exists
       setError(null)
       // Don't reset saveMessage here as it clears the success message after save
+
+      // Fetch existing category assignments
+      getContentCategoriesAction(post.id, 'post').then(({ data }) => {
+        if (data) {
+          setSelectedCategoryIds(data.map((c) => c.id))
+        }
+      })
     }
   }, [post])
 
@@ -171,13 +181,16 @@ export function PostSettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage('Post saved as draft')
-        
+
         // Call success callback
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
+
         // Close modal after successful save
         onOpenChange(false)
       }
@@ -229,16 +242,19 @@ export function PostSettingsModal({
       }
       
       if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
+        }
         setSaveMessage(post?.is_published ? 'Post updated' : 'Post published')
-        
+
         // Update the form data to reflect the new published state
         setFormData(prev => ({ ...prev, is_published: true }))
-        
+
         // Call success callback
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
+
         // Close modal after successful save
         onOpenChange(false)
       }
@@ -400,6 +416,21 @@ export function PostSettingsModal({
               Brief summary shown in post listings and previews
             </p>
           </div>
+
+          {/* Categories */}
+          {post?.site_id && (
+            <div>
+              <Label>Categories</Label>
+              <CategoryPicker
+                siteId={post.site_id}
+                selectedCategoryIds={selectedCategoryIds}
+                onSelectionChange={setSelectedCategoryIds}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Assign this post to one or more categories
+              </p>
+            </div>
+          )}
 
           {/* Post Content */}
           <div>

@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
+import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface CreateEventModalProps {
@@ -33,6 +35,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
   // Generate slug from title
   const generateSlug = (title: string) => {
@@ -131,6 +134,9 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         return
       }
 
+      if (selectedCategoryIds.length > 0) {
+        bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds).catch(() => {})
+      }
       onSuccess(result.data)
     } catch (err) {
       setError("Failed to create event")
@@ -242,6 +248,21 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </Label>
         </div>
       </div>
+
+      {/* Categories */}
+      {currentSite?.id && (
+        <div>
+          <Label>Categories</Label>
+          <CategoryPicker
+            siteId={currentSite.id}
+            selectedCategoryIds={selectedCategoryIds}
+            onSelectionChange={setSelectedCategoryIds}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Assign this event to one or more categories
+          </p>
+        </div>
+      )}
 
       {/* Rich Text Content */}
       <div>
