@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Plus, Minus } from "lucide-react"
 import { EVENT_BLOCK_TYPES } from "@/config/event-block-types"
@@ -69,7 +69,7 @@ export function BlockSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="w-[900px] max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Blocks</DialogTitle>
           <DialogDescription>
@@ -107,7 +107,7 @@ export function BlockSelectionModal({
                       </div>
 
                       {!isDisabled && (
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                        <div className="flex items-center justify-between mt-3">
                           <span className="text-xs text-muted-foreground">Quantity</span>
                           <div className="flex items-center space-x-2">
                             <Button
@@ -147,23 +147,21 @@ export function BlockSelectionModal({
           })}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            {totalSelected === 0 ? (
-              "Select blocks to add"
-            ) : (
-              `${totalSelected} block${totalSelected === 1 ? '' : 's'} selected`
-            )}
-          </p>
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddBlocks} disabled={totalSelected === 0}>
-              Add Selected Blocks
-            </Button>
+        <DialogFooter>
+          <div className="flex items-center justify-between w-full">
+            <span className="text-sm text-muted-foreground">
+              {totalSelected > 0 ? `${totalSelected} block${totalSelected === 1 ? '' : 's'} selected` : 'No blocks selected'}
+            </span>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddBlocks} disabled={totalSelected === 0}>
+                Add selected blocks
+              </Button>
+            </div>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
