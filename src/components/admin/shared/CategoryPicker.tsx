@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { ChevronsUpDown, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -73,16 +72,17 @@ export function CategoryPicker({
   }, [categories])
 
   const filteredCategories = useMemo(() => {
-    if (!searchQuery) return categories
+    const unselected = categories.filter((cat) => !selectedCategoryIds.includes(cat.id))
+    if (!searchQuery) return unselected
     const query = searchQuery.toLowerCase()
-    return categories.filter((cat) => {
+    return unselected.filter((cat) => {
       const path = categoryPathMap.get(cat.id) || cat.title
       return (
         cat.title.toLowerCase().includes(query) ||
         path.toLowerCase().includes(query)
       )
     })
-  }, [categories, searchQuery, categoryPathMap])
+  }, [categories, searchQuery, categoryPathMap, selectedCategoryIds])
 
   const toggleCategory = (categoryId: string) => {
     if (selectedCategoryIds.includes(categoryId)) {
@@ -155,7 +155,6 @@ export function CategoryPicker({
               ) : (
                 <CommandGroup>
                   {filteredCategories.map((cat) => {
-                    const isSelected = selectedCategoryIds.includes(cat.id)
                     const path = categoryPathMap.get(cat.id) || ""
                     const hasParent = !!cat.parent_id
 
@@ -165,12 +164,6 @@ export function CategoryPicker({
                         onClick={() => toggleCategory(cat.id)}
                         className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
                       >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            isSelected ? "opacity-100" : "opacity-0"
-                          )}
-                        />
                         <div className="flex flex-col flex-1">
                           <span>{cat.title}</span>
                           {hasParent && (
