@@ -217,18 +217,22 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                   type="number"
                   min="600"
                   max="2000"
-                  value={contentMaxWidth}
+                  value={config.contentMaxWidth ?? ''}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    if (raw === '') return;
-                    const value = parseInt(raw);
-                    if (!isNaN(value)) {
-                      onConfigChange('contentMaxWidth', value);
+                    if (raw === '') {
+                      onConfigChange('contentMaxWidth', undefined);
+                    } else {
+                      const value = parseInt(raw);
+                      if (!isNaN(value)) {
+                        onConfigChange('contentMaxWidth', value);
+                      }
                     }
                   }}
                   onBlur={(e) => {
                     const value = parseInt(e.target.value);
-                    if (isNaN(value) || value < 600) onConfigChange('contentMaxWidth', 600);
+                    if (isNaN(value)) return;
+                    if (value < 600) onConfigChange('contentMaxWidth', 600);
                     else if (value > 2000) onConfigChange('contentMaxWidth', 2000);
                   }}
                   className="w-20 px-2 py-1 border rounded-md text-sm"

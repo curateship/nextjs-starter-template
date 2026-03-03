@@ -9,7 +9,7 @@ const defaultAuthor = {
 
 export function DefaultPostContentRenderer({ config, sharedContent }: PostContentStyleRendererProps) {
   const alignment = config.alignment || 'center'
-  const contentMaxWidth = config.contentMaxWidth ?? 768
+  const contentMaxWidth = config.contentMaxWidth as number | undefined
   const titleSize = config.titleSize || 'large'
 
   const {
@@ -33,12 +33,15 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
   return (
-    <div className={`flex flex-col ${isCenter ? 'items-center text-center' : 'items-start text-left'} gap-4`}>
-      <h1 className={`max-w-3xl text-pretty ${titleClasses} font-semibold`}>
+    <div
+      className={`flex flex-col ${isCenter ? 'items-center text-center' : 'items-start text-left'} gap-4 w-full`}
+      style={contentMaxWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
+    >
+      <h1 className={`text-pretty ${titleClasses} font-semibold`}>
         {title}
       </h1>
       {excerpt && (
-        <h3 className="text-muted-foreground max-w-3xl text-lg md:text-xl">
+        <h3 className="text-muted-foreground text-lg md:text-xl">
           {excerpt}
         </h3>
       )}
@@ -73,10 +76,9 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
       )}
       {body && (
         <div
-          className={`prose dark:prose-invert w-full mt-6 ${isCenter ? '' : ''}`}
-          style={{ maxWidth: `${contentMaxWidth}px` }}
+          className="prose dark:prose-invert max-w-none w-full mt-6"
         >
-          <div className={`text-lg text-gray-600 dark:text-gray-400 ${isCenter ? '' : ''}`} dangerouslySetInnerHTML={{ __html: body }} />
+          <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: body }} />
         </div>
       )}
     </div>

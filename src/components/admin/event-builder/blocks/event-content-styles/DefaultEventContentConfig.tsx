@@ -3,11 +3,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useSiteContext } from "@/contexts/site-context"
 import type { EventContentStyleAdminProps } from "./index"
 
 export function DefaultEventContentConfig({ config, onConfigChange }: EventContentStyleAdminProps) {
+  const { currentSite } = useSiteContext()
+  const siteDefaultWidth = currentSite?.settings?.custom_width
   const alignment = config.alignment || 'center'
-  const contentMaxWidth = config.contentMaxWidth ?? 768
   const titleSize = config.titleSize || 'large'
 
   return (
@@ -71,22 +73,32 @@ export function DefaultEventContentConfig({ config, onConfigChange }: EventConte
               type="number"
               min="480"
               max="1280"
-              value={contentMaxWidth}
+              value={config.contentMaxWidth ?? ''}
               onChange={(e) => {
-                const value = parseInt(e.target.value)
-                if (!isNaN(value)) {
-                  onConfigChange('contentMaxWidth', value)
+                const raw = e.target.value
+                if (raw === '') {
+                  onConfigChange('contentMaxWidth', undefined)
+                } else {
+                  const value = parseInt(raw)
+                  if (!isNaN(value)) {
+                    onConfigChange('contentMaxWidth', value)
+                  }
                 }
               }}
               onBlur={(e) => {
                 const value = parseInt(e.target.value)
-                if (isNaN(value) || value < 480) onConfigChange('contentMaxWidth', 480)
+                if (isNaN(value)) return
+                if (value < 480) onConfigChange('contentMaxWidth', 480)
                 else if (value > 1280) onConfigChange('contentMaxWidth', 1280)
               }}
+              placeholder={siteDefaultWidth ? String(siteDefaultWidth) : ''}
               className="w-20 px-2 py-1 border rounded-md text-sm"
             />
             <span className="text-xs text-muted-foreground">px</span>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            {config.contentMaxWidth == null ? (siteDefaultWidth ? `Using site default (${siteDefaultWidth}px)` : 'Using site default width') : 'Clear to use site default width'}
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -44,19 +44,17 @@ function DirectoryContentStyled({
 
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-      <div className="py-12 px-4">
-        <div className="max-w-4xl mx-auto">
-          <Renderer
-            config={config}
-            sharedContent={{
-              title: directory.title,
-              description: directory.description,
-              featuredImage: directory.featured_image,
-              showFeaturedImage: block.content.showFeaturedImage ?? true,
-              body: block.content.body,
-            }}
-          />
-        </div>
+      <div className="pb-2 px-4">
+        <Renderer
+          config={config}
+          sharedContent={{
+            title: directory.title,
+            description: directory.description,
+            featuredImage: directory.featured_image,
+            showFeaturedImage: block.content.showFeaturedImage ?? true,
+            body: block.content.body,
+          }}
+        />
       </div>
     </BlockContainer>
   )

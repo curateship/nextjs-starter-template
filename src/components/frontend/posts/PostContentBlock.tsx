@@ -30,7 +30,7 @@ export function PostContentBlock({
       siteWidth={siteWidth}
       customWidth={customWidth}
     >
-        <div className="mx-auto max-w-5xl">
+        <div>
           {blocks.map((block) => (
             <div key={block.id} className="mb-10">
               {block.type === 'post-content' && (
@@ -38,7 +38,7 @@ export function PostContentBlock({
               )}
 
               {block.type === 'image' && block.content.url && (
-                <div className="my-8 mx-auto max-w-3xl">
+                <div className="my-8">
                   <img
                     src={block.content.url}
                     alt={block.content.alt || ''}
@@ -53,7 +53,7 @@ export function PostContentBlock({
               )}
 
               {block.type === 'code' && block.content.code && (
-                <div className="mx-auto max-w-3xl">
+                <div>
                   <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
                     <code className={`language-${block.content.language || 'javascript'}`}>
                       {block.content.code}
@@ -63,7 +63,7 @@ export function PostContentBlock({
               )}
 
               {block.type === 'quote' && block.content.text && (
-                <div className="prose dark:prose-invert mx-auto max-w-3xl">
+                <div className="prose dark:prose-invert max-w-none">
                   <blockquote>
                     &ldquo;{block.content.text}&rdquo;
                     {(block.content.author || block.content.source) && (
@@ -77,9 +77,7 @@ export function PostContentBlock({
               )}
 
               {block.type === 'divider' && (
-                <div className="mx-auto max-w-3xl">
-                  <hr className="my-8 border-t border-border" />
-                </div>
+                <hr className="my-8 border-t border-border" />
               )}
             </div>
           ))}

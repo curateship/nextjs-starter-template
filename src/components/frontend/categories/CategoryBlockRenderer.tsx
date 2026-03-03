@@ -44,19 +44,17 @@ function CategoryContentStyled({
 
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-      <div className="py-12 px-4">
-        <div className="max-w-4xl mx-auto">
-          <Renderer
-            config={config}
-            sharedContent={{
-              title: category.title,
-              description: category.description,
-              featuredImage: category.featured_image,
-              showFeaturedImage: block.content.showFeaturedImage ?? true,
-              body: block.content.body,
-            }}
-          />
-        </div>
+      <div className="py-2 px-4">
+        <Renderer
+          config={config}
+          sharedContent={{
+            title: category.title,
+            description: category.description,
+            featuredImage: category.featured_image,
+            showFeaturedImage: block.content.showFeaturedImage ?? true,
+            body: block.content.body,
+          }}
+        />
       </div>
     </BlockContainer>
   )
