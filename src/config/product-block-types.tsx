@@ -11,12 +11,14 @@ export interface BlockTypeDefinition {
 
 export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'product-default',
-    name: 'Product Information',
-    icon: Info,
-    description: 'Basic product information and details',
+    type: 'product-content',
+    name: 'Product Content',
+    icon: FileText,
+    description: 'Product title, description, and featured content',
     defaultContent: {
-      viewOnly: true
+      productContentStyle: 'default',
+      styleConfig: { default: {} },
+      showFeaturedImage: true
     }
   },
   {

@@ -183,7 +183,8 @@ export function BlockListPanel({
   }
 
   const getBlockTypeName = (block: ProductBlock) => {
-    return block.type === 'product-default' ? 'Default Block' :
+    return block.type === 'product-content' ? 'Product Content' :
+           block.type === 'product-default' ? 'Product Content' :
            block.type === 'product-hero' ? 'Product Hero' :
            block.type === 'product-details' ? 'Product Details' :
            block.type === 'product-gallery' ? 'Product Gallery' :
@@ -198,8 +199,10 @@ export function BlockListPanel({
 
   const getBlockIcon = (blockType: string) => {
     switch (blockType) {
+      case 'product-content':
+        return <FileText className="w-3.5 h-3.5" />
       case 'product-default':
-        return <Info className="w-3.5 h-3.5" />
+        return <FileText className="w-3.5 h-3.5" />
       case 'product-hero':
         return <Zap className="w-3.5 h-3.5" />
       case 'product-details':

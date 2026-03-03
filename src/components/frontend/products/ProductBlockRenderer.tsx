@@ -1,6 +1,8 @@
 "use client"
 
 import { ProductDefaultBlock } from "@/components/frontend/products/ProductDefaultBlock"
+import { PRODUCT_CONTENT_STYLE_RENDERERS } from "@/components/frontend/products/product-content-styles"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ProductHeroBlock } from "@/components/frontend/products/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock"
@@ -49,19 +51,35 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           return null
         }
         
-        if (block.type === 'product-default') {
+        if (block.type === 'product-content' || block.type === 'product-default') {
+          const styleName = block.content?.productContentStyle || 'default'
+          const styleConfig = block.content?.styleConfig?.[styleName] || {}
+          const Renderer = PRODUCT_CONTENT_STYLE_RENDERERS[styleName] || PRODUCT_CONTENT_STYLE_RENDERERS['default']
+
           return (
-            <ProductDefaultBlock
-              key={`product-default-${block.id}`}
-              title={product.title}
-              richText={product.description || ''}
-              featuredImage={product.featured_image || ''}
-              downloadButtonText={block.content?.downloadButtonText}
-              downloadButtonStyle={block.content?.downloadButtonStyle}
-              downloadButtonUrl={block.content?.downloadButtonUrl}
+            <BlockContainer
+              key={`product-content-${block.id}`}
+              id="product-content"
+              className="white"
               siteWidth={siteWidth}
               customWidth={customWidth}
-            />
+            >
+              <div className="max-w-6xl mx-auto">
+                <Renderer
+                  config={styleConfig}
+                  sharedContent={{
+                    title: product.title,
+                    description: product.description || '',
+                    featuredImage: product.featured_image || '',
+                    showFeaturedImage: block.content?.showFeaturedImage ?? true,
+                    downloadButtonText: block.content?.downloadButtonText,
+                    downloadButtonStyle: block.content?.downloadButtonStyle,
+                    downloadButtonUrl: block.content?.downloadButtonUrl,
+                    body: block.content?.body,
+                  }}
+                />
+              </div>
+            </BlockContainer>
           )
         }
         

@@ -1,4 +1,4 @@
-import { ProductDefaultBlock } from "@/components/admin/product-builder/blocks/ProductDefaultBlock"
+import { ProductContentBlock } from "@/components/admin/product-builder/blocks/ProductContentBlock"
 import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/ProductGalleryBlock"
@@ -71,23 +71,21 @@ export function BlockPropertiesPanel({
       {selectedBlock ? (
         <div>
           <div className="">
-            {selectedBlock.type === 'product-default' && (
-              <ProductDefaultBlock
-                title={currentProduct?.title || currentProduct?.name || ''}
-                richText={currentProduct?.description || ''}
-                featuredImage={currentProduct?.featured_image || ''}
-                status={currentProduct?.is_published ? 'published' : 'draft'}
-                downloadButtonText={selectedBlock.content.downloadButtonText || ''}
-                downloadButtonStyle={selectedBlock.content.downloadButtonStyle || 'black'}
-                downloadButtonUrl={selectedBlock.content.downloadButtonUrl || ''}
-                onTitleChange={onTitleChange}
-                onRichTextChange={onDescriptionChange}
-                onFeaturedImageChange={onFeaturedImageChange}
-                onStatusChange={onStatusChange}
-                onDownloadButtonTextChange={(value) => updateBlockContent('downloadButtonText', value)}
-                onDownloadButtonStyleChange={(value) => updateBlockContent('downloadButtonStyle', value)}
-                onDownloadButtonUrlChange={(value) => updateBlockContent('downloadButtonUrl', value)}
-                onOpenSettings={onOpenProductSettings}
+            {(selectedBlock.type === 'product-content' || selectedBlock.type === 'product-default') && (
+              <ProductContentBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
+                productData={{
+                  title: currentProduct?.title || currentProduct?.name,
+                  name: currentProduct?.name,
+                  featured_image: currentProduct?.featured_image,
+                  description: currentProduct?.description,
+                }}
+                onProductTitleChange={onTitleChange}
+                onProductDescriptionChange={onDescriptionChange}
+                onProductFeaturedImageChange={onFeaturedImageChange}
               />
             )}
             
