@@ -2,6 +2,7 @@ import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from "next/navigation"
+import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 
 // Create admin client for direct database queries
 const supabaseAdmin = createClient(
@@ -69,9 +70,27 @@ export default async function PostPage({ params }: PostPageProps) {
     show_featured_image: showFeaturedImage
   }
 
-  return <PostBlockRenderer 
-    site={site} 
-    post={postWithBlocks} 
+  // Pre-fetch related posts if any block uses the related-posts type
+  let preloadedRelatedPosts = null
+  const relatedPostsBlock = blocks.find((b: any) => b.type === 'related-posts')
+  if (relatedPostsBlock) {
+    const rpContent = relatedPostsBlock.content || {}
+    const result = await getRelatedPostsData({
+      siteId: site.id,
+      excludePostId: post.id,
+      sortBy: rpContent.sortBy || 'date',
+      sortOrder: rpContent.sortOrder || 'desc',
+      limit: rpContent.itemsToShow || 3,
+    })
+    if (result.success && result.data) {
+      preloadedRelatedPosts = result.data
+    }
+  }
+
+  return <PostBlockRenderer
+    site={site}
+    post={postWithBlocks}
+    preloadedRelatedPosts={preloadedRelatedPosts}
   />
 }
 

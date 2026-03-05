@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
+import { Trash2, GripVertical, FileText, Eye, Image as ImageIcon, Code, Quote, Minus, Link2 } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -218,6 +218,16 @@ export function BlockListPanel({
     switch (blockType) {
       case 'post-content':
         return <FileText className="w-3.5 h-3.5" />
+      case 'image':
+        return <ImageIcon className="w-3.5 h-3.5" />
+      case 'code':
+        return <Code className="w-3.5 h-3.5" />
+      case 'quote':
+        return <Quote className="w-3.5 h-3.5" />
+      case 'divider':
+        return <Minus className="w-3.5 h-3.5" />
+      case 'related-posts':
+        return <Link2 className="w-3.5 h-3.5" />
       default:
         return <div className="w-3.5 h-3.5" />
     }

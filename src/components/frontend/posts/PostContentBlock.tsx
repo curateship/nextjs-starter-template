@@ -1,6 +1,8 @@
 import { useMemo } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { POST_CONTENT_STYLE_RENDERERS } from "./post-content-styles"
+import { RelatedPostsBlock } from "./RelatedPostsBlock"
+import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 
 interface PostContentBlockProps {
   blocks: Array<{
@@ -15,6 +17,9 @@ interface PostContentBlockProps {
     show_featured_image?: boolean
     created_at: string
   }
+  siteId?: string
+  currentPostId?: string
+  preloadedRelatedPosts?: RelatedPostsData | null
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
@@ -22,6 +27,9 @@ interface PostContentBlockProps {
 export function PostContentBlock({
   blocks,
   post,
+  siteId,
+  currentPostId,
+  preloadedRelatedPosts,
   siteWidth = 'custom',
   customWidth
 }: PostContentBlockProps) {
@@ -78,6 +86,15 @@ export function PostContentBlock({
 
               {block.type === 'divider' && (
                 <hr className="my-8 border-t border-border" />
+              )}
+
+              {block.type === 'related-posts' && siteId && currentPostId && (
+                <RelatedPostsBlock
+                  content={block.content}
+                  siteId={siteId}
+                  currentPostId={currentPostId}
+                  preloadedData={preloadedRelatedPosts}
+                />
               )}
             </div>
           ))}

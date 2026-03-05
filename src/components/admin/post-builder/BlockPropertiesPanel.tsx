@@ -1,4 +1,5 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -91,6 +92,30 @@ export function BlockPropertiesPanel({
               <div className="text-center text-muted-foreground p-8">
                 Divider block editor coming soon
               </div>
+            )}
+            {selectedBlock.type === 'related-posts' && (
+              <RelatedPostsBlock
+                title={selectedBlock.content?.title}
+                subtitle={selectedBlock.content?.subtitle}
+                displayMode={selectedBlock.content?.displayMode}
+                columns={selectedBlock.content?.columns}
+                itemsToShow={selectedBlock.content?.itemsToShow}
+                sortBy={selectedBlock.content?.sortBy}
+                sortOrder={selectedBlock.content?.sortOrder}
+                showImage={selectedBlock.content?.showImage}
+                showTitle={selectedBlock.content?.showTitle}
+                showExcerpt={selectedBlock.content?.showExcerpt}
+                onTitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, title: v } })}
+                onSubtitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, subtitle: v } })}
+                onDisplayModeChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, displayMode: v } })}
+                onColumnsChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, columns: v } })}
+                onItemsToShowChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, itemsToShow: v } })}
+                onSortByChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, sortBy: v } })}
+                onSortOrderChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, sortOrder: v } })}
+                onShowImageChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showImage: v } })}
+                onShowTitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showTitle: v } })}
+                onShowExcerptChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showExcerpt: v } })}
+              />
             )}
           </div>
         </div>

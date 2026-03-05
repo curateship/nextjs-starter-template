@@ -2,6 +2,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 
 interface PostBlockRendererProps {
   site: SiteWithBlocks
@@ -24,9 +25,10 @@ interface PostBlockRendererProps {
       display_order: number
     }>
   }
+  preloadedRelatedPosts?: RelatedPostsData | null
 }
 
-export function PostBlockRenderer({ site, post }: PostBlockRendererProps) {
+export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: postBlocks = [] } = post
   
@@ -58,6 +60,9 @@ export function PostBlockRenderer({ site, post }: PostBlockRendererProps) {
           show_featured_image: post.show_featured_image,
           created_at: post.created_at || new Date().toISOString()
         }}
+        siteId={post.site_id}
+        currentPostId={post.id}
+        preloadedRelatedPosts={preloadedRelatedPosts}
         siteWidth={siteWidth}
         customWidth={customWidth}
       />
