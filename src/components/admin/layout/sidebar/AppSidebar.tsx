@@ -15,6 +15,7 @@ import {
   Calendar,
   Tag,
   ExternalLink,
+  Workflow,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -150,6 +151,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Users",
       url: "/admin/users",
       icon: Users,
+    },
+    {
+      name: "Automations",
+      url: "/admin/automations",
+      icon: Workflow,
     },
     {
       name: "Settings",
