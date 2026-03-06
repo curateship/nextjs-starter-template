@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProductByIdAction } from '@/lib/actions/products/product-actions'
+import { createClient } from '@supabase/supabase-js'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
 import { getFlodeskConfig, getResendConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
+
+// Server-side only: bypasses RLS since visitors aren't authenticated.
+// Safe because this route only reads specific products/sites by ID.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
 
 /**
  * POST /api/products/lead-magnet/signup
@@ -32,16 +39,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get product details
-    const productResult = await getProductByIdAction(productId)
-    if (!productResult.data) {
+    // Get product details (using admin client — visitors are not authenticated)
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .single()
+
+    if (productError || !product) {
       return NextResponse.json(
         { success: false, error: 'Product not found' },
         { status: 404 }
       )
     }
-
-    const product = productResult.data
 
     // Verify product has product-lead-magnet block
     const contentBlocks = product.content_blocks || {}
