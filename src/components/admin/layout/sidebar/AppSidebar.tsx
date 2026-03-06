@@ -101,6 +101,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/admin/products",
       icon: Package,
       isActive: false,
+      items: [
+        { title: "Purchases", url: "/admin/orders" },
+      ],
     },
     {
       title: "Directory",

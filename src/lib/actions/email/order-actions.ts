@@ -228,6 +228,32 @@ export async function getOrdersByEmail(
 }
 
 /**
+ * Get all orders for a site
+ */
+export async function getOrdersBySite(
+  siteId: string
+): Promise<ProductOrder[]> {
+  try {
+
+    const { data, error } = await supabaseAdmin
+      .from('product_orders')
+      .select('*')
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching orders by site:', error)
+      throw new Error(`Failed to fetch orders: ${error.message}`)
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Error in getOrdersBySite:', error)
+    return []
+  }
+}
+
+/**
  * Get all orders for a product
  */
 export async function getOrdersByProduct(
@@ -339,6 +365,26 @@ export async function markFlodeskAdded(orderId: string): Promise<void> {
     }
   } catch (error) {
     console.error('Error in markFlodeskAdded:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete orders by IDs
+ */
+export async function deleteOrders(orderIds: string[]): Promise<void> {
+  try {
+    const { error } = await supabaseAdmin
+      .from('product_orders')
+      .delete()
+      .in('id', orderIds)
+
+    if (error) {
+      console.error('Error deleting orders:', error)
+      throw new Error(`Failed to delete orders: ${error.message}`)
+    }
+  } catch (error) {
+    console.error('Error in deleteOrders:', error)
     throw error
   }
 }
