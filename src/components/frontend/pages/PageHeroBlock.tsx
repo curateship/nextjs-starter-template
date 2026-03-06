@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { HERO_STYLE_RENDERERS } from "./hero-styles";
 
@@ -13,6 +14,16 @@ const LEGACY_STYLE_FIELDS = [
   'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
   'backgroundPatternOpacity', 'showTrustedByBadge',
 ] as const;
+
+interface EmailFormConfig {
+  enabled?: boolean;
+  formId?: string;
+  apiEndpoint?: string;
+  placeholder?: string;
+  buttonText?: string;
+  successMessage?: string;
+  layout?: 'inline' | 'stacked';
+}
 
 interface PageHeroBlockProps {
   className?: string;
@@ -28,6 +39,7 @@ interface PageHeroBlockProps {
   styleConfig?: Record<string, Record<string, any>>;
   siteWidth?: string;
   customWidth?: number;
+  emailForm?: EmailFormConfig;
   // Legacy fields (for migration fallback)
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
@@ -128,6 +140,73 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
   );
 };
 
+// Email subscription form component
+const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig; alignment?: string }) => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const placeholder = config.placeholder || 'Enter your email address';
+  const buttonText = config.buttonText || 'Subscribe';
+  const successMessage = config.successMessage || 'Thanks for subscribing!';
+  const layout = config.layout || 'inline';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setStatus('loading');
+    try {
+      if (config.apiEndpoint) {
+        const res = await fetch(config.apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, formId: config.formId }),
+        });
+        if (!res.ok) throw new Error('Subscription failed');
+      }
+      setStatus('success');
+      setMessage(successMessage);
+      setEmail('');
+    } catch {
+      setStatus('error');
+      setMessage('Something went wrong. Please try again.');
+    }
+  };
+
+  if (status === 'success') {
+    return (
+      <div className={`mt-6 ${alignment === 'left' ? 'text-left' : alignment === 'right' ? 'text-right' : 'text-center'}`}>
+        <p className="text-sm text-green-600 dark:text-green-400 font-medium">{message}</p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className={`mt-6 w-full max-w-md ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}
+    >
+      <div className={layout === 'inline' ? 'flex gap-2' : 'flex flex-col gap-2'}>
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={placeholder}
+          required
+          className="flex-1"
+        />
+        <Button type="submit" disabled={status === 'loading'}>
+          {status === 'loading' ? 'Sending...' : buttonText}
+        </Button>
+      </div>
+      {status === 'error' && (
+        <p className="text-sm text-red-600 dark:text-red-400 mt-2">{message}</p>
+      )}
+    </form>
+  );
+};
+
 const PageHeroBlock = (props: PageHeroBlockProps) => {
   const {
     title,
@@ -142,6 +221,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     styleConfig,
     siteWidth,
     customWidth,
+    emailForm,
   } = props;
 
   // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
@@ -190,6 +270,9 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
           secondaryButtonLink={secondaryButtonLink}
           alignment={alignment}
         />
+        {emailForm?.enabled && (
+          <EmailSubscriptionForm config={emailForm} alignment={alignment} />
+        )}
       </StyleRenderer>
     </section>
   );

@@ -2,8 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { HERO_STYLES } from "./hero-styles"
@@ -109,6 +111,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
@@ -249,6 +252,105 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId }: Pag
             blockId={blockId}
           />
         )}
+
+        {/* Email Form Styling */}
+        {content.emailForm?.enabled && (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Email Form Styling</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Layout</Label>
+                <Select
+                  value={content.emailForm?.layout || 'inline'}
+                  onValueChange={(v) => onContentChange('emailForm', { ...content.emailForm, layout: v })}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inline">Button beside field</SelectItem>
+                    <SelectItem value="stacked">Button below field</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emailPlaceholder">Placeholder Text</Label>
+                <Input
+                  id="emailPlaceholder"
+                  value={content.emailForm?.placeholder || ''}
+                  onChange={(e) => onContentChange('emailForm', { ...content.emailForm, placeholder: e.target.value })}
+                  placeholder="Enter your email address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="emailButtonText">Button Text</Label>
+                <Input
+                  id="emailButtonText"
+                  value={content.emailForm?.buttonText || ''}
+                  onChange={(e) => onContentChange('emailForm', { ...content.emailForm, buttonText: e.target.value })}
+                  placeholder="Subscribe"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Email Subscription Form</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="emailFormEnabled"
+                checked={content.emailForm?.enabled || false}
+                onCheckedChange={(checked) =>
+                  onContentChange('emailForm', { ...content.emailForm, enabled: !!checked })
+                }
+              />
+              <Label htmlFor="emailFormEnabled" className="cursor-pointer">Enable email subscription form</Label>
+            </div>
+
+            {content.emailForm?.enabled && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="emailFormId">Form ID</Label>
+                  <Input
+                    id="emailFormId"
+                    value={content.emailForm?.formId || ''}
+                    onChange={(e) => onContentChange('emailForm', { ...content.emailForm, formId: e.target.value })}
+                    placeholder="e.g. abc123"
+                  />
+                  <p className="text-xs text-muted-foreground">Optional identifier for your form provider</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailFormApi">API Endpoint</Label>
+                  <Input
+                    id="emailFormApi"
+                    value={content.emailForm?.apiEndpoint || ''}
+                    onChange={(e) => onContentChange('emailForm', { ...content.emailForm, apiEndpoint: e.target.value })}
+                    placeholder="https://api.example.com/subscribe"
+                  />
+                  <p className="text-xs text-muted-foreground">The URL where form submissions will be sent via POST</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailFormSuccess">Success Message</Label>
+                  <Input
+                    id="emailFormSuccess"
+                    value={content.emailForm?.successMessage || ''}
+                    onChange={(e) => onContentChange('emailForm', { ...content.emailForm, successMessage: e.target.value })}
+                    placeholder="Thanks for subscribing!"
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </TabsContent>
     </Tabs>
   )
