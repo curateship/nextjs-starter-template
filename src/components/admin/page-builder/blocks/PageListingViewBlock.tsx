@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Check } from "lucide-react"
+import { cn } from "@/lib/utils/tailwind-class-merger"
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -109,8 +110,8 @@ export function PageListingViewBlock({
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-4 gap-4">
+        <CardContent className="space-y-8">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
               <Input
@@ -120,7 +121,7 @@ export function PageListingViewBlock({
                 placeholder="Enter block title"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="subtitle">Subtitle</Label>
               <Input
@@ -130,59 +131,94 @@ export function PageListingViewBlock({
                 placeholder="Enter block subtitle"
               />
             </div>
-            
+          </div>
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="viewAllText">View All Button Text</Label>
+                <Input
+                  id="viewAllText"
+                  value={viewAllText}
+                  onChange={(e) => onViewAllTextChange(e.target.value)}
+                  placeholder="View all products"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="viewAllLink">View All Button Link</Label>
+                <Input
+                  id="viewAllLink"
+                  value={viewAllLink}
+                  onChange={(e) => onViewAllLinkChange(e.target.value)}
+                  placeholder="/products"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
+            </p>
+          </div>
+
+          <div className="flex gap-6">
             <div className="space-y-2">
-              <Label htmlFor="headerAlign">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="headerAlign">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Header Alignment</Label>
+              <div className="flex gap-2">
+                {(['left', 'center'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => onHeaderAlignChange(option)}
+                    className={cn(
+                      "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                      headerAlign === option
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      headerAlign === option
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/30"
+                    )}>
+                      {headerAlign === option && <Check className="h-2.5 w-2.5" />}
+                    </div>
+                    <span className="capitalize">{option}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mobileHeaderAlign">Mobile Header Alignment</Label>
-              <Select value={mobileHeaderAlign} onValueChange={onMobileHeaderAlignChange}>
-                <SelectTrigger id="mobileHeaderAlign">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Mobile Header Alignment</Label>
+              <div className="flex gap-2">
+                {(['left', 'center'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => onMobileHeaderAlignChange(option)}
+                    className={cn(
+                      "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                      mobileHeaderAlign === option
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      mobileHeaderAlign === option
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/30"
+                    )}>
+                      {mobileHeaderAlign === option && <Check className="h-2.5 w-2.5" />}
+                    </div>
+                    <span className="capitalize">{option}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="viewAllText">View All Button Text</Label>
-              <Input
-                id="viewAllText"
-                value={viewAllText}
-                onChange={(e) => onViewAllTextChange(e.target.value)}
-                placeholder="View all products"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="viewAllLink">View All Button Link</Label>
-              <Input
-                id="viewAllLink"
-                value={viewAllLink}
-                onChange={(e) => onViewAllLinkChange(e.target.value)}
-                placeholder="/products"
-              />
-            </div>
-          </div>
-          
-          <p className="text-sm text-muted-foreground">
-            Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
-          </p>
         </CardContent>
       </Card>
 
@@ -191,7 +227,7 @@ export function PageListingViewBlock({
           <CardTitle className="text-base">Content Settings</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-5 gap-4">
+          <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
               <Select value={contentType} onValueChange={onContentTypeChange}>

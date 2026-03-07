@@ -603,6 +603,13 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={currentStyleConfig.containerWidth === 'full'}
+                    onCheckedChange={(checked) => handleStyleConfigChange('containerWidth', checked ? 'full' : 'custom')}
+                  />
+                  <Label className="text-sm">Full Width</Label>
+                </div>
                 {currentStyleConfig.containerWidth !== 'full' && (
                   <div className="w-32">
                     <input
@@ -624,13 +631,6 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                     />
                   </div>
                 )}
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={currentStyleConfig.containerWidth === 'full'}
-                    onCheckedChange={(checked) => handleStyleConfigChange('containerWidth', checked ? 'full' : 'custom')}
-                  />
-                  <Label className="text-sm">Full Width</Label>
-                </div>
               </div>
               {currentStyleConfig.containerWidth !== 'full' && (
                 <p className="text-xs text-muted-foreground">
@@ -647,15 +647,15 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
             <CardTitle className="text-base">Dark Mode</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Show Toggle</Label>
-                <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
-              </div>
+            <div className="flex items-center gap-3">
               <Checkbox
                 checked={currentStyleConfig.showDarkModeToggle !== false}
                 onCheckedChange={(checked) => handleStyleConfigChange('showDarkModeToggle', checked)}
               />
+              <div className="space-y-0.5">
+                <Label>Show Toggle</Label>
+                <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+              </div>
             </div>
           </CardContent>
         </Card>
