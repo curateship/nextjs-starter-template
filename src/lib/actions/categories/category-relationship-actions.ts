@@ -261,6 +261,83 @@ export async function getContentCategoriesAction(contentId: string, contentType:
 }
 
 /**
+ * Get categories for multiple content items in a single query
+ */
+export async function getBulkContentCategoriesAction(
+  contentIds: string[],
+  contentType: ContentType
+): Promise<{ data: Record<string, CategoryInfo[]> | null; error: string | null }> {
+  try {
+    if (contentIds.length === 0) return { data: {}, error: null }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const { data: relationships, error: relationshipsError } = await supabaseAdmin
+      .from('category_relationships')
+      .select(`
+        content_id,
+        category_id,
+        categories!inner(
+          id,
+          title,
+          slug,
+          parent_id
+        )
+      `)
+      .in('content_id', contentIds)
+      .eq('content_type', contentType)
+
+    if (relationshipsError) {
+      return { data: null, error: relationshipsError.message }
+    }
+
+    // Collect unique parent IDs to batch-fetch parent titles
+    const parentIds = new Set<string>()
+    for (const rel of relationships || []) {
+      const cat = (rel as any).categories
+      if (cat.parent_id) parentIds.add(cat.parent_id)
+    }
+
+    let parentTitles: Record<string, string> = {}
+    if (parentIds.size > 0) {
+      const { data: parents } = await supabaseAdmin
+        .from('categories')
+        .select('id, title')
+        .in('id', Array.from(parentIds))
+
+      if (parents) {
+        parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
+      }
+    }
+
+    // Group by content_id
+    const result: Record<string, CategoryInfo[]> = {}
+    for (const rel of relationships || []) {
+      const cat = (rel as any).categories
+      const contentId = rel.content_id
+
+      if (!result[contentId]) result[contentId] = []
+      result[contentId].push({
+        id: cat.id,
+        title: cat.title,
+        slug: cat.slug,
+        parent_id: cat.parent_id,
+        parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+      })
+    }
+
+    return { data: result, error: null }
+  } catch (error) {
+    console.error('Error getting bulk content categories:', error)
+    return { data: null, error: 'Failed to get content categories' }
+  }
+}
+
+/**
  * Get all content assigned to a category
  */
 export async function getCategoryContentAction(

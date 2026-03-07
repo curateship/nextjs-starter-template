@@ -31,6 +31,8 @@ import { DirectorySettingsModal } from "@/components/admin/directory-builder/Dir
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FolderOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteDirectoriesAction, deleteDirectoryAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -46,6 +48,7 @@ export default function DirectoriesPage() {
   const [settingsDirectoryId, setSettingsDirectoryId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [directoryCategories, setDirectoryCategories] = useState<Record<string, CategoryInfo[]>>({})
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -76,6 +79,11 @@ export default function DirectoriesPage() {
         
         if (directoriesData) {
           setDirectories(directoriesData)
+          // Fetch categories for all directories in a single query
+          const { data: categoryMap } = await getBulkContentCategoriesAction(
+            directoriesData.map(d => d.id), 'directory'
+          )
+          if (categoryMap) setDirectoryCategories(categoryMap)
         }
         setLoading(false)
       } catch (err) {
@@ -251,8 +259,9 @@ export default function DirectoriesPage() {
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2">Directory</div>
+                <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
                 <div>Actions</div>
@@ -265,7 +274,7 @@ export default function DirectoriesPage() {
                 <div className="space-y-0">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-5 gap-4 items-center">
+                      <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
@@ -274,6 +283,9 @@ export default function DirectoriesPage() {
                               <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
                             </div>
                           </div>
+                        </div>
+                        <div>
+                          <div className="h-5 bg-muted rounded-full animate-pulse w-16"></div>
                         </div>
                         <div>
                           <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
@@ -316,16 +328,16 @@ export default function DirectoriesPage() {
               ) : (
                 filteredDirectories.map((directory) => (
                   <div key={directory.id} className="p-6">
-                    <div className="grid grid-cols-5 gap-4 items-center">
+                    <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
-                        <Link 
+                        <Link
                           href={`/admin/directories/builder/${directory.site_id}?directory=${directory.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
                             {directory.featured_image ? (
-                              <img 
-                                src={directory.featured_image} 
+                              <img
+                                src={directory.featured_image}
                                 alt={directory.title}
                                 className="w-full h-full object-contain"
                               />
@@ -340,6 +352,17 @@ export default function DirectoriesPage() {
                             </p>
                           </div>
                         </Link>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {directoryCategories[directory.id]?.length ? (
+                          directoryCategories[directory.id].map((cat) => (
+                            <Badge key={cat.id} variant="outline" className="text-xs">
+                              {cat.title}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
                       </div>
                       <div>
                         {getStatusBadge(directory)}

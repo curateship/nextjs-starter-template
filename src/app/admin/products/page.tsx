@@ -30,6 +30,8 @@ import { ProductSettingsModal } from "@/components/admin/product-builder/Product
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
+import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
 
@@ -45,6 +47,7 @@ export default function ProductsPage() {
   const [settingsProductId, setSettingsProductId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [productCategories, setProductCategories] = useState<Record<string, CategoryInfo[]>>({})
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
@@ -75,6 +78,11 @@ export default function ProductsPage() {
         
         if (productsData) {
           setProducts(productsData)
+          // Fetch categories for all products in a single query
+          const { data: categoryMap } = await getBulkContentCategoriesAction(
+            productsData.map(p => p.id), 'product'
+          )
+          if (categoryMap) setProductCategories(categoryMap)
         }
         setLoading(false)
       } catch (err) {
@@ -270,8 +278,9 @@ export default function ProductsPage() {
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2">Product</div>
+                <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
                 <div>Actions</div>
@@ -284,7 +293,7 @@ export default function ProductsPage() {
                 <div className="space-y-0">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-5 gap-4 items-center">
+                      <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
@@ -293,6 +302,9 @@ export default function ProductsPage() {
                               <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
                             </div>
                           </div>
+                        </div>
+                        <div>
+                          <div className="h-5 bg-muted rounded-full animate-pulse w-16"></div>
                         </div>
                         <div>
                           <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
@@ -335,16 +347,16 @@ export default function ProductsPage() {
               ) : (
                 filteredProducts.map((product) => (
                   <div key={product.id} className="p-6">
-                    <div className="grid grid-cols-5 gap-4 items-center">
+                    <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
-                        <Link 
+                        <Link
                           href={`/admin/products/builder/${product.site_id}?product=${product.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
                             {product.featured_image ? (
-                              <img 
-                                src={product.featured_image} 
+                              <img
+                                src={product.featured_image}
                                 alt={product.title}
                                 className="w-full h-full object-contain"
                               />
@@ -359,6 +371,17 @@ export default function ProductsPage() {
                             </p>
                           </div>
                         </Link>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {productCategories[product.id]?.length ? (
+                          productCategories[product.id].map((cat) => (
+                            <Badge key={cat.id} variant="outline" className="text-xs">
+                              {cat.title}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
                       </div>
                       <div>
                         {getStatusBadge(product)}

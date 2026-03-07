@@ -31,6 +31,8 @@ import { useSiteContext } from "@/contexts/site-context"
 import { CreateEventModal } from "@/components/admin/event-builder/CreateEventModal"
 import { EventSettingsModal } from "@/components/admin/event-builder/EventSettingsModal"
 import { getSiteEventsAction, deleteEventAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
+import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 
 export default function EventsPage() {
@@ -51,6 +53,7 @@ export default function EventsPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
+  const [eventCategories, setEventCategories] = useState<Record<string, CategoryInfo[]>>({})
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
 
@@ -73,7 +76,13 @@ export default function EventsPage() {
           setError(eventsError)
           setEvents([])
         } else {
-          setEvents(eventsData || [])
+          const loadedEvents = eventsData || []
+          setEvents(loadedEvents)
+          // Fetch categories for all events in a single query
+          const { data: categoryMap } = await getBulkContentCategoriesAction(
+            loadedEvents.map(e => e.id), 'event'
+          )
+          if (categoryMap) setEventCategories(categoryMap)
         }
       } catch (err) {
         setError('An unexpected error occurred')
@@ -257,8 +266,9 @@ export default function EventsPage() {
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2">Event</div>
+                <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
                 <div>Actions</div>
@@ -310,16 +320,16 @@ export default function EventsPage() {
               ) : (
                 filteredEvents.map((event) => (
                   <div key={event.id} className="p-6">
-                    <div className="grid grid-cols-5 gap-4 items-center">
+                    <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
-                        <Link 
+                        <Link
                           href={`/admin/events/builder/${event.site_id}?event=${event.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
                             {event.featured_image ? (
-                              <img 
-                                src={event.featured_image} 
+                              <img
+                                src={event.featured_image}
                                 alt={event.title}
                                 className="w-full h-full object-contain"
                               />
@@ -334,6 +344,17 @@ export default function EventsPage() {
                             </p>
                           </div>
                         </Link>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {eventCategories[event.id]?.length ? (
+                          eventCategories[event.id].map((cat) => (
+                            <Badge key={cat.id} variant="outline" className="text-xs">
+                              {cat.title}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
                       </div>
                       <div>
                         {getStatusBadge(event)}
