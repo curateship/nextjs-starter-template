@@ -105,12 +105,15 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     return undefined
   }
 
+  const topPx = Math.max(0, spacingTop)
+  const bottomPx = Math.max(0, spacingBottom)
+
   return (
-    <div 
+    <div
       className={cn("w-full", className)}
       style={{
-        paddingTop: `${Math.max(0, spacingTop)}px`,
-        paddingBottom: `${Math.max(0, spacingBottom)}px`
+        paddingTop: topPx ? `clamp(${Math.round(topPx * 0.5)}px, ${(topPx / 1440 * 100).toFixed(2)}vw, ${topPx}px)` : undefined,
+        paddingBottom: bottomPx ? `clamp(${Math.round(bottomPx * 0.5)}px, ${(bottomPx / 1440 * 100).toFixed(2)}vw, ${bottomPx}px)` : undefined,
       }}
     >
       <div className={getContainerClass()} style={getContainerStyle()}>
