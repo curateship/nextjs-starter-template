@@ -119,7 +119,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
           className={cn("absolute inset-0", isFixedWidth && "mx-auto px-6")}
           style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
         >
-          <div className={cn("absolute top-1/2 -translate-y-1/2 max-md:scale-[0.7] max-md:origin-center", horizontalPos)} style={{ width: `${heroImageSize}px`, height: `${heroImageSize}px` }}>
+          <div className={cn("absolute top-1/2 -translate-y-1/2 max-md:scale-[0.7]", horizontalPos, heroImageAlign === 'right' ? 'max-md:origin-right' : heroImageAlign === 'left' ? 'max-md:origin-left' : 'max-md:origin-center')} style={{ width: `${heroImageSize}px`, height: `${heroImageSize}px` }}>
             <Image
               className="object-contain"
               src={heroImage}

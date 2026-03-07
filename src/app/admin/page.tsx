@@ -20,12 +20,31 @@ export default function AdminDashboard() {
     }
   }, [currentSite, loading, router])
 
-  // Show loading state while redirecting
+  // Show skeleton state while redirecting
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading dashboard...</p>
+    <div className="flex-1 p-6 space-y-6">
+      {/* Header skeleton */}
+      <div className="space-y-2">
+        <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+        <div className="h-4 w-72 bg-muted animate-pulse rounded" />
+      </div>
+      {/* Stats grid skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="rounded-lg border p-6 space-y-3">
+            <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+          </div>
+        ))}
+      </div>
+      {/* Content skeleton */}
+      <div className="rounded-lg border p-6 space-y-4">
+        <div className="h-5 w-36 bg-muted animate-pulse rounded" />
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-4 bg-muted animate-pulse rounded" style={{ width: `${85 - i * 10}%` }} />
+          ))}
+        </div>
       </div>
     </div>
   )

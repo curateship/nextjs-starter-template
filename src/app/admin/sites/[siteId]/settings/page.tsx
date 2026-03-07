@@ -296,7 +296,7 @@ const TABS = [
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
-  { id: 'seo', label: 'SEO' },
+  { id: 'seo', label: 'Integration' },
   { id: 'themes', label: 'Themes' },
 ] as const
 
