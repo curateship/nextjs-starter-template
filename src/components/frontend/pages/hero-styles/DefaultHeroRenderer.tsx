@@ -99,15 +99,22 @@ const SocialProof = ({ trustedByText, trustedByAvatars, alignment }: { trustedBy
 );
 
 // Hero Background Image component
-const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSize, isFixedWidth, contentMaxWidth }: { heroImage?: string; heroImageAlign?: string; heroImageSize?: number; isFixedWidth?: boolean; contentMaxWidth?: number }) => {
+const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSize, isFixedWidth, contentMaxWidth, hideMobile, mobileOpacity }: { heroImage?: string; heroImageAlign?: string; heroImageSize?: number; isFixedWidth?: boolean; contentMaxWidth?: number; hideMobile?: boolean; mobileOpacity?: number }) => {
   if (!heroImage) return null;
 
   const objectPosition = heroImageAlign === 'left' ? 'left' : heroImageAlign === 'right' ? 'right' : 'center';
+  const mobileClass = hideMobile ? 'hidden md:block' : '';
+  const mobileOpacityStyle = !hideMobile && mobileOpacity !== undefined && mobileOpacity < 100
+    ? { '--hero-img-opacity': mobileOpacity / 100 } as React.CSSProperties
+    : undefined;
+  const mobileOpacityClass = !hideMobile && mobileOpacity !== undefined && mobileOpacity < 100
+    ? 'opacity-[var(--hero-img-opacity)] md:opacity-100'
+    : '';
 
   if (heroImageSize) {
     const horizontalPos = heroImageAlign === 'left' ? 'left-0' : heroImageAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2';
     return (
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      <div className={cn("absolute inset-0 z-0 pointer-events-none", mobileClass, mobileOpacityClass)} style={mobileOpacityStyle}>
         <div
           className={cn("absolute inset-0", isFixedWidth && "mx-auto px-6")}
           style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
@@ -127,7 +134,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
   }
 
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none">
+    <div className={cn("absolute inset-0 z-0 pointer-events-none", mobileClass, mobileOpacityClass)} style={mobileOpacityStyle}>
       <Image
         className="absolute inset-0 h-full w-full object-cover"
         src={heroImage}
@@ -154,6 +161,8 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
     contentMaxWidth = 1152,
     heroImageAlign = 'center',
     heroImageSize,
+    heroImageHideMobile,
+    heroImageMobileOpacity,
   } = config;
 
   const alignItems = alignment === 'left' ? 'items-start' : alignment === 'right' ? 'items-end' : 'items-center';
@@ -177,7 +186,7 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
       </div>
 
       {/* Background image layer - above pattern */}
-      <HeroBackgroundImage heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} isFixedWidth={isFixedWidth} contentMaxWidth={contentMaxWidth} />
+      <HeroBackgroundImage heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} isFixedWidth={isFixedWidth} contentMaxWidth={contentMaxWidth} hideMobile={heroImageHideMobile} mobileOpacity={heroImageMobileOpacity} />
 
       {/* Content layer above background */}
       <div

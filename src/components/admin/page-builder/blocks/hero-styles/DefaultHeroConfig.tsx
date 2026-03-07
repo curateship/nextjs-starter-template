@@ -377,6 +377,36 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                 </div>
               </div>
               <div className="space-y-1.5">
+                <Label className="text-xs">Mobile Visibility</Label>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="heroImageHideMobile"
+                    checked={config.heroImageHideMobile === true}
+                    onCheckedChange={(checked) => onConfigChange('heroImageHideMobile', !!checked)}
+                  />
+                  <Label htmlFor="heroImageHideMobile" className="text-xs cursor-pointer">Hide on mobile</Label>
+                </div>
+                {!config.heroImageHideMobile && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Label className="text-xs whitespace-nowrap">Mobile Opacity</Label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={config.heroImageMobileOpacity ?? 100}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (!isNaN(value) && value >= 0 && value <= 100) {
+                          onConfigChange('heroImageMobileOpacity', value);
+                        }
+                      }}
+                      className="w-16 px-2 py-1 border rounded-md text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-xs">Image Size</Label>
                 <div className="flex items-center gap-2">
                   <Checkbox
