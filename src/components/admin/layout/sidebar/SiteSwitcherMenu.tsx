@@ -22,6 +22,25 @@ import {
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteContext } from "@/contexts/site-context"
 
+const SiteFavicon = React.memo(function SiteFavicon({ favicon, name }: { favicon?: string; name?: string }) {
+  if (favicon) {
+    return (
+      <img
+        src={favicon}
+        alt={`${name} favicon`}
+        width={32}
+        height={32}
+        className="size-8 object-cover rounded-lg p-0.5"
+      />
+    )
+  }
+  return (
+    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+      <Globe className="size-4" />
+    </div>
+  )
+})
+
 export function SiteSwitcherMenu() {
   const { isMobile } = useSidebar()
   const router = useRouter()
@@ -64,44 +83,33 @@ export function SiteSwitcherMenu() {
     )
   }
 
+  const dashboardHref = currentSite ? `/admin/sites/${currentSite.id}/dashboard` : "/admin"
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex items-center w-full">
-          <Link href={currentSite ? `/admin/sites/${currentSite.id}/dashboard` : "/admin"} className="flex-1">
-            <SidebarMenuButton
-              size="lg"
-              className="w-full cursor-pointer group-data-[collapsible=icon]:justify-center"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
-                {currentSite?.settings?.favicon ? (
-                  <img 
-                    src={currentSite.settings.favicon} 
-                    alt={`${currentSite.name} favicon`}
-                    className="size-8 object-cover rounded-lg p-0.5"
-                  />
-                ) : (
-                  <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                    <Globe className="size-4" />
-                  </div>
-                )}
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-medium">
-                  {currentSite ? currentSite.name : "Select Site"}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {currentSite ? (currentSite.custom_domain || `${currentSite.subdomain}.domain.com`) : "Choose a site"}
-                </span>
-              </div>
-            </SidebarMenuButton>
+        <div className="flex items-center gap-2 py-2">
+          <Link
+            href={dashboardHref}
+            className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden"
+          >
+            <SiteFavicon favicon={currentSite?.settings?.favicon} name={currentSite?.name} />
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="p-4 hover:bg-muted rounded-md">
-                <ChevronsUpDown className="w-4 h-4" />
-              </button>
-            </DropdownMenuTrigger>
+          <div className="flex flex-1 items-center min-w-0 group-data-[collapsible=icon]:hidden">
+            <Link href={dashboardHref} className="grid flex-1 text-left text-sm leading-tight min-w-0">
+              <span className="truncate font-medium">
+                {currentSite ? currentSite.name : "Select Site"}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {currentSite ? (currentSite.custom_domain || `${currentSite.subdomain}.domain.com`) : "Choose a site"}
+              </span>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 hover:bg-muted rounded-md">
+                  <ChevronsUpDown className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent
               className="w-72 rounded-lg"
               align="start"
@@ -161,8 +169,9 @@ export function SiteSwitcherMenu() {
                   <div className="text-muted-foreground font-medium">Manage Sites</div>
                 </Link>
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </SidebarMenuItem>
     </SidebarMenu>

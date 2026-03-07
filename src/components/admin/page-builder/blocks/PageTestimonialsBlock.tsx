@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Plus, Trash2, GripVertical, Check, ImageIcon } from "lucide-react"
+import { Plus, Trash2, GripVertical, Check, ImageIcon, ArrowLeft } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "./testimonial-styles"
@@ -43,6 +43,7 @@ interface PageTestimonialsBlockProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
+  onBack?: () => void
 }
 
 function SortableTestimonialItem({
@@ -174,7 +175,7 @@ function SortableTestimonialItem({
   )
 }
 
-export function PageTestimonialsBlock({ content, onContentChange, siteId, blockId }: PageTestimonialsBlockProps) {
+export function PageTestimonialsBlock({ content, onContentChange, siteId, blockId, onBack }: PageTestimonialsBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [avatarPickerIndex, setAvatarPickerIndex] = useState<number | null>(null)
 
@@ -237,50 +238,25 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
       {/* Content Tab */}
       <TabsContent value="content" className="mt-6">
-        {/* Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Testimonial Style</Label>
-          <div className="grid gap-2 max-w-[260px]">
-            {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('testimonialStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  testimonialStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  testimonialStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {testimonialStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Header Settings */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -384,6 +360,43 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
             )}
           </CardContent>
         </Card>
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Testimonial Style</Label>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('testimonialStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  testimonialStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  testimonialStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {testimonialStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </TabsContent>
 
       <MediaPicker

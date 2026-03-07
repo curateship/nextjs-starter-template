@@ -1,8 +1,11 @@
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ArrowLeft } from "lucide-react"
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -39,6 +42,7 @@ interface SharedListingViewsBlockProps {
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
+  onBack?: () => void
 }
 
 export function PageListingViewBlock({
@@ -76,9 +80,31 @@ export function PageListingViewBlock({
   onItemsPerPageChange,
   onViewAllTextChange,
   onViewAllLinkChange,
+  onBack,
 }: SharedListingViewsBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
+
   return (
-    <div className="space-y-4">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      </div>
+
+      {/* Content Tab */}
+      <TabsContent value="content" className="mt-6">
+        <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Header Settings</CardTitle>
@@ -238,71 +264,77 @@ export function PageListingViewBlock({
           </div>
         </CardContent>
       </Card>
+        </div>
+      </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Display Options</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showImage">Show Image</Label>
-            <Switch
-              id="showImage"
-              checked={showImage}
-              onCheckedChange={onShowImageChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showTitle">Show Title</Label>
-            <Switch
-              id="showTitle"
-              checked={showTitle}
-              onCheckedChange={onShowTitleChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showDescription">Show Description</Label>
-            <Switch
-              id="showDescription"
-              checked={showDescription}
-              onCheckedChange={onShowDescriptionChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="isPaginated">Enable Pagination</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {isPaginated ? 'Enter items per page' : 'Items to show'}
-              </span>
-              <Input
-                type="number"
-                min="1"
-                max="50"
-                value={isPaginated ? itemsPerPage : itemsToShow}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
-                  if (isPaginated) {
-                    onItemsPerPageChange(value)
-                  } else {
-                    onItemsToShowChange(value)
-                  }
-                }}
-                placeholder={isPaginated ? "12" : "6"}
-                className="w-20"
-              />
-              <Switch
-                id="isPaginated"
-                checked={isPaginated}
-                onCheckedChange={onIsPaginatedChange}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Display Options</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showImage">Show Image</Label>
+                <Switch
+                  id="showImage"
+                  checked={showImage}
+                  onCheckedChange={onShowImageChange}
+                />
+              </div>
 
-    </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showTitle">Show Title</Label>
+                <Switch
+                  id="showTitle"
+                  checked={showTitle}
+                  onCheckedChange={onShowTitleChange}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showDescription">Show Description</Label>
+                <Switch
+                  id="showDescription"
+                  checked={showDescription}
+                  onCheckedChange={onShowDescriptionChange}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="isPaginated">Enable Pagination</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {isPaginated ? 'Enter items per page' : 'Items to show'}
+                  </span>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={isPaginated ? itemsPerPage : itemsToShow}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
+                      if (isPaginated) {
+                        onItemsPerPageChange(value)
+                      } else {
+                        onItemsToShowChange(value)
+                      }
+                    }}
+                    placeholder={isPaginated ? "12" : "6"}
+                    className="w-20"
+                  />
+                  <Switch
+                    id="isPaginated"
+                    checked={isPaginated}
+                    onCheckedChange={onIsPaginatedChange}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+    </Tabs>
   )
 }

@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Plus, Trash2, ImageIcon, GripVertical, ArrowLeft } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -60,6 +61,7 @@ interface FooterBlockProps {
   blockId: string
   siteFavicon?: string
   siteName?: string
+  onBack?: () => void
 }
 
 const socialPlatforms = [
@@ -229,7 +231,9 @@ export function PageFooterBlock({
   onStyleChange,
   siteFavicon,
   siteName = "Your Site",
+  onBack,
 }: FooterBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState(false)
   
   const sensors = useSensors(
@@ -338,11 +342,28 @@ export function PageFooterBlock({
   const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
 
   return (
-    <div className="space-y-4">
-      {/* Logo & Copyright and Styling Cards */}
-      <div className="grid grid-cols-2">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
+        </TabsList>
+      </div>
+
+      {/* Content Tab */}
+      <TabsContent value="content" className="mt-6">
+        <div className="space-y-4">
         {/* Logo Card */}
-        <Card className="shadow-sm mr-0">
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Logo & Copyright</CardTitle>
           </CardHeader>
@@ -431,57 +452,6 @@ export function PageFooterBlock({
             />
           </CardContent>
         </Card>
-
-        {/* Style Settings Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Styling</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="footerBgColor">Background Color</Label>
-                <div className="flex gap-2">
-                  <input
-                    id="footerBgColor"
-                    type="color"
-                    value={style.backgroundColor}
-                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                  />
-                  <input
-                    type="text"
-                    value={style.backgroundColor}
-                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="footerTextColor">Text Color</Label>
-                <div className="flex gap-2">
-                  <input
-                    id="footerTextColor"
-                    type="color"
-                    value={style.textColor}
-                    onChange={(e) => updateStyle('textColor', e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                  />
-                  <input
-                    type="text"
-                    value={style.textColor}
-                    onChange={(e) => updateStyle('textColor', e.target.value)}
-                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                    placeholder="#ffffff"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Footer Links Card */}
       <Card className="shadow-sm">
@@ -578,6 +548,62 @@ export function PageFooterBlock({
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      </TabsContent>
+
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
+        <div className="space-y-4">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Styling</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="footerBgColor">Background Color</Label>
+                  <div className="flex gap-2">
+                    <input
+                      id="footerBgColor"
+                      type="color"
+                      value={style.backgroundColor}
+                      onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                    />
+                    <input
+                      type="text"
+                      value={style.backgroundColor}
+                      onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                      className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                      placeholder="#000000"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="footerTextColor">Text Color</Label>
+                  <div className="flex gap-2">
+                    <input
+                      id="footerTextColor"
+                      type="color"
+                      value={style.textColor}
+                      onChange={(e) => updateStyle('textColor', e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                    />
+                    <input
+                      type="text"
+                      value={style.textColor}
+                      onChange={(e) => updateStyle('textColor', e.target.value)}
+                      className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+    </Tabs>
   )
 }

@@ -107,9 +107,6 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
   const [showPicker, setShowPicker] = useState<number | null>(null)
   const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
 
-  const alignment = config.alignment || 'center'
-  const contentWidth = config.contentWidth || 'full'
-  const contentMaxWidth = config.contentMaxWidth ?? 1152
   const heroImage = config.heroImage || ''
   const trustedByText = config.trustedByText || ''
   const trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }> = config.trustedByAvatars || []
@@ -177,73 +174,6 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
 
   return (
     <div className="">
-      {/* Alignment Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Content Alignment</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            {(['left', 'center', 'right'] as const).map((option) => (
-              <div key={option} className="flex items-center gap-2">
-                <Checkbox
-                  id={`alignment-${option}`}
-                  checked={alignment === option}
-                  onCheckedChange={() => onConfigChange('alignment', option)}
-                />
-                <Label htmlFor={`alignment-${option}`} className="text-sm capitalize cursor-pointer">{option}</Label>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Content Width Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Content Width</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="contentWidth"
-              checked={contentWidth === 'fixed'}
-              onCheckedChange={(checked) => onConfigChange('contentWidth', checked ? 'fixed' : 'full')}
-            />
-            <Label htmlFor="contentWidth" className="text-sm cursor-pointer">Constrain to fixed width</Label>
-            {contentWidth === 'fixed' && (
-              <>
-                <input
-                  type="number"
-                  min="600"
-                  max="2000"
-                  value={config.contentMaxWidth ?? ''}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === '') {
-                      onConfigChange('contentMaxWidth', undefined);
-                    } else {
-                      const value = parseInt(raw);
-                      if (!isNaN(value)) {
-                        onConfigChange('contentMaxWidth', value);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (isNaN(value)) return;
-                    if (value < 600) onConfigChange('contentMaxWidth', 600);
-                    else if (value > 2000) onConfigChange('contentMaxWidth', 2000);
-                  }}
-                  className="w-20 px-2 py-1 border rounded-md text-sm"
-                />
-                <span className="text-xs text-muted-foreground">px</span>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Trusted By Section Card */}
       <Card className="shadow-sm">
         <CardHeader>

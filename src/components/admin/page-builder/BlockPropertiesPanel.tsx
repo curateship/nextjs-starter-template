@@ -1,3 +1,5 @@
+import { ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { PageHeroBlock } from "./blocks/PageHeroBlock"
 import { PageNavigationBlock } from "./blocks/PageNavigationBlock"
 import { PageFooterBlock } from "./blocks/PageFooterBlock"
@@ -41,6 +43,7 @@ interface BlockPropertiesPanelProps {
   }
   // allBlocks removed - navigation/footer now come from site.settings
   blocksLoading?: boolean
+  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -49,7 +52,8 @@ export function BlockPropertiesPanel({
   siteId,
   currentPage,
   site,
-  blocksLoading = false
+  blocksLoading = false,
+  onBack
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -62,6 +66,7 @@ export function BlockPropertiesPanel({
                 onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
             {selectedBlock.type === 'navigation' && (
@@ -71,6 +76,7 @@ export function BlockPropertiesPanel({
                 siteId={siteId}
                 blockId={selectedBlock.id}
                 siteFavicon={site?.settings?.favicon}
+                onBack={onBack}
               />
             )}
             {selectedBlock.type === 'footer' && (
@@ -80,6 +86,7 @@ export function BlockPropertiesPanel({
                 siteId={siteId}
                 blockId={selectedBlock.id}
                 siteFavicon={site?.settings?.favicon}
+                onBack={onBack}
               />
             )}
             {selectedBlock.type === 'rich-text' && (
@@ -121,6 +128,7 @@ export function BlockPropertiesPanel({
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
                   'showViewAll', 'viewAllText', 'viewAllLink'
                 ]) as any)}
+                onBack={onBack}
               />
             )}
             
@@ -131,6 +139,7 @@ export function BlockPropertiesPanel({
                   'spacingTop', 'spacingBottom', 'dividerStyle',
                   'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth'
                 ]) as any)}
+                onBack={onBack}
               />
             )}
 
@@ -154,6 +163,7 @@ export function BlockPropertiesPanel({
                 onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
 
