@@ -7,6 +7,7 @@ import { PageListingViewBlock } from "./blocks/PageListingViewBlock"
 import { PageDividerBlock } from "./blocks/PageDividerBlock"
 import { PageAuthBlock } from "./blocks/PageAuthBlock"
 import { PageEmbeddedBlock } from "./blocks/PageEmbeddedBlock"
+import { PageTestimonialsBlock } from "./blocks/PageTestimonialsBlock"
 import { PagePreview } from "./PagePreview"
 import type { PageBlock } from "@/lib/utils/page-block-utils"
 
@@ -144,6 +145,15 @@ export function BlockPropertiesPanel({
                   'registerTitle', 'registerDescription',
                   'resetTitle', 'resetDescription'
                 ]) as any)}
+              />
+            )}
+
+            {selectedBlock.type === 'testimonials' && (
+              <PageTestimonialsBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                blockId={selectedBlock.id}
               />
             )}
 

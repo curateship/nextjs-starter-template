@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Eye, LogIn, User, Code } from "lucide-react"
+import { Trash2, GripVertical, Zap, FileText, Navigation, Mouse, HelpCircle, LayoutGrid, Minus, Eye, LogIn, User, Code, Quote } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -217,6 +217,7 @@ export function BlockListPanel({
            block.type === 'divider' ? 'Divider / Spacer' :
            block.type === 'auth' ? 'Authentication' :
            block.type === 'embedded' ? 'Embedded' :
+           block.type === 'testimonials' ? 'Testimonials' :
            block.type === 'user-profile' ? 'User Profile' : 'Block'
   }
 
@@ -242,6 +243,8 @@ export function BlockListPanel({
         return <Code className="w-3.5 h-3.5" />
       case 'user-profile':
         return <User className="w-3.5 h-3.5" />
+      case 'testimonials':
+        return <Quote className="w-3.5 h-3.5" />
       default:
         return <div className="w-3.5 h-3.5" />
     }

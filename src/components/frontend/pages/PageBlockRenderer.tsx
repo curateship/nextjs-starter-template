@@ -8,6 +8,7 @@ import { ListingViewsBlock } from "@/components/frontend/pages/PageListingViewBl
 import { DividerBlock } from "@/components/frontend/pages/PageDividerBlock"
 import { AuthBlock } from "@/components/frontend/pages/AuthBlock"
 import { EmbeddedBlock } from "@/components/frontend/pages/PageEmbeddedBlock"
+import { TestimonialsBlock } from "@/components/frontend/pages/PageTestimonialsBlock"
 import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -134,6 +135,17 @@ export function BlockRenderer({ site }: BlockRendererProps) {
             <AuthBlock
               key={`auth-${block.id}`}
               {...block.content}
+            />
+          )
+        }
+
+        if (block.type === 'testimonials') {
+          return (
+            <TestimonialsBlock
+              key={`testimonials-${block.id}`}
+              content={block.content}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
             />
           )
         }

@@ -1,0 +1,53 @@
+'use client'
+
+import { BlockContainer } from '@/components/frontend/layout/block-container'
+import { DefaultTestimonialRenderer } from './testimonial-styles/DefaultTestimonialRenderer'
+
+interface TestimonialItem {
+  id: string
+  name: string
+  role: string
+  avatar: string
+  content: string
+}
+
+interface TestimonialsBlockProps {
+  content: {
+    title?: string
+    subtitle?: string
+    headerAlign?: 'left' | 'center'
+    testimonialItems?: TestimonialItem[]
+    testimonialStyle?: string
+    styleConfig?: Record<string, Record<string, any>>
+  }
+  siteWidth?: string
+  customWidth?: number
+}
+
+export function TestimonialsBlock({ content, siteWidth, customWidth }: TestimonialsBlockProps) {
+  const {
+    title = 'Meet Our Happy Clients',
+    subtitle = 'Hear from the teams who have transformed their workflow.',
+    headerAlign = 'center',
+    testimonialItems = [],
+    testimonialStyle = 'default',
+    styleConfig = { default: { speed: 0.7, showSecondRow: true } },
+  } = content
+
+  const currentConfig = styleConfig[testimonialStyle] || { speed: 0.7, showSecondRow: true }
+
+  return (
+    <BlockContainer
+      header={{
+        title: title || undefined,
+        subtitle: subtitle || undefined,
+        align: headerAlign,
+      }}
+      siteWidth={siteWidth as 'full' | 'custom'}
+      customWidth={customWidth}
+      className="!py-0"
+    >
+      <DefaultTestimonialRenderer items={testimonialItems} config={currentConfig} />
+    </BlockContainer>
+  )
+}

@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, LucideIcon } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, Quote, LucideIcon } from "lucide-react"
 
 export interface BlockTypeDefinition {
   type: string
@@ -116,6 +116,44 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       registerDescription: 'Enter your details to get started',
       resetTitle: 'Reset your password',
       resetDescription: 'Enter your email to receive a reset link'
+    }
+  },
+  {
+    type: 'testimonials',
+    name: 'Testimonials',
+    icon: Quote,
+    description: 'Showcase client testimonials in an auto-scrolling carousel',
+    defaultContent: {
+      title: 'Meet Our Happy Clients',
+      subtitle: 'Hear from the teams who have transformed their workflow.',
+      headerAlign: 'center',
+      testimonialItems: [
+        {
+          id: 'item-1',
+          name: 'Sarah Chen',
+          role: 'CEO & Founder',
+          avatar: '',
+          content: 'This product has transformed how we build and ship. We accomplished in weeks what used to take months.',
+        },
+        {
+          id: 'item-2',
+          name: 'Marcus Rodriguez',
+          role: 'CTO',
+          avatar: '',
+          content: 'The attention to detail and performance is impressive. Our team productivity increased significantly.',
+        },
+        {
+          id: 'item-3',
+          name: 'Emily Watson',
+          role: 'Head of Product',
+          avatar: '',
+          content: 'Finally, a solution that developers actually want to use. The documentation is clear and defaults are sensible.',
+        },
+      ],
+      testimonialStyle: 'default',
+      styleConfig: {
+        default: { speed: 0.7, showSecondRow: true }
+      }
     }
   },
   {
