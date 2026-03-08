@@ -185,7 +185,7 @@ const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig;
   return (
     <form
       onSubmit={handleSubmit}
-      className={`mt-6 w-full max-w-md ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}
+      className={`mt-6 w-full max-w-lg ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}
     >
       <div className={layout === 'inline' ? 'flex gap-2' : 'flex flex-col gap-2'}>
         <Input
@@ -194,9 +194,9 @@ const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig;
           onChange={(e) => setEmail(e.target.value)}
           placeholder={placeholder}
           required
-          className="flex-1"
+          className="flex-1 h-11 text-base px-4"
         />
-        <Button type="submit" disabled={status === 'loading'}>
+        <Button type="submit" disabled={status === 'loading'} className="h-11 text-base px-6">
           {status === 'loading' ? 'Sending...' : buttonText}
         </Button>
       </div>

@@ -81,16 +81,18 @@ export function DefaultTestimonialRenderer({ items, config }: DefaultTestimonial
         </Carousel>
 
         {showSecondRow && row2.length > 0 && (
-          <Carousel
-            opts={{ loop: true }}
-            plugins={[
-              AutoScroll({ startDelay: 500, speed, direction: 'backward' }),
-            ]}
-          >
-            <CarouselContent>
-              {row2.map((item, i) => renderCard(item, i))}
-            </CarouselContent>
-          </Carousel>
+          <div className="hidden md:block">
+            <Carousel
+              opts={{ loop: true }}
+              plugins={[
+                AutoScroll({ startDelay: 500, speed, direction: 'backward' }),
+              ]}
+            >
+              <CarouselContent>
+                {row2.map((item, i) => renderCard(item, i))}
+              </CarouselContent>
+            </Carousel>
+          </div>
         )}
       </div>
     </div>
