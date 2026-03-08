@@ -1,7 +1,7 @@
 'use client'
 
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import { DefaultTestimonialRenderer } from './testimonial-styles/DefaultTestimonialRenderer'
+import { DefaultTestimonialRenderer } from './DefaultTestimonialRenderer'
 
 interface TestimonialItem {
   id: string

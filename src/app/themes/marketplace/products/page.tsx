@@ -4,7 +4,7 @@ import { ProductBonusBlock } from "@/components/ui/product-bonus-block";
 import { ProductHotspotBlock } from "@/components/frontend/products/ProductHotspotBlock";
 import { ProductFeatureCarousel } from "@/components/ui/product-feature-carousel";
 import { ProductCheckoutBlock } from "@/components/ui/product-checkout-block";
-import { FaqBlock } from "@/components/frontend/pages/PageFaqBlock";
+import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock";
 
 export default function DefaultThemeProductDemoPage() {
   return (

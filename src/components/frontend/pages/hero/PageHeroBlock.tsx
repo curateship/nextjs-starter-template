@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { HERO_STYLE_RENDERERS } from "./hero-styles";
+import { HERO_STYLE_RENDERERS } from ".";
 
 // Fields that were previously at the content root before the styleConfig migration
 const LEGACY_STYLE_FIELDS = [

@@ -1,5 +1,5 @@
-import { NavBlock } from "@/components/frontend/pages/PageNavigationBlock";
-import { FooterBlock } from "@/components/frontend/pages/PageFooterBlock";
+import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock";
+import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock";
 import { type ReactNode } from "react";
 
 export default function DefaultThemeLayout({ children }: { children: ReactNode }) {
