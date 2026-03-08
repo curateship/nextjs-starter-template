@@ -7,13 +7,6 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -29,13 +22,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink, Search } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { PostSettingsModal } from "@/components/admin/post-builder/PostSettingsModal"
-import { CreatePostModal } from "@/components/admin/post-builder/CreatePostModal"
-import type { Post } from "@/lib/actions/posts/post-actions"
+import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
+import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
+import type { Category } from "@/lib/actions/categories/category-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
-interface BreadcrumbItem {
+interface BreadcrumbItemType {
   href?: string
   label: string
   isPage?: boolean
@@ -43,30 +37,31 @@ interface BreadcrumbItem {
 
 interface StickyHeaderProps {
   className?: string
-  breadcrumbItems?: BreadcrumbItem[]
-  // Post builder specific props
-  posts?: Post[]
-  selectedPost?: string
-  onPostChange?: (post: string) => void
-  onPostCreated?: (post: Post) => void
-  onPostUpdated?: (post: Post) => void
+  breadcrumbItems?: BreadcrumbItemType[]
+  categories?: Category[]
+  selectedCategory?: string
+  onCategoryChange?: (category: string) => void
+  onCategoryCreated?: (category: Category) => void
+  onCategoryUpdated?: (category: Category) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
+  site?: SiteWithTheme | null
   onOpenBlockModal?: () => void
 }
 
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  posts,
-  selectedPost,
-  onPostChange,
-  onPostCreated,
-  onPostUpdated,
+  categories,
+  selectedCategory,
+  onCategoryChange,
+  onCategoryCreated,
+  onCategoryUpdated,
   saveMessage,
   isSaving = false,
   onSave,
+  site,
   onOpenBlockModal
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -74,25 +69,20 @@ export function StickyHeader({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  // Post builder mode - when posts prop is provided
-  const isPostBuilder = posts !== undefined
-  const currentPost = posts?.find(p => p.slug === selectedPost)
+  const isCategoryBuilder = categories !== undefined
+  const currentCategory = categories?.find(c => c.slug === selectedCategory)
 
-  const handleCreatePost = () => {
+  const handleCreateCategory = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  // Generate post URL for frontend viewing
-  const getPostUrl = (postSlug?: string) => {
-    const slug = postSlug || currentPost?.slug
-    if (!slug || !currentSite?.subdomain) {
-      return '#'
-    }
-    const url = `http://localhost:3000/posts/${slug}`
-    return url
+  const getCategoryUrl = (categorySlug?: string) => {
+    const slug = categorySlug || currentCategory?.slug
+    if (!slug) return '#'
+    return `/categories/${slug}`
   }
 
   return (
@@ -106,16 +96,12 @@ export function StickyHeader({
             <SidebarTrigger className="-ml-1" />
             {breadcrumbItems.length > 0 && (
               <>
-                <Separator
-                  orientation="vertical"
-                  className="mr-2 h-4"
-                />
+                <Separator orientation="vertical" className="mr-2 h-4" />
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
-                      // Last item in post builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isPostBuilder
+                      const shouldShowDropdown = isLastItem && isCategoryBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -131,33 +117,32 @@ export function StickyHeader({
                                     className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentPost ? currentPost.title : item.label}
+                                      {currentCategory ? currentCategory.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {posts?.map((post) => (
+                                  {categories?.map((category) => (
                                     <DropdownMenuItem
-                                      key={post.id}
+                                      key={category.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={post.slug === selectedPost ? "bg-accent" : ""}
+                                      className={category.slug === selectedCategory ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onPostChange) {
-                                              onPostChange(post.slug)
+                                            if (onCategoryChange) {
+                                              onCategoryChange(category.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {post.title}
-                                          {!post.is_published && " (Draft)"}
+                                          {category.title}
                                         </span>
                                         <Link
-                                          href={getPostUrl(post.slug)}
+                                          href={getCategoryUrl(category.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -168,15 +153,21 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreatePost}>
+                                  <DropdownMenuItem onClick={handleCreateCategory}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Post
+                                    Create Category
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                               )
                             ) : item.isPage ? (
-                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                              !item.label ? (
+                                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
+                              ) : (
+                                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                              )
+                            ) : !item.label ? (
+                              <div className="h-5 w-24 bg-muted rounded animate-pulse" />
                             ) : (
                               <BreadcrumbLink asChild>
                                 <Link href={item.href || "#"}>
@@ -197,20 +188,7 @@ export function StickyHeader({
             )}
           </div>
 
-          {/* Keywords button (when not in post builder mode) */}
-          {!isPostBuilder && currentSite && (
-            <div className="flex items-center space-x-2 mr-10">
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/admin/posts/keywords/${currentSite.id}`}>
-                  <Search className="w-4 h-4 mr-2" />
-                  Keyword Research
-                </Link>
-              </Button>
-            </div>
-          )}
-
-          {/* Post Builder Actions */}
-          {isPostBuilder && (
+          {isCategoryBuilder && (
             <div className="flex items-center space-x-2">
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
@@ -236,7 +214,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentPost}
+                disabled={!currentCategory}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -246,7 +224,7 @@ export function StickyHeader({
                   variant="outline"
                   size="sm"
                   onClick={onOpenBlockModal}
-                  disabled={!currentPost}
+                  disabled={!currentCategory}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Blocks
@@ -265,42 +243,33 @@ export function StickyHeader({
         </div>
       </header>
 
-      {/* Post Builder Dialogs */}
-      {isPostBuilder && (
+      {isCategoryBuilder && (
         <>
-          {/* Create Post Dialog */}
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
-              <DialogHeader>
-                <DialogTitle>Create New Post</DialogTitle>
-                <DialogDescription>
-                  Add a new post to your blog. You can customize the content after creation.
-                </DialogDescription>
-              </DialogHeader>
-              <CreatePostModal
-                onSuccess={(post) => {
-                  if (onPostCreated) {
-                    onPostCreated(post)
-                  }
-                  setShowCreateDialog(false)
-                  if (onPostChange) {
-                    onPostChange(post.slug)
-                  }
-                }}
-                onCancel={() => setShowCreateDialog(false)}
-              />
-            </DialogContent>
-          </Dialog>
+          {showCreateDialog && site && (
+            <CreateCategoryModal
+              siteId={site.id}
+              existingCategories={categories || []}
+              onCreated={(category: Category) => {
+                if (onCategoryCreated) {
+                  onCategoryCreated(category)
+                }
+                setShowCreateDialog(false)
+                if (onCategoryChange) {
+                  onCategoryChange(category.slug)
+                }
+              }}
+              onClose={() => setShowCreateDialog(false)}
+            />
+          )}
 
-          {/* Edit Post Settings Modal */}
-          <PostSettingsModal
+          <CategorySettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            post={currentPost || null}
-            site={currentSite}
-            onSuccess={(updatedPost) => {
-              if (onPostUpdated) {
-                onPostUpdated(updatedPost)
+            category={currentCategory || null}
+            existingCategories={categories || []}
+            onSuccess={(updatedCategory: Category) => {
+              if (onCategoryUpdated) {
+                onCategoryUpdated(updatedCategory)
               }
             }}
           />

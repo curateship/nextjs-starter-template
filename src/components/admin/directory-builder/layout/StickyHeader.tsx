@@ -31,9 +31,9 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { EventSettingsModal } from "@/components/admin/event-builder/EventSettingsModal"
-import { CreateEventModal } from "@/components/admin/event-builder/CreateEventModal"
-import type { Event } from "@/lib/actions/events/event-actions"
+import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
+import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
+import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 interface BreadcrumbItem {
   href?: string
@@ -44,12 +44,12 @@ interface BreadcrumbItem {
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
-  // Event builder specific props
-  events?: Event[]
-  selectedEvent?: string
-  onEventChange?: (event: string) => void
-  onEventCreated?: (event: Event) => void
-  onEventUpdated?: (event: Event) => void
+  // Directory builder specific props
+  directories?: Directory[]
+  selectedDirectory?: string
+  onDirectoryChange?: (directory: string) => void
+  onDirectoryCreated?: (directory: Directory) => void
+  onDirectoryUpdated?: (directory: Directory) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
@@ -59,11 +59,11 @@ interface StickyHeaderProps {
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  events,
-  selectedEvent,
-  onEventChange,
-  onEventCreated,
-  onEventUpdated,
+  directories,
+  selectedDirectory,
+  onDirectoryChange,
+  onDirectoryCreated,
+  onDirectoryUpdated,
   saveMessage,
   isSaving = false,
   onSave,
@@ -74,24 +74,24 @@ export function StickyHeader({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  // Event builder mode - when events prop is provided
-  const isEventBuilder = events !== undefined
-  const currentEvent = events?.find(p => p.slug === selectedEvent)
+  // Directory builder mode - when directories prop is provided
+  const isDirectoryBuilder = directories !== undefined
+  const currentDirectory = directories?.find(d => d.slug === selectedDirectory)
 
-  const handleCreateEvent = () => {
+  const handleCreateDirectory = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  // Generate event URL for frontend viewing
-  const getEventUrl = (eventSlug?: string) => {
-    const slug = eventSlug || currentEvent?.slug
+  // Generate directory URL for frontend viewing
+  const getDirectoryUrl = (directorySlug?: string) => {
+    const slug = directorySlug || currentDirectory?.slug
     if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    const url = `http://localhost:3000/events/${slug}`
+    const url = `http://localhost:3000/directories/${slug}`
     return url
   }
 
@@ -113,9 +113,9 @@ export function StickyHeader({
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
-                      // Last item in event builder gets dropdown
+                      // Last item in directory builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isEventBuilder
+                      const shouldShowDropdown = isLastItem && isDirectoryBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -128,36 +128,36 @@ export function StickyHeader({
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="ghost"
-                                    className="h-auto font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
+                                    className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentEvent ? currentEvent.title : item.label}
+                                      {currentDirectory ? currentDirectory.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {events?.map((event) => (
+                                  {directories?.map((directory) => (
                                     <DropdownMenuItem
-                                      key={event.id}
+                                      key={directory.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={event.slug === selectedEvent ? "bg-accent" : ""}
+                                      className={directory.slug === selectedDirectory ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onEventChange) {
-                                              onEventChange(event.slug)
+                                            if (onDirectoryChange) {
+                                              onDirectoryChange(directory.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {event.title}
-                                          {!event.is_published && " (Draft)"}
+                                          {directory.title}
+                                          {!directory.is_published && " (Draft)"}
                                         </span>
                                         <Link
-                                          href={getEventUrl(event.slug)}
+                                          href={getDirectoryUrl(directory.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -168,9 +168,9 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreateEvent}>
+                                  <DropdownMenuItem onClick={handleCreateDirectory}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Event
+                                    Create Directory
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -197,8 +197,8 @@ export function StickyHeader({
             )}
           </div>
 
-          {/* Event Builder Actions */}
-          {isEventBuilder && (
+          {/* Directory Builder Actions */}
+          {isDirectoryBuilder && (
             <div className="flex items-center space-x-2">
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
@@ -224,7 +224,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentEvent}
+                disabled={!currentDirectory}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -234,7 +234,7 @@ export function StickyHeader({
                   variant="outline"
                   size="sm"
                   onClick={onOpenBlockModal}
-                  disabled={!currentEvent}
+                  disabled={!currentDirectory}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Blocks
@@ -253,26 +253,26 @@ export function StickyHeader({
         </div>
       </header>
 
-      {/* Event Builder Dialogs */}
-      {isEventBuilder && (
+      {/* Directory Builder Dialogs */}
+      {isDirectoryBuilder && (
         <>
-          {/* Create Event Dialog */}
+          {/* Create Directory Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
               <DialogHeader>
-                <DialogTitle>Create New Event</DialogTitle>
+                <DialogTitle>Create New Directory</DialogTitle>
                 <DialogDescription>
-                  Add a new event to your blog. You can customize the content after creation.
+                  Add a new directory to your site. You can customize the content after creation.
                 </DialogDescription>
               </DialogHeader>
-              <CreateEventModal
-                onSuccess={(event) => {
-                  if (onEventCreated) {
-                    onEventCreated(event)
+              <CreateDirectoryModal
+                onSuccess={(directory) => {
+                  if (onDirectoryCreated) {
+                    onDirectoryCreated(directory)
                   }
                   setShowCreateDialog(false)
-                  if (onEventChange) {
-                    onEventChange(event.slug)
+                  if (onDirectoryChange) {
+                    onDirectoryChange(directory.slug)
                   }
                 }}
                 onCancel={() => setShowCreateDialog(false)}
@@ -280,15 +280,15 @@ export function StickyHeader({
             </DialogContent>
           </Dialog>
 
-          {/* Edit Event Settings Modal */}
-          <EventSettingsModal
+          {/* Edit Directory Settings Modal */}
+          <DirectorySettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            event={currentEvent || null}
+            directory={currentDirectory || null}
             site={currentSite}
-            onSuccess={(updatedEvent) => {
-              if (onEventUpdated) {
-                onEventUpdated(updatedEvent)
+            onSuccess={(updatedDirectory) => {
+              if (onDirectoryUpdated) {
+                onDirectoryUpdated(updatedDirectory)
               }
             }}
           />

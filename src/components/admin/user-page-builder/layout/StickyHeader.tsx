@@ -7,6 +7,13 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -24,12 +31,12 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { CategorySettingsModal } from "@/components/admin/category-builder/CategorySettingsModal"
-import { CreateCategoryModal } from "@/components/admin/category-builder/CreateCategoryModal"
-import type { Category } from "@/lib/actions/categories/category-actions"
+import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
+import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
+import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
-interface BreadcrumbItemType {
+interface BreadcrumbItem {
   href?: string
   label: string
   isPage?: boolean
@@ -37,15 +44,16 @@ interface BreadcrumbItemType {
 
 interface StickyHeaderProps {
   className?: string
-  breadcrumbItems?: BreadcrumbItemType[]
-  categories?: Category[]
-  selectedCategory?: string
-  onCategoryChange?: (category: string) => void
-  onCategoryCreated?: (category: Category) => void
-  onCategoryUpdated?: (category: Category) => void
+  breadcrumbItems?: BreadcrumbItem[]
+  pages?: UserPage[]
+  selectedPage?: string
+  onPageChange?: (page: string) => void
+  onPageCreated?: (page: UserPage) => void
+  onPageUpdated?: (page: UserPage) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
+  onPreviewPage?: () => void
   site?: SiteWithTheme | null
   onOpenBlockModal?: () => void
 }
@@ -53,14 +61,15 @@ interface StickyHeaderProps {
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  categories,
-  selectedCategory,
-  onCategoryChange,
-  onCategoryCreated,
-  onCategoryUpdated,
+  pages,
+  selectedPage,
+  onPageChange,
+  onPageCreated,
+  onPageUpdated,
   saveMessage,
   isSaving = false,
   onSave,
+  onPreviewPage,
   site,
   onOpenBlockModal
 }: StickyHeaderProps) {
@@ -69,20 +78,24 @@ export function StickyHeader({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  const isCategoryBuilder = categories !== undefined
-  const currentCategory = categories?.find(c => c.slug === selectedCategory)
+  // Page builder mode - when pages prop is provided
+  const isPageBuilder = pages !== undefined
+  const currentPage = pages?.find(p => p.slug === selectedPage)
 
-  const handleCreateCategory = () => {
+  const handleCreatePage = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  const getCategoryUrl = (categorySlug?: string) => {
-    const slug = categorySlug || currentCategory?.slug
-    if (!slug) return '#'
-    return `/categories/${slug}`
+  // Generate page URL for user pages
+  const getPageUrl = (pageSlug?: string) => {
+    const slug = pageSlug || currentPage?.slug
+    if (!slug) {
+      return '#'
+    }
+    return `/user-dashboard${slug === 'home' ? '' : `/${slug}`}`
   }
 
   return (
@@ -96,12 +109,16 @@ export function StickyHeader({
             <SidebarTrigger className="-ml-1" />
             {breadcrumbItems.length > 0 && (
               <>
-                <Separator orientation="vertical" className="mr-2 h-4" />
+                <Separator
+                  orientation="vertical"
+                  className="mr-2 h-4"
+                />
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
+                      // Last item in page builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isCategoryBuilder
+                      const shouldShowDropdown = isLastItem && isPageBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -117,32 +134,34 @@ export function StickyHeader({
                                     className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentCategory ? currentCategory.title : item.label}
+                                      {currentPage ? currentPage.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {categories?.map((category) => (
+                                  {pages?.map((page) => (
                                     <DropdownMenuItem
-                                      key={category.id}
+                                      key={page.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={category.slug === selectedCategory ? "bg-accent" : ""}
+                                      className={page.slug === selectedPage ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onCategoryChange) {
-                                              onCategoryChange(category.slug)
+                                            if (onPageChange) {
+                                              onPageChange(page.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {category.title}
+                                          {page.is_default && "🏠 "}
+                                          {page.title}
+                                          {!page.is_published && " (Draft)"}
                                         </span>
                                         <Link
-                                          href={getCategoryUrl(category.slug)}
+                                          href={getPageUrl(page.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -153,21 +172,15 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreateCategory}>
+                                  <DropdownMenuItem onClick={handleCreatePage}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Category
+                                    Create Page
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                               )
                             ) : item.isPage ? (
-                              !item.label ? (
-                                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
-                              ) : (
-                                <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                              )
-                            ) : !item.label ? (
-                              <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
                             ) : (
                               <BreadcrumbLink asChild>
                                 <Link href={item.href || "#"}>
@@ -188,7 +201,8 @@ export function StickyHeader({
             )}
           </div>
 
-          {isCategoryBuilder && (
+          {/* Page Builder Actions */}
+          {isPageBuilder && (
             <div className="flex items-center space-x-2">
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
@@ -214,7 +228,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentCategory}
+                disabled={!currentPage}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -224,7 +238,7 @@ export function StickyHeader({
                   variant="outline"
                   size="sm"
                   onClick={onOpenBlockModal}
-                  disabled={!currentCategory}
+                  disabled={!currentPage}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Blocks
@@ -243,33 +257,45 @@ export function StickyHeader({
         </div>
       </header>
 
-      {isCategoryBuilder && (
+      {/* Page Builder Dialogs */}
+      {isPageBuilder && (
         <>
-          {showCreateDialog && site && (
-            <CreateCategoryModal
-              siteId={site.id}
-              existingCategories={categories || []}
-              onCreated={(category: Category) => {
-                if (onCategoryCreated) {
-                  onCategoryCreated(category)
-                }
-                setShowCreateDialog(false)
-                if (onCategoryChange) {
-                  onCategoryChange(category.slug)
-                }
-              }}
-              onClose={() => setShowCreateDialog(false)}
-            />
-          )}
+          {/* Create Page Dialog */}
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New User Page</DialogTitle>
+                <DialogDescription>
+                  Add a new user page. You can customize the content after creation.
+                </DialogDescription>
+              </DialogHeader>
+              {site && (
+                <CreateUserPageModal
+                  siteId={site.id}
+                  onSuccess={(page) => {
+                    if (onPageCreated) {
+                      onPageCreated(page)
+                    }
+                    setShowCreateDialog(false)
+                    if (onPageChange) {
+                      onPageChange(page.slug)
+                    }
+                  }}
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
 
-          <CategorySettingsModal
+          {/* Edit Page Settings Modal */}
+          <UserPageSettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            category={currentCategory || null}
-            existingCategories={categories || []}
-            onSuccess={(updatedCategory: Category) => {
-              if (onCategoryUpdated) {
-                onCategoryUpdated(updatedCategory)
+            page={currentPage || null}
+            site={site || null}
+            onSuccess={(updatedPage) => {
+              if (onPageUpdated) {
+                onPageUpdated(updatedPage)
               }
             }}
           />

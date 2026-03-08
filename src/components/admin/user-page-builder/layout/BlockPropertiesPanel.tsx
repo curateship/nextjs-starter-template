@@ -1,7 +1,7 @@
-import { UserPageNavigationBlock } from "./blocks/UserPageNavigationBlock"
-import { UserPageFooterBlock } from "./blocks/UserPageFooterBlock"
-import { UserProfileEditorBlock } from "./blocks/UserProfileEditorBlock"
-import { PagePreview } from "../page-builder/layout/PagePreview"
+import { UserPageNavigationBlock } from "../blocks/UserPageNavigationBlock"
+import { UserPageFooterBlock } from "../blocks/UserPageFooterBlock"
+import { UserProfileEditorBlock } from "../blocks/UserProfileEditorBlock"
+import { PagePreview } from "../../page-builder/layout/PagePreview"
 import type { PageBlock } from "@/lib/utils/page-block-utils"
 
 // Helper function to generate callback props dynamically

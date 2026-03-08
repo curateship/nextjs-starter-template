@@ -29,12 +29,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink, Search } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { UserPageSettingsModal } from "@/components/admin/user-page-builder/UserPageSettingsModal"
-import { CreateUserPageModal } from "@/components/admin/user-page-builder/CreateUserPageModal"
-import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
+import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
+import type { Post } from "@/lib/actions/posts/post-actions"
 
 interface BreadcrumbItem {
   href?: string
@@ -45,32 +44,29 @@ interface BreadcrumbItem {
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
-  pages?: UserPage[]
-  selectedPage?: string
-  onPageChange?: (page: string) => void
-  onPageCreated?: (page: UserPage) => void
-  onPageUpdated?: (page: UserPage) => void
+  // Post builder specific props
+  posts?: Post[]
+  selectedPost?: string
+  onPostChange?: (post: string) => void
+  onPostCreated?: (post: Post) => void
+  onPostUpdated?: (post: Post) => void
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
-  onPreviewPage?: () => void
-  site?: SiteWithTheme | null
   onOpenBlockModal?: () => void
 }
 
 export function StickyHeader({
   className,
   breadcrumbItems = [],
-  pages,
-  selectedPage,
-  onPageChange,
-  onPageCreated,
-  onPageUpdated,
+  posts,
+  selectedPost,
+  onPostChange,
+  onPostCreated,
+  onPostUpdated,
   saveMessage,
   isSaving = false,
   onSave,
-  onPreviewPage,
-  site,
   onOpenBlockModal
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -78,24 +74,25 @@ export function StickyHeader({
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
 
-  // Page builder mode - when pages prop is provided
-  const isPageBuilder = pages !== undefined
-  const currentPage = pages?.find(p => p.slug === selectedPage)
+  // Post builder mode - when posts prop is provided
+  const isPostBuilder = posts !== undefined
+  const currentPost = posts?.find(p => p.slug === selectedPost)
 
-  const handleCreatePage = () => {
+  const handleCreatePost = () => {
     setDropdownOpen(false)
     setTimeout(() => {
       setShowCreateDialog(true)
     }, 100)
   }
 
-  // Generate page URL for user pages
-  const getPageUrl = (pageSlug?: string) => {
-    const slug = pageSlug || currentPage?.slug
-    if (!slug) {
+  // Generate post URL for frontend viewing
+  const getPostUrl = (postSlug?: string) => {
+    const slug = postSlug || currentPost?.slug
+    if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    return `/user-dashboard${slug === 'home' ? '' : `/${slug}`}`
+    const url = `http://localhost:3000/posts/${slug}`
+    return url
   }
 
   return (
@@ -116,9 +113,9 @@ export function StickyHeader({
                 <Breadcrumb>
                   <BreadcrumbList>
                     {breadcrumbItems.map((item, index) => {
-                      // Last item in page builder gets dropdown
+                      // Last item in post builder gets dropdown
                       const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isPageBuilder
+                      const shouldShowDropdown = isLastItem && isPostBuilder
 
                       return (
                         <React.Fragment key={index}>
@@ -134,34 +131,33 @@ export function StickyHeader({
                                     className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                   >
                                     <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentPage ? currentPage.title : item.label}
+                                      {currentPost ? currentPost.title : item.label}
                                     </BreadcrumbPage>
                                     <ChevronDown className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[240px]">
-                                  {pages?.map((page) => (
+                                  {posts?.map((post) => (
                                     <DropdownMenuItem
-                                      key={page.id}
+                                      key={post.id}
                                       onSelect={(e) => e.preventDefault()}
-                                      className={page.slug === selectedPage ? "bg-accent" : ""}
+                                      className={post.slug === selectedPost ? "bg-accent" : ""}
                                     >
                                       <div className="flex items-center justify-between flex-1">
                                         <span
                                           onClick={() => {
-                                            if (onPageChange) {
-                                              onPageChange(page.slug)
+                                            if (onPostChange) {
+                                              onPostChange(post.slug)
                                             }
                                             setDropdownOpen(false)
                                           }}
                                           className="flex-1 cursor-pointer"
                                         >
-                                          {page.is_default && "🏠 "}
-                                          {page.title}
-                                          {!page.is_published && " (Draft)"}
+                                          {post.title}
+                                          {!post.is_published && " (Draft)"}
                                         </span>
                                         <Link
-                                          href={getPageUrl(page.slug)}
+                                          href={getPostUrl(post.slug)}
                                           target="_blank"
                                           onClick={(e) => e.stopPropagation()}
                                           className="ml-2"
@@ -172,9 +168,9 @@ export function StickyHeader({
                                     </DropdownMenuItem>
                                   ))}
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreatePage}>
+                                  <DropdownMenuItem onClick={handleCreatePost}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Page
+                                    Create Post
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -201,8 +197,20 @@ export function StickyHeader({
             )}
           </div>
 
-          {/* Page Builder Actions */}
-          {isPageBuilder && (
+          {/* Keywords button (when not in post builder mode) */}
+          {!isPostBuilder && currentSite && (
+            <div className="flex items-center space-x-2 mr-10">
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/admin/posts/keywords/${currentSite.id}`}>
+                  <Search className="w-4 h-4 mr-2" />
+                  Keyword Research
+                </Link>
+              </Button>
+            </div>
+          )}
+
+          {/* Post Builder Actions */}
+          {isPostBuilder && (
             <div className="flex items-center space-x-2">
               {saveMessage && (
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
@@ -228,7 +236,7 @@ export function StickyHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentPage}
+                disabled={!currentPost}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
@@ -238,7 +246,7 @@ export function StickyHeader({
                   variant="outline"
                   size="sm"
                   onClick={onOpenBlockModal}
-                  disabled={!currentPage}
+                  disabled={!currentPost}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Blocks
@@ -257,45 +265,42 @@ export function StickyHeader({
         </div>
       </header>
 
-      {/* Page Builder Dialogs */}
-      {isPageBuilder && (
+      {/* Post Builder Dialogs */}
+      {isPostBuilder && (
         <>
-          {/* Create Page Dialog */}
+          {/* Create Post Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
               <DialogHeader>
-                <DialogTitle>Create New User Page</DialogTitle>
+                <DialogTitle>Create New Post</DialogTitle>
                 <DialogDescription>
-                  Add a new user page. You can customize the content after creation.
+                  Add a new post to your blog. You can customize the content after creation.
                 </DialogDescription>
               </DialogHeader>
-              {site && (
-                <CreateUserPageModal
-                  siteId={site.id}
-                  onSuccess={(page) => {
-                    if (onPageCreated) {
-                      onPageCreated(page)
-                    }
-                    setShowCreateDialog(false)
-                    if (onPageChange) {
-                      onPageChange(page.slug)
-                    }
-                  }}
-                  onCancel={() => setShowCreateDialog(false)}
-                />
-              )}
+              <CreatePostModal
+                onSuccess={(post) => {
+                  if (onPostCreated) {
+                    onPostCreated(post)
+                  }
+                  setShowCreateDialog(false)
+                  if (onPostChange) {
+                    onPostChange(post.slug)
+                  }
+                }}
+                onCancel={() => setShowCreateDialog(false)}
+              />
             </DialogContent>
           </Dialog>
 
-          {/* Edit Page Settings Modal */}
-          <UserPageSettingsModal
+          {/* Edit Post Settings Modal */}
+          <PostSettingsModal
             open={showEditDialog}
             onOpenChange={setShowEditDialog}
-            page={currentPage || null}
-            site={site || null}
-            onSuccess={(updatedPage) => {
-              if (onPageUpdated) {
-                onPageUpdated(updatedPage)
+            post={currentPost || null}
+            site={currentSite}
+            onSuccess={(updatedPost) => {
+              if (onPostUpdated) {
+                onPostUpdated(updatedPost)
               }
             }}
           />

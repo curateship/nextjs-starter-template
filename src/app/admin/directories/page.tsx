@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Button } from "@/components/ui/button"
-import { StickyHeader } from "@/components/admin/directory-builder/StickyHeader"
+import { StickyHeader } from "@/components/admin/directory-builder/layout/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { 
   Dialog,
@@ -26,8 +26,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreateDirectoryModal } from "@/components/admin/directory-builder/CreateDirectoryModal"
-import { DirectorySettingsModal } from "@/components/admin/directory-builder/DirectorySettingsModal"
+import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
+import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FolderOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteDirectoriesAction, deleteDirectoryAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"

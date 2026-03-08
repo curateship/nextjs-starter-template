@@ -9,10 +9,10 @@ import Link from "next/link"
 import { useUserPageData } from "@/hooks/useUserPageData"
 import { useUserPageBuilder } from "@/hooks/useUserPageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/user-page-builder/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/user-page-builder/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/user-page-builder/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/user-page-builder/BlockSelectionModal"
+import { StickyHeader } from "@/components/admin/user-page-builder/layout/StickyHeader"
+import { BlockPropertiesPanel } from "@/components/admin/user-page-builder/layout/BlockPropertiesPanel"
+import { BlockListPanel } from "@/components/admin/user-page-builder/layout/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/user-page-builder/layout/BlockSelectionModal"
 import {
   getUserPagesAction,
   createUserPageAction,
