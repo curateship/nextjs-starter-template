@@ -29,6 +29,7 @@ interface ListingViewsBlockProps {
     itemsPerPage?: number
     viewAllText?: string
     viewAllLink?: string
+    visibility?: Record<string, boolean>
   }
   siteId: string
   siteSubdomain?: string
@@ -69,6 +70,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     itemsPerPage = 12,
     viewAllText = '',
     viewAllLink = '',
+    visibility,
   } = content
 
   // Extract repeated conditions
@@ -268,12 +270,12 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         >
           <div className="mb-6 md:mb-12">
             <div className={getResponsiveAlignmentClass()}>
-              {title && (
+              {title && visibility?.title !== false && (
                 <h2 className={titleClasses}>
                   {title}
                 </h2>
               )}
-              {subtitle && (
+              {subtitle && visibility?.subtitle !== false && (
                 <p className={subtitleClasses}>
                   {subtitle}
                 </p>
@@ -310,12 +312,12 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         >
           <div className="mb-6 md:mb-12">
             <div className={getResponsiveAlignmentClass()}>
-              {title && (
+              {title && visibility?.title !== false && (
                 <h2 className={titleClasses}>
                   {title}
                 </h2>
               )}
-              {subtitle && (
+              {subtitle && visibility?.subtitle !== false && (
                 <p className={subtitleClasses}>
                   {subtitle}
                 </p>
@@ -340,12 +342,12 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         <div className="mb-12">
           <div className={`${getResponsiveAlignmentClass()} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
             <div className={hasViewAll ? 'md:flex-1' : ''}>
-              {title && (
+              {title && visibility?.title !== false && (
                 <h2 className={titleClasses}>
                   {title}
                 </h2>
               )}
-              {subtitle && (
+              {subtitle && visibility?.subtitle !== false && (
                 <p className={subtitleClasses}>
                   {subtitle}
                 </p>

@@ -7,6 +7,7 @@ interface EmbeddedBlockProps {
   content: {
     code?: string
     type?: 'html' | 'script'
+    visibility?: Record<string, boolean>
   }
   className?: string
   siteWidth?: 'full' | 'custom'
@@ -183,7 +184,7 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
     }
   }, [code, type, isMounted])
 
-  if (!code || code.trim() === '') {
+  if (!code || code.trim() === '' || content.visibility?.embed === false) {
     return null
   }
 

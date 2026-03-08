@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,
@@ -38,6 +40,8 @@ interface SharedFaqBlockProps {
   subtitle?: string
   headerAlign?: 'left' | 'center'
   faqItems?: FaqItem[]
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (value: Record<string, boolean>) => void
   onTitleChange?: (value: string) => void
   onSubtitleChange?: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
@@ -139,11 +143,14 @@ export function PageFaqBlock({
   subtitle = '',
   headerAlign = 'left',
   faqItems = [],
+  visibility,
+  onVisibilityChange,
   onTitleChange,
   onSubtitleChange,
   onHeaderAlignChange,
   onFaqItemsChange
 }: SharedFaqBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
 
   const sensors = useSensors(
@@ -196,7 +203,16 @@ export function PageFaqBlock({
   }
 
   return (
-    <div className="space-y-6">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6">
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="content" className="mt-6">
+        <div className="space-y-6">
       {/* Header Settings Card */}
       <Card>
         <CardHeader>
@@ -287,6 +303,23 @@ export function PageFaqBlock({
           )}
         </CardContent>
       </Card>
-    </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="settings" className="mt-6">
+        <div className="space-y-4">
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'title', label: 'Title' },
+                { key: 'subtitle', label: 'Subtitle' },
+              ]}
+            />
+          )}
+        </div>
+      </TabsContent>
+    </Tabs>
   )
 }

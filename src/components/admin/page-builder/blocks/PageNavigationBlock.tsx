@@ -30,6 +30,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { NAVIGATION_STYLES } from "./navigation-styles"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 
 interface NavigationLink {
   text: string
@@ -640,6 +641,14 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
             </div>
           </CardContent>
         </Card>
+
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'ctaButtons', label: 'CTA Buttons' },
+          ]}
+        />
 
         {/* Dark Mode */}
         <Card className="shadow-sm">

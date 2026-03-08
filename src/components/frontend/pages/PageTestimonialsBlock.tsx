@@ -19,6 +19,7 @@ interface TestimonialsBlockProps {
     testimonialItems?: TestimonialItem[]
     testimonialStyle?: string
     styleConfig?: Record<string, Record<string, any>>
+    visibility?: Record<string, boolean>
   }
   siteWidth?: string
   customWidth?: number
@@ -32,6 +33,7 @@ export function TestimonialsBlock({ content, siteWidth, customWidth }: Testimoni
     testimonialItems = [],
     testimonialStyle = 'default',
     styleConfig = { default: { speed: 0.7, showSecondRow: true } },
+    visibility,
   } = content
 
   const currentConfig = styleConfig[testimonialStyle] || { speed: 0.7, showSecondRow: true }
@@ -39,8 +41,8 @@ export function TestimonialsBlock({ content, siteWidth, customWidth }: Testimoni
   return (
     <BlockContainer
       header={{
-        title: title || undefined,
-        subtitle: subtitle || undefined,
+        title: visibility?.title !== false ? (title || undefined) : undefined,
+        subtitle: visibility?.subtitle !== false ? (subtitle || undefined) : undefined,
         align: headerAlign,
       }}
       siteWidth={siteWidth as 'full' | 'custom'}

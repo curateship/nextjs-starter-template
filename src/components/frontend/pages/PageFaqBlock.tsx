@@ -17,6 +17,7 @@ interface FaqBlockProps {
         subtitle?: string
         headerAlign?: 'left' | 'center'
         faqItems?: FaqItem[]
+        visibility?: Record<string, boolean>
     }
     siteWidth?: 'full' | 'custom'
     customWidth?: number
@@ -59,8 +60,8 @@ const FaqBlock = ({ content, siteWidth = 'custom', customWidth }: FaqBlockProps)
     return (
         <BlockContainer
             header={{
-                title: content?.title ?? '',
-                subtitle: content?.subtitle ?? '',
+                title: content?.visibility?.title !== false ? (content?.title ?? '') : '',
+                subtitle: content?.visibility?.subtitle !== false ? (content?.subtitle ?? '') : '',
                 align: content?.headerAlign ?? "center"
             }}
             siteWidth={siteWidth}

@@ -40,6 +40,7 @@ interface PageHeroBlockProps {
   siteWidth?: string;
   customWidth?: number;
   emailForm?: EmailFormConfig;
+  visibility?: Record<string, boolean>;
   // Legacy fields (for migration fallback)
   rainbowButtonText?: string;
   rainbowButtonIcon?: string;
@@ -222,6 +223,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     siteWidth,
     customWidth,
     emailForm,
+    visibility,
   } = props;
 
   // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
@@ -261,16 +263,18 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     <section className="relative w-full flex flex-col items-center justify-center pt-6 md:pt-12 pb-4 md:pb-10 overflow-hidden">
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
         {/* Shared content rendered by orchestrator, placed by the style renderer */}
-        <HeroTitle title={title} />
-        <HeroSubtitle subtitle={subtitle} alignment={alignment} />
-        <CTAButtons
-          primaryButton={primaryButton}
-          secondaryButton={secondaryButton}
-          primaryButtonLink={primaryButtonLink}
-          secondaryButtonLink={secondaryButtonLink}
-          alignment={alignment}
-        />
-        {emailForm?.enabled && (
+        {visibility?.title !== false && <HeroTitle title={title} />}
+        {visibility?.subtitle !== false && <HeroSubtitle subtitle={subtitle} alignment={alignment} />}
+        {visibility?.ctaButtons !== false && (
+          <CTAButtons
+            primaryButton={primaryButton}
+            secondaryButton={secondaryButton}
+            primaryButtonLink={primaryButtonLink}
+            secondaryButtonLink={secondaryButtonLink}
+            alignment={alignment}
+          />
+        )}
+        {visibility?.emailForm !== false && emailForm?.enabled && (
           <EmailSubscriptionForm config={emailForm} alignment={alignment} />
         )}
       </StyleRenderer>

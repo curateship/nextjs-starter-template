@@ -10,6 +10,7 @@ import { Check, ArrowLeft } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { HERO_STYLES } from "./hero-styles"
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -333,6 +334,17 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
             </div>
           </CardContent>
         </Card>
+
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'title', label: 'Title' },
+            { key: 'subtitle', label: 'Subtitle' },
+            { key: 'ctaButtons', label: 'CTA Buttons' },
+            { key: 'emailForm', label: 'Email Form' },
+          ]}
+        />
 
         <Card className="shadow-sm">
           <CardHeader>

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, ImageIcon, GripVertical, ArrowLeft } from "lucide-react"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,
@@ -57,6 +58,8 @@ interface FooterBlockProps {
   onLinksChange: (links: FooterLink[]) => void
   onSocialLinksChange: (socialLinks: SocialLink[]) => void
   onStyleChange: (style: FooterStyle) => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (value: Record<string, boolean>) => void
   siteId: string
   blockId: string
   siteFavicon?: string
@@ -229,6 +232,8 @@ export function PageFooterBlock({
   onLinksChange,
   onSocialLinksChange,
   onStyleChange,
+  visibility,
+  onVisibilityChange,
   siteFavicon,
   siteName = "Your Site",
   onBack,
@@ -356,6 +361,7 @@ export function PageFooterBlock({
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
@@ -602,6 +608,22 @@ export function PageFooterBlock({
               </div>
             </CardContent>
           </Card>
+        </div>
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <div className="space-y-4">
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'footerLinks', label: 'Footer Links' },
+                { key: 'socialLinks', label: 'Social Links' },
+              ]}
+            />
+          )}
         </div>
       </TabsContent>
     </Tabs>

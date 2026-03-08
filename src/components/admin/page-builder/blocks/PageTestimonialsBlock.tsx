@@ -12,6 +12,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "./testimonial-styles"
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,
@@ -397,6 +398,14 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
             ))}
           </div>
         </div>
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'title', label: 'Title' },
+            { key: 'subtitle', label: 'Subtitle' },
+          ]}
+        />
       </TabsContent>
 
       <MediaPicker

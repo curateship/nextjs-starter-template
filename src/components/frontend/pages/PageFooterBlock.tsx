@@ -87,9 +87,10 @@ interface FooterBlockProps {
     backgroundColor: string;
     textColor: string;
   };
+  visibility?: Record<string, boolean>;
 }
 
-export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: FooterBlockProps) {
+export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, visibility }: FooterBlockProps) {
     const footerLinks = links && links.length > 0 ? links : []
     
     // Determine logo URL with smart defaults
@@ -148,7 +149,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: 
                     )}
                 </Link>
 
-                {footerLinks.length > 0 && (
+                {footerLinks.length > 0 && visibility?.footerLinks !== false && (
                     <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
                         {footerLinks.map((link, index) => (
                             <Link
@@ -160,7 +161,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style }: 
                         ))}
                     </div>
                 )}
-{socialLinks && socialLinks.length > 0 && (
+{socialLinks && socialLinks.length > 0 && visibility?.socialLinks !== false && (
                     <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
                         {socialLinks.map((social, index) => (
                             <SocialIcon key={index} platform={social.platform} url={social.url} />

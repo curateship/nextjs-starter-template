@@ -82,7 +82,7 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'footer' && (
               <PageFooterBlock
                 {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style']) as any)}
+                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style', 'visibility']) as any)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
                 siteFavicon={site?.settings?.favicon}
@@ -97,7 +97,8 @@ export function BlockPropertiesPanel({
                   headerAlign: selectedBlock.content.headerAlign || 'left',
                   content: selectedBlock.content.content || '',
                   hideHeader: selectedBlock.content.hideHeader,
-                  hideEditorHeader: selectedBlock.content.hideEditorHeader
+                  hideEditorHeader: selectedBlock.content.hideEditorHeader,
+                  visibility: selectedBlock.content.visibility,
                 }}
                 onContentChange={(contentObj) => {
                   updateBlockContent('title', contentObj.title)
@@ -105,6 +106,7 @@ export function BlockPropertiesPanel({
                   updateBlockContent('headerAlign', contentObj.headerAlign)
                   updateBlockContent('content', contentObj.content)
                 }}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
               />
             )}
             {selectedBlock.type === 'faq' && (
@@ -117,6 +119,8 @@ export function BlockPropertiesPanel({
                 onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onFaqItemsChange={(value) => updateBlockContent('faqItems', value)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
               />
             )}
             {selectedBlock.type === 'listing-views' && (
@@ -126,7 +130,7 @@ export function BlockPropertiesPanel({
                   'title', 'subtitle', 'headerAlign', 'mobileHeaderAlign', 'contentType', 'displayMode',
                   'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
                   'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
-                  'showViewAll', 'viewAllText', 'viewAllLink'
+                  'showViewAll', 'viewAllText', 'viewAllLink', 'visibility'
                 ]) as any)}
                 onBack={onBack}
               />
@@ -171,7 +175,7 @@ export function BlockPropertiesPanel({
               <PageEmbeddedBlock
                 {...selectedBlock.content}
                 {...(createCallbacks(updateBlockContent, [
-                  'code', 'type'
+                  'code', 'type', 'visibility'
                 ]) as any)}
               />
             )}

@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ArrowLeft, Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "./shared/VisibilitySettings"
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -26,6 +27,8 @@ interface SharedListingViewsBlockProps {
   itemsPerPage?: number
   viewAllText?: string
   viewAllLink?: string
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (value: Record<string, boolean>) => void
   onTitleChange: (value: string) => void
   onSubtitleChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
@@ -64,6 +67,8 @@ export function PageListingViewBlock({
   itemsPerPage = 12,
   viewAllText = '',
   viewAllLink = '',
+  visibility,
+  onVisibilityChange,
   onTitleChange,
   onSubtitleChange,
   onHeaderAlignChange,
@@ -369,6 +374,17 @@ export function PageListingViewBlock({
               </div>
             </CardContent>
           </Card>
+
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'title', label: 'Title' },
+                { key: 'subtitle', label: 'Subtitle' },
+              ]}
+            />
+          )}
         </div>
       </TabsContent>
     </Tabs>

@@ -42,6 +42,7 @@ interface NavBlockProps {
     customWidth?: number;
     showDarkModeToggle?: boolean;
   };
+  visibility?: Record<string, boolean>;
 }
 
 // Default navigation menu configuration
@@ -269,7 +270,7 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, style: legacyStyle }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, style: legacyStyle, visibility }: NavBlockProps) {
   // Resolve style: prefer styleConfig[navigationStyle], fallback to legacy style object
   const style = useMemo(() => {
     const activeStyle = navigationStyle || 'default'
@@ -391,11 +392,19 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
       <nav
         data-state={menuState && 'active'}
         className={cn(
-          'fixed top-0 z-50 w-full border-b bg-background/90 backdrop-blur-sm'
+          'fixed top-0 z-50 w-full border-b',
+          blurClass
         )}
-        style={style ? {
-          backgroundColor: `${style.backgroundColor}E6`, // 90% opacity
-        } : undefined}
+        style={{
+          backgroundColor: style ? `${style.backgroundColor}E6` : undefined,
+          WebkitBackfaceVisibility: 'hidden',
+          backfaceVisibility: 'hidden',
+          WebkitPerspective: 1000,
+          perspective: 1000,
+          WebkitTransform: 'translate3d(0,0,0)',
+          transform: 'translate3d(0,0,0)',
+          willChange: 'backdrop-filter',
+        } as React.CSSProperties}
       >
         <div
           className={getNavContainerClass()}
@@ -439,7 +448,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
 
               <div className="flex items-center gap-2 lg:hidden">
                 {/* Mobile Action Buttons - show buttons marked for mobile */}
-                {buttons && buttons.filter(button => button.showOnMobile && button.text && button.url).map((button, index) => (
+                {visibility?.ctaButtons !== false && buttons && buttons.filter(button => button.showOnMobile && button.text && button.url).map((button, index) => (
                   <Button
                     key={`mobile-${index}`}
                     asChild
@@ -465,15 +474,15 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
 
             {/* Desktop Actions - CTA Buttons and Theme Toggle */}
             <div className="hidden lg:flex items-center gap-3">
-              <CTAButtons buttons={buttons} />
+              {visibility?.ctaButtons !== false && <CTAButtons buttons={buttons} />}
               {style?.showDarkModeToggle && (
                 <SiteThemeToggle defaultTheme={site?.settings?.default_theme} />
               )}
             </div>
 
-            <MobileMenuPanel 
-              menuItems={menuItems} 
-              buttons={buttons} 
+            <MobileMenuPanel
+              menuItems={menuItems}
+              buttons={visibility?.ctaButtons !== false ? buttons : undefined}
               textColor={style?.textColor} 
               showDarkModeToggle={style?.showDarkModeToggle}
               defaultTheme={site?.settings?.default_theme}
