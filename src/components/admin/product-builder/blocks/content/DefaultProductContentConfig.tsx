@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteContext } from "@/contexts/site-context"
-import type { ProductContentStyleAdminProps } from "./index"
+import type { ProductContentStyleAdminProps } from "."
 
 export function DefaultProductContentConfig({ config, onConfigChange }: ProductContentStyleAdminProps) {
   const { currentSite } = useSiteContext()

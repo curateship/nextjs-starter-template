@@ -12,7 +12,7 @@ import { useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import { LEAD_MAGNET_STYLES } from './lead-magnet-styles'
+import { LEAD_MAGNET_STYLES } from '.'
 import { cn } from '@/lib/utils/tailwind-class-merger'
 
 interface ProductLeadMagnetBlockProps {

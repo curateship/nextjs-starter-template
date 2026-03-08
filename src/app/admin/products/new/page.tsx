@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { BasicBlock } from "@/components/admin/product-builder/blocks/ProductBasicBlock"
+import { BasicBlock } from "@/components/admin/product-builder/blocks/basic/ProductBasicBlock"
 import { Button } from "@/components/ui/button"
 
 export default function NewProductPage() {

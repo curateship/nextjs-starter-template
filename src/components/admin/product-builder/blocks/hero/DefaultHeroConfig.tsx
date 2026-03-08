@@ -27,7 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { HeroStyleAdminProps } from "./index"
+import type { HeroStyleAdminProps } from "."
 
 // Sortable avatar item component
 function SortableAvatarItem({

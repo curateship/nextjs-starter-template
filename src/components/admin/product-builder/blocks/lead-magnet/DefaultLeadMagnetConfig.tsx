@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ImageIcon, X } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import type { LeadMagnetStyleAdminProps } from "./index"
+import type { LeadMagnetStyleAdminProps } from "."
 
 export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: LeadMagnetStyleAdminProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)

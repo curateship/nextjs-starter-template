@@ -7,7 +7,7 @@ import { AnimatedGroup } from "@/components/ui/animated-group";
 import { cn } from "@/lib/utils/tailwind-class-merger";
 import { GradientOverlays } from "@/components/ui/gradient-overlays";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
-import type { HeroStyleRendererProps } from "./index";
+import type { HeroStyleRendererProps } from ".";
 
 // Background Pattern component that supports different pattern types
 const BackgroundPattern = ({

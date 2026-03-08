@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
-import { OrderBumpsModal } from "@/components/admin/product-builder/OrderBumpsModal"
+import { OrderBumpsModal } from "@/components/admin/product-builder/layout/OrderBumpsModal"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'

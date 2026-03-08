@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Check } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
-import { HERO_STYLES } from "./hero-styles"
+import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default

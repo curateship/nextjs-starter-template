@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { BorderBeam } from '@/components/ui/border-beam'
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import type { LeadMagnetRendererProps } from './index'
+import type { LeadMagnetRendererProps } from '.'
 
 export function DefaultLeadMagnetRenderer({ config, content, email, setEmail, isLoading, error, handleSubmit, siteWidth, customWidth }: LeadMagnetRendererProps) {
   const showcaseImage = config.showcaseImage || ''

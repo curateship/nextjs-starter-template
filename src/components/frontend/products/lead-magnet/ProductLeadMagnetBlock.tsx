@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Check } from 'lucide-react'
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import { LEAD_MAGNET_RENDERERS } from './lead-magnet-styles'
+import { LEAD_MAGNET_RENDERERS } from '.'
 
 interface LeadMagnetBlockContent {
   heading?: string

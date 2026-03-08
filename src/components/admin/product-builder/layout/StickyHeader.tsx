@@ -31,8 +31,8 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { ProductSettingsModal } from "@/components/admin/product-builder/ProductSettingsModal"
-import { CreateProductModal } from "@/components/admin/product-builder/CreateProductModal"
+import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
+import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 interface BreadcrumbItem {

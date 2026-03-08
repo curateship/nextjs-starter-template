@@ -15,7 +15,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PRODUCT_CONTENT_STYLES } from "./product-content-styles"
+import { PRODUCT_CONTENT_STYLES } from "."
 import {
   Bold,
   Italic,

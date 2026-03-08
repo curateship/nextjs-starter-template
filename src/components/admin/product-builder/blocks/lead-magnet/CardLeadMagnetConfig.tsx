@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { LeadMagnetStyleAdminProps } from "./index"
+import type { LeadMagnetStyleAdminProps } from "."
 
 const ACCENT_COLORS = [
   { value: 'indigo', label: 'Indigo' },

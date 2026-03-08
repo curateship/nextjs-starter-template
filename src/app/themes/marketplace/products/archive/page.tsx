@@ -1,4 +1,4 @@
-import { ProductArchiveBlock } from "@/components/frontend/products/ProductArchiveBlock";
+import { ProductArchiveBlock } from "@/components/frontend/products/archive/ProductArchiveBlock";
 
 export default function ProductsListingPage() {
   return (

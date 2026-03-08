@@ -2,7 +2,7 @@
 
 import { Mail, Loader2 } from 'lucide-react'
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import type { LeadMagnetRendererProps } from './index'
+import type { LeadMagnetRendererProps } from '.'
 
 const COLOR_MAP: Record<string, { border: string; bgFrom: string; bgTo: string; iconBg: string; iconText: string; button: string; buttonHover: string; ring: string }> = {
   indigo: { border: 'border-indigo-100', bgFrom: 'from-indigo-50', bgTo: 'to-purple-50', iconBg: 'bg-indigo-100', iconText: 'text-indigo-600', button: 'bg-indigo-600', buttonHover: 'hover:bg-indigo-700', ring: 'focus:ring-indigo-300' },

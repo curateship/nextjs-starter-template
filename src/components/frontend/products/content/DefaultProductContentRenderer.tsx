@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
-import type { ProductContentStyleRendererProps } from "./index"
+import type { ProductContentStyleRendererProps } from "."
 
 export function DefaultProductContentRenderer({ config, sharedContent }: ProductContentStyleRendererProps) {
   const alignment = config.alignment || 'left'
