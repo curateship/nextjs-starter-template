@@ -13,6 +13,7 @@ import {
   Settings,
   FolderOpen,
   Calendar,
+  Mail,
   Tag,
   ExternalLink,
   Workflow,
@@ -109,6 +110,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       title: "Directory",
       url: "/admin/directories",
       icon: FolderOpen,
+      isActive: false,
+    },
+    {
+      title: "Newsletters",
+      url: "/admin/newsletters",
+      icon: Mail,
       isActive: false,
     },
     {
