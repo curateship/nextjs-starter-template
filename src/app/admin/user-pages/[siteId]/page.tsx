@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
-import { StickyHeader } from "@/components/admin/page-builder/StickyHeader"
+import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 

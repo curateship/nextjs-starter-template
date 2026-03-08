@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
@@ -377,7 +377,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       {/* Rich Text Content */}
       <div>
         <Label htmlFor="rich_text">Product Description</Label>
-        <PageRichTextEditorBlock
+        <RichTextEditor
           content={{
             content: richTextContent,
             hideHeader: true,

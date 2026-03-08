@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -435,7 +435,7 @@ export function PostSettingsModal({
           {/* Post Content */}
           <div>
             <Label htmlFor="content">Post Content</Label>
-            <PageRichTextEditorBlock
+            <RichTextEditor
               content={{
                 content: extractedContent || '',
                 hideHeader: true,

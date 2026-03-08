@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
@@ -427,7 +427,7 @@ export function ProductSettingsModal({
           {/* Rich Text Content */}
           <div>
             <Label htmlFor="rich_text">Product Description</Label>
-            <PageRichTextEditorBlock
+            <RichTextEditor
               content={{
                 content: richTextContent,
                 hideHeader: true,

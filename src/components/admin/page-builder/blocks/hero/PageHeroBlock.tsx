@@ -8,9 +8,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Check, ArrowLeft } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
-import { HERO_STYLES } from "./hero-styles"
+import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [

@@ -29,8 +29,8 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { NAVIGATION_STYLES } from "./navigation-styles"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { NAVIGATION_STYLES } from "."
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface NavigationLink {
   text: string

@@ -31,8 +31,8 @@ import {
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Save, Plus, Settings, CheckCircle, ChevronDown, Eye, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
-import { PageSettingsModal } from "@/components/admin/page-builder/PageSettingsModal"
-import { CreatePageModal } from "@/components/admin/page-builder/CreatePageModal"
+import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
+import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 

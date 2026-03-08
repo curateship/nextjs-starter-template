@@ -24,9 +24,8 @@ import {
 } from "lucide-react"
 import { useState, useCallback, useEffect } from 'react'
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
 
-interface RichTextBlockProps {
+export interface RichTextEditorProps {
   content: {
     title?: string
     subtitle?: string
@@ -34,15 +33,14 @@ interface RichTextBlockProps {
     content: string
     hideHeader?: boolean
     hideEditorHeader?: boolean
-    visibility?: Record<string, boolean>
   }
   onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
-  onVisibilityChange?: (value: Record<string, boolean>) => void
   compact?: boolean
   inline?: boolean
+  children?: React.ReactNode
 }
 
-export function PageRichTextEditorBlock({ content, onContentChange, onVisibilityChange, compact = false, inline = false }: RichTextBlockProps) {
+export function RichTextEditor({ content, onContentChange, compact = false, inline = false, children }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({
@@ -238,16 +236,7 @@ export function PageRichTextEditorBlock({ content, onContentChange, onVisibility
 
   return (
     <div className="space-y-4">
-      {/* Visibility Settings */}
-      {onVisibilityChange && (
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={onVisibilityChange}
-          fields={[
-            { key: 'header', label: 'Section Header' },
-          ]}
-        />
-      )}
+      {children}
 
       {/* Header Settings Card - Only show if hideHeader is not true */}
       {!content.hideHeader && (

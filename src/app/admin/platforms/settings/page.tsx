@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle, Palette } from "lucide-react"
-import { FontSelector } from "@/components/admin/page-builder/FontSelector"
+import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
 export default function PlatformSettingsPage() {

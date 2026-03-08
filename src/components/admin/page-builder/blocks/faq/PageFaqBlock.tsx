@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,

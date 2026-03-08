@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import {
   Dialog,
@@ -322,7 +322,7 @@ export function CreateCategoryModal({
 
           <div>
             <Label htmlFor="rich_text">Category Description</Label>
-            <PageRichTextEditorBlock
+            <RichTextEditor
               content={{
                 content: richTextContent,
                 hideHeader: true,

@@ -10,9 +10,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical, Check, ImageIcon, ArrowLeft } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { TESTIMONIAL_STYLES } from "./testimonial-styles"
+import { TESTIMONIAL_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,

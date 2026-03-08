@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ImageIcon, Sun, Moon, Monitor } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { FontSelector } from "@/components/admin/page-builder/FontSelector"
+import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 
 interface StylingSettingsCardProps {
   fontFamily?: string

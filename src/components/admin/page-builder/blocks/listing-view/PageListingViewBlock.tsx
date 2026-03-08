@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ArrowLeft, Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedListingViewsBlockProps {
   title?: string

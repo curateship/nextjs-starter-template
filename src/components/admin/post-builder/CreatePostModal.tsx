@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/PageRichTextEditorBlock"
+import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
@@ -412,7 +412,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       {/* Post Content */}
       <div>
         <Label htmlFor="content">Post Content</Label>
-        <PageRichTextEditorBlock
+        <RichTextEditor
           content={{
             content: formData.content || '',
             hideHeader: true,

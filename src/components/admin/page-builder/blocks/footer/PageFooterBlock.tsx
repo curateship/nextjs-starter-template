@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, ImageIcon, GripVertical, ArrowLeft } from "lucide-react"
-import { VisibilitySettings } from "./shared/VisibilitySettings"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
   closestCenter,
