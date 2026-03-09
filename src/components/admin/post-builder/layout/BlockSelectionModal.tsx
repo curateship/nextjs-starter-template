@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { POST_BLOCK_TYPES, BlockTypeDefinition } from "@/config/post-block-types"
+import { POST_BLOCK_TYPES, BlockTypeDefinition } from "../config/post-block-types"
 import { Plus, Minus } from "lucide-react"
 
 interface BlockSelection {

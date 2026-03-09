@@ -6,7 +6,7 @@ import {
   deletePostBlockAction,
   type PostBlock
 } from '@/lib/actions/posts/post-actions'
-import { getBlockTypeDefinition } from '@/config/post-block-types'
+import { getBlockTypeDefinition } from './post-block-types'
 
 interface BlockSelection {
   type: string

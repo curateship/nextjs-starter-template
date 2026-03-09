@@ -1,78 +1,78 @@
 import { useState, useEffect } from "react"
-import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
-import { getBlockTypeDefinition } from "@/config/event-block-types"
+import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
+import { getBlockTypeDefinition } from "./directory-block-types"
 
 interface BlockSelection {
   type: string
   quantity: number
 }
 
-interface EventBlock {
+interface DirectoryBlock {
   id: string
   type: string
   title: string
   content: Record<string, any>
 }
 
-interface UseEventBuilderParams {
-  blocks: Record<string, EventBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, EventBlock[]>>>
-  selectedEvent: string
-  eventId?: string
-  currentEvent?: {
+interface UseDirectoryBuilderParams {
+  blocks: Record<string, DirectoryBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, DirectoryBlock[]>>>
+  selectedDirectory: string
+  directoryId?: string
+  currentDirectory?: {
     title?: string
     content_blocks?: Record<string, any>
   }
 }
 
-interface UseEventBuilderReturn {
-  selectedBlock: EventBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<EventBlock | null>>
+interface UseDirectoryBuilderReturn {
+  selectedBlock: DirectoryBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<DirectoryBlock | null>>
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: EventBlock) => void
-  handleReorderBlocks: (blocks: EventBlock[]) => void
+  handleDeleteBlock: (block: DirectoryBlock) => void
+  handleReorderBlocks: (blocks: DirectoryBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
-export function useEventBuilder({
+export function useDirectoryBuilder({
   blocks,
   setBlocks,
-  selectedEvent,
-  eventId,
-  currentEvent
-}: UseEventBuilderParams): UseEventBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<EventBlock | null>(null)
+  selectedDirectory,
+  directoryId,
+  currentDirectory
+}: UseDirectoryBuilderParams): UseDirectoryBuilderReturn {
+  const [selectedBlock, setSelectedBlock] = useState<DirectoryBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
 
   useEffect(() => {
     setSelectedBlock(null)
-  }, [selectedEvent])
+  }, [selectedDirectory])
 
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
 
     const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedEvent].findIndex(b => b.id === selectedBlock.id)
+    const blockIndex = updatedBlocks[selectedDirectory].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
-      updatedBlocks[selectedEvent][blockIndex] = {
-        ...updatedBlocks[selectedEvent][blockIndex],
+      updatedBlocks[selectedDirectory][blockIndex] = {
+        ...updatedBlocks[selectedDirectory][blockIndex],
         content: {
-          ...updatedBlocks[selectedEvent][blockIndex].content,
+          ...updatedBlocks[selectedDirectory][blockIndex].content,
           [field]: value
         }
       }
       setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedEvent][blockIndex])
+      setSelectedBlock(updatedBlocks[selectedDirectory][blockIndex])
     }
   }
 
-  const handleDeleteBlock = (block: EventBlock) => {
+  const handleDeleteBlock = (block: DirectoryBlock) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedEvent] = updatedBlocks[selectedEvent].filter(b => b.id !== block.id)
+    updatedBlocks[selectedDirectory] = updatedBlocks[selectedDirectory].filter(b => b.id !== block.id)
     setBlocks(updatedBlocks)
 
     if (selectedBlock?.id === block.id) {
@@ -80,16 +80,16 @@ export function useEventBuilder({
     }
   }
 
-  const handleReorderBlocks = (reorderedBlocks: EventBlock[]) => {
+  const handleReorderBlocks = (reorderedBlocks: DirectoryBlock[]) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedEvent] = reorderedBlocks
+    updatedBlocks[selectedDirectory] = reorderedBlocks
     setBlocks(updatedBlocks)
   }
 
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedEvent] || []
-    const newBlocks: EventBlock[] = []
+    const currentBlocks = updatedBlocks[selectedDirectory] || []
+    const newBlocks: DirectoryBlock[] = []
 
     // Process each selection
     for (const selection of selections) {
@@ -103,7 +103,7 @@ export function useEventBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const timestamp = Date.now() + i // Ensure unique IDs
-        const newBlock: EventBlock = {
+        const newBlock: DirectoryBlock = {
           id: `${selection.type}-${timestamp}`,
           type: selection.type,
           title: blockDefinition.name,
@@ -114,7 +114,7 @@ export function useEventBuilder({
     }
 
     // Add all new blocks to the end of the current blocks
-    updatedBlocks[selectedEvent] = [...currentBlocks, ...newBlocks]
+    updatedBlocks[selectedDirectory] = [...currentBlocks, ...newBlocks]
 
     setBlocks(updatedBlocks)
 
@@ -125,16 +125,16 @@ export function useEventBuilder({
   }
 
   const handleSaveAllBlocks = async () => {
-    if (!eventId) {
-      setSaveMessage("Error: Event ID required")
+    if (!directoryId) {
+      setSaveMessage("Error: Directory ID required")
       setTimeout(() => setSaveMessage(""), 3000)
       return
     }
 
-    const currentBlocks = blocks[selectedEvent] || []
+    const currentBlocks = blocks[selectedDirectory] || []
 
-    // Get existing content blocks from the currentEvent to preserve settings
-    const existingContentBlocks = currentEvent?.content_blocks || {}
+    // Get existing content blocks from the currentDirectory to preserve settings
+    const existingContentBlocks = currentDirectory?.content_blocks || {}
 
     // Convert blocks array to JSON object format
     const newContentBlocks: Record<string, any> = {}
@@ -158,7 +158,7 @@ export function useEventBuilder({
     setSaveMessage("Saving...")
 
     try {
-      const result = await updateEventBlocksAction(eventId, contentBlocks)
+      const result = await updateDirectoryBlocksAction(directoryId, contentBlocks)
 
       if (result.success) {
         setSaveMessage("Saved!")

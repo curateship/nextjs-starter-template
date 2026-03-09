@@ -1,95 +1,95 @@
 import { useState, useEffect } from "react"
-import { updateProductBlocksAction } from "@/lib/actions/products/product-actions"
-import { getBlockTypeDefinition } from "@/config/product-block-types"
-
-interface ProductBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
-
-interface UseProductBuilderParams {
-  blocks: Record<string, ProductBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, ProductBlock[]>>>
-  selectedProduct: string
-  productId?: string
-  currentProduct?: {
-    title?: string
-    content_blocks?: Record<string, any>
-  }
-}
+import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
+import { getBlockTypeDefinition } from "./event-block-types"
 
 interface BlockSelection {
   type: string
   quantity: number
 }
 
-interface UseProductBuilderReturn {
-  selectedBlock: ProductBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<ProductBlock | null>>
+interface EventBlock {
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+}
+
+interface UseEventBuilderParams {
+  blocks: Record<string, EventBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, EventBlock[]>>>
+  selectedEvent: string
+  eventId?: string
+  currentEvent?: {
+    title?: string
+    content_blocks?: Record<string, any>
+  }
+}
+
+interface UseEventBuilderReturn {
+  selectedBlock: EventBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<EventBlock | null>>
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: ProductBlock) => void
-  handleReorderBlocks: (blocks: ProductBlock[]) => void
+  handleDeleteBlock: (block: EventBlock) => void
+  handleReorderBlocks: (blocks: EventBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
-export function useProductBuilder({ 
-  blocks, 
-  setBlocks, 
-  selectedProduct,
-  productId,
-  currentProduct
-}: UseProductBuilderParams): UseProductBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
+export function useEventBuilder({
+  blocks,
+  setBlocks,
+  selectedEvent,
+  eventId,
+  currentEvent
+}: UseEventBuilderParams): UseEventBuilderReturn {
+  const [selectedBlock, setSelectedBlock] = useState<EventBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
 
   useEffect(() => {
     setSelectedBlock(null)
-  }, [selectedProduct])
+  }, [selectedEvent])
 
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
 
     const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+    const blockIndex = updatedBlocks[selectedEvent].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
-      updatedBlocks[selectedProduct][blockIndex] = {
-        ...updatedBlocks[selectedProduct][blockIndex],
+      updatedBlocks[selectedEvent][blockIndex] = {
+        ...updatedBlocks[selectedEvent][blockIndex],
         content: {
-          ...updatedBlocks[selectedProduct][blockIndex].content,
+          ...updatedBlocks[selectedEvent][blockIndex].content,
           [field]: value
         }
       }
       setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+      setSelectedBlock(updatedBlocks[selectedEvent][blockIndex])
     }
   }
 
-  const handleDeleteBlock = (block: ProductBlock) => {
+  const handleDeleteBlock = (block: EventBlock) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedProduct] = updatedBlocks[selectedProduct].filter(b => b.id !== block.id)
+    updatedBlocks[selectedEvent] = updatedBlocks[selectedEvent].filter(b => b.id !== block.id)
     setBlocks(updatedBlocks)
-    
+
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
   }
 
-  const handleReorderBlocks = (reorderedBlocks: ProductBlock[]) => {
+  const handleReorderBlocks = (reorderedBlocks: EventBlock[]) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedProduct] = reorderedBlocks
+    updatedBlocks[selectedEvent] = reorderedBlocks
     setBlocks(updatedBlocks)
   }
 
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedProduct] || []
-    const newBlocks: ProductBlock[] = []
+    const currentBlocks = updatedBlocks[selectedEvent] || []
+    const newBlocks: EventBlock[] = []
 
     // Process each selection
     for (const selection of selections) {
@@ -103,7 +103,7 @@ export function useProductBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const timestamp = Date.now() + i // Ensure unique IDs
-        const newBlock: ProductBlock = {
+        const newBlock: EventBlock = {
           id: `${selection.type}-${timestamp}`,
           type: selection.type,
           title: blockDefinition.name,
@@ -114,7 +114,7 @@ export function useProductBuilder({
     }
 
     // Add all new blocks to the end of the current blocks
-    updatedBlocks[selectedProduct] = [...currentBlocks, ...newBlocks]
+    updatedBlocks[selectedEvent] = [...currentBlocks, ...newBlocks]
 
     setBlocks(updatedBlocks)
 
@@ -125,17 +125,17 @@ export function useProductBuilder({
   }
 
   const handleSaveAllBlocks = async () => {
-    if (!productId) {
-      setSaveMessage("Error: Product ID required")
+    if (!eventId) {
+      setSaveMessage("Error: Event ID required")
       setTimeout(() => setSaveMessage(""), 3000)
       return
     }
 
-    const currentBlocks = blocks[selectedProduct] || []
-    
-    // Get existing content blocks from the currentProduct to preserve settings
-    const existingContentBlocks = currentProduct?.content_blocks || {}
-    
+    const currentBlocks = blocks[selectedEvent] || []
+
+    // Get existing content blocks from the currentEvent to preserve settings
+    const existingContentBlocks = currentEvent?.content_blocks || {}
+
     // Convert blocks array to JSON object format
     const newContentBlocks: Record<string, any> = {}
     currentBlocks.forEach((block, index) => {
@@ -144,7 +144,7 @@ export function useProductBuilder({
         display_order: index
       }
     })
-    
+
     // Preserve existing _settings and merge with new blocks
     const contentBlocks: Record<string, any> = {
       ...newContentBlocks,
@@ -153,13 +153,13 @@ export function useProductBuilder({
         _settings: existingContentBlocks._settings
       })
     }
-    
+
     setIsSaving(true)
     setSaveMessage("Saving...")
 
     try {
-      const result = await updateProductBlocksAction(productId, contentBlocks)
-      
+      const result = await updateEventBlocksAction(eventId, contentBlocks)
+
       if (result.success) {
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)

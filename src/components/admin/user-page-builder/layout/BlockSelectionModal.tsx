@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { USER_PAGE_BLOCK_TYPES } from "@/config/user-page-block-types"
+import { USER_PAGE_BLOCK_TYPES } from "../config/user-page-block-types"
 import { Plus, Minus, Info } from "lucide-react"
 import {
   Tooltip,

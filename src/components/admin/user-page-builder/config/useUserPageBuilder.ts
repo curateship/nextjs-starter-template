@@ -6,7 +6,7 @@ import {
 } from "@/lib/actions/user-pages/user-pages-actions"
 import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
 import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
-import { getBlockTypeDefinition } from "@/config/user-page-block-types"
+import { getBlockTypeDefinition } from "./user-page-block-types"
 
 interface BlockSelection {
   type: string

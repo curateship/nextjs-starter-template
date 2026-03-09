@@ -3,7 +3,7 @@ import { updatePageBlocksAction, type Page } from "@/lib/actions/pages/page-acti
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/sites/site-actions"
 import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
 import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
-import { getBlockTypeDefinition } from "@/config/page-block-types"
+import { getBlockTypeDefinition } from "./page-block-types"
 
 interface BlockSelection {
   type: string

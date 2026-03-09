@@ -1,95 +1,95 @@
 import { useState, useEffect } from "react"
-import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
-import { getBlockTypeDefinition } from "@/config/directory-block-types"
+import { updateProductBlocksAction } from "@/lib/actions/products/product-actions"
+import { getBlockTypeDefinition } from "./product-block-types"
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
-
-interface DirectoryBlock {
+interface ProductBlock {
   id: string
   type: string
   title: string
   content: Record<string, any>
 }
 
-interface UseDirectoryBuilderParams {
-  blocks: Record<string, DirectoryBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, DirectoryBlock[]>>>
-  selectedDirectory: string
-  directoryId?: string
-  currentDirectory?: {
+interface UseProductBuilderParams {
+  blocks: Record<string, ProductBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, ProductBlock[]>>>
+  selectedProduct: string
+  productId?: string
+  currentProduct?: {
     title?: string
     content_blocks?: Record<string, any>
   }
 }
 
-interface UseDirectoryBuilderReturn {
-  selectedBlock: DirectoryBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<DirectoryBlock | null>>
+interface BlockSelection {
+  type: string
+  quantity: number
+}
+
+interface UseProductBuilderReturn {
+  selectedBlock: ProductBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<ProductBlock | null>>
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: DirectoryBlock) => void
-  handleReorderBlocks: (blocks: DirectoryBlock[]) => void
+  handleDeleteBlock: (block: ProductBlock) => void
+  handleReorderBlocks: (blocks: ProductBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
-export function useDirectoryBuilder({
-  blocks,
-  setBlocks,
-  selectedDirectory,
-  directoryId,
-  currentDirectory
-}: UseDirectoryBuilderParams): UseDirectoryBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<DirectoryBlock | null>(null)
+export function useProductBuilder({ 
+  blocks, 
+  setBlocks, 
+  selectedProduct,
+  productId,
+  currentProduct
+}: UseProductBuilderParams): UseProductBuilderReturn {
+  const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
 
   useEffect(() => {
     setSelectedBlock(null)
-  }, [selectedDirectory])
+  }, [selectedProduct])
 
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
 
     const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedDirectory].findIndex(b => b.id === selectedBlock.id)
+    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
-      updatedBlocks[selectedDirectory][blockIndex] = {
-        ...updatedBlocks[selectedDirectory][blockIndex],
+      updatedBlocks[selectedProduct][blockIndex] = {
+        ...updatedBlocks[selectedProduct][blockIndex],
         content: {
-          ...updatedBlocks[selectedDirectory][blockIndex].content,
+          ...updatedBlocks[selectedProduct][blockIndex].content,
           [field]: value
         }
       }
       setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedDirectory][blockIndex])
+      setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
     }
   }
 
-  const handleDeleteBlock = (block: DirectoryBlock) => {
+  const handleDeleteBlock = (block: ProductBlock) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedDirectory] = updatedBlocks[selectedDirectory].filter(b => b.id !== block.id)
+    updatedBlocks[selectedProduct] = updatedBlocks[selectedProduct].filter(b => b.id !== block.id)
     setBlocks(updatedBlocks)
-
+    
     if (selectedBlock?.id === block.id) {
       setSelectedBlock(null)
     }
   }
 
-  const handleReorderBlocks = (reorderedBlocks: DirectoryBlock[]) => {
+  const handleReorderBlocks = (reorderedBlocks: ProductBlock[]) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedDirectory] = reorderedBlocks
+    updatedBlocks[selectedProduct] = reorderedBlocks
     setBlocks(updatedBlocks)
   }
 
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedDirectory] || []
-    const newBlocks: DirectoryBlock[] = []
+    const currentBlocks = updatedBlocks[selectedProduct] || []
+    const newBlocks: ProductBlock[] = []
 
     // Process each selection
     for (const selection of selections) {
@@ -103,7 +103,7 @@ export function useDirectoryBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const timestamp = Date.now() + i // Ensure unique IDs
-        const newBlock: DirectoryBlock = {
+        const newBlock: ProductBlock = {
           id: `${selection.type}-${timestamp}`,
           type: selection.type,
           title: blockDefinition.name,
@@ -114,7 +114,7 @@ export function useDirectoryBuilder({
     }
 
     // Add all new blocks to the end of the current blocks
-    updatedBlocks[selectedDirectory] = [...currentBlocks, ...newBlocks]
+    updatedBlocks[selectedProduct] = [...currentBlocks, ...newBlocks]
 
     setBlocks(updatedBlocks)
 
@@ -125,17 +125,17 @@ export function useDirectoryBuilder({
   }
 
   const handleSaveAllBlocks = async () => {
-    if (!directoryId) {
-      setSaveMessage("Error: Directory ID required")
+    if (!productId) {
+      setSaveMessage("Error: Product ID required")
       setTimeout(() => setSaveMessage(""), 3000)
       return
     }
 
-    const currentBlocks = blocks[selectedDirectory] || []
-
-    // Get existing content blocks from the currentDirectory to preserve settings
-    const existingContentBlocks = currentDirectory?.content_blocks || {}
-
+    const currentBlocks = blocks[selectedProduct] || []
+    
+    // Get existing content blocks from the currentProduct to preserve settings
+    const existingContentBlocks = currentProduct?.content_blocks || {}
+    
     // Convert blocks array to JSON object format
     const newContentBlocks: Record<string, any> = {}
     currentBlocks.forEach((block, index) => {
@@ -144,7 +144,7 @@ export function useDirectoryBuilder({
         display_order: index
       }
     })
-
+    
     // Preserve existing _settings and merge with new blocks
     const contentBlocks: Record<string, any> = {
       ...newContentBlocks,
@@ -153,13 +153,13 @@ export function useDirectoryBuilder({
         _settings: existingContentBlocks._settings
       })
     }
-
+    
     setIsSaving(true)
     setSaveMessage("Saving...")
 
     try {
-      const result = await updateDirectoryBlocksAction(directoryId, contentBlocks)
-
+      const result = await updateProductBlocksAction(productId, contentBlocks)
+      
       if (result.success) {
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)

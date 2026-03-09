@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { updateCategoryBlocksAction } from "@/lib/actions/categories/category-actions"
-import { getBlockTypeDefinition } from "@/config/category-block-types"
+import { getBlockTypeDefinition } from "./category-block-types"
 
 interface BlockSelection {
   type: string

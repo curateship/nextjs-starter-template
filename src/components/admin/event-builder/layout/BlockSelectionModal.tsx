@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Plus, Minus } from "lucide-react"
-import { EVENT_BLOCK_TYPES } from "@/config/event-block-types"
+import { EVENT_BLOCK_TYPES } from "../config/event-block-types"
 import {
   Tooltip,
   TooltipContent,

@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CATEGORY_BLOCK_TYPES } from "@/config/category-block-types"
+import { CATEGORY_BLOCK_TYPES } from "../config/category-block-types"
 import { Plus, Minus, Info } from "lucide-react"
 import {
   Tooltip,
