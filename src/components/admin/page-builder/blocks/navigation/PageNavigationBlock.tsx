@@ -349,7 +349,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
         {onBack && (
           <button
             onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted rounded-md"
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
           >
             <ArrowLeft className="w-3.5 h-4 mr-1.5" />
             Back
