@@ -105,6 +105,11 @@ export async function POST(request: NextRequest) {
     // Get per-site Resend config
     const resendConfig = await getResendConfig(siteId)
 
+    if (!resendConfig) {
+      console.error('Resend not configured for site:', siteId)
+      return NextResponse.json({ success: true, message: 'Order created but email not configured' })
+    }
+
     // Send delivery email with content
     try {
       await sendLeadMagnetDeliveryEmail({
