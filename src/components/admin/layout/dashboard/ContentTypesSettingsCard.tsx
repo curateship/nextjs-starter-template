@@ -56,65 +56,63 @@ export function ContentTypesSettingsCard({ defaultBlocks, onDefaultBlocksChange 
   }
 
   return (
-    <div className="space-y-3">
-      <Card>
-        <CardHeader>
-          <CardTitle>Default Blocks</CardTitle>
-          <CardDescription>
-            Choose which blocks are automatically added when creating new items of each content type.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Default Blocks</CardTitle>
+        <CardDescription>
+          Choose which blocks are automatically added when creating new items of each content type.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {CONTENT_TYPE_CONFIGS.map(({ key, label, blocks }) => {
+          const isExpanded = expandedTypes.has(key)
+          const enabledCount = (defaultBlocks[key] || []).length
 
-      {CONTENT_TYPE_CONFIGS.map(({ key, label, blocks }) => {
-        const isExpanded = expandedTypes.has(key)
-        const enabledCount = (defaultBlocks[key] || []).length
-
-        return (
-          <Card key={key}>
-            <CardHeader
-              className="cursor-pointer select-none py-4"
-              onClick={() => toggleExpanded(key)}
-            >
-              <div className="flex items-center justify-between">
+          return (
+            <div key={key} className="border rounded-lg">
+              <button
+                type="button"
+                className="flex items-center justify-between w-full px-4 py-3 text-left"
+                onClick={() => toggleExpanded(key)}
+              >
                 <div className="flex items-center gap-2">
                   {isExpanded ? (
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   )}
-                  <CardTitle className="text-base">{label}</CardTitle>
+                  <span className="text-sm font-medium">{label}</span>
                   {enabledCount > 0 && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                       {enabledCount} block{enabledCount !== 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
-              </div>
-            </CardHeader>
+              </button>
 
-            {isExpanded && (
-              <CardContent className="pt-0 space-y-3">
-                {blocks.map((block) => {
-                  const isEnabled = (defaultBlocks[key] || []).includes(block.type)
-                  return (
-                    <div key={block.type} className="flex items-center justify-between">
-                      <div>
-                        <Label className="font-medium">{block.name}</Label>
-                        <p className="text-xs text-muted-foreground">{block.description}</p>
+              {isExpanded && (
+                <div className="px-4 pb-3 space-y-3 border-t pt-3">
+                  {blocks.map((block) => {
+                    const isEnabled = (defaultBlocks[key] || []).includes(block.type)
+                    return (
+                      <div key={block.type} className="flex items-center justify-between">
+                        <div>
+                          <Label className="font-medium">{block.name}</Label>
+                          <p className="text-xs text-muted-foreground">{block.description}</p>
+                        </div>
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={() => toggleBlock(key, block.type)}
+                        />
                       </div>
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={() => toggleBlock(key, block.type)}
-                      />
-                    </div>
-                  )
-                })}
-              </CardContent>
-            )}
-          </Card>
-        )
-      })}
-    </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
   )
 }
