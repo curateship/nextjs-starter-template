@@ -45,6 +45,9 @@ export interface CheckoutSessionData {
  */
 export async function createCheckoutSession(data: CheckoutSessionData) {
   try {
+    if (!data.siteId) {
+      throw new Error('siteId is required for checkout')
+    }
     const stripe = await getStripeClient(data.siteId)
 
     // Fetch the main price to determine if it's one-time or recurring
