@@ -318,6 +318,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [favicon, setFavicon] = useState("")
   const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
   const [trackingScripts, setTrackingScripts] = useState("")
+  const [posthogApiKey, setPosthogApiKey] = useState("")
+  const [posthogHost, setPosthogHost] = useState("")
   const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
   const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
@@ -376,6 +378,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setFavicon(data.settings?.favicon || "")
         setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
         setTrackingScripts(data.settings?.tracking_scripts || "")
+        setPosthogApiKey(data.settings?.posthog_api_key || "")
+        setPosthogHost(data.settings?.posthog_host || "")
         setSiteWidth(data.settings?.site_width || 'custom')
         setCustomWidth(data.settings?.custom_width)
         setDefaultTheme(data.settings?.default_theme || 'system')
@@ -502,6 +506,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             favicon: favicon === '' ? '' : favicon || undefined,
             animations: animations,
             tracking_scripts: trackingScripts,
+            posthog_api_key: posthogApiKey,
+            posthog_host: posthogHost,
             site_width: siteWidth,
             custom_width: customWidth,
             default_theme: defaultTheme,
@@ -616,6 +622,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     customDomain={customDomain}
                     status={status}
                     trackingScripts={trackingScripts}
+                    posthogApiKey={posthogApiKey}
+                    posthogHost={posthogHost}
                     maintenanceEnabled={maintenanceEnabled}
                     isEditMode={true}
                     loading={loading}
@@ -624,6 +632,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onCustomDomainChange={setCustomDomain}
                     onStatusChange={setStatus}
                     onTrackingScriptsChange={setTrackingScripts}
+                    onPosthogApiKeyChange={setPosthogApiKey}
+                    onPosthogHostChange={setPosthogHost}
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
                 </form>

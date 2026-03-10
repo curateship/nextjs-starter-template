@@ -79,6 +79,8 @@ export default async function RootLayout({
         <PostHogScript
           siteId={site?.id}
           siteName={site?.name}
+          posthogKey={site?.settings?.posthog_api_key}
+          posthogHost={site?.settings?.posthog_host}
         />
         <HeaderScripts scripts={site?.settings?.tracking_scripts} />
         <FontLoader />

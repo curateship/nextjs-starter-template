@@ -1,17 +1,26 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 interface TrackingSettingsCardProps {
   trackingScripts?: string
+  posthogApiKey?: string
+  posthogHost?: string
   onTrackingScriptsChange?: (value: string) => void
+  onPosthogApiKeyChange?: (value: string) => void
+  onPosthogHostChange?: (value: string) => void
 }
 
 export function TrackingSettingsCard({
   trackingScripts = "",
-  onTrackingScriptsChange
+  posthogApiKey = "",
+  posthogHost = "",
+  onTrackingScriptsChange,
+  onPosthogApiKeyChange,
+  onPosthogHostChange
 }: TrackingSettingsCardProps) {
   return (
     <Card className="shadow-sm">
@@ -19,7 +28,36 @@ export function TrackingSettingsCard({
         <CardTitle>Tracking Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Tracking Scripts */}
+        {/* PostHog */}
+        {onPosthogApiKeyChange && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="posthogApiKey">PostHog API Key</Label>
+              <Input
+                id="posthogApiKey"
+                value={posthogApiKey}
+                onChange={(e) => onPosthogApiKeyChange(e.target.value)}
+                placeholder="phc_..."
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="posthogHost">PostHog Host</Label>
+              <Input
+                id="posthogHost"
+                value={posthogHost}
+                onChange={(e) => onPosthogHostChange?.(e.target.value)}
+                placeholder="https://us.i.posthog.com"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to use the default PostHog US cloud host.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Tracking Scripts */}
         {onTrackingScriptsChange && (
           <div className="space-y-2">
             <Label htmlFor="trackingScripts">Custom Tracking Scripts</Label>
@@ -27,12 +65,12 @@ export function TrackingSettingsCard({
               id="trackingScripts"
               value={trackingScripts}
               onChange={(e) => onTrackingScriptsChange(e.target.value)}
-              placeholder="Paste your tracking scripts here (PostHog, Google Analytics, etc.)..."
+              placeholder="Paste any additional tracking scripts here (Facebook Pixel, Hotjar, etc.)..."
               className="font-mono text-sm"
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
-              Add any tracking scripts (PostHog, Google Analytics, Facebook Pixel, etc.). These will be added to the &lt;head&gt; section of your site.
+              For any other tracking scripts not listed above. These will be added to the &lt;head&gt; section of your site.
             </p>
           </div>
         )}

@@ -199,6 +199,8 @@ export async function applyThemeToSiteAction(
     const mergedSettings = {
       ...templateSite.settings,
       tracking_scripts: targetSite.settings?.tracking_scripts,
+      posthog_api_key: targetSite.settings?.posthog_api_key,
+      posthog_host: targetSite.settings?.posthog_host,
       maintenance: targetSite.settings?.maintenance,
       site_title: targetSite.settings?.site_title || targetSite.name,
     }
