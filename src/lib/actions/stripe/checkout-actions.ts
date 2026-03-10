@@ -7,7 +7,10 @@ import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
  * Create a Stripe client for a specific site.
  * Reads from site integration config.
  */
-async function getStripeClient(siteId: string): Promise<Stripe> {
+async function getStripeClient(siteId: string | undefined): Promise<Stripe> {
+  if (!siteId) {
+    throw new Error('siteId is required for Stripe operations')
+  }
   const config = await getStripeConfig(siteId)
   if (!config) {
     throw new Error('Stripe is not configured for this site. Add your Stripe keys in site Integration settings.')
@@ -45,9 +48,6 @@ export interface CheckoutSessionData {
  */
 export async function createCheckoutSession(data: CheckoutSessionData) {
   try {
-    if (!data.siteId) {
-      throw new Error('siteId is required for checkout')
-    }
     const stripe = await getStripeClient(data.siteId)
 
     // Fetch the main price to determine if it's one-time or recurring
