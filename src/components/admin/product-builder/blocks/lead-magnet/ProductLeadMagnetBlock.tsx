@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Check } from 'lucide-react'
+import { Plus, Check, AlertTriangle } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -300,6 +300,16 @@ export function ProductLeadMagnetBlock({
             <CardTitle className="text-base">Flodesk</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 flex items-start gap-2 text-sm text-amber-800">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Flodesk requires an API key configured in your site&apos;s{' '}
+                <a href={`/admin/sites/${siteId}/settings`} className="underline font-medium">
+                  Integration settings
+                </a>.
+              </span>
+            </div>
+
             <div className="flex items-center gap-2">
               <Checkbox
                 id="flodeskEnabled"

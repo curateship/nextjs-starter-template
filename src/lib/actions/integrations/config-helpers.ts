@@ -108,7 +108,7 @@ export async function getAIProviderConfig(
 }
 
 /**
- * Get Flodesk config for a site. Falls back to environment variables.
+ * Get Flodesk config for a site from site integrations.
  */
 export async function getFlodeskConfig(siteId: string): Promise<{
   apiKey: string
@@ -123,16 +123,6 @@ export async function getFlodeskConfig(siteId: string): Promise<{
         apiKey: api_key,
         segmentId: segment_id,
       }
-    }
-  }
-
-  // Fall back to environment variables
-  const envApiKey = process.env.FLODESK_API_KEY
-  const envSegmentId = process.env.FLODESK_SEGMENT_ID
-  if (envApiKey) {
-    return {
-      apiKey: envApiKey,
-      segmentId: envSegmentId,
     }
   }
 
