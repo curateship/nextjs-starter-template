@@ -1,7 +1,6 @@
 import { headers } from 'next/headers'
 import { getSiteBySubdomain, getSiteByDomain } from '@/lib/actions/pages/page-frontend-actions'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
-import { createClient } from '@supabase/supabase-js'
 
 /**
  * Get site data by querying database directly with host
@@ -36,31 +35,6 @@ export async function getSiteFromHeaders(pageSlug?: string) {
     const result = await getSiteBySubdomain(siteSubdomain, pageSlug)
     if (!result.success && pageSlug === 'home') return await getSiteBySubdomain(siteSubdomain)
     return result
-  }
-  
-  // For localhost:3000 root domain, use the HUB_SITE_ID to find subdomain
-  if (host === 'localhost:3000') {
-    const hubSiteId = process.env.HUB_SITE_ID || process.env.NEXT_PUBLIC_HUB_SITE_ID
-    if (hubSiteId) {
-      // Create Supabase client inline to avoid global state
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      )
-      
-      // Quick query to get the subdomain for this site ID
-      const { data: site } = await supabaseAdmin
-        .from('sites')
-        .select('subdomain')
-        .eq('id', hubSiteId)
-        .single()
-      
-      if (site?.subdomain) {
-        return await getSiteBySubdomain(site.subdomain, pageSlug)
-      }
-    }
-    // Fallback to domain lookup if no HUB_SITE_ID or site not found
-    return await getSiteByDomain('localhost:3000', pageSlug)
   }
   
   // Legacy fallback: try domain lookup first, then subdomain

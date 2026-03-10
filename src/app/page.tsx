@@ -1,16 +1,28 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
+import { LandingPage } from "@/components/frontend/pages/LandingPage"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { notFound, redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
+
+function isRootDomain(host: string): boolean {
+  // localhost:3000 (no subdomain) → root domain
+  // mysite.localhost:3000 → subdomain site
+  // bare production domain (e.g. myapp.vercel.app) with no extra subdomain → root
+  const clean = host.replace(/^www\./, '')
+  // localhost without subdomain
+  if (clean === 'localhost:3000' || clean === 'localhost') return true
+  // Production: check NEXT_PUBLIC_APP_DOMAIN
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN?.replace(/^https?:\/\//, '')
+  if (appDomain && clean === appDomain) return true
+  return false
+}
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
 }
 
 async function checkAuth() {
-  // Check for Supabase auth cookie without hitting the database
-  // This is much faster than calling getUser()
   const cookieStore = await cookies()
   const authCookies = cookieStore.getAll().filter(cookie =>
     cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
@@ -19,7 +31,14 @@ async function checkAuth() {
 }
 
 export default async function SiteHomePage() {
-  // Get site data from headers
+  // Check if this is the root domain — show landing page
+  const headersList = await headers()
+  const host = headersList.get('host') || 'localhost:3000'
+  if (isRootDomain(host)) {
+    return <LandingPage />
+  }
+
+  // Subdomain site — resolve and render
   const { success, site } = await getHomePageSite()
 
   if (!success || !site) {
@@ -72,6 +91,15 @@ export default async function SiteHomePage() {
 
 export async function generateMetadata() {
   try {
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    if (isRootDomain(host)) {
+      return {
+        title: 'System Everything',
+        description: 'A platform for building and managing websites, stores, and content.',
+      }
+    }
+
     const { success, site } = await getHomePageSite()
 
     if (!success || !site) {
