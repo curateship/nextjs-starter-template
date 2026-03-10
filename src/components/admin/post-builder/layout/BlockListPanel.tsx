@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { POST_BLOCK_TYPES } from "../config/post-block-types"
 import { Button } from "@/components/ui/button"
 import { 
   Dialog,
@@ -114,7 +115,7 @@ function SortablePostBlockItem({
           <div className="flex items-center space-x-2">
             {getBlockIcon(block.type)}
             <h3 className="text-sm font-medium">
-              {isDefaultBlock(block) ? 'Post Content' : (block.content?.title || getBlockTypeName(block))}
+              {block.content?.title || getBlockTypeName(block)}
             </h3>
           </div>
         </div>
@@ -206,12 +207,12 @@ export function BlockListPanel({
   }
 
   const getBlockTypeName = (block: PostBlock) => {
-    if (block.type === 'post-content') return 'Post Content'
-    return 'Block'
+    const def = POST_BLOCK_TYPES.find(d => d.type === block.type)
+    return def?.name || 'Block'
   }
 
-  const isDefaultBlock = (block: PostBlock) => {
-    return block.type === 'post-content'
+  const isDefaultBlock = (_block: PostBlock) => {
+    return false
   }
 
   const getBlockIcon = (blockType: string) => {

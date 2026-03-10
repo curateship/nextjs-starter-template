@@ -69,27 +69,12 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }, [siteId, initialEvent, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, blocksLoading, siteError } = useEventData(siteId)
+  const { site, blocks, siteBlocks, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change, auto-add event-content if missing
+  // Update local blocks when server blocks change
   useEffect(() => {
-    const updated = { ...blocks }
-    for (const slug of Object.keys(updated)) {
-      const hasContentBlock = updated[slug]?.some(b => b.type === 'event-content')
-      if (!hasContentBlock) {
-        updated[slug] = [
-          {
-            id: `event-content-${Date.now()}`,
-            type: 'event-content',
-            title: 'Content',
-            content: { showFeaturedImage: true, body: '', format: 'html' }
-          },
-          ...(updated[slug] || [])
-        ]
-      }
-    }
-    setLocalBlocks(updated)
+    setLocalBlocks({ ...blocks })
   }, [blocks])
 
   const builderState = useEventBuilder({
@@ -122,16 +107,11 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }
 
   // Handle event creation
-  const handleEventCreated = (newEvent: Event) => {
+  const handleEventCreated = async (newEvent: Event) => {
     setEvents(prev => [...prev, newEvent])
-    // Initialize blocks array for the new event
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newEvent.slug]: []
-    }))
-    // Switch to the newly created event
     setSelectedEvent(newEvent.slug)
     router.replace(`/admin/events/builder/${siteId}?event=${newEvent.slug}`)
+    await reloadBlocks()
   }
 
   // Handle event updates

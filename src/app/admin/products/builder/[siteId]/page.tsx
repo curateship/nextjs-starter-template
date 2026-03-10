@@ -107,16 +107,12 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   }
 
   // Handle product creation
-  const handleProductCreated = (newProduct: Product) => {
+  const handleProductCreated = async (newProduct: Product) => {
     setProducts(prev => [...prev, newProduct])
-    // Initialize blocks array for the new product
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newProduct.slug]: []
-    }))
-    // Switch to the newly created product
     setSelectedProduct(newProduct.slug)
     router.replace(`/admin/products/builder/${siteId}?product=${newProduct.slug}`)
+    // Reload blocks from DB to pick up API-generated default blocks
+    await reloadBlocks()
   }
 
   // Handle product updates

@@ -70,3 +70,4 @@ Before implementing any feature:
 - Am I adding complexity to solve a problem I created? (Usually yes)
 - Would a junior developer understand this in 5 minutes? (If no, simplify)
 - Does this follow the "Load → Edit → Save" pattern? (If no, why not?)
+- With every changes, check the server to see if its running. if not then reboot the server on port 3000

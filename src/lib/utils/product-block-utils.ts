@@ -93,25 +93,28 @@ export function convertContentBlocksToArray(contentBlocks: Record<string, any>, 
     // SECURITY: Validate allowed block types
     const allowedBlockTypes = ['product-content', 'product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-checkout', 'product-lead-magnet', 'product-faq', 'listing-views', 'product-rich-text', 'product-video']
     
-    Object.entries(contentBlocks).forEach(([blockType, blockData]: [string, any]) => {
+    Object.entries(contentBlocks).forEach(([key, blockData]: [string, any]) => {
+      if (!blockData || typeof blockData !== 'object') return
+
+      // Determine block type: new format has a `type` field, legacy format uses key as type
+      const blockType = blockData.type || key
+
       // SECURITY: Validate block type
       if (!allowedBlockTypes.includes(blockType)) {
         return // Skip invalid block types
       }
-      
-      if (blockData && typeof blockData === 'object') {
-        const { display_order, ...content } = blockData
-        
-        // SECURITY: Sanitize all content to prevent XSS
-        const sanitizedContent = sanitizeContent(content)
-        
-        blocks.push({
-          id: `${blockType}-${productId}`,
-          type: blockType,
-          content: sanitizedContent,
-          display_order: typeof display_order === 'number' ? display_order : 0
-        })
-      }
+
+      const { display_order, id, type, created_at, updated_at, ...content } = blockData
+
+      // SECURITY: Sanitize all content to prevent XSS
+      const sanitizedContent = sanitizeContent(content.content || content)
+
+      blocks.push({
+        id: id || `${blockType}-${productId}`,
+        type: blockType,
+        content: sanitizedContent,
+        display_order: typeof display_order === 'number' ? display_order : 0
+      })
     })
     
     // Sort blocks by display_order

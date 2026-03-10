@@ -118,16 +118,11 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }
 
   // Handle page creation
-  const handlePageCreated = (newPage: Page) => {
+  const handlePageCreated = async (newPage: Page) => {
     setPages(prev => [...prev, newPage])
-    // Initialize blocks array for the new page
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newPage.slug]: []
-    }))
-    // Switch to the newly created page
     setSelectedPage(newPage.slug)
     router.replace(`/admin/pages/${siteId}?page=${newPage.slug}`)
+    await reloadBlocks()
   }
 
   // Handle page updates

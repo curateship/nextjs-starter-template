@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 // Create admin client
 const supabaseAdmin = createClient(
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
     // Verify user owns the site
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select('id, user_id')
+      .select('id, user_id, settings')
       .eq('id', eventData.site_id)
       .eq('user_id', user.id)
       .single()
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
         featured_image: eventData.featured_image || null,
         description: eventData.description || null,
         meta_description: eventData.meta_description || null,
-        content_blocks: eventData.content_blocks || {}
+        content_blocks: applyDefaultBlocks(eventData.content_blocks, 'events', site.settings?.default_blocks?.events)
       }])
       .select()
       .single()

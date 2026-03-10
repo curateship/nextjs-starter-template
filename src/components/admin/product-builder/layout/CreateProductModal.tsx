@@ -118,27 +118,15 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setLoading(true)
       setError(null)
       
-      // Create product with settings and auto-added product-content block
-      const contentBlocks: Record<string, any> = {
-        _settings: {
-          is_private: isPrivate
-        },
-        'product-content': {
-          showFeaturedImage: true,
-          body: richTextContent || '',
-          productContentStyle: 'default',
-          styleConfig: { default: {} },
-          display_order: 0
-        }
-      }
-
       const draftData = {
         ...formData,
         site_id: currentSite.id,
         is_published: false,
         featured_image: featuredImage || null,
         description: richTextContent || null,
-        content_blocks: contentBlocks
+        content_blocks: {
+          _settings: { is_private: isPrivate }
+        }
       }
 
       const response = await fetch('/api/products', {
@@ -186,27 +174,15 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setLoading(true)
       setError(null)
       
-      // Create product with settings and auto-added product-content block
-      const contentBlocks: Record<string, any> = {
-        _settings: {
-          is_private: isPrivate
-        },
-        'product-content': {
-          showFeaturedImage: true,
-          body: richTextContent || '',
-          productContentStyle: 'default',
-          styleConfig: { default: {} },
-          display_order: 0
-        }
-      }
-
       const publishData = {
         ...formData,
         site_id: currentSite.id,
         is_published: true,
         featured_image: featuredImage || null,
         description: richTextContent || null,
-        content_blocks: contentBlocks
+        content_blocks: {
+          _settings: { is_private: isPrivate }
+        }
       }
 
       const response = await fetch('/api/products', {

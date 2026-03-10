@@ -83,24 +83,9 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const { site, blocks, siteBlocks, blocksLoading, siteError } = useCategoryData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change, auto-add taxonomy-content if missing
+  // Update local blocks when server blocks change
   useEffect(() => {
-    const updated = { ...blocks }
-    for (const slug of Object.keys(updated)) {
-      const hasContentBlock = updated[slug]?.some(b => b.type === 'taxonomy-content')
-      if (!hasContentBlock) {
-        updated[slug] = [
-          {
-            id: `taxonomy-content-${Date.now()}`,
-            type: 'taxonomy-content',
-            title: 'Content',
-            content: { showFeaturedImage: true, body: '', format: 'html' }
-          },
-          ...(updated[slug] || [])
-        ]
-      }
-    }
-    setLocalBlocks(updated)
+    setLocalBlocks({ ...blocks })
   }, [blocks])
 
   const builderState = useCategoryBuilder({

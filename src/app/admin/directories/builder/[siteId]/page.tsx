@@ -69,27 +69,12 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }, [siteId, initialDirectory, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, blocksLoading, siteError } = useDirectoryData(siteId)
+  const { site, blocks, siteBlocks, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
-  // Update local blocks when server blocks change, auto-add directory-content if missing
+  // Update local blocks when server blocks change
   useEffect(() => {
-    const updated = { ...blocks }
-    for (const slug of Object.keys(updated)) {
-      const hasContentBlock = updated[slug]?.some(b => b.type === 'directory-content')
-      if (!hasContentBlock) {
-        updated[slug] = [
-          {
-            id: `directory-content-${Date.now()}`,
-            type: 'directory-content',
-            title: 'Content',
-            content: { showFeaturedImage: true, body: '', format: 'html' }
-          },
-          ...(updated[slug] || [])
-        ]
-      }
-    }
-    setLocalBlocks(updated)
+    setLocalBlocks({ ...blocks })
   }, [blocks])
 
   const builderState = useDirectoryBuilder({
@@ -122,16 +107,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   // Handle directory creation
-  const handleDirectoryCreated = (newDirectory: Directory) => {
+  const handleDirectoryCreated = async (newDirectory: Directory) => {
     setDirectories(prev => [...prev, newDirectory])
-    // Initialize blocks array for the new directory
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newDirectory.slug]: []
-    }))
-    // Switch to the newly created directory
     setSelectedDirectory(newDirectory.slug)
     router.replace(`/admin/directories/builder/${siteId}?directory=${newDirectory.slug}`)
+    await reloadBlocks()
   }
 
   // Handle directory updates

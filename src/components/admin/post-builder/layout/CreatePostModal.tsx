@@ -124,19 +124,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       setLoading(true)
       setError(null)
       
-      const defaultBlock = {
-        id: `post-content-${Date.now()}`,
-        type: 'post-content',
-        display_order: 1,
-        content: {
-          showAuthor: true,
-          showDate: true,
-          body: formData.content || '',
-          format: 'html'
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
       const draftData = {
         title: formData.title,
         slug: formData.slug,
@@ -146,7 +133,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         excerpt: formData.excerpt || null,
         is_published: false,
         content_blocks: {
-          [defaultBlock.id]: defaultBlock,
           show_featured_image: showFeaturedImage
         }
       }
@@ -195,19 +181,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       setLoading(true)
       setError(null)
       
-      const defaultBlock = {
-        id: `post-content-${Date.now()}`,
-        type: 'post-content',
-        display_order: 1,
-        content: {
-          showAuthor: true,
-          showDate: true,
-          body: formData.content || '',
-          format: 'html'
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
       const publishData = {
         title: formData.title,
         slug: formData.slug,
@@ -217,7 +190,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         excerpt: formData.excerpt || null,
         is_published: true,
         content_blocks: {
-          [defaultBlock.id]: defaultBlock,
           show_featured_image: showFeaturedImage
         }
       }

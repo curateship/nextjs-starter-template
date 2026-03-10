@@ -40,6 +40,7 @@ import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/them
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
 import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { AnimationSettingsCard } from "@/components/admin/layout/dashboard/AnimationSettingsCard"
+import { ContentTypesSettingsCard } from "@/components/admin/layout/dashboard/ContentTypesSettingsCard"
 
 // --- IntegrationCard ---
 
@@ -293,6 +294,7 @@ interface SiteEditPageProps {
 const TABS = [
   { id: 'general', label: 'General Settings' },
   { id: 'style', label: 'Style' },
+  { id: 'content-types', label: 'Content Types' },
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
@@ -320,6 +322,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(false)
+  const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -377,6 +380,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setCustomWidth(data.settings?.custom_width)
         setDefaultTheme(data.settings?.default_theme || 'system')
         setMaintenanceEnabled(!!data.settings?.maintenance?.enabled)
+        setDefaultBlocks(data.settings?.default_blocks || {})
       }
     } catch (err) {
       console.error('Error loading site:', err)
@@ -476,7 +480,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       setError(null)
       setSaveMessage(null)
 
-      if (activeTab === 'general' || activeTab === 'style') {
+      if (activeTab === 'general' || activeTab === 'style' || activeTab === 'content-types') {
         if (!siteName.trim()) {
           setError('Site name is required')
           return
@@ -500,7 +504,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             tracking_scripts: trackingScripts,
             site_width: siteWidth,
             custom_width: customWidth,
-            default_theme: defaultTheme
+            default_theme: defaultTheme,
+            default_blocks: defaultBlocks
           }
         })
 
@@ -645,6 +650,13 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onAnimationsChange={setAnimations}
                   />
                 </div>
+              )}
+
+              {activeTab === 'content-types' && (
+                <ContentTypesSettingsCard
+                  defaultBlocks={defaultBlocks}
+                  onDefaultBlocksChange={setDefaultBlocks}
+                />
               )}
 
               {activeTab === 'payments' && (
