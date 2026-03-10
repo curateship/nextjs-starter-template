@@ -34,9 +34,7 @@ export async function middleware(request: NextRequest) {
   // Protect /admin routes - require super_admin role
   if (path.startsWith('/admin')) {
     if (!user) {
-      const redirectUrl = new URL('/auth/login', request.url)
-      redirectUrl.searchParams.set('redirect', path)
-      return NextResponse.redirect(redirectUrl)
+      return NextResponse.redirect(new URL('/', request.url))
     }
 
     const role = user.app_metadata?.role
@@ -50,9 +48,7 @@ export async function middleware(request: NextRequest) {
   // Protect /user-pages routes - require authentication
   if (path.startsWith('/user-pages')) {
     if (!user) {
-      const redirectUrl = new URL('/auth/login', request.url)
-      redirectUrl.searchParams.set('redirect', path)
-      return NextResponse.redirect(redirectUrl)
+      return NextResponse.redirect(new URL('/', request.url))
     }
   }
 

@@ -105,7 +105,9 @@ export function AuthBlock({
       } else if (data.user) {
         const role = data.user.app_metadata?.role
         const defaultRedirect = role === 'super_admin' ? '/admin' : loginRedirectPath
-        const redirectTo = searchParams.get('redirect') || defaultRedirect
+        const rawRedirect = searchParams.get('redirect') || defaultRedirect
+        // Prevent open redirect — only allow relative paths
+        const redirectTo = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : defaultRedirect
         window.location.href = redirectTo
       }
     } catch (err) {
