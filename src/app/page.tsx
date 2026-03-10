@@ -2,21 +2,8 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { LandingPage } from "@/components/frontend/pages/LandingPage"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { notFound, redirect } from "next/navigation"
-import { cookies, headers } from "next/headers"
-
-function isRootDomain(host: string): boolean {
-  // localhost:3000 (no subdomain) → root domain
-  // mysite.localhost:3000 → subdomain site
-  // bare production domain (e.g. myapp.vercel.app) with no extra subdomain → root
-  const clean = host.replace(/^www\./, '')
-  // localhost without subdomain
-  if (clean === 'localhost:3000' || clean === 'localhost') return true
-  // Production: check NEXT_PUBLIC_APP_DOMAIN
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN?.replace(/^https?:\/\//, '')
-  if (appDomain && clean === appDomain) return true
-  return false
-}
+import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -31,18 +18,11 @@ async function checkAuth() {
 }
 
 export default async function SiteHomePage() {
-  // Check if this is the root domain — show landing page
-  const headersList = await headers()
-  const host = headersList.get('host') || 'localhost:3000'
-  if (isRootDomain(host)) {
-    return <LandingPage />
-  }
-
-  // Subdomain site — resolve and render
   const { success, site } = await getHomePageSite()
 
+  // No site found for this host — show landing page
   if (!success || !site) {
-    notFound()
+    return <LandingPage />
   }
 
   // Check maintenance mode - only redirect if not logged in
@@ -91,21 +71,12 @@ export default async function SiteHomePage() {
 
 export async function generateMetadata() {
   try {
-    const headersList = await headers()
-    const host = headersList.get('host') || 'localhost:3000'
-    if (isRootDomain(host)) {
-      return {
-        title: 'System Everything',
-        description: 'A platform for building and managing websites, stores, and content.',
-      }
-    }
-
     const { success, site } = await getHomePageSite()
 
     if (!success || !site) {
       return {
-        title: 'Site Not Found',
-        description: 'The requested site could not be found.',
+        title: 'System Everything',
+        description: 'A platform for building and managing websites, stores, and content.',
       }
     }
 
