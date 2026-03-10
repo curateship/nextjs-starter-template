@@ -1,12 +1,12 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 interface AccountEmailParams {
   to: string
   type: 'new_account' | 'existing_account'
   productName: string
   siteUrl: string
+  apiKey: string
+  fromEmail: string
 }
 
 /**
@@ -16,7 +16,9 @@ interface AccountEmailParams {
 export async function sendAccountNotificationEmail(
   params: AccountEmailParams
 ): Promise<void> {
-  const { to, type, productName, siteUrl } = params
+  const { to, type, productName, siteUrl, apiKey, fromEmail } = params
+
+  const resend = new Resend(apiKey)
 
   if (type === 'new_account') {
     // Email for newly created accounts
@@ -82,7 +84,7 @@ export async function sendAccountNotificationEmail(
         <body>
           <div class="container">
             <div class="header">
-              <h1>🎉 Welcome! Your Account is Ready</h1>
+              <h1>Welcome! Your Account is Ready</h1>
             </div>
             <div class="content">
               <p>Great news! We've created an account for you to access your lead magnet: <strong>${productName}</strong></p>
@@ -112,9 +114,9 @@ export async function sendAccountNotificationEmail(
     `
 
     await resend.emails.send({
-      from: process.env.DEFAULT_FROM_EMAIL || 'noreply@yourdomain.com',
+      from: fromEmail,
       to,
-      subject: `🎉 Your Account is Ready - ${productName}`,
+      subject: `Your Account is Ready - ${productName}`,
       html,
     })
   } else if (type === 'existing_account') {
@@ -178,7 +180,7 @@ export async function sendAccountNotificationEmail(
         <body>
           <div class="container">
             <div class="header">
-              <h1>📦 New Lead Magnet Added!</h1>
+              <h1>New Lead Magnet Added!</h1>
             </div>
             <div class="content">
               <p>Good news! <strong>${productName}</strong> has been added to your account.</p>
@@ -203,9 +205,9 @@ export async function sendAccountNotificationEmail(
     `
 
     await resend.emails.send({
-      from: process.env.DEFAULT_FROM_EMAIL || 'noreply@yourdomain.com',
+      from: fromEmail,
       to,
-      subject: `📦 New Lead Magnet Added - ${productName}`,
+      subject: `New Lead Magnet Added - ${productName}`,
       html,
     })
   }

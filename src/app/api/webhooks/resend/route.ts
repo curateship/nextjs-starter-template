@@ -23,19 +23,14 @@ export async function POST(request: NextRequest) {
   try {
     // Verify webhook signature
     const signature = request.headers.get('svix-signature')
-    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
 
-    if (!webhookSecret) {
-      console.error('RESEND_WEBHOOK_SECRET not configured')
-      return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
-    }
-
-    // For now, we'll accept the webhook (Resend uses svix for webhook signing)
-    // In production, you should verify the signature properly
     if (!signature) {
       console.error('No signature provided in webhook request')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // TODO: Verify signature against site-specific webhook secret
+    // For now, accept if signature header is present
 
     const body = await request.json()
     const { type, data } = body

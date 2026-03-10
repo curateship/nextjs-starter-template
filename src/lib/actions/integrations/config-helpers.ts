@@ -3,7 +3,7 @@
 import { getSiteIntegration } from './integration-actions'
 
 /**
- * Get Stripe config for a site. Falls back to environment variables.
+ * Get Stripe config for a site from site integrations.
  */
 export async function getStripeConfig(siteId: string): Promise<{
   secretKey: string
@@ -20,17 +20,6 @@ export async function getStripeConfig(siteId: string): Promise<{
         publishableKey: publishable_key,
         webhookSecret: webhook_secret,
       }
-    }
-  }
-
-  // Fall back to environment variables
-  const envSecretKey = process.env.STRIPE_SECRET_KEY
-  const envPublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  if (envSecretKey && envPublishableKey) {
-    return {
-      secretKey: envSecretKey,
-      publishableKey: envPublishableKey,
-      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
     }
   }
 
@@ -130,13 +119,13 @@ export async function getFlodeskConfig(siteId: string): Promise<{
 }
 
 /**
- * Get Resend config for a site. Falls back to environment variables.
+ * Get Resend config for a site from site integrations.
  */
 export async function getResendConfig(siteId: string): Promise<{
   apiKey?: string
   fromEmail?: string
   fromName?: string
-}> {
+} | null> {
   const integration = await getSiteIntegration(siteId, 'resend')
 
   if (integration && integration.is_enabled) {
@@ -148,10 +137,5 @@ export async function getResendConfig(siteId: string): Promise<{
     }
   }
 
-  // Fall back to environment variables
-  return {
-    apiKey: process.env.RESEND_API_KEY,
-    fromEmail: process.env.DEFAULT_FROM_EMAIL,
-    fromName: process.env.DEFAULT_FROM_NAME,
-  }
+  return null
 }

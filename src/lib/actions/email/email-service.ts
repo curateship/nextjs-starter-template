@@ -40,11 +40,10 @@ class EmailService {
    * Get Resend client with site-specific or default API key
    */
   private getResendClient(apiKey?: string): Resend {
-    const key = apiKey || process.env.RESEND_API_KEY
-    if (!key) {
-      throw new Error('Resend API key not configured')
+    if (!apiKey) {
+      throw new Error('Resend API key not configured. Add your Resend API key in site Integration settings.')
     }
-    return new Resend(key)
+    return new Resend(apiKey)
   }
 
   /**
@@ -54,8 +53,8 @@ class EmailService {
     from: string
     replyTo?: string
   } {
-    const fromEmail = config?.fromEmail || process.env.DEFAULT_FROM_EMAIL
-    const fromName = config?.fromName || process.env.DEFAULT_FROM_NAME
+    const fromEmail = config?.fromEmail
+    const fromName = config?.fromName
 
     if (!fromEmail) {
       throw new Error('From email not configured')

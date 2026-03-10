@@ -21,8 +21,10 @@ export async function sendLeadMagnetDeliveryEmail(
 ): Promise<void> {
   const { to, subject, fromName, fromEmail, replyTo, content, productName, siteUrl, apiKey } = params
 
-  // Use provided apiKey or fall back to env var
-  const resend = new Resend(apiKey || process.env.RESEND_API_KEY)
+  if (!apiKey) {
+    throw new Error('Resend API key not configured. Add your Resend API key in site Integration settings.')
+  }
+  const resend = new Resend(apiKey)
 
   const html = `
     <!DOCTYPE html>
@@ -94,7 +96,7 @@ export async function sendLeadMagnetDeliveryEmail(
   `
 
   await resend.emails.send({
-    from: `${fromName} <${fromEmail || process.env.DEFAULT_FROM_EMAIL || 'noreply@yourdomain.com'}>`,
+    from: `${fromName} <${fromEmail || 'noreply@yourdomain.com'}>`,
     to,
     subject,
     html,

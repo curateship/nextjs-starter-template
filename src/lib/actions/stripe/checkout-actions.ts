@@ -5,19 +5,15 @@ import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 
 /**
  * Create a Stripe client for a specific site.
- * Reads from DB integration config first, falls back to env vars.
+ * Reads from site integration config.
  */
-async function getStripeClient(siteId?: string): Promise<Stripe> {
-  let secretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder'
-
-  if (siteId) {
-    const config = await getStripeConfig(siteId)
-    if (config) {
-      secretKey = config.secretKey
-    }
+async function getStripeClient(siteId: string): Promise<Stripe> {
+  const config = await getStripeConfig(siteId)
+  if (!config) {
+    throw new Error('Stripe is not configured for this site. Add your Stripe keys in site Integration settings.')
   }
 
-  return new Stripe(secretKey, {
+  return new Stripe(config.secretKey, {
     apiVersion: '2025-09-30.clover',
   })
 }

@@ -52,7 +52,7 @@ export function EmbeddedCheckoutWrapper({
   selectedBumps,
   stripePublishableKey,
 }: EmbeddedCheckoutWrapperProps) {
-  const resolvedKey = stripePublishableKey || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  const resolvedKey = stripePublishableKey
   const stripePromiseRef = useRef(resolvedKey ? loadStripe(resolvedKey) : null)
 
   const [clientSecret, setClientSecret] = useState<string | null>(null)
