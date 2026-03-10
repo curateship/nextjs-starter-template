@@ -61,17 +61,7 @@ export async function getDataForSEOConfig(siteId: string): Promise<{
 }
 
 /**
- * Env var name mapping for AI providers.
- */
-const AI_PROVIDER_ENV_MAP: Record<string, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  perplexity: 'PERPLEXITY_API_KEY',
-  google_ai: 'GOOGLE_API_KEY',
-}
-
-/**
- * Get an AI provider API key for a site. Falls back to environment variables.
+ * Get an AI provider API key for a site from site integrations.
  */
 export async function getAIProviderConfig(
   siteId: string,
@@ -84,13 +74,6 @@ export async function getAIProviderConfig(
     if (api_key) {
       return { apiKey: api_key }
     }
-  }
-
-  // Fall back to environment variables
-  const envVar = AI_PROVIDER_ENV_MAP[provider]
-  const envKey = envVar ? process.env[envVar] : undefined
-  if (envKey) {
-    return { apiKey: envKey }
   }
 
   return null
