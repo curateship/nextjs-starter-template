@@ -23,11 +23,6 @@ const supabaseAdmin = createClient(
 export async function POST(request: NextRequest) {
   try {
     // Verify webhook signature using Svix HMAC-SHA256
-    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
-    if (!webhookSecret) {
-      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
-    }
-
     const svixId = request.headers.get('svix-id')
     const svixTimestamp = request.headers.get('svix-timestamp')
     const svixSignature = request.headers.get('svix-signature')
@@ -45,23 +40,40 @@ export async function POST(request: NextRequest) {
 
     const rawBody = await request.text()
 
-    // Compute expected signature — strip Svix prefix if present
-    const PREFIX = 'whsec' + '_'
-    const rawSecret = webhookSecret.startsWith(PREFIX) ? webhookSecret.slice(PREFIX.length) : webhookSecret
-    const secretBytes = Buffer.from(rawSecret, 'base64')
-    const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
-    const expectedSignature = crypto
-      .createHmac('sha256', secretBytes)
-      .update(signedContent)
-      .digest('base64')
+    // Try all Resend integrations to find a matching webhook secret (same pattern as Stripe)
+    const { data: integrations } = await supabaseAdmin
+      .from('site_integrations')
+      .select('site_id, config')
+      .eq('integration_type', 'resend')
+      .eq('is_enabled', true)
 
-    // Svix sends multiple signatures separated by space, each prefixed with version
-    const isValid = svixSignature.split(' ').some(sig => {
-      const [, sigValue] = sig.split(',')
-      return sigValue === expectedSignature
-    })
+    if (!integrations || integrations.length === 0) {
+      return NextResponse.json({ error: 'No Resend integrations configured' }, { status: 400 })
+    }
 
-    if (!isValid) {
+    let verified = false
+    for (const integration of integrations) {
+      const secret = integration.config?.webhook_secret
+      if (!secret) continue
+
+      const PREFIX = 'whsec' + '_'
+      const rawSecret = secret.startsWith(PREFIX) ? secret.slice(PREFIX.length) : secret
+      const secretBytes = Buffer.from(rawSecret, 'base64')
+      const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
+      const expected = crypto
+        .createHmac('sha256', secretBytes)
+        .update(signedContent)
+        .digest('base64')
+
+      verified = svixSignature.split(' ').some(sig => {
+        const [, sigValue] = sig.split(',')
+        return sigValue === expected
+      })
+
+      if (verified) break
+    }
+
+    if (!verified) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 

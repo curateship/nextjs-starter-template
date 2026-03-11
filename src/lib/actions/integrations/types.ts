@@ -13,7 +13,7 @@ export type IntegrationType =
  */
 export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   flodesk: ['api_key'],
-  resend: ['api_key'],
+  resend: ['api_key', 'webhook_secret'],
   stripe: ['secret_key', 'webhook_secret'],
   anthropic: ['api_key'],
   openai: ['api_key'],
@@ -49,7 +49,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     fields: [
       { key: 'secret_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...', required: true },
       { key: 'publishable_key', label: 'Publishable Key', type: 'text', placeholder: 'pk_...', required: true },
-      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'whsec_...' },
+      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
     ],
   },
   // Email
@@ -60,6 +60,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     category: 'email',
     fields: [
       { key: 'api_key', label: 'API Key', type: 'password', placeholder: 're_...', required: true },
+      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
       { key: 'from_email', label: 'From Email', type: 'email', placeholder: 'noreply@yourdomain.com' },
       { key: 'from_name', label: 'From Name', type: 'text', placeholder: 'Your Company' },
     ],
