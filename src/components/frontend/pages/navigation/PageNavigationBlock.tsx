@@ -390,6 +390,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
   return (
     <header>
       <nav
+        data-block-type="navigation"
         data-state={menuState && 'active'}
         className={cn(
           'fixed top-0 z-50 w-full border-b',

@@ -45,14 +45,18 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
       {navigation && (
         <NavBlock {...navigation} site={site} />
       )}
-      
+
       {/* Main content */}
       <div className={navigation ? "pt-16" : ""}>
         {children}
       </div>
-      
+
       {/* Footer - only render if footer data exists */}
-      {footer && <FooterBlock {...footer} site={site} />}
+      {footer && (
+        <div data-block-type="footer">
+          <FooterBlock {...footer} site={site} />
+        </div>
+      )}
     </SiteThemeProvider>
   )
 }

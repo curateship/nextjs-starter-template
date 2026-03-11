@@ -216,6 +216,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           } : undefined}
           blocksLoading={blocksLoading}
           onBack={() => builderState.setSelectedBlock(null)}
+          onSelectBlock={builderState.setSelectedBlock}
         />
 
         <BlockListPanel

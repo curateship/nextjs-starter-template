@@ -41,9 +41,9 @@ interface BlockPropertiesPanelProps {
       [key: string]: any
     }
   }
-  // allBlocks removed - navigation/footer now come from site.settings
   blocksLoading?: boolean
   onBack?: () => void
+  onSelectBlock?: (block: PageBlock) => void
 }
 
 export function BlockPropertiesPanel({
@@ -53,7 +53,8 @@ export function BlockPropertiesPanel({
   currentPage,
   site,
   blocksLoading = false,
-  onBack
+  onBack,
+  onSelectBlock
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -184,11 +185,13 @@ export function BlockPropertiesPanel({
       ) : (
         <div className="h-full">
           {currentPage ? (
-            <PagePreview 
-              blocks={currentPage.blocks} 
+            <PagePreview
+              blocks={currentPage.blocks}
               site={site}
               className="h-full"
               blocksLoading={blocksLoading}
+              allBlocks={currentPage.blocks}
+              onSelectBlock={onSelectBlock}
             />
           ) : (
             <div className="text-center text-muted-foreground h-full flex items-center justify-center">

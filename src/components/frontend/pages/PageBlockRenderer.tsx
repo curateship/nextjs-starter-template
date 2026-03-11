@@ -56,108 +56,117 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         if (block.type === 'navigation' || block.type === 'footer') {
           return null
         }
-        
+
         if (block.type === 'hero') {
           return (
-            <PageHeroBlock
-              key={`hero-${block.id}`}
-              {...block.content}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <PageHeroBlock
+                {...block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
-        
+
         if (block.type === 'rich-text') {
           return (
-            <RichTextBlock 
-              key={`richText-${block.id}`}
-              content={{
-                title: block.content.title,
-                subtitle: block.content.subtitle,
-                headerAlign: block.content.headerAlign || 'left',
-                content: block.content.content || ''
-              }}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <RichTextBlock
+                content={{
+                  title: block.content.title,
+                  subtitle: block.content.subtitle,
+                  headerAlign: block.content.headerAlign || 'left',
+                  content: block.content.content || ''
+                }}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
-        
+
         if (block.type === 'faq') {
           return (
-            <FaqBlock 
-              key={`faq-${block.id}`}
-              content={block.content}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <FaqBlock
+                content={block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
-        
+
         if (block.type === 'listing-views') {
           return (
-            <ListingViewsBlock 
-              key={`listing-views-${block.id}`}
-              content={block.content}
-              siteId={site.id}
-              urlPrefixes={{
-                products: 'products',
-                posts: 'posts'
-              }}
-              preloadedData={site.listingData?.[block.id]}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <ListingViewsBlock
+                content={block.content}
+                siteId={site.id}
+                urlPrefixes={{
+                  products: 'products',
+                  posts: 'posts'
+                }}
+                preloadedData={site.listingData?.[block.id]}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
-        
+
         if (block.type === 'divider') {
           return (
-            <DividerBlock
-              key={`divider-${block.id}`}
-              content={block.content}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <DividerBlock
+                content={block.content}
+              />
+            </div>
           )
         }
 
         if (block.type === 'user-profile') {
           return (
-            <UserProfileBlock
-              key={`user-profile-${block.id}`}
-              {...block.content}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <UserProfileBlock
+                {...block.content}
+              />
+            </div>
           )
         }
 
         if (block.type === 'auth') {
           return (
-            <AuthBlock
-              key={`auth-${block.id}`}
-              {...block.content}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <AuthBlock
+                {...block.content}
+              />
+            </div>
           )
         }
 
         if (block.type === 'testimonials') {
           return (
-            <TestimonialsBlock
-              key={`testimonials-${block.id}`}
-              content={block.content}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <TestimonialsBlock
+                content={block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
 
         if (block.type === 'embedded') {
           return (
-            <EmbeddedBlock
-              key={`embedded-${block.id}`}
-              content={block.content}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <EmbeddedBlock
+                content={block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </div>
           )
         }
 
