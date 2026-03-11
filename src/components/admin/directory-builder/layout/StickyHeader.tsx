@@ -91,7 +91,7 @@ export function StickyHeader({
     if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    const url = `http://localhost:3000/directories/${slug}`
+    const url = `http://${currentSite.subdomain}.localhost:3000/directories/${slug}`
     return url
   }
 

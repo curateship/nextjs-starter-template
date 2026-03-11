@@ -60,14 +60,6 @@ export interface Category {
   updated_at: string
 }
 
-export interface CategoryWithDetails extends Category {
-  site_name: string
-  subdomain: string
-  user_id: string
-  parent_title?: string
-  children_count?: number
-}
-
 export interface CreateCategoryData {
   title: string
   slug?: string
@@ -88,7 +80,6 @@ export interface UpdateCategoryData {
   meta_description?: string | null
   content_blocks?: Record<string, any>
   is_published?: boolean
-  display_order?: number
 }
 
 function generateSlug(title: string): string {
@@ -142,90 +133,6 @@ export async function getCategoriesForSiteAction(siteId: string) {
   } catch (error) {
     console.error('Error fetching categories:', error)
     return { data: null, error: 'Failed to fetch categories' }
-  }
-}
-
-/**
- * Get a single category by ID
- */
-export async function getCategoryByIdAction(categoryId: string) {
-  try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*, sites!inner(user_id, name, subdomain)')
-      .eq('id', categoryId)
-      .single()
-
-    if (categoryError || !category) {
-      return { data: null, error: 'Category not found' }
-    }
-
-    if (category.sites.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    const categoryWithDetails: CategoryWithDetails = {
-      ...category,
-      site_name: category.sites.name,
-      subdomain: category.sites.subdomain,
-      user_id: category.sites.user_id,
-    }
-
-    return { data: categoryWithDetails, error: null }
-  } catch (error) {
-    console.error('Error fetching category:', error)
-    return { data: null, error: 'Failed to fetch category' }
-  }
-}
-
-/**
- * Get a category by slug
- */
-export async function getCategoryBySlugAction(siteId: string, slug: string) {
-  try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
-
-    if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
-    }
-
-    if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (categoryError || !category) {
-      return { data: null, error: 'Category not found' }
-    }
-
-    return { data: category as Category, error: null }
-  } catch (error) {
-    console.error('Error fetching category by slug:', error)
-    return { data: null, error: 'Failed to fetch category' }
   }
 }
 
@@ -335,6 +242,12 @@ export async function createCategoryAction(
  */
 export async function updateCategoryAction(categoryId: string, data: UpdateCategoryData) {
   try {
+    // Validate category ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(categoryId)) {
+      return { data: null, error: 'Invalid category ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -356,18 +269,31 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       return { data: null, error: 'Unauthorized' }
     }
 
-    // If slug is being updated, check if it's already taken
-    if (data.slug && data.slug !== category.slug) {
-      const { data: existingCategory } = await supabaseAdmin
-        .from('categories')
-        .select('id')
-        .eq('site_id', category.site_id)
-        .eq('slug', data.slug)
-        .neq('id', categoryId)
-        .single()
+    // Validate and process slug if being updated
+    if (data.slug !== undefined) {
+      const slug = data.slug.trim()
 
-      if (existingCategory) {
-        return { data: null, error: 'A category with this slug already exists' }
+      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      }
+
+      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
+      if (reservedSlugs.includes(slug.toLowerCase())) {
+        return { data: null, error: 'This slug is reserved and cannot be used.' }
+      }
+
+      if (slug !== category.slug) {
+        const { data: existingCategory } = await supabaseAdmin
+          .from('categories')
+          .select('id')
+          .eq('site_id', category.site_id)
+          .eq('slug', slug)
+          .neq('id', categoryId)
+          .single()
+
+        if (existingCategory) {
+          return { data: null, error: 'A category with this slug already exists' }
+        }
       }
     }
 
@@ -396,10 +322,25 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       }
     }
 
+    // Build updates with explicit field whitelist
+    const allowedFields = ['title', 'slug', 'parent_id', 'is_published', 'featured_image', 'description', 'meta_description', 'content_blocks'] as const
+    const finalUpdates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if ((data as any)[field] !== undefined) {
+        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
+          finalUpdates[field] = typeof (data as any)[field] === 'string'
+            ? (data as any)[field].trim() || null
+            : (data as any)[field]
+        } else {
+          finalUpdates[field] = (data as any)[field]
+        }
+      }
+    }
+
     const { data: updatedCategory, error: updateError } = await supabaseAdmin
       .from('categories')
       .update({
-        ...data,
+        ...finalUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', categoryId)
@@ -426,6 +367,12 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
  */
 export async function deleteCategoryAction(categoryId: string) {
   try {
+    // Validate category ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(categoryId)) {
+      return { success: false, error: 'Invalid category ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -506,6 +453,12 @@ export async function deleteCategoryAction(categoryId: string) {
  */
 export async function updateCategoryBlocksAction(categoryId: string, contentBlocks: Record<string, any>) {
   try {
+    // Validate category ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(categoryId)) {
+      return { success: false, error: 'Invalid category ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -527,15 +480,13 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
       return { success: false, error: 'Unauthorized' }
     }
 
-    const { data: updatedCategory, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('categories')
       .update({
         content_blocks: contentBlocks,
         updated_at: new Date().toISOString()
       })
       .eq('id', categoryId)
-      .select()
-      .single()
 
     if (updateError) {
       return { success: false, error: updateError.message }
@@ -552,87 +503,3 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
   }
 }
 
-/**
- * Duplicate a category
- */
-export async function duplicateCategoryAction(categoryId: string, newTitle: string) {
-  try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const { data: originalCategory, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
-
-    if (categoryError || !originalCategory) {
-      return { data: null, error: 'Category not found' }
-    }
-
-    if (originalCategory.sites.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    // Generate a unique slug for the duplicate
-    const baseSlug = generateSlug(newTitle)
-    let slug = baseSlug
-    let counter = 1
-
-    while (true) {
-      const { data: existingCategory } = await supabaseAdmin
-        .from('categories')
-        .select('id')
-        .eq('site_id', originalCategory.site_id)
-        .eq('slug', slug)
-        .single()
-
-      if (!existingCategory) break
-      slug = `${baseSlug}-${counter}`
-      counter++
-    }
-
-    const { data: maxOrderCategory } = await supabaseAdmin
-      .from('categories')
-      .select('display_order')
-      .eq('site_id', originalCategory.site_id)
-      .order('display_order', { ascending: false })
-      .limit(1)
-      .single()
-
-    const nextDisplayOrder = maxOrderCategory ? maxOrderCategory.display_order + 1 : 0
-
-    const { data: newCategory, error: createError } = await supabaseAdmin
-      .from('categories')
-      .insert({
-        site_id: originalCategory.site_id,
-        title: newTitle,
-        slug,
-        parent_id: originalCategory.parent_id,
-        featured_image: originalCategory.featured_image,
-        description: originalCategory.description,
-        meta_description: originalCategory.meta_description,
-        content_blocks: originalCategory.content_blocks || {},
-        is_published: false,
-        display_order: nextDisplayOrder
-      })
-      .select()
-      .single()
-
-    if (createError) {
-      return { data: null, error: createError.message }
-    }
-
-    revalidateTag('categories')
-    revalidateTag(`site-${originalCategory.site_id}`)
-
-    return { data: newCategory as Category, error: null }
-  } catch (error) {
-    console.error('Error duplicating category:', error)
-    return { data: null, error: 'Failed to duplicate category' }
-  }
-}

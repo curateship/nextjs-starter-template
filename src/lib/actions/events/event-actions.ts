@@ -61,13 +61,6 @@ export interface Event {
   updated_at: string
 }
 
-export interface EventWithDetails extends Event {
-  site_name: string
-  subdomain: string
-  user_id: string
-}
-
-
 export interface UpdateEventData {
   title?: string
   slug?: string
@@ -75,7 +68,6 @@ export interface UpdateEventData {
   featured_image?: string | null
   description?: string | null
   meta_description?: string | null
-  content_blocks?: Record<string, any>
 }
 
 function generateSlug(title: string): string {
@@ -133,8 +125,14 @@ export async function getSiteEventsAction(siteId: string) {
 
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {
+    // Validate event ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(eventId)) {
+      return { data: null, error: 'Invalid event ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -156,18 +154,46 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
       return { data: null, error: 'Unauthorized' }
     }
 
-    // If slug is being updated, check if it's already taken
-    if (data.slug && data.slug !== event.slug) {
-      const { data: existingEvent } = await supabaseAdmin
-        .from('events')
-        .select('id')
-        .eq('site_id', event.site_id)
-        .eq('slug', data.slug)
-        .neq('id', eventId)
-        .single()
+    // Validate and process slug if being updated
+    if (data.slug !== undefined) {
+      const slug = data.slug.trim()
 
-      if (existingEvent) {
-        return { data: null, error: 'An event with this slug already exists' }
+      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      }
+
+      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
+      if (reservedSlugs.includes(slug.toLowerCase())) {
+        return { data: null, error: 'This slug is reserved and cannot be used.' }
+      }
+
+      if (slug !== event.slug) {
+        const { data: existingEvent } = await supabaseAdmin
+          .from('events')
+          .select('id')
+          .eq('site_id', event.site_id)
+          .eq('slug', slug)
+          .neq('id', eventId)
+          .single()
+
+        if (existingEvent) {
+          return { data: null, error: 'An event with this slug already exists' }
+        }
+      }
+    }
+
+    // Build updates with explicit field whitelist
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description', 'meta_description'] as const
+    const finalUpdates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if ((data as any)[field] !== undefined) {
+        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
+          finalUpdates[field] = typeof (data as any)[field] === 'string'
+            ? (data as any)[field].trim() || null
+            : (data as any)[field]
+        } else {
+          finalUpdates[field] = (data as any)[field]
+        }
       }
     }
 
@@ -175,7 +201,7 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
     const { data: updatedEvent, error: updateError } = await supabaseAdmin
       .from('events')
       .update({
-        ...data,
+        ...finalUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', eventId)
@@ -200,8 +226,14 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
 
 export async function deleteEventAction(eventId: string) {
   try {
+    // Validate event ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(eventId)) {
+      return { success: false, error: 'Invalid event ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -247,8 +279,18 @@ export async function deleteEventAction(eventId: string) {
 
 export async function duplicateEventAction(eventId: string, newTitle: string) {
   try {
+    // Validate event ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(eventId)) {
+      return { data: null, error: 'Invalid event ID format' }
+    }
+
+    if (!newTitle?.trim()) {
+      return { data: null, error: 'New event title is required' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -331,48 +373,14 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
   }
 }
 
-export async function getEventBySlugAction(siteId: string, slug: string) {
-  try {
-    const supabase = await createServerSupabaseClient()
-    
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Get the event with site details
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*, sites!inner(user_id, name, subdomain)')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
-
-    if (eventError || !event) {
-      return { data: null, error: 'Event not found' }
-    }
-
-    if (event.sites.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    const eventWithDetails: EventWithDetails = {
-      ...event,
-      site_name: event.sites.name,
-      subdomain: event.sites.subdomain,
-      user_id: event.sites.user_id
-    }
-
-    return { data: eventWithDetails, error: null }
-  } catch (error) {
-    console.error('Error fetching event:', error)
-    return { data: null, error: 'Failed to fetch event' }
-  }
-}
-
 export async function updateEventBlocksAction(eventId: string, contentBlocks: Record<string, any>) {
   try {
+    // Validate event ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(eventId)) {
+      return { success: false, error: 'Invalid event ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Get current user
@@ -397,15 +405,13 @@ export async function updateEventBlocksAction(eventId: string, contentBlocks: Re
     }
 
     // Update the event blocks
-    const { data: updatedEvent, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('events')
       .update({
         content_blocks: contentBlocks,
         updated_at: new Date().toISOString()
       })
       .eq('id', eventId)
-      .select()
-      .single()
 
     if (updateError) {
       return { success: false, error: updateError.message }

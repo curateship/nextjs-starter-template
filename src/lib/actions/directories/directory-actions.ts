@@ -75,7 +75,6 @@ export interface UpdateDirectoryData {
   featured_image?: string | null
   description?: string | null
   meta_description?: string | null
-  content_blocks?: Record<string, any>
 }
 
 function generateSlug(title: string): string {
@@ -133,8 +132,14 @@ export async function getSiteDirectoriesAction(siteId: string) {
 
 export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryData) {
   try {
+    // Validate directory ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(directoryId)) {
+      return { data: null, error: 'Invalid directory ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -156,18 +161,46 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
       return { data: null, error: 'Unauthorized' }
     }
 
-    // If slug is being updated, check if it's already taken
-    if (data.slug && data.slug !== directory.slug) {
-      const { data: existingDirectory } = await supabaseAdmin
-        .from('directory')
-        .select('id')
-        .eq('site_id', directory.site_id)
-        .eq('slug', data.slug)
-        .neq('id', directoryId)
-        .single()
+    // Validate and process slug if being updated
+    if (data.slug !== undefined) {
+      const slug = data.slug.trim()
 
-      if (existingDirectory) {
-        return { data: null, error: 'A directory with this slug already exists' }
+      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      }
+
+      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
+      if (reservedSlugs.includes(slug.toLowerCase())) {
+        return { data: null, error: 'This slug is reserved and cannot be used.' }
+      }
+
+      if (slug !== directory.slug) {
+        const { data: existingDirectory } = await supabaseAdmin
+          .from('directory')
+          .select('id')
+          .eq('site_id', directory.site_id)
+          .eq('slug', slug)
+          .neq('id', directoryId)
+          .single()
+
+        if (existingDirectory) {
+          return { data: null, error: 'A directory with this slug already exists' }
+        }
+      }
+    }
+
+    // Build updates with explicit field whitelist
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description', 'meta_description'] as const
+    const finalUpdates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if ((data as any)[field] !== undefined) {
+        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
+          finalUpdates[field] = typeof (data as any)[field] === 'string'
+            ? (data as any)[field].trim() || null
+            : (data as any)[field]
+        } else {
+          finalUpdates[field] = (data as any)[field]
+        }
       }
     }
 
@@ -175,7 +208,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     const { data: updatedDirectory, error: updateError } = await supabaseAdmin
       .from('directory')
       .update({
-        ...data,
+        ...finalUpdates,
         updated_at: new Date().toISOString()
       })
       .eq('id', directoryId)
@@ -200,8 +233,14 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 
 export async function deleteDirectoryAction(directoryId: string) {
   try {
+    // Validate directory ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(directoryId)) {
+      return { success: false, error: 'Invalid directory ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -247,8 +286,18 @@ export async function deleteDirectoryAction(directoryId: string) {
 
 export async function duplicateDirectoryAction(directoryId: string, newTitle: string) {
   try {
+    // Validate directory ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(directoryId)) {
+      return { data: null, error: 'Invalid directory ID format' }
+    }
+
+    if (!newTitle?.trim()) {
+      return { data: null, error: 'New directory title is required' }
+    }
+
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
@@ -333,6 +382,12 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
 
 export async function getDirectoryBySlugAction(siteId: string, slug: string) {
   try {
+    // Validate site ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(siteId)) {
+      return { data: null, error: 'Invalid site ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Get current user
@@ -373,6 +428,12 @@ export async function getDirectoryBySlugAction(siteId: string, slug: string) {
 
 export async function updateDirectoryBlocksAction(directoryId: string, contentBlocks: Record<string, any>) {
   try {
+    // Validate directory ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(directoryId)) {
+      return { success: false, error: 'Invalid directory ID format' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Get current user
@@ -397,15 +458,13 @@ export async function updateDirectoryBlocksAction(directoryId: string, contentBl
     }
 
     // Update the directory blocks
-    const { data: updatedDirectory, error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('directory')
       .update({
         content_blocks: contentBlocks,
         updated_at: new Date().toISOString()
       })
       .eq('id', directoryId)
-      .select()
-      .single()
 
     if (updateError) {
       return { success: false, error: updateError.message }

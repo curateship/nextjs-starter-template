@@ -81,8 +81,8 @@ export function StickyHeader({
 
   const getCategoryUrl = (categorySlug?: string) => {
     const slug = categorySlug || currentCategory?.slug
-    if (!slug) return '#'
-    return `/categories/${slug}`
+    if (!slug || !currentSite?.subdomain) return '#'
+    return `http://${currentSite.subdomain}.localhost:3000/categories/${slug}`
   }
 
   return (

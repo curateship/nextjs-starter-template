@@ -82,43 +82,6 @@ export interface UpdateProductData {
   is_published?: boolean
   featured_image?: string | null
   description?: string | null
-  content_blocks?: Record<string, any>
-}
-
-/**
- * Get all products globally
- */
-export async function getAllProductsAction(): Promise<{ data: Product[] | null; error: string | null }> {
-  try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .order('display_order', { ascending: true })
-
-    if (error) {
-      // Check if it's a table not found error
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        // Products table doesn't exist yet - return empty array
-        return { data: [], error: null }
-      }
-      return { data: null, error: `Failed to fetch products: ${error.message}` }
-    }
-
-    return { data: data as Product[], error: null }
-  } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
 }
 
 /**
@@ -389,17 +352,20 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       processedUpdates.slug = slug
     }
 
-    // Clean up the updates object
-    const finalUpdates: any = {}
-    Object.entries(processedUpdates).forEach(([key, value]) => {
-      if (value !== undefined) {
-        if (key === 'title') {
-          finalUpdates[key] = typeof value === 'string' ? value.trim() || null : value
+    // SECURITY: Only allow whitelisted fields to prevent content_blocks bypass
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description'] as const
+    const finalUpdates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if ((processedUpdates as any)[field] !== undefined) {
+        if (field === 'title') {
+          finalUpdates[field] = typeof (processedUpdates as any)[field] === 'string'
+            ? (processedUpdates as any)[field].trim() || null
+            : (processedUpdates as any)[field]
         } else {
-          finalUpdates[key] = value
+          finalUpdates[field] = (processedUpdates as any)[field]
         }
       }
-    })
+    }
 
     // Update the product
     const { data, error } = await supabaseAdmin
@@ -698,33 +664,3 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
   }
 }
 
-/**
- * Get product content blocks by block type
- */
-export async function getProductBlockAction(productId: string, blockType: string): Promise<{ success: boolean; block?: any; error?: string }> {
-  try {
-    // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
-      return { success: false, error: 'Invalid product ID format' }
-    }
-
-    // Get the product
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('content_blocks')
-      .eq('id', productId)
-      .single()
-
-    if (productError || !product) {
-      return { success: false, error: 'Product not found' }
-    }
-
-    const block = product.content_blocks?.[blockType] || null
-    return { success: true, block }
-
-  } catch (error) {
-    console.error('Error getting product block:', error)
-    return { success: false, error: 'Failed to get product block' }
-  }
-}

@@ -3,7 +3,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getImageByUrlAction } from '../media/media-actions'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -93,47 +92,7 @@ export interface UpdatePostData {
   meta_description?: string
   featured_image?: string
   excerpt?: string
-  content_blocks?: Record<string, PostBlock>
   is_published?: boolean
-}
-
-/**
- * Get all posts globally
- */
-export async function getAllPostsAction(): Promise<{ data: Post[] | null; error: string | null }> {
-  try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .order('display_order', { ascending: true })
-
-    if (error) {
-      // Check if it's a table not found error
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        // Posts table doesn't exist yet - return empty array
-        return { data: [], error: null }
-      }
-      return { data: null, error: `Failed to fetch posts: ${error.message}` }
-    }
-
-    // Data already includes content_blocks column - no transformation needed
-    const transformedData = data || []
-
-    return { data: transformedData as Post[], error: null }
-  } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
-  }
 }
 
 /**
@@ -350,20 +309,20 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       processedUpdates.slug = slug
     }
 
-    // Separate content_blocks from other updates
-    const { content_blocks, ...postUpdates } = processedUpdates
-    
-    // Clean up the post updates
-    const finalPostUpdates: any = {}
-    Object.entries(postUpdates).forEach(([key, value]) => {
-      if (value !== undefined) {
-        if (key === 'title' || key === 'meta_description' || key === 'featured_image' || key === 'excerpt') {
-          finalPostUpdates[key] = typeof value === 'string' ? value.trim() || null : value
+    // Build updates with explicit field whitelist
+    const allowedFields = ['title', 'slug', 'meta_description', 'featured_image', 'excerpt', 'is_published'] as const
+    const finalPostUpdates: Record<string, any> = {}
+    for (const field of allowedFields) {
+      if ((processedUpdates as any)[field] !== undefined) {
+        if (field === 'title' || field === 'meta_description' || field === 'featured_image' || field === 'excerpt') {
+          finalPostUpdates[field] = typeof (processedUpdates as any)[field] === 'string'
+            ? (processedUpdates as any)[field].trim() || null
+            : (processedUpdates as any)[field]
         } else {
-          finalPostUpdates[key] = value
+          finalPostUpdates[field] = (processedUpdates as any)[field]
         }
       }
-    })
+    }
 
     // Update the post
     const { data, error } = await supabaseAdmin
@@ -380,31 +339,9 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: `Failed to update post: ${error.message}` }
     }
 
-    // Include content_blocks in the main update if provided
-    if (content_blocks !== undefined) {
-      updates.content_blocks = content_blocks
-    }
-
-    // Only track image usage if featured_image was actually updated
-    if (updates.featured_image !== undefined) {
-      // Remove old usage tracking if there was a previous image
-      if (post.featured_image) {
-        const { data: oldImageId } = await getImageByUrlAction(post.featured_image)
-        if (oldImageId) {
-        }
-      }
-      
-      // Add new usage tracking if new image exists and post is published
-      if (data.featured_image && data.is_published) {
-        const { data: imageId } = await getImageByUrlAction(data.featured_image)
-        if (imageId) {
-        }
-      }
-    }
-
-    return { 
-      data: data as Post, 
-      error: null 
+    return {
+      data: data as Post,
+      error: null
     }
   } catch (error) {
     return { 
@@ -454,13 +391,6 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
 
     if (siteError || !site) {
       return { success: false, error: 'Site not found or access denied' }
-    }
-
-    // Remove featured image usage tracking if post has an image
-    if (post.featured_image) {
-      const { data: imageId } = await getImageByUrlAction(post.featured_image)
-      if (imageId) {
-      }
     }
 
     // Delete the post
@@ -584,13 +514,6 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 
     if (error) {
       return { data: null, error: `Failed to duplicate post: ${error.message}` }
-    }
-
-    // Track featured image usage if the new post has one and is published
-    if (newPost.featured_image && newPost.is_published) {
-      const { data: imageId } = await getImageByUrlAction(newPost.featured_image)
-      if (imageId) {
-      }
     }
 
     return { data: newPost as Post, error: null }
