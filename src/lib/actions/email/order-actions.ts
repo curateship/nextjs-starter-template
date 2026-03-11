@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
 
 // Create admin client with service role key
@@ -14,6 +16,44 @@ const supabaseAdmin = createClient(
     },
   }
 )
+
+async function createServerSupabaseClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch { /* ignore in server components */ }
+        },
+      },
+    }
+  )
+}
+
+/**
+ * Verify the authenticated user owns the given site.
+ */
+async function verifySiteOwnership(siteId: string): Promise<void> {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) throw new Error('Authentication required')
+
+  const { data: site } = await supabaseAdmin
+    .from('sites')
+    .select('id')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!site) throw new Error('Site not found or access denied')
+}
 
 /**
  * Order type enum
@@ -234,6 +274,7 @@ export async function getOrdersBySite(
   siteId: string
 ): Promise<ProductOrder[]> {
   try {
+    await verifySiteOwnership(siteId)
 
     const { data, error } = await supabaseAdmin
       .from('product_orders')
@@ -260,6 +301,15 @@ export async function getOrdersByProduct(
   productId: string
 ): Promise<ProductOrder[]> {
   try {
+    // Verify the caller owns the site this product belongs to
+    const { data: product } = await supabaseAdmin
+      .from('products')
+      .select('site_id')
+      .eq('id', productId)
+      .single()
+
+    if (!product) throw new Error('Product not found')
+    await verifySiteOwnership(product.site_id)
 
     const { data, error } = await supabaseAdmin
       .from('product_orders')
@@ -309,33 +359,31 @@ export async function markEmailSent(orderId: string): Promise<void> {
 export async function markLinkClicked(token: string): Promise<ProductOrder> {
   try {
 
-    // Get current order
-    const order = await getOrderByToken(token)
-    if (!order) {
-      throw new Error('Order not found')
-    }
-
-    // Update click tracking
-    const updateData: any = {
-      click_count: order.click_count + 1,
-      updated_at: new Date().toISOString(),
-    }
-
-    // Set clicked_at only if this is the first click
-    if (!order.clicked_at) {
-      updateData.clicked_at = new Date().toISOString()
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .update(updateData)
-      .eq('id', order.id)
-      .select()
-      .single()
+    // Atomic increment to avoid race condition with concurrent clicks
+    const now = new Date().toISOString()
+    const { data, error } = await supabaseAdmin.rpc('increment_click_count', {
+      p_token: token,
+      p_now: now,
+    })
 
     if (error) {
-      console.error('Error marking link clicked:', error)
-      throw new Error(`Failed to mark link clicked: ${error.message}`)
+      // Fallback if RPC doesn't exist yet: use regular update
+      const order = await getOrderByToken(token)
+      if (!order) throw new Error('Order not found')
+
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('product_orders')
+        .update({
+          click_count: order.click_count + 1,
+          clicked_at: order.clicked_at || now,
+          updated_at: now,
+        })
+        .eq('id', order.id)
+        .select()
+        .single()
+
+      if (updateError) throw new Error(`Failed to mark link clicked: ${updateError.message}`)
+      return updated
     }
 
     return data
@@ -374,6 +422,21 @@ export async function markFlodeskAdded(orderId: string): Promise<void> {
  */
 export async function deleteOrders(orderIds: string[]): Promise<void> {
   try {
+    // Verify ownership: check that all orders belong to a site the user owns
+    if (orderIds.length === 0) return
+
+    const { data: orders } = await supabaseAdmin
+      .from('product_orders')
+      .select('site_id')
+      .in('id', orderIds)
+
+    if (!orders || orders.length === 0) throw new Error('Orders not found')
+
+    const siteIds = [...new Set(orders.map(o => o.site_id))]
+    for (const siteId of siteIds) {
+      await verifySiteOwnership(siteId)
+    }
+
     const { error } = await supabaseAdmin
       .from('product_orders')
       .delete()
@@ -427,6 +490,7 @@ export async function getOrderAnalytics(siteId: string): Promise<{
   clickedRate: number
 }> {
   try {
+    await verifySiteOwnership(siteId)
 
     const { data, error } = await supabaseAdmin
       .from('product_orders')

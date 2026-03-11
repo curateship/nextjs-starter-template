@@ -67,7 +67,32 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Fallback: proxy external URLs (Supabase, etc.)
+    // Fallback: proxy external URLs (Supabase, R2 CDN only)
+    // SSRF protection: only allow known media hosts
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(url)
+    } catch {
+      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+    }
+
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+      return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 })
+    }
+
+    const allowedHosts = [
+      '.supabase.co',
+      '.supabase.in',
+      '.r2.dev',
+      '.cloudflare.com',
+    ]
+    const hostname = parsedUrl.hostname.toLowerCase()
+    const isAllowed = allowedHosts.some(host => hostname.endsWith(host))
+
+    if (!isAllowed) {
+      return NextResponse.json({ error: 'URL host not allowed' }, { status: 403 })
+    }
+
     const fetchOptions: RequestInit = {
       signal: controller.signal,
       headers: range ? { Range: range } : {},

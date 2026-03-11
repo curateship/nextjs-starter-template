@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { uploadMediaAction } from '@/lib/actions/media/media-actions'
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return request.cookies.getAll() },
+          setAll() {},
+        },
+      }
+    )
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const altText = formData.get('altText') as string | null
@@ -63,7 +80,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Handle preflight requests for CORS
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
     headers: {
