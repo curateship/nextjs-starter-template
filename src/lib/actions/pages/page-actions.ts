@@ -676,15 +676,35 @@ export async function getPageBlockAction(pageId: string, blockType: string): Pro
       return { success: false, error: 'Invalid page ID format' }
     }
 
-    // Get the page
+    // Verify user is authenticated
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Get the page with site_id for ownership check
     const { data: page, error: pageError } = await supabaseAdmin
       .from('pages')
-      .select('content_blocks')
+      .select('content_blocks, site_id')
       .eq('id', pageId)
       .single()
 
     if (pageError || !page) {
       return { success: false, error: 'Page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', page.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { success: false, error: 'Access denied' }
     }
 
     const block = page.content_blocks?.[blockType] || null

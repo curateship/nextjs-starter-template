@@ -172,11 +172,6 @@ export function BlockRenderer({ site }: BlockRendererProps) {
 
         return null
       })}
-      
-      {/* Static content blocks - preserved components for future phases but not rendered */}
-      {/* <ProductGridBlock />
-      <PostGridBlock />
-      <FaqBlock /> */}
       </SiteLayout>
     </AnimationProvider>
   )

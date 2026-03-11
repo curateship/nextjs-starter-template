@@ -100,15 +100,16 @@ export async function updateUserPagesSettingsAction(
       return { success: false, error: 'Authentication required' }
     }
 
-    // Get current site settings
+    // Get current site settings and verify ownership
     const { data: site, error: fetchError } = await supabaseAdmin
       .from('sites')
       .select('settings')
       .eq('id', siteId)
+      .eq('user_id', user.id)
       .single()
 
     if (fetchError || !site) {
-      return { success: false, error: 'Site not found' }
+      return { success: false, error: 'Site not found or access denied' }
     }
 
     // Build updated settings
@@ -169,6 +170,18 @@ export async function getUserPagesAction(siteId: string): Promise<{ data: UserPa
       return { data: null, error: 'Authentication required' }
     }
 
+    // Verify user owns this site
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
+    }
+
     // Use admin client to fetch all pages
     const { data, error } = await supabaseAdmin
       .from('users_pages')
@@ -212,6 +225,18 @@ export async function getUserPageAction(pageId: string): Promise<{ data: UserPag
       return { data: null, error: error.message }
     }
 
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', data.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
+    }
+
     return { data, error: null }
   } catch (error: any) {
     console.error('Exception in getUserPageAction:', error)
@@ -233,6 +258,18 @@ export async function createUserPageAction(
 
     if (authError || !user) {
       return { data: null, error: 'Authentication required' }
+    }
+
+    // Verify user owns this site
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
     }
 
     // Generate slug from title if not provided
@@ -299,9 +336,40 @@ export async function updateUserPageAction(
       return { data: null, error: 'Authentication required' }
     }
 
+    // Fetch page to verify ownership
+    const { data: existingPage, error: fetchError } = await supabaseAdmin
+      .from('users_pages')
+      .select('site_id')
+      .eq('id', pageId)
+      .single()
+
+    if (fetchError || !existingPage) {
+      return { data: null, error: 'Page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', existingPage.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
+    }
+
+    // Whitelist allowed fields
+    const allowedUpdates: Record<string, any> = {}
+    if (pageData.title !== undefined) allowedUpdates.title = pageData.title
+    if (pageData.slug !== undefined) allowedUpdates.slug = pageData.slug
+    if (pageData.meta_description !== undefined) allowedUpdates.meta_description = pageData.meta_description
+    if (pageData.is_default !== undefined) allowedUpdates.is_default = pageData.is_default
+    if (pageData.is_published !== undefined) allowedUpdates.is_published = pageData.is_published
+
     const { data, error } = await supabaseAdmin
       .from('users_pages')
-      .update(pageData)
+      .update(allowedUpdates)
       .eq('id', pageId)
       .select()
       .single()
@@ -335,12 +403,28 @@ export async function deleteUserPageAction(pageId: string): Promise<{ success: b
       return { success: false, error: 'Authentication required' }
     }
 
-    // Get page to find site_id for cache revalidation
+    // Get page to verify ownership and find site_id for cache revalidation
     const { data: page } = await supabaseAdmin
       .from('users_pages')
       .select('site_id')
       .eq('id', pageId)
       .single()
+
+    if (!page) {
+      return { success: false, error: 'Page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', page.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { success: false, error: 'Access denied' }
+    }
 
     const { error } = await supabaseAdmin
       .from('users_pages')
@@ -381,6 +465,29 @@ export async function updateUserPageBlocksAction(
       return { data: null, error: 'Authentication required' }
     }
 
+    // Fetch page to verify ownership
+    const { data: existingPage, error: fetchError } = await supabaseAdmin
+      .from('users_pages')
+      .select('site_id')
+      .eq('id', pageId)
+      .single()
+
+    if (fetchError || !existingPage) {
+      return { data: null, error: 'Page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', existingPage.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('users_pages')
       .update({ content_blocks: contentBlocks })
@@ -417,6 +524,30 @@ export async function reorderUserPagesAction(
 
     if (authError || !user) {
       return { success: false, error: 'Authentication required' }
+    }
+
+    // Verify ownership via first page
+    if (pageUpdates.length > 0) {
+      const { data: firstPage } = await supabaseAdmin
+        .from('users_pages')
+        .select('site_id')
+        .eq('id', pageUpdates[0].id)
+        .single()
+
+      if (!firstPage) {
+        return { success: false, error: 'Page not found' }
+      }
+
+      const { data: site } = await supabaseAdmin
+        .from('sites')
+        .select('id')
+        .eq('id', firstPage.site_id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!site) {
+        return { success: false, error: 'Access denied' }
+      }
     }
 
     // Update each page's display_order
@@ -478,6 +609,18 @@ export async function duplicateUserPageAction(
     if (fetchError || !originalPage) {
       console.error('Error fetching original page:', fetchError)
       return { data: null, error: fetchError?.message || 'Original page not found' }
+    }
+
+    // Verify user owns the site this page belongs to
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', originalPage.site_id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!site) {
+      return { data: null, error: 'Access denied' }
     }
 
     // Generate unique slug from new title
