@@ -1,9 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { encrypt, safeDecrypt } from '@/lib/utils/encryption'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { SENSITIVE_FIELDS, type IntegrationType } from './types'
 
 // Create admin client with service role key
@@ -17,26 +16,6 @@ const supabaseAdmin = createClient(
     },
   }
 )
-
-async function createServerSupabaseClient() {
-  const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch { /* ignore in server components */ }
-        },
-      },
-    }
-  )
-}
 
 /**
  * Verify the authenticated user owns the given site.

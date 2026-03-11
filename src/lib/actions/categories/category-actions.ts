@@ -1,10 +1,9 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { revalidateTag } from 'next/cache'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -17,32 +16,6 @@ const supabaseAdmin = createClient(
     }
   }
 )
-
-// Create server client to access user session
-async function createServerSupabaseClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-          }
-        },
-      },
-    }
-  )
-}
 
 export interface Category {
   id: string
