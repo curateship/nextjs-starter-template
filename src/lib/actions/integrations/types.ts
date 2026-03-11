@@ -6,7 +6,6 @@ export type IntegrationType =
   | 'openai'
   | 'perplexity'
   | 'google_ai'
-  | 'dataforseo'
 
 /**
  * Map of config keys that contain sensitive values per integration type.
@@ -20,7 +19,6 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   openai: ['api_key'],
   perplexity: ['api_key'],
   google_ai: ['api_key'],
-  dataforseo: ['password'],
 }
 
 export interface IntegrationFieldDefinition {
@@ -111,17 +109,6 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     category: 'ai',
     fields: [
       { key: 'api_key', label: 'API Key', type: 'password', required: true },
-    ],
-  },
-  // SEO
-  {
-    type: 'dataforseo',
-    label: 'DataForSEO',
-    description: 'Keyword research and SEO data',
-    category: 'seo',
-    fields: [
-      { key: 'login', label: 'Login', type: 'text', required: true },
-      { key: 'password', label: 'Password', type: 'password', required: true },
     ],
   },
 ]

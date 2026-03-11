@@ -35,32 +35,6 @@ export async function getStripePublishableKey(siteId: string): Promise<string | 
 }
 
 /**
- * Get DataForSEO config for a site. Falls back to environment variables.
- */
-export async function getDataForSEOConfig(siteId: string): Promise<{
-  login: string
-  password: string
-} | null> {
-  const integration = await getSiteIntegration(siteId, 'dataforseo')
-
-  if (integration && integration.is_enabled) {
-    const { login, password } = integration.config
-    if (login && password) {
-      return { login, password }
-    }
-  }
-
-  // Fall back to environment variables
-  const envLogin = process.env.DATAFORSEO_LOGIN
-  const envPassword = process.env.DATAFORSEO_PASSWORD
-  if (envLogin && envPassword) {
-    return { login: envLogin, password: envPassword }
-  }
-
-  return null
-}
-
-/**
  * Get an AI provider API key for a site from site integrations.
  */
 export async function getAIProviderConfig(

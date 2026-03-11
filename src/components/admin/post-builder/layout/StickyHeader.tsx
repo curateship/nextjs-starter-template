@@ -29,7 +29,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink, Search } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, Sparkles, ChevronDown, ExternalLink } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
@@ -196,18 +196,6 @@ export function StickyHeader({
               </>
             )}
           </div>
-
-          {/* Keywords button (when not in post builder mode) */}
-          {!isPostBuilder && currentSite && (
-            <div className="flex items-center space-x-2 mr-10">
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/admin/posts/keywords/${currentSite.id}`}>
-                  <Search className="w-4 h-4 mr-2" />
-                  Keyword Research
-                </Link>
-              </Button>
-            </div>
-          )}
 
           {/* Post Builder Actions */}
           {isPostBuilder && (
