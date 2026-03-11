@@ -79,47 +79,23 @@ function sanitizeContent(content: any): any {
 }
 
 /**
- * Convert JSON content_blocks to ProductBlock array format
+ * Convert JSON content_blocks to ProductBlock array format.
+ * Matches pages gold standard: key=blockId, value has { type, content, display_order }
  */
 export function convertContentBlocksToArray(contentBlocks: Record<string, any>, productId: string): ProductBlock[] {
-  const blocks: ProductBlock[] = []
-  
-  // SECURITY: Validate productId to prevent injection
-  if (!productId || typeof productId !== 'string') {
-    return blocks
-  }
-  
-  if (contentBlocks && typeof contentBlocks === 'object') {
-    // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['product-content', 'product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-checkout', 'product-lead-magnet', 'product-faq', 'listing-views', 'product-rich-text', 'product-video']
-    
-    Object.entries(contentBlocks).forEach(([key, blockData]: [string, any]) => {
-      if (!blockData || typeof blockData !== 'object') return
+  if (!contentBlocks || typeof contentBlocks !== 'object') return []
+  if (!productId || typeof productId !== 'string') return []
 
-      // Determine block type: new format has a `type` field, legacy format uses key as type
-      const blockType = blockData.type || key
+  const allowedBlockTypes = ['product-content', 'product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-checkout', 'product-lead-magnet', 'product-faq', 'listing-views', 'product-rich-text', 'product-video']
 
-      // SECURITY: Validate block type
-      if (!allowedBlockTypes.includes(blockType)) {
-        return // Skip invalid block types
-      }
-
-      const { display_order, id, type, created_at, updated_at, ...content } = blockData
-
-      // SECURITY: Sanitize all content to prevent XSS
-      const sanitizedContent = sanitizeContent(content.content || content)
-
-      blocks.push({
-        id: id || `${blockType}-${productId}`,
-        type: blockType,
-        content: sanitizedContent,
-        display_order: typeof display_order === 'number' ? display_order : 0
-      })
-    })
-    
-    // Sort blocks by display_order
-    blocks.sort((a, b) => a.display_order - b.display_order)
-  }
-  
-  return blocks
+  return Object.entries(contentBlocks)
+    .filter(([key, value]) => value && typeof value === 'object' && 'type' in value && !key.startsWith('_'))
+    .filter(([, value]) => allowedBlockTypes.includes(value.type))
+    .map(([id, block]) => ({
+      id: block.id || id,
+      type: block.type,
+      content: sanitizeContent(block.content),
+      display_order: typeof block.display_order === 'number' ? block.display_order : 0
+    }))
+    .sort((a, b) => a.display_order - b.display_order)
 }

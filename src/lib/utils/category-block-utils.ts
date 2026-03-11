@@ -55,56 +55,22 @@ function sanitizeContent(content: any): any {
 
 /**
  * Convert JSON content_blocks to CategoryBlock array format.
- * Handles both formats:
- * - New format (from buildDefaultContentBlocks): key=blockId, value has { id, type, content, display_order }
- * - Old format: key=blockType (e.g. 'taxonomy-content'), value is the content directly
+ * Matches pages gold standard: key=blockId, value has { type, content, display_order }
  */
 export function convertContentBlocksToArray(contentBlocks: Record<string, any>, categoryId: string): CategoryBlock[] {
-  const blocks: CategoryBlock[] = []
+  if (!contentBlocks || typeof contentBlocks !== 'object') return []
+  if (!categoryId || typeof categoryId !== 'string') return []
 
-  if (!categoryId || typeof categoryId !== 'string') {
-    return blocks
-  }
+  const allowedBlockTypes = ['taxonomy-content']
 
-  if (contentBlocks && typeof contentBlocks === 'object') {
-    const allowedBlockTypes = ['taxonomy-content']
-
-    Object.entries(contentBlocks).forEach(([key, blockData]: [string, any]) => {
-      // Skip _settings, metadata fields, and non-object values (e.g. show_featured_image: true)
-      if (key.startsWith('_') || !blockData || typeof blockData !== 'object') {
-        return
-      }
-
-      // New format: value has id, type, and content properties
-      if ('id' in blockData && 'type' in blockData && 'content' in blockData) {
-        if (!allowedBlockTypes.includes(blockData.type)) return
-
-        const sanitizedContent = sanitizeContent(blockData.content)
-        blocks.push({
-          id: blockData.id,
-          type: blockData.type,
-          content: sanitizedContent,
-          display_order: typeof blockData.display_order === 'number' ? blockData.display_order : 0
-        })
-        return
-      }
-
-      // Old format: key is the block type, value is the content directly
-      if (!allowedBlockTypes.includes(key)) return
-
-      const { display_order, ...content } = blockData
-      const sanitizedContent = sanitizeContent(content)
-
-      blocks.push({
-        id: `${key}-${categoryId}`,
-        type: key,
-        content: sanitizedContent,
-        display_order: typeof display_order === 'number' ? display_order : 0
-      })
-    })
-
-    blocks.sort((a, b) => a.display_order - b.display_order)
-  }
-
-  return blocks
+  return Object.entries(contentBlocks)
+    .filter(([key, value]) => value && typeof value === 'object' && 'type' in value && !key.startsWith('_'))
+    .filter(([, value]) => allowedBlockTypes.includes(value.type))
+    .map(([id, block]) => ({
+      id: block.id || id,
+      type: block.type,
+      content: sanitizeContent(block.content),
+      display_order: typeof block.display_order === 'number' ? block.display_order : 0
+    }))
+    .sort((a, b) => a.display_order - b.display_order)
 }

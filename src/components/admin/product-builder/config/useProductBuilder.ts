@@ -136,19 +136,20 @@ export function useProductBuilder({
     // Get existing content blocks from the currentProduct to preserve settings
     const existingContentBlocks = currentProduct?.content_blocks || {}
     
-    // Convert blocks array to JSON object format
+    // Convert blocks array to JSON object format keyed by block ID
     const newContentBlocks: Record<string, any> = {}
     currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.type] = {
-        ...block.content,
+      newContentBlocks[block.id] = {
+        id: block.id,
+        type: block.type,
+        content: block.content,
         display_order: index
       }
     })
-    
+
     // Preserve existing _settings and merge with new blocks
     const contentBlocks: Record<string, any> = {
       ...newContentBlocks,
-      // Preserve _settings if it exists (including privacy setting)
       ...(existingContentBlocks._settings && {
         _settings: existingContentBlocks._settings
       })
