@@ -263,34 +263,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
 }
 
 /**
- * Check if a site subdomain exists and is active
- */
-export async function checkSubdomainExists(subdomain: string): Promise<{
-  exists: boolean
-  isActive?: boolean
-}> {
-  try {
-    const { data: site, error } = await supabaseAdmin
-      .from('sites')
-      .select('id, status')
-      .eq('subdomain', subdomain)
-      .single()
-
-    if (error || !site) {
-      return { exists: false }
-    }
-
-    return { 
-      exists: true, 
-      isActive: site.status === 'active' 
-    }
-
-  } catch (error) {
-    return { exists: false }
-  }
-}
-
-/**
  * Get all published pages for a site by subdomain (for navigation)
  */
 export async function getSitePages(subdomain: string): Promise<{

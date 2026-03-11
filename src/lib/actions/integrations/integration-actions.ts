@@ -166,35 +166,6 @@ export async function getSiteIntegrations(
 }
 
 /**
- * Get all enabled integrations for a site (with decryption).
- */
-export async function getEnabledIntegrations(
-  siteId: string
-): Promise<SiteIntegration[]> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('site_integrations')
-      .select('*')
-      .eq('site_id', siteId)
-      .eq('is_enabled', true)
-      .order('integration_type', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching enabled integrations:', error)
-      throw new Error(`Failed to fetch enabled integrations: ${error.message}`)
-    }
-
-    return (data || []).map((row) => ({
-      ...row,
-      config: decryptConfig(row.integration_type, row.config),
-    }))
-  } catch (error) {
-    console.error('Error in getEnabledIntegrations:', error)
-    return []
-  }
-}
-
-/**
  * Create or update an integration for a site (with encryption).
  */
 export async function createOrUpdateIntegration(
@@ -275,32 +246,3 @@ export async function toggleIntegration(
   }
 }
 
-/**
- * Delete an integration.
- */
-export async function deleteIntegration(integrationId: string): Promise<void> {
-  try {
-    // Look up integration to get site_id, then verify ownership
-    const { data: integration } = await supabaseAdmin
-      .from('site_integrations')
-      .select('site_id')
-      .eq('id', integrationId)
-      .single()
-
-    if (!integration) throw new Error('Integration not found')
-    await verifyOwnership(integration.site_id)
-
-    const { error } = await supabaseAdmin
-      .from('site_integrations')
-      .delete()
-      .eq('id', integrationId)
-
-    if (error) {
-      console.error('Error deleting integration:', error)
-      throw new Error(`Failed to delete integration: ${error.message}`)
-    }
-  } catch (error) {
-    console.error('Error in deleteIntegration:', error)
-    throw error
-  }
-}

@@ -27,33 +27,6 @@ export async function getStripeConfig(siteId: string): Promise<{
 }
 
 /**
- * Get just the Stripe publishable key for a site (safe to expose client-side).
- */
-export async function getStripePublishableKey(siteId: string): Promise<string | null> {
-  const config = await getStripeConfig(siteId)
-  return config?.publishableKey ?? null
-}
-
-/**
- * Get an AI provider API key for a site from site integrations.
- */
-export async function getAIProviderConfig(
-  siteId: string,
-  provider: string
-): Promise<{ apiKey: string } | null> {
-  const integration = await getSiteIntegration(siteId, provider)
-
-  if (integration && integration.is_enabled) {
-    const { api_key } = integration.config
-    if (api_key) {
-      return { apiKey: api_key }
-    }
-  }
-
-  return null
-}
-
-/**
  * Get Flodesk config for a site from site integrations.
  */
 export async function getFlodeskConfig(siteId: string): Promise<{

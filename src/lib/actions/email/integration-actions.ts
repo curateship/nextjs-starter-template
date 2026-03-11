@@ -8,10 +8,8 @@ export type { SiteIntegration } from '@/lib/actions/integrations/integration-act
 export {
   getSiteIntegration,
   getSiteIntegrations,
-  getEnabledIntegrations,
   createOrUpdateIntegration,
   toggleIntegration,
-  deleteIntegration,
 } from '@/lib/actions/integrations/integration-actions'
 
 export {
