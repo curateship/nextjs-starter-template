@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { encrypt, safeDecrypt } from '@/lib/utils/encryption'
 import { SENSITIVE_FIELDS, type IntegrationType } from './types'
 
@@ -15,6 +17,46 @@ const supabaseAdmin = createClient(
     },
   }
 )
+
+async function createServerSupabaseClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch { /* ignore in server components */ }
+        },
+      },
+    }
+  )
+}
+
+/**
+ * Verify the authenticated user owns the given site.
+ * Returns user ID on success, throws on failure.
+ */
+async function verifyOwnership(siteId: string): Promise<string> {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Authentication required')
+
+  const { data: site, error } = await supabaseAdmin
+    .from('sites')
+    .select('id')
+    .eq('id', siteId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (error || !site) throw new Error('Site not found or access denied')
+  return user.id
+}
 
 export interface SiteIntegration {
   id: string
@@ -162,6 +204,7 @@ export async function createOrUpdateIntegration(
   isEnabled: boolean = true
 ): Promise<SiteIntegration> {
   try {
+    await verifyOwnership(siteId)
     const encryptedConfig = encryptConfig(integrationType, config)
 
     const { data, error } = await supabaseAdmin
@@ -204,6 +247,16 @@ export async function toggleIntegration(
   isEnabled: boolean
 ): Promise<void> {
   try {
+    // Look up integration to get site_id, then verify ownership
+    const { data: integration } = await supabaseAdmin
+      .from('site_integrations')
+      .select('site_id')
+      .eq('id', integrationId)
+      .single()
+
+    if (!integration) throw new Error('Integration not found')
+    await verifyOwnership(integration.site_id)
+
     const { error } = await supabaseAdmin
       .from('site_integrations')
       .update({
@@ -227,6 +280,16 @@ export async function toggleIntegration(
  */
 export async function deleteIntegration(integrationId: string): Promise<void> {
   try {
+    // Look up integration to get site_id, then verify ownership
+    const { data: integration } = await supabaseAdmin
+      .from('site_integrations')
+      .select('site_id')
+      .eq('id', integrationId)
+      .single()
+
+    if (!integration) throw new Error('Integration not found')
+    await verifyOwnership(integration.site_id)
+
     const { error } = await supabaseAdmin
       .from('site_integrations')
       .delete()

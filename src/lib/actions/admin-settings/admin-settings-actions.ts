@@ -78,13 +78,14 @@ export async function getAdminSettingsAction(): Promise<{
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Verify user is authenticated
+    // Verify user is authenticated and is super_admin
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return {
-        success: false,
-        error: 'Unauthorized: You must be logged in to access admin settings'
-      }
+      return { success: false, error: 'Authentication required' }
+    }
+
+    if (user.app_metadata?.role !== 'super_admin') {
+      return { success: false, error: 'Forbidden: super_admin role required' }
     }
 
     // Fetch admin settings (there should only be one row)
@@ -128,13 +129,14 @@ export async function updateAdminSettingsAction(
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Verify user is authenticated
+    // Verify user is authenticated and is super_admin
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return {
-        success: false,
-        error: 'Unauthorized: You must be logged in to update admin settings'
-      }
+      return { success: false, error: 'Authentication required' }
+    }
+
+    if (user.app_metadata?.role !== 'super_admin') {
+      return { success: false, error: 'Forbidden: super_admin role required' }
     }
 
     // Get current settings first

@@ -230,6 +230,25 @@ export async function updateSiteAction(
   updates: Partial<CreateSiteData>
 ): Promise<{ data: Site | null; error: string | null }> {
   try {
+    // Verify user is authenticated and owns this site
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const { data: ownedSite, error: ownerError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .eq('id', siteId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (ownerError || !ownedSite) {
+      return { data: null, error: 'Site not found or access denied' }
+    }
+
     // Prepare updates
     let finalUpdates: any = { ...updates }
 
@@ -354,14 +373,23 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
 
 export async function getSiteByIdAction(siteId: string): Promise<{ data: Site | null; error: string | null }> {
   try {
+    // Verify user is authenticated and owns this site
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('sites')
       .select('*')
       .eq('id', siteId)
+      .eq('user_id', user.id)
       .single()
 
     if (error) {
-      return { data: null, error: `Failed to fetch site: ${error.message}` }
+      return { data: null, error: 'Site not found or access denied' }
     }
 
     return { data: data as Site, error: null }
