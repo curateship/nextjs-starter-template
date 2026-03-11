@@ -102,18 +102,6 @@ export function CreateCategoryModal({
     setIsSubmitting(true)
 
     try {
-      const contentBlocks: Record<string, any> = {
-        _settings: {
-          is_private: isPrivate
-        },
-        'taxonomy-content': {
-          showFeaturedImage: true,
-          body: richTextContent.trim() || '',
-          format: 'html',
-          display_order: 0
-        }
-      }
-
       const { data, error: createError } = await createCategoryAction(
         siteId,
         {
@@ -122,7 +110,10 @@ export function CreateCategoryModal({
           description: richTextContent || undefined,
           parent_id: parentId || null,
           featured_image: featuredImage || null,
-          content_blocks: contentBlocks,
+          content_blocks: {
+            _settings: { is_private: isPrivate },
+            show_featured_image: true
+          },
           is_published: false
         }
       )
@@ -153,18 +144,6 @@ export function CreateCategoryModal({
     setIsSubmitting(true)
 
     try {
-      const contentBlocks: Record<string, any> = {
-        _settings: {
-          is_private: isPrivate
-        },
-        'taxonomy-content': {
-          showFeaturedImage: true,
-          body: richTextContent.trim() || '',
-          format: 'html',
-          display_order: 0
-        }
-      }
-
       const { data, error: createError } = await createCategoryAction(
         siteId,
         {
@@ -173,7 +152,10 @@ export function CreateCategoryModal({
           description: richTextContent || undefined,
           parent_id: parentId || null,
           featured_image: featuredImage || null,
-          content_blocks: contentBlocks,
+          content_blocks: {
+            _settings: { is_private: isPrivate },
+            show_featured_image: true
+          },
           is_published: true
         }
       )

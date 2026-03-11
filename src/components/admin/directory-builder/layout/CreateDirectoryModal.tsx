@@ -93,25 +93,18 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setError(null)
 
     try {
-      const contentBlocks: Record<string, any> = {
-        ...(isPrivate ? { _settings: { is_private: true } } : {}),
-        'directory-content': {
-          showFeaturedImage: true,
-          body: richTextContent.trim() || '',
-          format: 'html',
-          display_order: 0
-        }
-      }
-
       const directoryData = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
         site_id: currentSite.id,
-        description: formData.description.trim() || null,
+        description: formData.description.trim() || richTextContent.trim() || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         is_published: publish,
-        content_blocks: contentBlocks
+        content_blocks: {
+          ...(isPrivate ? { _settings: { is_private: true } } : {}),
+          show_featured_image: true
+        }
       }
       
       const response = await fetch('/api/directories', {

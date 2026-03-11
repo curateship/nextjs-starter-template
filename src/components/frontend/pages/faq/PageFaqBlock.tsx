@@ -77,10 +77,10 @@ const FaqBlock = ({ content, siteWidth = 'custom', customWidth }: FaqBlockProps)
                         type="single"
                         collapsible
                         className="bg-card ring-foreground/5 rounded-(--radius) w-full border border-transparent px-8 py-3 shadow ring-1">
-                        {faqItems.map((item) => (
+                        {faqItems.map((item, index) => (
                             <AccordionItem
-                                key={item.id}
-                                value={item.id}
+                                key={item.id || `faq-${index}`}
+                                value={item.id || `faq-${index}`}
                                 className="border-dotted">
                                 <AccordionTrigger className="cursor-pointer text-base hover:no-underline">
                                     {item.question}

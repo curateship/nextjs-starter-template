@@ -8,7 +8,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import {
   DndContext,
   closestCenter,
@@ -53,8 +52,6 @@ interface BlockListPanelProps {
   blocksLoading?: boolean
 }
 
-const NON_DELETABLE_TYPES = ['directory-content']
-
 // Sortable directory block item component
 function SortableDirectoryBlockItem({
   block,
@@ -86,8 +83,6 @@ function SortableDirectoryBlockItem({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const isRequired = NON_DELETABLE_TYPES.includes(block.type)
-
   return (
     <div
       ref={setNodeRef}
@@ -114,27 +109,23 @@ function SortableDirectoryBlockItem({
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {isRequired ? (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Required</Badge>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDeleteClick(block)
-              }}
-              disabled={deleting === block.id}
-              title="Delete block"
-            >
-              {deleting === block.id ? (
-                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
-              ) : (
-                <Trash2 className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeleteClick(block)
+            }}
+            disabled={deleting === block.id}
+            title="Delete block"
+          >
+            {deleting === block.id ? (
+              <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
+            ) : (
+              <Trash2 className="w-3.5 h-3.5" />
+            )}
+          </Button>
         </div>
       </div>
     </div>

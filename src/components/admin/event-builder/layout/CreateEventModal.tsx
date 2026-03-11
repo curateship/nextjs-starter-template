@@ -103,12 +103,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         is_published: publish,
         content_blocks: {
           ...(isPrivate ? { _settings: { is_private: true } } : {}),
-          'event-content': {
-            showFeaturedImage: true,
-            body: richTextContent.trim() || '',
-            format: 'html',
-            display_order: 0
-          }
+          show_featured_image: true
         }
       }
       

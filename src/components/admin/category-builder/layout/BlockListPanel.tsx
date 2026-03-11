@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button"
 import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
@@ -27,8 +26,6 @@ interface BlockListPanelProps {
   deleting: string | null
   blocksLoading?: boolean
 }
-
-const NON_DELETABLE_TYPES = ['taxonomy-content']
 
 function SortableBlockItem({
   block,
@@ -71,8 +68,6 @@ function SortableBlockItem({
     return block.type === 'taxonomy-content' ? 'Content' : 'Block'
   }
 
-  const isRequired = NON_DELETABLE_TYPES.includes(block.type)
-
   return (
     <div
       ref={setNodeRef}
@@ -96,23 +91,19 @@ function SortableBlockItem({
             <span className="font-medium text-sm">{getBlockTypeName(block)}</span>
           </div>
         </div>
-        {isRequired ? (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Required</Badge>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
-            }}
-            disabled={isDeleting}
-            title="Delete block"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+          disabled={isDeleting}
+          title="Delete block"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   )

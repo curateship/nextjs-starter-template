@@ -130,19 +130,31 @@ export function useCategoryBuilder({
 
     const existingContentBlocks = currentCategory?.content_blocks || {}
 
+    // Preserve non-block settings (e.g. show_featured_image, _settings)
+    const preservedSettings: Record<string, any> = {}
+    Object.entries(existingContentBlocks).forEach(([key, value]) => {
+      if (typeof value !== 'object' || value === null) {
+        preservedSettings[key] = value
+      } else if (key.startsWith('_')) {
+        preservedSettings[key] = value
+      }
+    })
+
+    // Convert blocks array to JSON object format keyed by block ID
     const newContentBlocks: Record<string, any> = {}
     currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.type] = {
-        ...block.content,
+      newContentBlocks[block.id] = {
+        id: block.id,
+        type: block.type,
+        content: block.content,
         display_order: index
       }
     })
 
+    // Merge preserved settings with new blocks
     const contentBlocks: Record<string, any> = {
-      ...newContentBlocks,
-      ...(existingContentBlocks._settings && {
-        _settings: existingContentBlocks._settings
-      })
+      ...preservedSettings,
+      ...newContentBlocks
     }
 
     setIsSaving(true)

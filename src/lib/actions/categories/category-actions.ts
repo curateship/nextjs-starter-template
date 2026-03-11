@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidateTag } from 'next/cache'
+import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 // Create admin client with service role key for admin operations
 const supabaseAdmin = createClient(
@@ -245,7 +246,7 @@ export async function createCategoryAction(
 
     const { data: site, error: siteError } = await supabaseAdmin
       .from('sites')
-      .select('id, user_id')
+      .select('id, user_id, settings')
       .eq('id', siteId)
       .single()
 
@@ -308,7 +309,7 @@ export async function createCategoryAction(
         featured_image: data.featured_image || null,
         description: data.description || null,
         meta_description: data.meta_description || null,
-        content_blocks: data.content_blocks || {},
+        content_blocks: applyDefaultBlocks(data.content_blocks, 'categories', (site as any).settings?.default_blocks?.categories),
         is_published: data.is_published ?? false,
         display_order: nextDisplayOrder
       })

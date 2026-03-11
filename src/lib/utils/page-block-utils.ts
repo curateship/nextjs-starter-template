@@ -14,17 +14,19 @@ export interface PageBlock {
 }
 
 /**
- * Convert JSON blocks object to array format for UI
+ * Convert JSON blocks object to array format for UI.
+ * Filters out non-block entries (settings, metadata) — only includes objects with `type` property.
  */
 export function convertPageJsonToBlocks(jsonBlocks: Record<string, any>): PageBlock[] {
   if (!jsonBlocks || typeof jsonBlocks !== 'object') {
     return []
   }
 
-  // Convert object entries to array and sort by display_order
+  // Convert object entries to array, filtering out non-block values
   return Object.entries(jsonBlocks)
+    .filter(([key, value]) => value && typeof value === 'object' && 'type' in value && !key.startsWith('_'))
     .map(([id, block]) => ({
-      id,
+      id: block.id || id,
       ...block
     }))
     .sort((a, b) => {
