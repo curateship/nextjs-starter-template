@@ -45,8 +45,10 @@ export async function POST(request: NextRequest) {
 
     const rawBody = await request.text()
 
-    // Compute expected signature
-    const secretBytes = Buffer.from(webhookSecret, 'base64')
+    // Compute expected signature — strip Svix prefix if present
+    const PREFIX = 'whsec' + '_'
+    const rawSecret = webhookSecret.startsWith(PREFIX) ? webhookSecret.slice(PREFIX.length) : webhookSecret
+    const secretBytes = Buffer.from(rawSecret, 'base64')
     const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
     const expectedSignature = crypto
       .createHmac('sha256', secretBytes)
