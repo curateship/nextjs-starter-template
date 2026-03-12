@@ -262,7 +262,6 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
   return (
     <section className="relative w-full flex flex-col items-center justify-center pt-6 md:pt-12 pb-4 md:pb-10 overflow-hidden">
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
-        {/* Shared content rendered by orchestrator, placed by the style renderer */}
         {visibility?.title !== false && <HeroTitle title={title} />}
         {visibility?.subtitle !== false && <HeroSubtitle subtitle={subtitle} alignment={alignment} />}
         {visibility?.ctaButtons !== false && (

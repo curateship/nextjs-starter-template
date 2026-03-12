@@ -41,8 +41,10 @@ export default async function SiteHomePage() {
 
   // First, check for hero block image (most common LCP element)
   const heroBlock = site.blocks?.find(block => block.type === 'hero')
-  if (heroBlock?.content?.image) {
-    lcpImageUrl = heroBlock.content.image
+  if (heroBlock?.content) {
+    const c = heroBlock.content
+    const heroStyle = c.heroStyle || 'default'
+    lcpImageUrl = c.styleConfig?.[heroStyle]?.heroImage || c.heroImage || null
   }
 
   // If no hero image, check for first listing-views product image

@@ -2,7 +2,6 @@
 
 import React from "react";
 import DotPattern from "@/components/ui/dot-pattern";
-import Image from "next/image";
 import { cn } from "@/lib/utils/tailwind-class-merger";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
@@ -119,13 +118,13 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
           style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
         >
           <div className={cn("absolute top-1/2 -translate-y-1/2 max-md:scale-[0.7]", horizontalPos, heroImageAlign === 'right' ? 'max-md:origin-right' : heroImageAlign === 'left' ? 'max-md:origin-left' : 'max-md:origin-center')} style={{ width: `${heroImageSize}px`, height: `${heroImageSize}px` }}>
-            <Image
-              className="object-contain"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="object-contain absolute inset-0 w-full h-full"
               src={heroImage}
               alt=""
-              fill
-              priority
               fetchPriority="high"
+              decoding="async"
             />
           </div>
         </div>
@@ -135,14 +134,14 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
 
   return (
     <div className={cn("absolute inset-0 z-0 pointer-events-none", mobileClass, mobileOpacityClass)} style={mobileOpacityStyle}>
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         className="absolute inset-0 h-full w-full object-cover"
         src={heroImage}
         alt=""
-        fill
         style={{ objectPosition }}
-        priority
         fetchPriority="high"
+        decoding="async"
       />
       <div className="absolute inset-0 bg-background/60" />
     </div>
