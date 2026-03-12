@@ -1,7 +1,7 @@
 "use client"
 
 import { ThemeProvider, useTheme } from "next-themes"
-import { type ReactNode, useEffect } from "react"
+import { type ReactNode } from "react"
 
 interface SiteThemeProviderProps {
   children: ReactNode
@@ -14,23 +14,9 @@ interface SiteThemeProviderProps {
   enableThemeToggle?: boolean
 }
 
-function ThemeWrapper({ children, defaultTheme }: { children: ReactNode; defaultTheme: string }) {
-  const { setTheme } = useTheme()
-  
-  useEffect(() => {
-    // When toggle is disabled, force the default theme and clear localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('site-theme')
-      setTheme(defaultTheme)
-    }
-  }, [defaultTheme, setTheme])
-  
-  return <>{children}</>
-}
-
 export function SiteThemeProvider({ children, site, isPreview = false, enableThemeToggle = true }: SiteThemeProviderProps) {
   const defaultTheme = site?.settings?.default_theme || 'system'
-  
+
   // For preview mode, just render with static theme class
   if (isPreview) {
     return (
@@ -39,8 +25,8 @@ export function SiteThemeProvider({ children, site, isPreview = false, enableThe
       </div>
     )
   }
-  
-  // If theme toggle is disabled, use theme provider but force default theme
+
+  // If theme toggle is disabled, forcedTheme handles everything — no useEffect needed
   if (!enableThemeToggle) {
     return (
       <ThemeProvider
@@ -51,9 +37,7 @@ export function SiteThemeProvider({ children, site, isPreview = false, enableThe
         storageKey="site-theme"
         forcedTheme={defaultTheme !== 'system' ? defaultTheme : undefined}
       >
-        <ThemeWrapper defaultTheme={defaultTheme}>
-          {children}
-        </ThemeWrapper>
+        {children}
       </ThemeProvider>
     )
   }
