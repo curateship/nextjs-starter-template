@@ -74,12 +74,33 @@ const nextConfig: NextConfig = {
     if (process.env.NODE_ENV === 'development') {
       return [];
     }
+
+    const cacheTtl = process.env.CACHE_TTL_SECONDS || '31536000'
+    const cacheHeader = {
+      key: 'Cache-Control',
+      value: `public, s-maxage=${cacheTtl}, stale-while-revalidate=${cacheTtl}`,
+    }
+
+    const publicCacheRoutes = [
+      '/',
+      '/posts/:slug*',
+      '/products/:slug',
+      '/categories/:slug*',
+      '/directories/:slug*',
+      '/events/:slug*',
+      '/pages/:slug*',
+    ]
+
     return [
       {
-        // Apply these headers to all routes
+        // Apply security headers to all routes
         source: '/:path*',
         headers: securityHeaders,
       },
+      ...publicCacheRoutes.map(source => ({
+        source,
+        headers: [cacheHeader],
+      })),
     ];
   },
 };

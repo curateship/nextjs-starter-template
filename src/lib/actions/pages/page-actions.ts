@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { revalidateTag } from 'next/cache'
+import { purgeProxyCache } from '@/lib/utils/cache-purge'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 // Create admin client with service role key for admin operations
@@ -617,6 +618,7 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
 
     // Invalidate page cache since page content blocks have changed
     revalidateTag('page-lookup')
+    purgeProxyCache()
 
     // Invalidate listing views cache if this page contains listing-views blocks
     if (contentBlocks && typeof contentBlocks === 'object') {

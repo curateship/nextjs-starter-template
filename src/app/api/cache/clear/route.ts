@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { purgeProxyCache } from '@/lib/utils/cache-purge'
 
 export async function POST() {
   try {
@@ -25,6 +26,7 @@ export async function POST() {
 
     // Invalidate the global 'all' tag so any cache that includes it is cleared
     revalidateTag('all')
+    await purgeProxyCache()
     return NextResponse.json({ success: true, cleared: ['all'] })
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 })
