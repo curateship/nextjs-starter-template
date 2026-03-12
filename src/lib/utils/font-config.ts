@@ -171,7 +171,9 @@ export function getFontFaceCSS(fontValue: string, weights?: string[]): string {
   const font = getFontByValue(fontValue)
   if (!font) return ''
 
-  const fontWeights = weights || font.weights
+  const fontWeights = weights
+    ? weights.filter(w => font.weights.includes(w))
+    : font.weights
   const rules: string[] = []
 
   for (const weight of fontWeights) {

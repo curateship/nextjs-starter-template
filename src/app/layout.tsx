@@ -44,11 +44,14 @@ export default async function RootLayout({
   const fontPrimary = success && site?.settings ? getFontFamily(primaryFontValue) : ''
   const fontSecondary = success && site?.settings ? getFontFamily(secondaryFontValue) : ''
 
+  // Only load the weights actually used on the frontend
+  const FRONTEND_WEIGHTS = ['400', '500', '600', '700']
+
   // Generate @font-face CSS pointing to self-hosted woff2 files — no external requests
   const fontCSS = success && site?.settings
     ? [
-        getFontFaceCSS(primaryFontValue),
-        primaryFontValue !== secondaryFontValue ? getFontFaceCSS(secondaryFontValue) : '',
+        getFontFaceCSS(primaryFontValue, FRONTEND_WEIGHTS),
+        primaryFontValue !== secondaryFontValue ? getFontFaceCSS(secondaryFontValue, FRONTEND_WEIGHTS) : '',
       ].filter(Boolean).join('\n')
     : ''
 
@@ -62,7 +65,11 @@ export default async function RootLayout({
         ['--font-sans' as string]: fontSecondary
       } : undefined}
     >
-      <head>{fontCSS ? <style dangerouslySetInnerHTML={{ __html: fontCSS }} /> : null}</head>
+      <head>{fontCSS ? (<>
+        <link rel="preload" href={`/fonts/${primaryFontValue}-latin-400.woff2`} as="font" type="font/woff2" crossOrigin="anonymous" />
+        {primaryFontValue !== secondaryFontValue && <link rel="preload" href={`/fonts/${secondaryFontValue}-latin-400.woff2`} as="font" type="font/woff2" crossOrigin="anonymous" />}
+        <style dangerouslySetInnerHTML={{ __html: fontCSS }} />
+      </>) : null}</head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >
