@@ -1,6 +1,3 @@
-import { AnimatedGroup } from '@/components/ui/animated-group'
-import type { AnimationSettings } from '@/lib/actions/sites/site-actions'
-
 interface BlockContainerProps {
   children: React.ReactNode
   className?: string
@@ -13,23 +10,16 @@ interface BlockContainerProps {
     subtitle?: string
     align?: 'left' | 'center' | 'right'
   }
-  // Animation props
-  animated?: boolean
-  animationPreset?: 'fade' | 'slide' | 'scale' | 'blur' | 'blur-slide'
-  customAnimationSettings?: Partial<AnimationSettings>
 }
 
-export function BlockContainer({ 
-  children, 
+export function BlockContainer({
+  children,
   className = "",
   container = true,
   id,
   siteWidth = 'custom',
   customWidth,
   header,
-  animated = true,
-  animationPreset,
-  customAnimationSettings,
 }: BlockContainerProps) {
   // Handle width - either full width or custom pixel value
   const effectiveCustomWidth = customWidth || 1152
@@ -64,17 +54,7 @@ export function BlockContainer({
         className={container ? `mx-auto ${containerClass} px-6` : ""} 
         style={containerStyle}
       >
-        {animated ? (
-          <AnimatedGroup
-            preset={animationPreset}
-            customSettings={customAnimationSettings}
-            useIntersectionObserver={true}
-          >
-            {content}
-          </AnimatedGroup>
-        ) : (
-          content
-        )}
+        {content}
       </div>
     </section>
   )

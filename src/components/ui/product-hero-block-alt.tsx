@@ -18,8 +18,6 @@ import { cn } from "@/lib/utils/tailwind-class-merger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AnimatedGroup } from "@/components/ui/animated-group";
-
 const ProductHeroBlock = () => {
   return (
     <section className="bg-background">
@@ -85,59 +83,30 @@ const ProductHeroBlock = () => {
         </header>
 
         <div className="relative mt-5 flex h-full w-full flex-col items-center justify-center">
-          <AnimatedGroup
-            variants={{
-              container: {
-                visible: {
-                  transition: {
-                    staggerChildren: 0.05,
-                  },
-                },
-              },
-              item: {
-                hidden: {
-                  opacity: 0,
-                  filter: 'blur(12px)',
-                  y: 12,
-                },
-                visible: {
-                  opacity: 1,
-                  filter: 'blur(0px)',
-                  y: 0,
-                  transition: {
-                    type: 'spring',
-                    bounce: 0.3,
-                    duration: 1.5,
-                  },
-                },
-              },
-            }}
-          >
-            <div className="relative -mr-56 mt-8 overflow-hidden px-2 sm:mr-0 sm:mt-12">
-              <div
-                aria-hidden
-                className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
+          <div className="relative -mr-56 mt-8 overflow-hidden px-2 sm:mr-0 sm:mt-12">
+            <div
+              aria-hidden
+              className="bg-linear-to-b to-background absolute inset-0 z-10 from-transparent from-35%"
+            />
+            <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative mx-auto max-w-6xl overflow-hidden rounded-2xl border p-4 shadow-lg shadow-zinc-950/15 ring-1">
+              <Image
+                className="bg-background relative hidden h-auto w-full rounded-2xl object-cover dark:block"
+                src="/hero-header.png"
+                alt="app screen"
+                width={1200}
+                height={675}
+                style={{ width: '100%', height: 'auto' }}
               />
-              <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative mx-auto max-w-6xl overflow-hidden rounded-2xl border p-4 shadow-lg shadow-zinc-950/15 ring-1">
-                <Image
-                  className="bg-background relative hidden h-auto w-full rounded-2xl object-cover dark:block"
-                  src="/hero-header.png"
-                  alt="app screen"
-                  width={1200}
-                  height={675}
-                  style={{ width: '100%', height: 'auto' }}
-                />
-                <Image
-                  className="z-2 border-border/25 relative h-auto w-full rounded-2xl border object-cover dark:hidden"
-                  src="/hero-header.png"
-                  alt="app screen"
-                  width={1200}
-                  height={675}
-                  style={{ width: '100%', height: 'auto' }}
-                />
-              </div>
+              <Image
+                className="z-2 border-border/25 relative h-auto w-full rounded-2xl border object-cover dark:hidden"
+                src="/hero-header.png"
+                alt="app screen"
+                width={1200}
+                height={675}
+                style={{ width: '100%', height: 'auto' }}
+              />
             </div>
-          </AnimatedGroup>
+          </div>
           <div className="bg-linear-to-t absolute bottom-0 h-2/3 w-full from-white to-transparent" />
         </div>
       </div>

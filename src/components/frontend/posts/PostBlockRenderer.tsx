@@ -1,6 +1,5 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
-import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 
@@ -39,15 +38,11 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlo
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
   
-  // Get animation settings from site settings
-  const animationSettings = site.settings?.animations
-
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom'
   const customWidth = site.settings?.custom_width
 
   return (
-    <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
       
       {/* Post Header */}
@@ -68,6 +63,5 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlo
       />
       
       </SiteLayout>
-    </AnimationProvider>
   )
 }

@@ -1,5 +1,4 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { CATEGORY_CONTENT_STYLE_RENDERERS } from "./category-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -67,12 +66,10 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
-  const animationSettings = site.settings?.animations;
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-    <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
         {sortedBlocks.map((block) => {
           if (block.type === 'navigation' || block.type === 'footer') {
@@ -95,6 +92,5 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
           return null
         })}
       </SiteLayout>
-    </AnimationProvider>
   )
 }

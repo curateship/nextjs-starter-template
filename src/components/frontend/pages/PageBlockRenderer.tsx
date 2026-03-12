@@ -8,7 +8,6 @@ import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlock"
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
-import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 
 interface BlockRendererProps {
@@ -29,23 +28,13 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   const navigationBlock = blocks.find(block => block.type === 'navigation')
   const footerBlock = blocks.find(block => block.type === 'footer')
   
-  // Get animation settings from site settings
-  const animationSettings = site.settings?.animations || {
-    enabled: false,
-    preset: 'fade',
-    duration: 0.6,
-    stagger: 0.1,
-    intensity: 'medium'
-  };
-
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-    <AnimationProvider settings={animationSettings}>
-      <SiteLayout 
-        navigation={navigationBlock?.content} 
+      <SiteLayout
+        navigation={navigationBlock?.content}
         footer={footerBlock?.content}
         site={site}
       >
@@ -171,6 +160,5 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         return null
       })}
       </SiteLayout>
-    </AnimationProvider>
   )
 }

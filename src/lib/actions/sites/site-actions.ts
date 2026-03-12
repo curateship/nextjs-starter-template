@@ -32,14 +32,6 @@ export interface Site {
 // Kept as alias for backward compatibility across the codebase
 export type SiteWithTheme = Site
 
-export interface AnimationSettings {
-  enabled: boolean
-  preset: 'fade' | 'slide' | 'scale' | 'blur' | 'blur-slide' | 'zoom' | 'flip' | 'bounce' | 'rotate' | 'swing'
-  duration: number // 0.3 to 2.0 seconds
-  stagger: number // 0 to 0.5 seconds
-  intensity: 'low' | 'medium' | 'high'
-}
-
 export interface CreateSiteData {
   name: string
   subdomain?: string
@@ -52,7 +44,6 @@ export interface CreateSiteData {
   secondary_font_family?: string
   secondary_font_weights?: string[]
   favicon?: string
-  animations?: AnimationSettings
   tracking_scripts?: string
   site_width?: 'full' | 'custom'
   custom_width?: number
@@ -159,13 +150,6 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       secondary_font_family: siteData.secondary_font_family || 'inter',
       secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700'],
       favicon: siteData.favicon || null,
-      animations: siteData.animations || {
-        enabled: false,
-        preset: 'fade',
-        duration: 0.6,
-        stagger: 0.1,
-        intensity: 'medium'
-      }
     }
 
     // Create the site

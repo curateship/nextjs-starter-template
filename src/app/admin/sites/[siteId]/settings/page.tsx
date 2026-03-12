@@ -7,7 +7,7 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { getSiteByIdAction, updateSiteAction, createSiteAction } from "@/lib/actions/sites/site-actions"
-import type { Site, AnimationSettings } from "@/lib/actions/sites/site-actions"
+import type { Site } from "@/lib/actions/sites/site-actions"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,
@@ -39,7 +39,6 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
 import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
-import { AnimationSettingsCard } from "@/components/admin/layout/dashboard/AnimationSettingsCard"
 import { ContentTypesSettingsCard } from "@/components/admin/layout/dashboard/ContentTypesSettingsCard"
 
 // --- IntegrationCard ---
@@ -316,7 +315,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
-  const [animations, setAnimations] = useState<AnimationSettings>({ enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
   const [trackingScripts, setTrackingScripts] = useState("")
   const [posthogApiKey, setPosthogApiKey] = useState("")
   const [posthogHost, setPosthogHost] = useState("")
@@ -376,7 +374,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setFontFamily(data.settings?.font_family || "playfair-display")
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
-        setAnimations(data.settings?.animations || { enabled: false, preset: 'fade', duration: 0.6, stagger: 0.1, intensity: 'medium' })
         setTrackingScripts(data.settings?.tracking_scripts || "")
         setPosthogApiKey(data.settings?.posthog_api_key || "")
         setPosthogHost(data.settings?.posthog_host || "")
@@ -504,7 +501,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             font_family: fontFamily,
             secondary_font_family: secondaryFontFamily,
             favicon: favicon === '' ? '' : favicon || undefined,
-            animations: animations,
             tracking_scripts: trackingScripts,
             posthog_api_key: posthogApiKey,
             posthog_host: posthogHost,
@@ -654,10 +650,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onSiteWidthChange={setSiteWidth}
                     onCustomWidthChange={setCustomWidth}
                     onDefaultThemeChange={setDefaultTheme}
-                  />
-                  <AnimationSettingsCard
-                    animations={animations}
-                    onAnimationsChange={setAnimations}
                   />
                 </div>
               )}

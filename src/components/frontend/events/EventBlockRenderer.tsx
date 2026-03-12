@@ -1,5 +1,4 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { EVENT_CONTENT_STYLE_RENDERERS } from "./event-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -69,15 +68,11 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
-  // Get animation settings from site settings
-  const animationSettings = site.settings?.animations;
-
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-    <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
@@ -102,6 +97,5 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
           return null
         })}
       </SiteLayout>
-    </AnimationProvider>
   )
 }

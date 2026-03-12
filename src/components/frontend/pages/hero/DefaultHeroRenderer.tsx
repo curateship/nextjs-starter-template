@@ -3,7 +3,6 @@
 import React from "react";
 import DotPattern from "@/components/ui/dot-pattern";
 import Image from "next/image";
-import { AnimatedGroup } from "@/components/ui/animated-group";
 import { cn } from "@/lib/utils/tailwind-class-merger";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
@@ -199,15 +198,13 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
         )}
         style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
       >
-        <AnimatedGroup customSettings={{ stagger: 0.2 }}>
-          <div className={cn("relative z-10 max-w-3xl space-y-6", textAlign)}>
-            {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
-            {children}
-            {trustedByAvatars && trustedByAvatars.length > 0 && (
-              <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} alignment={alignment} />
-            )}
-          </div>
-        </AnimatedGroup>
+        <div className={cn("relative z-10 max-w-3xl space-y-6", textAlign)}>
+          {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
+          {children}
+          {trustedByAvatars && trustedByAvatars.length > 0 && (
+            <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} alignment={alignment} />
+          )}
+        </div>
       </div>
     </>
   );

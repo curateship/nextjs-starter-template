@@ -10,7 +10,6 @@ import { ProductListingViewBlock } from "@/components/frontend/products/listing-
 import { ProductRichTextBlock } from "@/components/frontend/products/rich-text/ProductRichTextBlock"
 import { ProductVideoBlock } from "@/components/frontend/products/video/ProductVideoBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { AnimationProvider } from "@/contexts/animation-context"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 
@@ -31,15 +30,11 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
   const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
   
-  // Get animation settings from site settings
-  const animationSettings = site.settings?.animations;
-
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
   const customWidth = site.settings?.custom_width;
   
   return (
-    <AnimationProvider settings={animationSettings}>
       <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
       
       {sortedBlocks.map((block) => {
@@ -223,6 +218,5 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         return null
       })}
       </SiteLayout>
-    </AnimationProvider>
   )
 }
