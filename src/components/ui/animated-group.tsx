@@ -1,5 +1,5 @@
 'use client';
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import React from 'react';
 import { useAnimationSettings, getOptimizedAnimationSettings } from '@/contexts/animation-context';
 import type { AnimationSettings } from '@/lib/actions/sites/site-actions';
@@ -7,20 +7,13 @@ import type { AnimationSettings } from '@/lib/actions/sites/site-actions';
 let MotionGroupComponent: React.ComponentType<any> | null = null;
 let motionGroupPromise: Promise<any> | null = null;
 
-function useMotionGroup() {
-  const [loaded, setLoaded] = useState(!!MotionGroupComponent);
-
-  useEffect(() => {
-    if (MotionGroupComponent) { setLoaded(true); return; }
-    if (!motionGroupPromise) {
-      motionGroupPromise = import('./motion-group').then(m => {
-        MotionGroupComponent = m.MotionGroup;
-      });
-    }
-    motionGroupPromise.then(() => setLoaded(true));
-  }, []);
-
-  return loaded ? MotionGroupComponent : null;
+function loadMotionGroup() {
+  if (!motionGroupPromise) {
+    motionGroupPromise = import('./motion-group').then(m => {
+      MotionGroupComponent = m.MotionGroup;
+    });
+  }
+  return motionGroupPromise;
 }
 
 export type PresetType =
@@ -61,6 +54,8 @@ function AnimatedGroup({
   customSettings,
 }: AnimatedGroupProps) {
   const { settings, isEnabled } = useAnimationSettings();
+  const hasBeenVisible = useRef(false);
+  const [motionReady, setMotionReady] = useState(false);
 
   const effectiveSettings = customSettings
     ? { ...settings, ...customSettings }
@@ -69,25 +64,44 @@ function AnimatedGroup({
   const optimizedSettings = getOptimizedAnimationSettings(effectiveSettings);
   const shouldAnimate = forceEnabled || isEnabled;
 
-  const MotionGroup = useMotionGroup();
+  // Preload motion library if animations are enabled, but don't trigger re-render
+  useEffect(() => {
+    if (shouldAnimate) {
+      loadMotionGroup();
+    }
+  }, [shouldAnimate]);
 
-  if (!shouldAnimate || !MotionGroup) {
+  // Only use MotionGroup for elements that haven't been shown yet
+  // (i.e., below-fold content that becomes visible via scroll)
+  useEffect(() => {
+    // Mark as "has been visible" on first render — prevents swap flicker
+    hasBeenVisible.current = true;
+  }, []);
+
+  // For already-visible content, always use StaticWrapper (no remount flicker)
+  if (!shouldAnimate || hasBeenVisible.current) {
     return <StaticWrapper className={className} as={as}>{children}</StaticWrapper>;
   }
 
-  return (
-    <MotionGroup
-      className={className}
-      variants={variants}
-      preset={preset}
-      as={as}
-      asChild={asChild}
-      optimizedSettings={optimizedSettings}
-      skipInitialAnimation
-    >
-      {children}
-    </MotionGroup>
-  );
+  // This path is only reached on the very first render if shouldAnimate
+  // and MotionGroup was already cached from a previous page
+  if (MotionGroupComponent) {
+    return (
+      <MotionGroupComponent
+        className={className}
+        variants={variants}
+        preset={preset}
+        as={as}
+        asChild={asChild}
+        optimizedSettings={optimizedSettings}
+        skipInitialAnimation
+      >
+        {children}
+      </MotionGroupComponent>
+    );
+  }
+
+  return <StaticWrapper className={className} as={as}>{children}</StaticWrapper>;
 }
 
 export { AnimatedGroup };
