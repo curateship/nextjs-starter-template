@@ -34,13 +34,14 @@ export function PostContentBlock({
   customWidth
 }: PostContentBlockProps) {
   return (
-    <BlockContainer
-      siteWidth={siteWidth}
-      customWidth={customWidth}
-    >
-        <div>
-          {blocks.map((block) => (
-            <div key={block.id} className="mb-10">
+    <>
+      {blocks.map((block) => (
+        <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+          <BlockContainer
+            siteWidth={siteWidth}
+            customWidth={customWidth}
+          >
+            <div className="mb-10">
               {block.type === 'post-content' && (
                 <PostContentStyled block={block} post={post} />
               )}
@@ -97,9 +98,10 @@ export function PostContentBlock({
                 />
               )}
             </div>
-          ))}
+          </BlockContainer>
         </div>
-    </BlockContainer>
+      ))}
+    </>
   )
 }
 

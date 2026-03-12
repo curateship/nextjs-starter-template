@@ -90,13 +90,14 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
 
           if (block.type === 'event-content') {
             return (
+              <div key={`event-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <EventContentStyled
-                key={`event-content-${block.id}`}
                 block={block}
                 event={event}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
+              </div>
             )
           }
 

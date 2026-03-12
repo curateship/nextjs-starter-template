@@ -57,8 +57,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           const Renderer = PRODUCT_CONTENT_STYLE_RENDERERS[styleName] || PRODUCT_CONTENT_STYLE_RENDERERS['default']
 
           return (
+            <div key={`product-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <BlockContainer
-              key={`product-content-${block.id}`}
               id="product-content"
               className="white"
               siteWidth={siteWidth}
@@ -80,40 +80,44 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
                 />
               </div>
             </BlockContainer>
+            </div>
           )
         }
-        
+
         if (block.type === 'product-hero') {
           return (
+            <div key={`product-hero-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductHeroBlock
-              key={`product-hero-${block.id}`}
               {...block.content}
             />
+            </div>
           )
         }
-        
+
         if (block.type === 'product-features') {
           return (
+            <div key={`product-features-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductFeaturesBlock
-              key={`product-features-${block.id}`}
               {...block.content}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
-        
+
         if (block.type === 'product-hotspot') {
           return (
+            <div key={`product-hotspot-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductHotspotBlock
-              key={`product-hotspot-${block.id}`}
               {...block.content}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
-        
+
         if (block.type === 'product-checkout') {
           const tiers = block.content.productPricingTiers || []
 
@@ -136,8 +140,8 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
           }))
 
           return (
+            <div key={`product-checkout-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductCheckoutBlock
-              key={`product-checkout-${block.id}`}
               header={block.content.header}
               subheader={block.content.subheader}
               headerAlign={block.content.headerAlign}
@@ -147,36 +151,39 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
 
         if (block.type === 'product-lead-magnet') {
           return (
+            <div key={`product-lead-magnet-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductLeadMagnetBlock
-              key={`product-lead-magnet-${block.id}`}
               content={block.content as any}
               product={product}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
 
         if (block.type === 'product-faq') {
           return (
+            <div key={`product-faq-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductFAQBlock
-              key={`product-faq-${block.id}`}
               content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
-        
+
         if (block.type === 'listing-views') {
           return (
+            <div key={`listing-views-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductListingViewBlock
-              key={`listing-views-${block.id}`}
               content={block.content as any}
               siteId={site.id}
               urlPrefixes={{
@@ -186,28 +193,31 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
 
         if (block.type === 'product-rich-text') {
           return (
+            <div key={`product-rich-text-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductRichTextBlock
-              key={`product-rich-text-${block.id}`}
               content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
 
         if (block.type === 'product-video') {
           return (
+            <div key={`product-video-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductVideoBlock
-              key={`product-video-${block.id}`}
               content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
           )
         }
 

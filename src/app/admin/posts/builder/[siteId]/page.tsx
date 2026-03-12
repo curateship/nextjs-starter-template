@@ -238,6 +238,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           }}
           blocksLoading={loading}
           onPostTitleChange={handlePostTitleChange}
+          onSelectBlock={builderState.setSelectedBlock}
         />
 
         <BlockListPanel

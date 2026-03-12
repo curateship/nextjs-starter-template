@@ -211,6 +211,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           siteBlocks={siteBlocks}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
+          onSelectBlock={builderState.setSelectedBlock}
         />
 
         <BlockListPanel

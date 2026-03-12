@@ -40,6 +40,7 @@ interface BlockPropertiesPanelProps {
   blocksLoading?: boolean
   onOpenPostSettings?: () => void
   onPostTitleChange?: (title: string) => void
+  onSelectBlock?: (block: any) => void
 }
 
 export function BlockPropertiesPanel({
@@ -51,7 +52,8 @@ export function BlockPropertiesPanel({
   siteBlocks,
   blocksLoading = false,
   onOpenPostSettings,
-  onPostTitleChange
+  onPostTitleChange,
+  onSelectBlock
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -145,6 +147,8 @@ export function BlockPropertiesPanel({
             } : undefined}
             className="h-full"
             blocksLoading={blocksLoading}
+            allBlocks={(currentPost?.blocks || []) as any}
+            onSelectBlock={onSelectBlock}
           />
         </div>
       )}

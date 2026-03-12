@@ -90,13 +90,14 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
 
           if (block.type === 'directory-content') {
             return (
+              <div key={`directory-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <DirectoryContentStyled
-                key={`directory-content-${block.id}`}
                 block={block}
                 directory={directory}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
+              </div>
             )
           }
 

@@ -36,6 +36,7 @@ interface BlockPropertiesPanelProps {
   siteBlocks?: Record<string, any[]>
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
+  onSelectBlock?: (block: any) => void
 }
 
 export function BlockPropertiesPanel({
@@ -47,6 +48,7 @@ export function BlockPropertiesPanel({
   siteBlocks,
   blocksLoading = false,
   onTitleChange,
+  onSelectBlock,
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current directory
   const currentSiteBlocks = siteBlocks?.[currentDirectory?.slug || ''] || []
@@ -97,6 +99,8 @@ export function BlockPropertiesPanel({
             } : undefined}
             className="h-full"
             blocksLoading={blocksLoading}
+            allBlocks={currentDirectory?.blocks || []}
+            onSelectBlock={onSelectBlock}
           />
         </div>
       )}

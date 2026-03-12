@@ -51,6 +51,7 @@ interface BlockPropertiesPanelProps {
   onDescriptionChange?: (description: string) => void
   onFeaturedImageChange?: (featuredImage: string) => void
   onStatusChange?: (status: string) => void
+  onSelectBlock?: (block: any) => void
 }
 
 export function BlockPropertiesPanel({
@@ -64,7 +65,8 @@ export function BlockPropertiesPanel({
   onTitleChange,
   onDescriptionChange,
   onFeaturedImageChange,
-  onStatusChange
+  onStatusChange,
+  onSelectBlock
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -284,6 +286,8 @@ export function BlockPropertiesPanel({
             site={site}
             className="h-full"
             blocksLoading={blocksLoading}
+            allBlocks={currentProduct?.blocks || []}
+            onSelectBlock={onSelectBlock}
           />
         </div>
       )}

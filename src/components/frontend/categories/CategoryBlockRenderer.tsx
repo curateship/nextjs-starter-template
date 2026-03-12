@@ -83,13 +83,14 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
 
           if (block.type === 'taxonomy-content') {
             return (
+              <div key={`category-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <CategoryContentStyled
-                key={`category-content-${block.id}`}
                 block={block}
                 category={category}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
+              </div>
             )
           }
 
