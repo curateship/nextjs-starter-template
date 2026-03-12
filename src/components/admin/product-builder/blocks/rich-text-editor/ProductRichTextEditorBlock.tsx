@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { useState, useCallback, useEffect } from 'react'
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface RichTextBlockProps {
   content: {
@@ -38,10 +39,12 @@ interface RichTextBlockProps {
   }
   onContentChange: (content: { header?: string; subheader?: string; headerAlign?: 'left' | 'center'; richtextContent: string }) => void
   compact?: boolean
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
   onBack?: () => void
 }
 
-export function ProductRichTextEditorBlock({ content, onContentChange, compact = false, onBack }: RichTextBlockProps) {
+export function ProductRichTextEditorBlock({ content, onContentChange, compact = false, visibility, onVisibilityChange, onBack }: RichTextBlockProps) {
   const [showPreview, setShowPreview] = useState(false)
   const [activeTab, setActiveTab] = useState("content")
 
@@ -149,6 +152,46 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
 
       {/* Content Tab */}
       <TabsContent value="content">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Section Header</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="header">Section Header</Label>
+              <Input
+                id="header"
+                value={content.header || ''}
+                onChange={(e) => handleHeaderChange(e.target.value)}
+                placeholder="Enter section title..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="subheader">Section Sub Header</Label>
+              <Input
+                id="subheader"
+                value={content.subheader || ''}
+                onChange={(e) => handleSubheaderChange(e.target.value)}
+                placeholder="Enter section subtitle..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="headerAlign">Header Alignment</Label>
+              <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select alignment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="shadow-sm">
           {!content.hideEditorHeader && (
             <CardHeader>
@@ -387,45 +430,16 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
 
       {/* Settings Tab */}
       <TabsContent value="settings">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Section Header</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="header">Section Header</Label>
-              <Input
-                id="header"
-                value={content.header || ''}
-                onChange={(e) => handleHeaderChange(e.target.value)}
-                placeholder="Enter section title..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="subheader">Section Sub Header</Label>
-              <Input
-                id="subheader"
-                value={content.subheader || ''}
-                onChange={(e) => handleSubheaderChange(e.target.value)}
-                placeholder="Enter section subtitle..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="headerAlign">Header Alignment</Label>
-              <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select alignment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
       </TabsContent>
     </Tabs>
   )

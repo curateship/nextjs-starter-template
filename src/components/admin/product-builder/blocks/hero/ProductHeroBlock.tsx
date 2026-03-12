@@ -8,6 +8,7 @@ import { Check, ArrowLeft } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -211,10 +212,22 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
 
       {/* Styling Tab */}
       <TabsContent value="styling" className="mt-6">
-        {/* Style Selector Cards */}
+        {ActivePanel && (
+          <ActivePanel
+            config={currentStyleConfig}
+            onConfigChange={handleStyleConfigChange}
+            siteId={siteId}
+            blockId={blockId}
+          />
+        )}
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        {/* Hero Style Selector */}
         <div className="space-y-2 mb-4 px-6">
           <Label className="text-sm font-medium px-1">Hero Style</Label>
-          <div className="grid gap-2 max-w-sm">
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
             {Object.entries(HERO_STYLES).map(([key, style]) => (
               <button
                 key={key}
@@ -246,24 +259,16 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           </div>
         </div>
 
-        {/* Active style's admin panel */}
-        {ActivePanel && (
-          <ActivePanel
-            config={currentStyleConfig}
-            onConfigChange={handleStyleConfigChange}
-            siteId={siteId}
-            blockId={blockId}
-          />
-        )}
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-        <Card className="shadow-sm">
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No additional settings for this block.
-          </CardContent>
-        </Card>
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'title', label: 'Title' },
+            { key: 'subtitle', label: 'Subtitle' },
+            { key: 'primaryButton', label: 'Primary Button' },
+            { key: 'secondaryButton', label: 'Secondary Button' },
+          ]}
+        />
       </TabsContent>
     </Tabs>
   )

@@ -9,6 +9,7 @@ interface RichTextBlockProps {
     subheader?: string
     headerAlign?: 'left' | 'center'
     richtextContent: string
+    visibility?: Record<string, boolean>
   }
   className?: string
   siteWidth?: 'full' | 'custom'
@@ -37,8 +38,8 @@ export function ProductRichTextBlock({ content, className = "", siteWidth = 'cus
   return (
     <BlockContainer
       header={{
-        title: content.header,
-        subtitle: content.subheader,
+        title: content.visibility?.header !== false ? content.header : '',
+        subtitle: content.visibility?.subheader !== false ? content.subheader : '',
         align: content.headerAlign || 'left'
       }}
       className={className}

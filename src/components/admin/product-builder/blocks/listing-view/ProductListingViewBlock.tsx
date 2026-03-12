@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductListingViewBlockProps {
   header?: string
@@ -40,6 +41,8 @@ interface ProductListingViewBlockProps {
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
   onBack?: () => void
 }
 
@@ -76,6 +79,8 @@ export function ProductListingViewBlock({
   onItemsPerPageChange,
   onViewAllTextChange,
   onViewAllLinkChange,
+  visibility,
+  onVisibilityChange,
   onBack,
 }: ProductListingViewBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
@@ -100,6 +105,74 @@ export function ProductListingViewBlock({
       </div>
 
       <TabsContent value="content" className="space-y-0">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Header</Label>
+                <Input
+                  id="title"
+                  value={header}
+                  onChange={(e) => onHeaderChange(e.target.value)}
+                  placeholder="Enter block title"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subtitle">Sub Header</Label>
+                <Input
+                  id="subtitle"
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange(e.target.value)}
+                  placeholder="Enter block subtitle"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="headerAlign">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="headerAlign">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="viewAllText">View All Button Text</Label>
+                <Input
+                  id="viewAllText"
+                  value={viewAllText}
+                  onChange={(e) => onViewAllTextChange(e.target.value)}
+                  placeholder="View all products"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="viewAllLink">View All Button Link</Label>
+                <Input
+                  id="viewAllLink"
+                  value={viewAllLink}
+                  onChange={(e) => onViewAllLinkChange(e.target.value)}
+                  placeholder="/products"
+                />
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Content Settings</CardTitle>
@@ -253,73 +326,16 @@ export function ProductListingViewBlock({
       </TabsContent>
 
       <TabsContent value="settings">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Header</Label>
-                <Input
-                  id="title"
-                  value={header}
-                  onChange={(e) => onHeaderChange(e.target.value)}
-                  placeholder="Enter block title"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="subtitle">Sub Header</Label>
-                <Input
-                  id="subtitle"
-                  value={subheader}
-                  onChange={(e) => onSubheaderChange(e.target.value)}
-                  placeholder="Enter block subtitle"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="headerAlign">Header Alignment</Label>
-                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                  <SelectTrigger id="headerAlign">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left">Left</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="viewAllText">View All Button Text</Label>
-                <Input
-                  id="viewAllText"
-                  value={viewAllText}
-                  onChange={(e) => onViewAllTextChange(e.target.value)}
-                  placeholder="View all products"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="viewAllLink">View All Button Link</Label>
-                <Input
-                  id="viewAllLink"
-                  value={viewAllLink}
-                  onChange={(e) => onViewAllLinkChange(e.target.value)}
-                  placeholder="/products"
-                />
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground">
-              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
-            </p>
-          </CardContent>
-        </Card>
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
       </TabsContent>
     </Tabs>
   )

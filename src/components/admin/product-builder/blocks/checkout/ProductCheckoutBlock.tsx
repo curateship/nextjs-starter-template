@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3, ArrowLeft } from "lucide-react"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useEffect, useRef, useState } from "react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import { OrderBumpsModal } from "@/components/admin/product-builder/layout/OrderBumpsModal"
@@ -110,6 +111,8 @@ interface ProductCheckoutBlockProps {
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onProductPricingTiersChange: (productPricingTiers: PricingTier[]) => void
   onCheckoutSettingsChange?: (settings: CheckoutSettings) => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
   onBack?: () => void
 }
 
@@ -518,6 +521,8 @@ export function ProductCheckoutBlock({
   onHeaderAlignChange,
   onProductPricingTiersChange,
   onCheckoutSettingsChange,
+  visibility,
+  onVisibilityChange,
   onBack,
 }: ProductCheckoutBlockProps) {
   const [activeTab, setActiveTab] = useState('checkout')
@@ -612,6 +617,49 @@ export function ProductCheckoutBlock({
 
       {/* Tab 1: Checkout */}
       <TabsContent value="checkout" className="mt-6">
+        {/* Header Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pricing-title">Header</Label>
+                <Input
+                  id="pricing-title"
+                  value={header}
+                  onChange={(e) => onHeaderChange(sanitizeAdminInput(e.target.value))}
+                  placeholder="Pricing Plans"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pricing-subtitle">Sub Header</Label>
+                <Input
+                  id="pricing-subtitle"
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange(sanitizeAdminInput(e.target.value))}
+                  placeholder="Choose the perfect plan for your needs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pricing-align">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="pricing-align">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Payment Checkout Card */}
         <Card>
           <CardHeader>
@@ -762,47 +810,16 @@ export function ProductCheckoutBlock({
 
       {/* Tab 3: Settings */}
       <TabsContent value="settings" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pricing-title">Header</Label>
-                <Input
-                  id="pricing-title"
-                  value={header}
-                  onChange={(e) => onHeaderChange(sanitizeAdminInput(e.target.value))}
-                  placeholder="Pricing Plans"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pricing-subtitle">Sub Header</Label>
-                <Input
-                  id="pricing-subtitle"
-                  value={subheader}
-                  onChange={(e) => onSubheaderChange(sanitizeAdminInput(e.target.value))}
-                  placeholder="Choose the perfect plan for your needs"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pricing-align">Header Alignment</Label>
-                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                  <SelectTrigger id="pricing-align">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left">Left</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
       </TabsContent>
 
     </Tabs>

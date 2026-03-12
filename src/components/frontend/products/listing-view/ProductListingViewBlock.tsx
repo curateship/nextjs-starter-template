@@ -28,6 +28,7 @@ interface ProductListingViewBlockProps {
     itemsPerPage?: number
     viewAllText?: string
     viewAllLink?: string
+    visibility?: Record<string, boolean>
   }
   siteId: string
   siteSubdomain?: string
@@ -66,6 +67,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     itemsPerPage = 12,
     viewAllText = '',
     viewAllLink = '',
+    visibility,
   } = content
 
   // Get URL prefix from props (passed from parent, no API call needed)
@@ -241,12 +243,12 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
           <div className="mb-12">
             <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
               <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
-                {title && (
+                {title && visibility?.header !== false && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {title}
                   </h2>
                 )}
-                {subtitle && (
+                {subtitle && visibility?.subheader !== false && (
                   <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {subtitle}
                   </p>
@@ -295,12 +297,12 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
           <div className="mb-12">
             <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
               <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
-                {title && (
+                {title && visibility?.header !== false && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {title}
                   </h2>
                 )}
-                {subtitle && (
+                {subtitle && visibility?.subheader !== false && (
                   <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {subtitle}
                   </p>

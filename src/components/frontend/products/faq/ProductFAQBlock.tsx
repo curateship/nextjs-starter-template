@@ -17,6 +17,7 @@ interface ProductFAQBlockProps {
         subheader?: string
         headerAlign?: 'left' | 'center'
         productFaqItems?: FaqItem[]
+        visibility?: Record<string, boolean>
     }
     siteWidth?: 'full' | 'custom'
     customWidth?: number
@@ -61,8 +62,8 @@ const ProductFAQBlock = ({ content, siteWidth = 'custom', customWidth }: Product
             siteWidth={siteWidth}
             customWidth={customWidth}
             header={{
-                title: content?.header || '',
-                subtitle: content?.subheader || '',
+                title: content?.visibility?.header !== false ? (content?.header ?? '') : '',
+                subtitle: content?.visibility?.subheader !== false ? (content?.subheader ?? '') : '',
                 align: content?.headerAlign ?? "center"
             }}
         >

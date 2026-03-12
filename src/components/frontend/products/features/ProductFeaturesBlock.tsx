@@ -27,6 +27,7 @@ interface ProductFeaturesBlockProps {
   subheader?: string
   headerAlign?: 'left' | 'center'
   featuresCollection?: Feature[]
+  visibility?: Record<string, boolean>
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
@@ -36,6 +37,7 @@ const ProductFeaturesBlock = ({
   subheader = '',
   headerAlign = "center",
   featuresCollection = [],
+  visibility,
   siteWidth = 'custom',
   customWidth
 }: ProductFeaturesBlockProps) => {
@@ -68,8 +70,8 @@ const ProductFeaturesBlock = ({
       siteWidth={siteWidth}
       customWidth={customWidth}
       header={{
-        title: header,
-        subtitle: subheader,
+        title: visibility?.header !== false ? header : '',
+        subtitle: visibility?.subheader !== false ? subheader : '',
         align: headerAlign
       }}
     >

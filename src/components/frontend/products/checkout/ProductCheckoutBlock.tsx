@@ -61,6 +61,7 @@ interface ProductCheckoutBlockProps {
   pricingTiers?: PricingTier[]
   checkoutSettings?: CheckoutSettings
   productSlug?: string
+  visibility?: Record<string, boolean>
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
@@ -294,6 +295,7 @@ const ProductCheckoutBlock = ({
   pricingTiers = [],
   checkoutSettings,
   productSlug,
+  visibility,
   siteWidth = 'custom',
   customWidth
 }: ProductCheckoutBlockProps) => {
@@ -315,8 +317,8 @@ const ProductCheckoutBlock = ({
         siteWidth={siteWidth}
         customWidth={customWidth}
         header={(header || subheader) ? {
-          title: header,
-          subtitle: subheader,
+          title: visibility?.header !== false ? header : '',
+          subtitle: visibility?.subheader !== false ? subheader : '',
           align: headerAlign
         } : undefined}
       >

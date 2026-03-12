@@ -11,6 +11,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, ArrowLeft } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductHotspotBlockProps {
   header?: string
@@ -25,6 +26,8 @@ interface ProductHotspotBlockProps {
   onBackgroundImageChange: (value: string) => void
   onProductHotspotsChange: (productHotspots: Hotspot[]) => void
   onShowTooltipsAlwaysChange: (value: boolean) => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
   siteId: string
   blockId: string
   onBack?: () => void
@@ -43,6 +46,8 @@ export function ProductHotspotBlock({
   onBackgroundImageChange,
   onProductHotspotsChange,
   onShowTooltipsAlwaysChange,
+  visibility,
+  onVisibilityChange,
   siteId,
   blockId,
   onBack,
@@ -329,6 +334,17 @@ export function ProductHotspotBlock({
               </div>
             </CardContent>
           </Card>
+
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

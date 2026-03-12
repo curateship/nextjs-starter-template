@@ -110,6 +110,8 @@ export function BlockPropertiesPanel({
                 specifications={selectedBlock.content.specifications || []}
                 onDescriptionChange={(value) => updateBlockContent('description', value)}
                 onSpecificationsChange={(specs) => updateBlockContent('specifications', specs)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -120,6 +122,8 @@ export function BlockPropertiesPanel({
                 showThumbnails={selectedBlock.content.showThumbnails || false}
                 onImagesChange={(images) => updateBlockContent('images', images)}
                 onShowThumbnailsChange={(show) => updateBlockContent('showThumbnails', show)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -136,6 +140,8 @@ export function BlockPropertiesPanel({
                 onFeaturesCollectionChange={(features) => updateBlockContent('featuresCollection', features)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -156,6 +162,8 @@ export function BlockPropertiesPanel({
                 onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -172,6 +180,8 @@ export function BlockPropertiesPanel({
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onProductPricingTiersChange={(productPricingTiers) => updateBlockContent('productPricingTiers', productPricingTiers)}
                 onCheckoutSettingsChange={(settings) => updateBlockContent('checkoutSettings', settings)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -196,6 +206,8 @@ export function BlockPropertiesPanel({
                 onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onProductFaqItemsChange={(productFaqItems) => updateBlockContent('productFaqItems', productFaqItems)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -234,6 +246,8 @@ export function BlockPropertiesPanel({
                 onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
                 onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
                 onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -254,6 +268,8 @@ export function BlockPropertiesPanel({
                   updateBlockContent('headerAlign', contentObj.headerAlign)
                   updateBlockContent('richtextContent', contentObj.richtextContent)
                 }}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}
@@ -278,6 +294,8 @@ export function BlockPropertiesPanel({
                 onMutedChange={(value) => updateBlockContent('muted', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                visibility={selectedBlock.content.visibility}
+                onVisibilityChange={(v) => updateBlockContent('visibility', v)}
                 onBack={onBack}
               />
             )}

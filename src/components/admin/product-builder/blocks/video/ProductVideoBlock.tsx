@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Video, Image as ImageIcon, ArrowLeft } from "lucide-react"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useState } from "react"
 
 interface ProductVideoBlockProps {
@@ -28,6 +29,8 @@ interface ProductVideoBlockProps {
   onAutoplayChange: (value: boolean) => void
   onLoopChange: (value: boolean) => void
   onMutedChange: (value: boolean) => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
   onBack?: () => void
   siteId: string
   blockId: string
@@ -50,6 +53,8 @@ export function ProductVideoBlock({
   onAutoplayChange,
   onLoopChange,
   onMutedChange,
+  visibility,
+  onVisibilityChange,
   onBack,
   siteId,
   blockId,
@@ -80,6 +85,48 @@ export function ProductVideoBlock({
 
         {/* Content Tab */}
         <TabsContent value="content">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Header Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="video-title">Header</Label>
+                  <Input
+                    id="video-title"
+                    value={header}
+                    onChange={(e) => onHeaderChange(e.target.value)}
+                    placeholder="Watch Our Product in Action"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="video-subtitle">Sub Header</Label>
+                  <Input
+                    id="video-subtitle"
+                    value={subheader}
+                    onChange={(e) => onSubheaderChange(e.target.value)}
+                    placeholder="See how our product works"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="video-align">Header Alignment</Label>
+                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                    <SelectTrigger id="video-align">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Video Settings</CardTitle>
@@ -174,48 +221,6 @@ export function ProductVideoBlock({
         <TabsContent value="settings">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Header Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="video-title">Header</Label>
-                  <Input
-                    id="video-title"
-                    value={header}
-                    onChange={(e) => onHeaderChange(e.target.value)}
-                    placeholder="Watch Our Product in Action"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="video-subtitle">Sub Header</Label>
-                  <Input
-                    id="video-subtitle"
-                    value={subheader}
-                    onChange={(e) => onSubheaderChange(e.target.value)}
-                    placeholder="See how our product works"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="video-align">Header Alignment</Label>
-                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                    <SelectTrigger id="video-align">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle className="text-base">Playback Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -253,6 +258,17 @@ export function ProductVideoBlock({
               )}
             </CardContent>
           </Card>
+
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

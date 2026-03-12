@@ -14,6 +14,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { LEAD_MAGNET_STYLES } from '.'
 import { cn } from '@/lib/utils/tailwind-class-merger'
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductLeadMagnetBlockProps {
   content: Record<string, any>
@@ -109,41 +110,6 @@ export function ProductLeadMagnetBlock({
 
       {/* Content Tab */}
       <TabsContent value="content" className="mt-6">
-        {/* Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Lead Magnet Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(LEAD_MAGNET_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('leadMagnetStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  leadMagnetStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  leadMagnetStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {leadMagnetStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Content Fields */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -306,6 +272,41 @@ export function ProductLeadMagnetBlock({
 
       {/* Settings Tab */}
       <TabsContent value="settings" className="mt-6">
+        {/* Lead Magnet Style Selector */}
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Lead Magnet Style</Label>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            {Object.entries(LEAD_MAGNET_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('leadMagnetStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  leadMagnetStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  leadMagnetStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {leadMagnetStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Flodesk</CardTitle>
@@ -397,6 +398,16 @@ export function ProductLeadMagnetBlock({
             )}
           </CardContent>
         </Card>
+
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'heading', label: 'Heading' },
+            { key: 'subheading', label: 'Subheading' },
+            { key: 'buttonText', label: 'Button' },
+          ]}
+        />
       </TabsContent>
 
       {/* Styling Tab */}

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface Specification {
   label: string
@@ -18,6 +19,8 @@ interface ProductDetailsBlockProps {
   onDescriptionChange: (value: string) => void
   onSpecificationsChange: (specs: Specification[]) => void
   onBack?: () => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
 }
 
 export function ProductDetailsBlock({
@@ -25,7 +28,9 @@ export function ProductDetailsBlock({
   specifications,
   onDescriptionChange,
   onSpecificationsChange,
-  onBack
+  onBack,
+  visibility,
+  onVisibilityChange
 }: ProductDetailsBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
 
@@ -142,11 +147,16 @@ export function ProductDetailsBlock({
       </TabsContent>
 
       <TabsContent value="settings" className="px-6 pb-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">No additional settings for this block.</p>
-          </CardContent>
-        </Card>
+        {onVisibilityChange && (
+          <VisibilitySettings
+            visibility={visibility}
+            onChange={onVisibilityChange}
+            fields={[
+              { key: 'description', label: 'Description' },
+              { key: 'specifications', label: 'Specifications' },
+            ]}
+          />
+        )}
       </TabsContent>
     </Tabs>
   )

@@ -15,6 +15,7 @@ interface ProductVideoBlockProps {
     autoplay?: boolean
     loop?: boolean
     muted?: boolean
+    visibility?: Record<string, boolean>
   }
   className?: string
   siteWidth?: 'full' | 'custom'
@@ -60,8 +61,8 @@ export function ProductVideoBlock({
   return (
     <BlockContainer
       header={{
-        title: title,
-        subtitle: subtitle,
+        title: content.visibility?.header !== false ? title : '',
+        subtitle: content.visibility?.subheader !== false ? subtitle : '',
         align: headerAlign || 'left'
       }}
       className={className}

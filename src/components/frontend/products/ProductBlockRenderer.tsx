@@ -140,6 +140,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
               pricingTiers={transformedTiers}
               checkoutSettings={block.content.checkoutSettings}
               productSlug={product.slug}
+              visibility={block.content.visibility}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />

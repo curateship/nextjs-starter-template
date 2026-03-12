@@ -27,6 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface FaqItem {
   id: string
@@ -44,6 +45,8 @@ interface ProductFAQBlockProps {
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onProductFaqItemsChange?: (value: FaqItem[]) => void
   onBack?: () => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
 }
 
 // Sortable FAQ item component
@@ -143,7 +146,9 @@ export function ProductFAQBlock({
   onSubheaderChange,
   onHeaderAlignChange,
   onProductFaqItemsChange,
-  onBack
+  onBack,
+  visibility,
+  onVisibilityChange
 }: ProductFAQBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(productFaqItems)
@@ -216,8 +221,50 @@ export function ProductFAQBlock({
         </TabsList>
       </div>
 
-      {/* Content Tab - FAQ Items */}
+      {/* Content Tab - Header + FAQ Items */}
       <TabsContent value="content" className="mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-title">Header</Label>
+                <Input
+                  id="product-faq-title"
+                  value={header}
+                  onChange={(e) => onHeaderChange?.(e.target.value)}
+                  placeholder="Product FAQ"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-subtitle">Sub Header</Label>
+                <Input
+                  id="product-faq-subtitle"
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange?.(e.target.value)}
+                  placeholder="Get answers to common questions about this product..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-align">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="product-faq-align">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -274,49 +321,18 @@ export function ProductFAQBlock({
         </Card>
       </TabsContent>
 
-      {/* Settings Tab - Header Settings */}
+      {/* Settings Tab */}
       <TabsContent value="settings" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="product-faq-title">Header</Label>
-                <Input
-                  id="product-faq-title"
-                  value={header}
-                  onChange={(e) => onHeaderChange?.(e.target.value)}
-                  placeholder="Product FAQ"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="product-faq-subtitle">Sub Header</Label>
-                <Input
-                  id="product-faq-subtitle"
-                  value={subheader}
-                  onChange={(e) => onSubheaderChange?.(e.target.value)}
-                  placeholder="Get answers to common questions about this product..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="product-faq-align">Header Alignment</Label>
-                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                  <SelectTrigger id="product-faq-align">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left">Left</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {onVisibilityChange && (
+          <VisibilitySettings
+            visibility={visibility}
+            onChange={onVisibilityChange}
+            fields={[
+              { key: 'header', label: 'Header' },
+              { key: 'subheader', label: 'Sub Header' },
+            ]}
+          />
+        )}
       </TabsContent>
     </Tabs>
   )

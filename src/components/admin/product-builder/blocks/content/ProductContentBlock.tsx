@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Check, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -165,41 +166,6 @@ export function ProductContentBlock({
       </div>
 
       <TabsContent value="content" className="mt-6">
-        {/* Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Block Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(PRODUCT_CONTENT_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('productContentStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  productContentStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  productContentStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {productContentStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Product Title */}
         <div className="space-y-2 px-6 mb-4">
           <Label htmlFor="product-title">Product Title</Label>
@@ -345,6 +311,41 @@ export function ProductContentBlock({
       </TabsContent>
 
       <TabsContent value="settings" className="mt-6">
+        {/* Block Style Selector */}
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Block Style</Label>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            {Object.entries(PRODUCT_CONTENT_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('productContentStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  productContentStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  productContentStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {productContentStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Show Featured Image */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -413,6 +414,17 @@ export function ProductContentBlock({
             </div>
           </CardContent>
         </Card>
+
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'title', label: 'Title' },
+            { key: 'body', label: 'Description' },
+            { key: 'featuredImage', label: 'Featured Image' },
+            { key: 'downloadButton', label: 'Download Button' },
+          ]}
+        />
       </TabsContent>
 
       <TabsContent value="styling" className="mt-6">

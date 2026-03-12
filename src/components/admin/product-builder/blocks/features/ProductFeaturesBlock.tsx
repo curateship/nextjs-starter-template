@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { Plus, Trash2, GripVertical, ImageIcon, VideoIcon, Play, ArrowLeft } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
@@ -61,6 +62,8 @@ interface ProductFeaturesBlockProps {
   siteId: string
   blockId: string
   onBack?: () => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
 }
 
 // Sortable feature item component
@@ -190,6 +193,8 @@ export function ProductFeaturesBlock({
   siteId,
   blockId,
   onBack,
+  visibility,
+  onVisibilityChange,
 }: ProductFeaturesBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState<number | null>(null)
@@ -265,8 +270,50 @@ export function ProductFeaturesBlock({
           </TabsList>
         </div>
 
-        {/* Content Tab - Features List */}
+        {/* Content Tab - Header + Features List */}
         <TabsContent value="content" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Header Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="features-title">Header</Label>
+                  <Input
+                    id="features-title"
+                    value={header}
+                    onChange={(e) => onHeaderChange(e.target.value)}
+                    placeholder="Features"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="features-subtitle">Sub Header</Label>
+                  <Input
+                    id="features-subtitle"
+                    value={subheader}
+                    onChange={(e) => onSubheaderChange(e.target.value)}
+                    placeholder="Discover what makes our product special"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="features-align">Header Alignment</Label>
+                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                    <SelectTrigger id="features-align">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -325,49 +372,18 @@ export function ProductFeaturesBlock({
           </Card>
         </TabsContent>
 
-        {/* Settings Tab - Header Settings */}
+        {/* Settings Tab */}
         <TabsContent value="settings" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Header Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="features-title">Header</Label>
-                  <Input
-                    id="features-title"
-                    value={header}
-                    onChange={(e) => onHeaderChange(e.target.value)}
-                    placeholder="Features"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="features-subtitle">Sub Header</Label>
-                  <Input
-                    id="features-subtitle"
-                    value={subheader}
-                    onChange={(e) => onSubheaderChange(e.target.value)}
-                    placeholder="Discover what makes our product special"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="features-align">Header Alignment</Label>
-                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                    <SelectTrigger id="features-align">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

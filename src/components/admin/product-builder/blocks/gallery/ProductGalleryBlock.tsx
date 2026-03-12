@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Plus, Trash2, Upload } from "lucide-react"
+import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductImage {
   id: string
@@ -18,6 +19,8 @@ interface ProductGalleryBlockProps {
   onImagesChange: (images: ProductImage[]) => void
   onShowThumbnailsChange: (show: boolean) => void
   onBack?: () => void
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (v: Record<string, boolean>) => void
 }
 
 export function ProductGalleryBlock({
@@ -25,7 +28,9 @@ export function ProductGalleryBlock({
   showThumbnails,
   onImagesChange,
   onShowThumbnailsChange,
-  onBack
+  onBack,
+  visibility,
+  onVisibilityChange
 }: ProductGalleryBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
 
@@ -185,6 +190,15 @@ export function ProductGalleryBlock({
             </div>
           </CardContent>
         </Card>
+        {onVisibilityChange && (
+          <VisibilitySettings
+            visibility={visibility}
+            onChange={onVisibilityChange}
+            fields={[
+              { key: 'thumbnails', label: 'Thumbnails' },
+            ]}
+          />
+        )}
       </TabsContent>
     </Tabs>
   )
