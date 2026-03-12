@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check } from "lucide-react"
+import { Check, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -45,6 +45,7 @@ interface ProductContentBlockProps {
   onProductTitleChange?: (title: string) => void
   onProductDescriptionChange?: (description: string) => void
   onProductFeaturedImageChange?: (featuredImage: string) => void
+  onBack?: () => void
 }
 
 export function ProductContentBlock({
@@ -56,6 +57,7 @@ export function ProductContentBlock({
   onProductTitleChange,
   onProductDescriptionChange,
   onProductFeaturedImageChange,
+  onBack,
 }: ProductContentBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
@@ -145,7 +147,16 @@ export function ProductContentBlock({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>

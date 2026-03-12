@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon } from "lucide-react"
+import { Plus, Trash2, ImageIcon, ArrowLeft } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 
@@ -26,6 +27,7 @@ interface ProductHotspotBlockProps {
   onShowTooltipsAlwaysChange: (value: boolean) => void
   siteId: string
   blockId: string
+  onBack?: () => void
 }
 
 export function ProductHotspotBlock({
@@ -43,7 +45,9 @@ export function ProductHotspotBlock({
   onShowTooltipsAlwaysChange,
   siteId,
   blockId,
+  onBack,
 }: ProductHotspotBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [editingHotspot, setEditingHotspot] = useState<string | null>(null)
   const [hotspotForm, setHotspotForm] = useState({ text: "" })
@@ -139,56 +143,179 @@ export function ProductHotspotBlock({
 
   return (
     <div>
-      {/* Header Content Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Header Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Header</Label>
-              <Input
-                id="title"
-                value={header}
-                onChange={(e) => onHeaderChange(e.target.value)}
-                placeholder="Interactive Product Overview"
-              />
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="px-6 pt-6 flex items-center gap-2">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+            >
+              <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+              Back
+            </button>
+          )}
+          <TabsList className="gap-1">
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="style">Style</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subtitle">Sub Header</Label>
-              <Input
-                id="subtitle"
-                value={subheader}
-                onChange={(e) => onSubheaderChange(e.target.value)}
-                placeholder="Hover over the blinking dots to discover more about our features"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="hotspot-align">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="hotspot-align">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Content Tab */}
+        <TabsContent value="content">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Interactive Hotspots</CardTitle>
+                <div className="flex items-center gap-2">
+                  {!backgroundImage ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowImagePicker(true)}
+                      className="h-8"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Select Image
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowImagePicker(true)}
+                      className="h-8"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Change Image
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant={isAddingHotspot ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsAddingHotspot(!isAddingHotspot)}
+                    className="h-8"
+                    disabled={!backgroundImage}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {isAddingHotspot ? "Click on image" : "Add Hotspot"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Interactive Image Preview */}
+              {backgroundImage ? (
+                <div className="relative">
+                  {isAddingHotspot && (
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Click on the image to add a new hotspot
+                    </div>
+                  )}
+                  <div className="relative rounded-lg overflow-hidden bg-muted">
+                    <img
+                      ref={imageRef}
+                      src={backgroundImage}
+                      alt="Hotspot preview"
+                      className={`w-full object-contain ${isAddingHotspot ? 'cursor-crosshair' : 'cursor-default'}`}
+                      onClick={handleImageClick}
+                    />
 
-      {/* Hotspot Management Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <CardTitle className="text-base">Interactive Hotspots</CardTitle>
-              <div className="flex items-center space-x-2">
+                    {/* Preview hotspots */}
+                    {productHotspots.map((hotspot) => (
+                      <div key={hotspot.id} className="absolute z-10" style={{
+                        left: `${hotspot.x}%`,
+                        top: `${hotspot.y}%`,
+                        transform: 'translate(-50%, -50%)'
+                      }}>
+                        <button
+                          className={`flex h-6 w-6 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            editingHotspot === hotspot.id
+                              ? 'bg-orange-500 focus:ring-orange-500'
+                              : 'bg-blue-500 focus:ring-blue-500'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditHotspot(hotspot.id, e)
+                          }}
+                          title={`Edit: ${hotspot.text}`}
+                        >
+                          <div className="h-2 w-2 rounded-full bg-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="flex items-center justify-center min-h-96 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  onClick={() => setShowImagePicker(true)}
+                >
+                  <div className="text-center">
+                    <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+                    <p className="text-lg font-medium text-muted-foreground mb-2">Add Background Image</p>
+                    <p className="text-sm text-muted-foreground">Click to select an image for your interactive hotspots</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Style Tab */}
+        <TabsContent value="style">
+          <Card className="shadow-sm">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Style options coming soon.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Header Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Header</Label>
+                  <Input
+                    id="title"
+                    value={header}
+                    onChange={(e) => onHeaderChange(e.target.value)}
+                    placeholder="Interactive Product Overview"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle">Sub Header</Label>
+                  <Input
+                    id="subtitle"
+                    value={subheader}
+                    onChange={(e) => onSubheaderChange(e.target.value)}
+                    placeholder="Hover over the blinking dots to discover more about our features"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="hotspot-align">Header Alignment</Label>
+                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                    <SelectTrigger id="hotspot-align">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 mt-6">
                 <input
                   id="showTooltipsAlways"
                   type="checkbox"
@@ -200,104 +327,10 @@ export function ProductHotspotBlock({
                   Always show tooltips
                 </Label>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!backgroundImage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowImagePicker(true)}
-                  className="h-8"
-                >
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  Select Image
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowImagePicker(true)}
-                  className="h-8"
-                >
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  Change Image
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant={isAddingHotspot ? "default" : "outline"}
-                size="sm"
-                onClick={() => setIsAddingHotspot(!isAddingHotspot)}
-                className="h-8"
-                disabled={!backgroundImage}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {isAddingHotspot ? "Click on image" : "Add Hotspot"}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Interactive Image Preview */}
-          {backgroundImage ? (
-            <div className="relative">
-              {isAddingHotspot && (
-                <div className="text-sm text-muted-foreground mb-2">
-                  Click on the image to add a new hotspot
-                </div>
-              )}
-              <div className="relative rounded-lg overflow-hidden bg-muted">
-                <img
-                  ref={imageRef}
-                  src={backgroundImage}
-                  alt="Hotspot preview"
-                  className={`w-full object-contain ${isAddingHotspot ? 'cursor-crosshair' : 'cursor-default'}`}
-                  onClick={handleImageClick}
-                />
-                
-                {/* Preview hotspots */}
-                {productHotspots.map((hotspot) => (
-                  <div key={hotspot.id} className="absolute z-10" style={{
-                    left: `${hotspot.x}%`,
-                    top: `${hotspot.y}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}>
-                    <button
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                        editingHotspot === hotspot.id 
-                          ? 'bg-orange-500 focus:ring-orange-500' 
-                          : 'bg-blue-500 focus:ring-blue-500'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditHotspot(hotspot.id, e)
-                      }}
-                      title={`Edit: ${hotspot.text}`}
-                    >
-                      <div className="h-2 w-2 rounded-full bg-white" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div 
-              className="flex items-center justify-center min-h-96 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-              onClick={() => setShowImagePicker(true)}
-            >
-              <div className="text-center">
-                <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-                <p className="text-lg font-medium text-muted-foreground mb-2">Add Background Image</p>
-                <p className="text-sm text-muted-foreground">Click to select an image for your interactive hotspots</p>
-              </div>
-            </div>
-          )}
-
-        </CardContent>
-      </Card>
-
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Image Picker Modal */}
       <MediaPicker

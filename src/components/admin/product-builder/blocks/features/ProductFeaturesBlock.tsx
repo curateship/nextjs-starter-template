@@ -1,12 +1,13 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, GripVertical, ImageIcon, VideoIcon, Play } from "lucide-react"
+import { Plus, Trash2, GripVertical, ImageIcon, VideoIcon, Play, ArrowLeft } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   DndContext,
@@ -59,6 +60,7 @@ interface ProductFeaturesBlockProps {
   onFeaturesCollectionChange: (features: Feature[]) => void
   siteId: string
   blockId: string
+  onBack?: () => void
 }
 
 // Sortable feature item component
@@ -187,7 +189,9 @@ export function ProductFeaturesBlock({
   onFeaturesCollectionChange,
   siteId,
   blockId,
+  onBack,
 }: ProductFeaturesBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState<number | null>(null)
 
   const sensors = useSensors(
@@ -243,99 +247,131 @@ export function ProductFeaturesBlock({
 
   return (
     <div>
-      {/* Header Settings Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Header Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="features-title">Header</Label>
-              <Input
-                id="features-title"
-                value={header}
-                onChange={(e) => onHeaderChange(e.target.value)}
-                placeholder="Features"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="features-subtitle">Sub Header</Label>
-              <Input
-                id="features-subtitle"
-                value={subheader}
-                onChange={(e) => onSubheaderChange(e.target.value)}
-                placeholder="Discover what makes our product special"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="features-align">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="features-align">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Features Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Features</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addFeature}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="px-6 pt-6 flex items-center gap-2">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Feature
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleFeatureDragEnd}
-          >
-            <SortableContext
-              items={featuresCollection.map(f => f.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-3">
-                {featuresCollection.map((feature, index) => (
-                  <SortableFeatureItem
-                    key={feature.id}
-                    feature={feature}
-                    index={index}
-                    updateFeature={updateFeature}
-                    removeFeature={removeFeature}
-                    onOpenImagePicker={setShowPicker}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-
-          {featuresCollection.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No features yet. Click "Add Feature" to create one.
-            </div>
+              <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+              Back
+            </button>
           )}
-        </CardContent>
-      </Card>
+          <TabsList className="gap-1">
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="style">Style</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
-      {/* Media Picker Modal */}
+        {/* Content Tab - Features List */}
+        <TabsContent value="content" className="mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Features</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addFeature}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Feature
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleFeatureDragEnd}
+              >
+                <SortableContext
+                  items={featuresCollection.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {featuresCollection.map((feature, index) => (
+                      <SortableFeatureItem
+                        key={feature.id}
+                        feature={feature}
+                        index={index}
+                        updateFeature={updateFeature}
+                        removeFeature={removeFeature}
+                        onOpenImagePicker={setShowPicker}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+
+              {featuresCollection.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No features yet. Click "Add Feature" to create one.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Style Tab - Placeholder */}
+        <TabsContent value="style" className="mt-6">
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Style options coming soon.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Settings Tab - Header Settings */}
+        <TabsContent value="settings" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Header Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="features-title">Header</Label>
+                  <Input
+                    id="features-title"
+                    value={header}
+                    onChange={(e) => onHeaderChange(e.target.value)}
+                    placeholder="Features"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="features-subtitle">Sub Header</Label>
+                  <Input
+                    id="features-subtitle"
+                    value={subheader}
+                    onChange={(e) => onSubheaderChange(e.target.value)}
+                    placeholder="Discover what makes our product special"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="features-align">Header Alignment</Label>
+                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                    <SelectTrigger id="features-align">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Media Picker Modal - Outside Tabs */}
       <MediaPicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}

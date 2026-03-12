@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Check } from "lucide-react"
+import { Check, ArrowLeft } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
@@ -22,6 +22,7 @@ interface ProductHeroBlockProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
+  onBack?: () => void
 }
 
 // Helper
@@ -50,7 +51,7 @@ const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (valu
   </Select>
 )
 
-export function ProductHeroBlock({ content, onContentChange, siteId, blockId }: ProductHeroBlockProps) {
+export function ProductHeroBlock({ content, onContentChange, siteId, blockId, onBack }: ProductHeroBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
 
   // --- Lazy migration: move legacy root-level style fields into styleConfig.default ---
@@ -101,10 +102,20 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId }: 
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
@@ -244,6 +255,15 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId }: 
             blockId={blockId}
           />
         )}
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <Card className="shadow-sm">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No additional settings for this block.
+          </CardContent>
+        </Card>
       </TabsContent>
     </Tabs>
   )

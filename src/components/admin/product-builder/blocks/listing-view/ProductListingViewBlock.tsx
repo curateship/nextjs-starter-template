@@ -1,8 +1,11 @@
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ArrowLeft } from "lucide-react"
 
 interface ProductListingViewBlockProps {
   header?: string
@@ -37,6 +40,7 @@ interface ProductListingViewBlockProps {
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
+  onBack?: () => void
 }
 
 export function ProductListingViewBlock({
@@ -72,220 +76,251 @@ export function ProductListingViewBlock({
   onItemsPerPageChange,
   onViewAllTextChange,
   onViewAllLinkChange,
+  onBack,
 }: ProductListingViewBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
+
   return (
-    <div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Header Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Header</Label>
-              <Input
-                id="title"
-                value={header}
-                onChange={(e) => onHeaderChange(e.target.value)}
-                placeholder="Enter block title"
-              />
-            </div>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="style">Style</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subtitle">Sub Header</Label>
-              <Input
-                id="subtitle"
-                value={subheader}
-                onChange={(e) => onSubheaderChange(e.target.value)}
-                placeholder="Enter block subtitle"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="headerAlign">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="headerAlign">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="viewAllText">View All Button Text</Label>
-              <Input
-                id="viewAllText"
-                value={viewAllText}
-                onChange={(e) => onViewAllTextChange(e.target.value)}
-                placeholder="View all products"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="viewAllLink">View All Button Link</Label>
-              <Input
-                id="viewAllLink"
-                value={viewAllLink}
-                onChange={(e) => onViewAllLinkChange(e.target.value)}
-                placeholder="/products"
-              />
-            </div>
-          </div>
-          
-          <p className="text-sm text-muted-foreground">
-            Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
-          </p>
-        </CardContent>
-      </Card>
+      <TabsContent value="content" className="space-y-0">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Content Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contentType">Content Type</Label>
+                <Select value={contentType} onValueChange={onContentTypeChange}>
+                  <SelectTrigger id="contentType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="products">Products</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Content Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-5 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="contentType">Content Type</Label>
-              <Select value={contentType} onValueChange={onContentTypeChange}>
-                <SelectTrigger id="contentType">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="products">Products</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="displayMode">Display Mode</Label>
-              <Select value={displayMode} onValueChange={onDisplayModeChange}>
-                <SelectTrigger id="displayMode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="grid">Grid</SelectItem>
-                  <SelectItem value="list">List</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="columns">Columns</Label>
-              <Select 
-                value={displayMode === 'grid' ? columns.toString() : 'disabled'} 
-                onValueChange={(v) => onColumnsChange(parseInt(v))}
-                disabled={displayMode === 'list'}
-              >
-                <SelectTrigger id="columns">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 Columns</SelectItem>
-                  <SelectItem value="3">3 Columns</SelectItem>
-                  <SelectItem value="4">4 Columns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="sortBy">Sort By</Label>
-              <Select value={sortBy} onValueChange={onSortByChange}>
-                <SelectTrigger id="sortBy">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="title">Title</SelectItem>
-                  <SelectItem value="display_order">Display Order</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="sortOrder">Sort Order</Label>
-              <Select value={sortOrder} onValueChange={onSortOrderChange}>
-                <SelectTrigger id="sortOrder">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                  <SelectItem value="desc">Descending</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-2">
+                <Label htmlFor="displayMode">Display Mode</Label>
+                <Select value={displayMode} onValueChange={onDisplayModeChange}>
+                  <SelectTrigger id="displayMode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="grid">Grid</SelectItem>
+                    <SelectItem value="list">List</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Display Options</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showImage">Show Image</Label>
-            <Switch
-              id="showImage"
-              checked={showImage}
-              onCheckedChange={onShowImageChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showTitle">Show Title</Label>
-            <Switch
-              id="showTitle"
-              checked={showTitle}
-              onCheckedChange={onShowTitleChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="showDescription">Show Description</Label>
-            <Switch
-              id="showDescription"
-              checked={showDescription}
-              onCheckedChange={onShowDescriptionChange}
-            />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <Label htmlFor="isPaginated">Enable Pagination</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {isPaginated ? 'Enter items per page' : 'Items to show'}
-              </span>
-              <Input
-                type="number"
-                min="1"
-                max="50"
-                value={isPaginated ? itemsPerPage : itemsToShow}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
-                  if (isPaginated) {
-                    onItemsPerPageChange(value)
-                  } else {
-                    onItemsToShowChange(value)
-                  }
-                }}
-                placeholder={isPaginated ? "12" : "6"}
-                className="w-20"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="columns">Columns</Label>
+                <Select
+                  value={displayMode === 'grid' ? columns.toString() : 'disabled'}
+                  onValueChange={(v) => onColumnsChange(parseInt(v))}
+                  disabled={displayMode === 'list'}
+                >
+                  <SelectTrigger id="columns">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2 Columns</SelectItem>
+                    <SelectItem value="3">3 Columns</SelectItem>
+                    <SelectItem value="4">4 Columns</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sortBy">Sort By</Label>
+                <Select value={sortBy} onValueChange={onSortByChange}>
+                  <SelectTrigger id="sortBy">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="title">Title</SelectItem>
+                    <SelectItem value="display_order">Display Order</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder">Sort Order</Label>
+                <Select value={sortOrder} onValueChange={onSortOrderChange}>
+                  <SelectTrigger id="sortOrder">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Display Options</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="showImage">Show Image</Label>
               <Switch
-                id="isPaginated"
-                checked={isPaginated}
-                onCheckedChange={onIsPaginatedChange}
+                id="showImage"
+                checked={showImage}
+                onCheckedChange={onShowImageChange}
               />
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-    </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="showTitle">Show Title</Label>
+              <Switch
+                id="showTitle"
+                checked={showTitle}
+                onCheckedChange={onShowTitleChange}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="showDescription">Show Description</Label>
+              <Switch
+                id="showDescription"
+                checked={showDescription}
+                onCheckedChange={onShowDescriptionChange}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="isPaginated">Enable Pagination</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {isPaginated ? 'Enter items per page' : 'Items to show'}
+                </span>
+                <Input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={isPaginated ? itemsPerPage : itemsToShow}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
+                    if (isPaginated) {
+                      onItemsPerPageChange(value)
+                    } else {
+                      onItemsToShowChange(value)
+                    }
+                  }}
+                  placeholder={isPaginated ? "12" : "6"}
+                  className="w-20"
+                />
+                <Switch
+                  id="isPaginated"
+                  checked={isPaginated}
+                  onCheckedChange={onIsPaginatedChange}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="style">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Style options coming soon.</p>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="settings">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Header</Label>
+                <Input
+                  id="title"
+                  value={header}
+                  onChange={(e) => onHeaderChange(e.target.value)}
+                  placeholder="Enter block title"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="subtitle">Sub Header</Label>
+                <Input
+                  id="subtitle"
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange(e.target.value)}
+                  placeholder="Enter block subtitle"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="headerAlign">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="headerAlign">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="viewAllText">View All Button Text</Label>
+                <Input
+                  id="viewAllText"
+                  value={viewAllText}
+                  onChange={(e) => onViewAllTextChange(e.target.value)}
+                  placeholder="View all products"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="viewAllLink">View All Button Link</Label>
+                <Input
+                  id="viewAllLink"
+                  value={viewAllLink}
+                  onChange={(e) => onViewAllLinkChange(e.target.value)}
+                  placeholder="/products"
+                />
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
+            </p>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   )
 }

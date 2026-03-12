@@ -52,6 +52,7 @@ interface BlockPropertiesPanelProps {
   onFeaturedImageChange?: (featuredImage: string) => void
   onStatusChange?: (status: string) => void
   onSelectBlock?: (block: any) => void
+  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -66,7 +67,8 @@ export function BlockPropertiesPanel({
   onDescriptionChange,
   onFeaturedImageChange,
   onStatusChange,
-  onSelectBlock
+  onSelectBlock,
+  onBack
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -88,6 +90,7 @@ export function BlockPropertiesPanel({
                 onProductTitleChange={onTitleChange}
                 onProductDescriptionChange={onDescriptionChange}
                 onProductFeaturedImageChange={onFeaturedImageChange}
+                onBack={onBack}
               />
             )}
             
@@ -97,6 +100,7 @@ export function BlockPropertiesPanel({
                 onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
             
@@ -106,6 +110,7 @@ export function BlockPropertiesPanel({
                 specifications={selectedBlock.content.specifications || []}
                 onDescriptionChange={(value) => updateBlockContent('description', value)}
                 onSpecificationsChange={(specs) => updateBlockContent('specifications', specs)}
+                onBack={onBack}
               />
             )}
             
@@ -115,6 +120,7 @@ export function BlockPropertiesPanel({
                 showThumbnails={selectedBlock.content.showThumbnails || false}
                 onImagesChange={(images) => updateBlockContent('images', images)}
                 onShowThumbnailsChange={(show) => updateBlockContent('showThumbnails', show)}
+                onBack={onBack}
               />
             )}
             
@@ -130,6 +136,7 @@ export function BlockPropertiesPanel({
                 onFeaturesCollectionChange={(features) => updateBlockContent('featuresCollection', features)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
             
@@ -149,6 +156,7 @@ export function BlockPropertiesPanel({
                 onShowTooltipsAlwaysChange={(value) => updateBlockContent('showTooltipsAlways', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
             
@@ -164,6 +172,7 @@ export function BlockPropertiesPanel({
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onProductPricingTiersChange={(productPricingTiers) => updateBlockContent('productPricingTiers', productPricingTiers)}
                 onCheckoutSettingsChange={(settings) => updateBlockContent('checkoutSettings', settings)}
+                onBack={onBack}
               />
             )}
 
@@ -173,6 +182,7 @@ export function BlockPropertiesPanel({
                 onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
 
@@ -186,6 +196,7 @@ export function BlockPropertiesPanel({
                 onSubheaderChange={(value) => updateBlockContent('subheader', value)}
                 onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
                 onProductFaqItemsChange={(productFaqItems) => updateBlockContent('productFaqItems', productFaqItems)}
+                onBack={onBack}
               />
             )}
             
@@ -223,6 +234,7 @@ export function BlockPropertiesPanel({
                 onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
                 onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
                 onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
+                onBack={onBack}
               />
             )}
 
@@ -242,6 +254,7 @@ export function BlockPropertiesPanel({
                   updateBlockContent('headerAlign', contentObj.headerAlign)
                   updateBlockContent('richtextContent', contentObj.richtextContent)
                 }}
+                onBack={onBack}
               />
             )}
 
@@ -265,6 +278,7 @@ export function BlockPropertiesPanel({
                 onMutedChange={(value) => updateBlockContent('muted', value)}
                 siteId={siteId}
                 blockId={selectedBlock.id}
+                onBack={onBack}
               />
             )}
           </div>

@@ -244,6 +244,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onFeaturedImageChange={handleFeaturedImageChange}
           onStatusChange={handleStatusChange}
           onSelectBlock={builderState.setSelectedBlock}
+          onBack={() => builderState.setSelectedBlock(null)}
         />
 
         <BlockListPanel

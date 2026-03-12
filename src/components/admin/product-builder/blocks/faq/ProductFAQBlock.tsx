@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, GripVertical } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Plus, Trash2, GripVertical, ArrowLeft } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -42,6 +43,7 @@ interface ProductFAQBlockProps {
   onSubheaderChange?: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onProductFaqItemsChange?: (value: FaqItem[]) => void
+  onBack?: () => void
 }
 
 // Sortable FAQ item component
@@ -140,8 +142,10 @@ export function ProductFAQBlock({
   onHeaderChange,
   onSubheaderChange,
   onHeaderAlignChange,
-  onProductFaqItemsChange
+  onProductFaqItemsChange,
+  onBack
 }: ProductFAQBlockProps) {
+  const [activeTab, setActiveTab] = useState('content')
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(productFaqItems)
 
   const updateFaqItems = (newItems: FaqItem[]) => {
@@ -194,97 +198,126 @@ export function ProductFAQBlock({
   }
 
   return (
-    <div>
-      {/* Header Settings Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Header Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="product-faq-title">Header</Label>
-              <Input
-                id="product-faq-title"
-                value={header}
-                onChange={(e) => onHeaderChange?.(e.target.value)}
-                placeholder="Product FAQ"
-              />
-            </div>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="style">Style</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="product-faq-subtitle">Sub Header</Label>
-              <Input
-                id="product-faq-subtitle"
-                value={subheader}
-                onChange={(e) => onSubheaderChange?.(e.target.value)}
-                placeholder="Get answers to common questions about this product..."
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="product-faq-align">Header Alignment</Label>
-              <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                <SelectTrigger id="product-faq-align">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* FAQ Items Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">FAQ Items</CardTitle>
-            <Button
-              onClick={addNewFaqItem}
-              size="sm"
-              className="h-8"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add FAQ
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-
-          {localFaqItems.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={localFaqItems.map(item => item.id)}
-                strategy={verticalListSortingStrategy}
+      {/* Content Tab - FAQ Items */}
+      <TabsContent value="content" className="mt-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">FAQ Items</CardTitle>
+              <Button
+                onClick={addNewFaqItem}
+                size="sm"
+                className="h-8"
               >
-                <div className="space-y-3">
-                  {localFaqItems.map((item, index) => (
-                    <SortableFaqItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      updateFaqItem={updateFaqItem}
-                      deleteFaqItem={deleteFaqItem}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                <Plus className="w-4 h-4 mr-1" />
+                Add FAQ
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {localFaqItems.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={localFaqItems.map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {localFaqItems.map((item, index) => (
+                      <SortableFaqItem
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        updateFaqItem={updateFaqItem}
+                        deleteFaqItem={deleteFaqItem}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Style Tab */}
+      <TabsContent value="style" className="mt-6">
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            Style options coming soon.
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      {/* Settings Tab - Header Settings */}
+      <TabsContent value="settings" className="mt-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Header Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-title">Header</Label>
+                <Input
+                  id="product-faq-title"
+                  value={header}
+                  onChange={(e) => onHeaderChange?.(e.target.value)}
+                  placeholder="Product FAQ"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-subtitle">Sub Header</Label>
+                <Input
+                  id="product-faq-subtitle"
+                  value={subheader}
+                  onChange={(e) => onSubheaderChange?.(e.target.value)}
+                  placeholder="Get answers to common questions about this product..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="product-faq-align">Header Alignment</Label>
+                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                  <SelectTrigger id="product-faq-align">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left">Left</SelectItem>
+                    <SelectItem value="center">Center</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   )
 }

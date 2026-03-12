@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Check, AlertTriangle } from 'lucide-react'
+import { Plus, Check, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { useState, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -20,6 +20,7 @@ interface ProductLeadMagnetBlockProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
+  onBack?: () => void
 }
 
 export function ProductLeadMagnetBlock({
@@ -27,6 +28,7 @@ export function ProductLeadMagnetBlock({
   onContentChange,
   siteId,
   blockId,
+  onBack,
 }: ProductLeadMagnetBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [newTag, setNewTag] = useState('')
@@ -87,7 +89,16 @@ export function ProductLeadMagnetBlock({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
