@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Urbanist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -7,18 +6,6 @@ import { Toaster } from "sonner";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
-
-import { cn } from "@/lib/utils/tailwind-class-merger";
-
-const urbanist = Urbanist({
-  variable: "--font-urbanist",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -52,12 +39,17 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const { success, site } = await getSiteFromHeaders()
-  const { getFontFamily } = await import("@/lib/utils/font-config")
+  const { getFontFamily, getGoogleFontUrl } = await import("@/lib/utils/font-config")
 
-  const fontPrimary = success && site?.settings ? getFontFamily(site.settings.font_family || 'playfair-display') : ''
-  const fontSecondary = success && site?.settings ? getFontFamily(site.settings.secondary_font_family || 'urbanist') : ''
+  const primaryFontValue = site?.settings?.font_family || 'playfair-display'
+  const secondaryFontValue = site?.settings?.secondary_font_family || 'urbanist'
+  const fontPrimary = success && site?.settings ? getFontFamily(primaryFontValue) : ''
+  const fontSecondary = success && site?.settings ? getFontFamily(secondaryFontValue) : ''
 
-  const { FontLoader } = await import("@/components/frontend/layout/font-loader")
+  const primaryFontUrl = success && site?.settings ? getGoogleFontUrl(primaryFontValue, ['400', '600', '700']) : ''
+  const secondaryFontUrl = success && site?.settings && secondaryFontValue !== primaryFontValue
+    ? getGoogleFontUrl(secondaryFontValue, ['400', '600', '700'])
+    : ''
 
   return (
     <html
@@ -69,12 +61,14 @@ export default async function RootLayout({
         ['--font-sans' as string]: fontSecondary
       } : undefined}
     >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {primaryFontUrl && <link rel="stylesheet" href={primaryFontUrl} />}
+        {secondaryFontUrl && <link rel="stylesheet" href={secondaryFontUrl} />}
+      </head>
       <body
-        className={cn(
-          "min-h-screen bg-background font-sans antialiased",
-          urbanist.variable,
-          geistMono.variable
-        )}
+        className="min-h-screen bg-background font-sans antialiased"
       >
         <PostHogScript
           siteId={site?.id}
@@ -83,7 +77,6 @@ export default async function RootLayout({
           posthogHost={site?.settings?.posthog_host}
         />
         <HeaderScripts scripts={site?.settings?.tracking_scripts} />
-        <FontLoader />
         {children}
         <Toaster />
         <Analytics />

@@ -1,5 +1,3 @@
-"use client"
-
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { AnimationProvider } from "@/contexts/animation-context"
 import { BlockContainer } from "@/components/frontend/layout/block-container"

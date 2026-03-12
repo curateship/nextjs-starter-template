@@ -1,6 +1,3 @@
-"use client"
-
-import { ProductDefaultBlock } from "@/components/frontend/products/content/ProductDefaultBlock"
 import { PRODUCT_CONTENT_STYLE_RENDERERS } from "@/components/frontend/products/content"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
