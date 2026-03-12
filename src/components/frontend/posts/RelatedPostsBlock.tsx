@@ -115,7 +115,7 @@ export function RelatedPostsBlock({ content, siteId, currentPostId, preloadedDat
                         alt={post.title || 'Post image'}
                         fill
                         className="object-cover"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+                        sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
                         loading={index < columns ? "eager" : "lazy"}
                       />
                     </div>

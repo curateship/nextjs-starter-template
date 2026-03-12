@@ -60,6 +60,8 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    imageSizes: [384],
+    deviceSizes: [640, 1080, 1920],
     remotePatterns: [
       {
         protocol: "https",

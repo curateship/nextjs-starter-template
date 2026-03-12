@@ -148,7 +148,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                   alt={product.title || 'Product image'}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
+                  sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
                   priority={isLCP}
                   loading={isLCP ? "eager" : (index < columns ? "eager" : "lazy")}
                   fetchPriority={isLCP ? "high" : (index < columns ? "high" : "auto")}
