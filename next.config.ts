@@ -84,6 +84,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    const r2Url = process.env.R2_PUBLIC_URL
+    if (!r2Url) return []
+    return [
+      { source: '/cdn/:path*', destination: `${r2Url}/:path*` },
+    ]
+  },
   async headers() {
     // Disable CSP in development for testing
     if (process.env.NODE_ENV === 'development') {
@@ -111,6 +118,10 @@ const nextConfig: NextConfig = {
         // Apply security headers to all routes
         source: '/:path*',
         headers: securityHeaders,
+      },
+      {
+        source: '/cdn/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       ...publicCacheRoutes.map(source => ({
         source,

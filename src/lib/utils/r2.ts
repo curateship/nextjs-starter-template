@@ -36,13 +36,8 @@ export async function uploadToR2(
 
   await r2Client.send(command)
 
-  // Return public URL
-  if (R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL}/${fileName}`
-  }
-
-  // Or return URL through your proxy
-  return `/api/media/proxy?url=${encodeURIComponent(`r2://${fileName}`)}`
+  // Return cached CDN path (proxied via Next.js rewrite with cache headers)
+  return `/cdn/${fileName}`
 }
 
 /**
@@ -74,12 +69,7 @@ export async function getPresignedUrl(fileName: string, expiresIn = 3600): Promi
  * Get public URL for a file
  */
 export function getPublicUrl(fileName: string): string {
-  if (R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL}/${fileName}`
-  }
-
-  // Fallback to proxy
-  return `/api/media/proxy?url=${encodeURIComponent(`r2://${fileName}`)}`
+  return `/cdn/${fileName}`
 }
 
 /**

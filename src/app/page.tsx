@@ -6,6 +6,7 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 const LandingPage = dynamic(() => import("@/components/frontend/pages/LandingPage").then(m => m.LandingPage))
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
+import { toCdnUrl } from "@/lib/utils/cdn"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -44,7 +45,8 @@ export default async function SiteHomePage() {
   if (heroBlock?.content) {
     const c = heroBlock.content
     const heroStyle = c.heroStyle || 'default'
-    lcpImageUrl = c.styleConfig?.[heroStyle]?.heroImage || c.heroImage || null
+    const raw = c.styleConfig?.[heroStyle]?.heroImage || c.heroImage || null
+    lcpImageUrl = raw ? toCdnUrl(raw) : null
   }
 
   // If no hero image, check for first listing-views product image

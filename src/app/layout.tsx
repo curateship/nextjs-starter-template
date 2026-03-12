@@ -4,20 +4,22 @@ import { DeferredScripts } from "@/components/frontend/layout/deferred-scripts";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
+import { toCdnUrl } from "@/lib/utils/cdn";
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { success, site } = await getSiteFromHeaders();
 
     if (success && site && site.settings?.favicon) {
+      const favicon = toCdnUrl(site.settings.favicon)
       return {
         icons: {
-          icon: site.settings.favicon,
-          apple: site.settings.favicon,
+          icon: favicon,
+          apple: favicon,
           other: [
             {
               rel: 'apple-touch-icon',
-              url: site.settings.favicon,
+              url: favicon,
               sizes: '180x180'
             }
           ]

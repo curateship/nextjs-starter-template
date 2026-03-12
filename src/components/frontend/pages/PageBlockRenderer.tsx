@@ -4,11 +4,13 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/rich-text/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/listing-view/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlock"
-import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlock"
+import dynamic from "next/dynamic"
+const AuthBlock = dynamic(() => import("@/components/frontend/pages/auth/AuthBlock").then(m => ({ default: m.AuthBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import { toCdnUrl } from "@/lib/utils/cdn"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
@@ -27,6 +29,11 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   // Find navigation and footer blocks for layout
   const navigationBlock = blocks.find(block => block.type === 'navigation')
   const footerBlock = blocks.find(block => block.type === 'footer')
+
+  // Convert R2 URLs to cached /cdn/ paths for navigation logo
+  if (navigationBlock?.content?.logo) {
+    navigationBlock.content.logo = toCdnUrl(navigationBlock.content.logo)
+  }
   
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
