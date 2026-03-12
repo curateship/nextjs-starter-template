@@ -63,16 +63,10 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {primaryFontUrl && (
-          <>
-            <link rel="preload" href={primaryFontUrl} as="style" />
-            <link rel="stylesheet" href={primaryFontUrl} media="print" data-font-loader="" />
-          </>
+          <link rel="stylesheet" href={primaryFontUrl} media="print" data-font-loader="" />
         )}
         {secondaryFontUrl && (
-          <>
-            <link rel="preload" href={secondaryFontUrl} as="style" />
-            <link rel="stylesheet" href={secondaryFontUrl} media="print" data-font-loader="" />
-          </>
+          <link rel="stylesheet" href={secondaryFontUrl} media="print" data-font-loader="" />
         )}
         <script dangerouslySetInnerHTML={{ __html: `document.querySelectorAll('link[data-font-loader]').forEach(function(l){l.onload=function(){l.media='all'}})` }} />
         <noscript>

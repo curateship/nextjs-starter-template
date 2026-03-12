@@ -1,14 +1,27 @@
 'use client';
-import { ReactNode } from 'react';
-import dynamic from 'next/dynamic';
+import { ReactNode, useState, useEffect } from 'react';
 import React from 'react';
 import { useAnimationSettings, getOptimizedAnimationSettings } from '@/contexts/animation-context';
 import type { AnimationSettings } from '@/lib/actions/sites/site-actions';
 
-const MotionGroup = dynamic(
-  () => import('./motion-group').then(m => m.MotionGroup),
-  { ssr: false }
-);
+let MotionGroupComponent: React.ComponentType<any> | null = null;
+let motionGroupPromise: Promise<any> | null = null;
+
+function useMotionGroup() {
+  const [loaded, setLoaded] = useState(!!MotionGroupComponent);
+
+  useEffect(() => {
+    if (MotionGroupComponent) { setLoaded(true); return; }
+    if (!motionGroupPromise) {
+      motionGroupPromise = import('./motion-group').then(m => {
+        MotionGroupComponent = m.MotionGroup;
+      });
+    }
+    motionGroupPromise.then(() => setLoaded(true));
+  }, []);
+
+  return loaded ? MotionGroupComponent : null;
+}
 
 export type PresetType =
   | 'fade'
@@ -56,7 +69,9 @@ function AnimatedGroup({
   const optimizedSettings = getOptimizedAnimationSettings(effectiveSettings);
   const shouldAnimate = forceEnabled || isEnabled;
 
-  if (!shouldAnimate) {
+  const MotionGroup = useMotionGroup();
+
+  if (!shouldAnimate || !MotionGroup) {
     return <StaticWrapper className={className} as={as}>{children}</StaticWrapper>;
   }
 

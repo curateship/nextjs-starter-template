@@ -1,7 +1,12 @@
 'use client'
 
 import { BlockContainer } from '@/components/frontend/layout/block-container'
-import { DefaultTestimonialRenderer } from './DefaultTestimonialRenderer'
+import dynamic from 'next/dynamic'
+
+const DefaultTestimonialRenderer = dynamic(
+  () => import('./DefaultTestimonialRenderer').then(m => m.DefaultTestimonialRenderer),
+  { ssr: false }
+)
 
 interface TestimonialItem {
   id: string
