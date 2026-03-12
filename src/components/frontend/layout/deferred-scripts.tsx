@@ -2,6 +2,10 @@
 
 import dynamic from "next/dynamic"
 
+const Toaster = dynamic(
+  () => import("sonner").then(m => m.Toaster),
+  { ssr: false }
+)
 const Analytics = dynamic(
   () => import("@vercel/analytics/react").then(m => m.Analytics),
   { ssr: false }
@@ -11,9 +15,10 @@ const SpeedInsights = dynamic(
   { ssr: false }
 )
 
-export function DeferredAnalytics() {
+export function DeferredScripts() {
   return (
     <>
+      <Toaster />
       <Analytics />
       <SpeedInsights />
     </>

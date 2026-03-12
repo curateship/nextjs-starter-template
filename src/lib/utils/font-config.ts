@@ -171,7 +171,7 @@ export function getGoogleFontUrl(fontValue: string, weights?: string[]): string 
   const fontWeights = weights || font.weights
   const weightsParam = fontWeights.join(';')
   
-  return `https://fonts.googleapis.com/css2?family=${fontName}:wght@${weightsParam}&display=swap`
+  return `https://fonts.googleapis.com/css2?family=${fontName}:wght@${weightsParam}&display=optional`
 }
 
 

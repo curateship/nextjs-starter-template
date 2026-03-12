@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { DeferredAnalytics } from "@/components/frontend/layout/deferred-analytics";
-import { Toaster } from "sonner";
+import { DeferredScripts } from "@/components/frontend/layout/deferred-scripts";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
@@ -92,8 +91,7 @@ export default async function RootLayout({
         />
         <HeaderScripts scripts={site?.settings?.tracking_scripts} />
         {children}
-        <Toaster />
-        <DeferredAnalytics />
+        <DeferredScripts />
       </body>
     </html>
   );
