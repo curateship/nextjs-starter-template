@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { availableFonts, getFontByValue, getGoogleFontUrl, type FontOption } from "@/lib/utils/font-config"
+import { availableFonts, getFontByValue, getFontFaceCSS, type FontOption } from "@/lib/utils/font-config"
 
 interface FontSelectorProps {
   value: string
@@ -32,16 +32,15 @@ export function FontSelector({
   const [fontLoaded, setFontLoaded] = useState<Record<string, boolean>>({})
   const selectedFont = getFontByValue(value)
 
-  // Load font for preview
+  // Load font for preview using self-hosted files
   useEffect(() => {
     if (value && !fontLoaded[value]) {
       const font = getFontByValue(value)
       if (font) {
-        const link = document.createElement('link')
-        link.href = getGoogleFontUrl(value)
-        link.rel = 'stylesheet'
-        link.onload = () => setFontLoaded(prev => ({ ...prev, [value]: true }))
-        document.head.appendChild(link)
+        const style = document.createElement('style')
+        style.textContent = getFontFaceCSS(value)
+        document.head.appendChild(style)
+        setFontLoaded(prev => ({ ...prev, [value]: true }))
       }
     }
   }, [value, fontLoaded])

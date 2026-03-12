@@ -37,16 +37,19 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const { success, site } = await getSiteFromHeaders()
-  const { getFontFamily, getGoogleFontUrl } = await import("@/lib/utils/font-config")
+  const { getFontFamily, getFontFaceCSS } = await import("@/lib/utils/font-config")
 
   const primaryFontValue = site?.settings?.font_family || 'playfair-display'
   const secondaryFontValue = site?.settings?.secondary_font_family || 'urbanist'
   const fontPrimary = success && site?.settings ? getFontFamily(primaryFontValue) : ''
   const fontSecondary = success && site?.settings ? getFontFamily(secondaryFontValue) : ''
 
-  const primaryFontUrl = success && site?.settings ? getGoogleFontUrl(primaryFontValue, ['400', '600', '700']) : ''
-  const secondaryFontUrl = success && site?.settings && secondaryFontValue !== primaryFontValue
-    ? getGoogleFontUrl(secondaryFontValue, ['400', '600', '700'])
+  // Generate @font-face CSS pointing to self-hosted woff2 files — no external requests
+  const fontCSS = success && site?.settings
+    ? [
+        getFontFaceCSS(primaryFontValue),
+        primaryFontValue !== secondaryFontValue ? getFontFaceCSS(secondaryFontValue) : '',
+      ].filter(Boolean).join('\n')
     : ''
 
   return (
@@ -59,27 +62,7 @@ export default async function RootLayout({
         ['--font-sans' as string]: fontSecondary
       } : undefined}
     >
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {primaryFontUrl && (
-          <link rel="preload" href={primaryFontUrl} as="style" crossOrigin="anonymous" />
-        )}
-        {secondaryFontUrl && (
-          <link rel="preload" href={secondaryFontUrl} as="style" crossOrigin="anonymous" />
-        )}
-        {(primaryFontUrl || secondaryFontUrl) && (
-          <script dangerouslySetInnerHTML={{ __html:
-            [primaryFontUrl, secondaryFontUrl].filter(Boolean).map(url =>
-              `var l=document.createElement('link');l.rel='stylesheet';l.href='${url}';document.head.appendChild(l);`
-            ).join('')
-          }} />
-        )}
-        <noscript>
-          {primaryFontUrl && <link rel="stylesheet" href={primaryFontUrl} />}
-          {secondaryFontUrl && <link rel="stylesheet" href={secondaryFontUrl} />}
-        </noscript>
-      </head>
+      <head>{fontCSS ? <style dangerouslySetInnerHTML={{ __html: fontCSS }} /> : null}</head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >
