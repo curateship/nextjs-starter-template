@@ -2,7 +2,8 @@
 
 import AutoScroll from 'embla-carousel-auto-scroll'
 
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import Image from 'next/image'
 import { Card } from '@/components/ui/card'
 import {
   Carousel,
@@ -53,9 +54,17 @@ export function DefaultTestimonialRenderer({ items, config }: DefaultTestimonial
       <Card className="max-w-96 gap-2 p-6 select-none">
         <div className="mb-4 flex gap-4">
           <Avatar className="size-9 rounded-full ring-1 ring-input">
-            <AvatarImage src={item.avatar} alt={item.name} />
-            <AvatarFallback>{item.name?.charAt(0) || '?'}</AvatarFallback>
-          </Avatar>
+            {item.avatar ? (
+              <Image
+                src={item.avatar}
+                alt={item.name}
+                fill
+                sizes="36px"
+                className="object-cover rounded-full"
+              />
+            ) : (
+              <AvatarFallback>{item.name?.charAt(0) || '?'}</AvatarFallback>
+            )}</Avatar>
           <div className="text-sm">
             <p className="font-medium">{item.name}</p>
             <p className="text-muted-foreground">{item.role}</p>

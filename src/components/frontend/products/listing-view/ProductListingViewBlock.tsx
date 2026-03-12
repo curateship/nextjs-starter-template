@@ -120,7 +120,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
                   alt={product.title || 'Product image'}
                   fill
                   className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                   onError={(e) => {
                     // Fallback to placeholder on error
                     const target = e.target as HTMLElement;

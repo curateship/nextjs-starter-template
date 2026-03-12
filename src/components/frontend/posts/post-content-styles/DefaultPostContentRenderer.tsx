@@ -1,5 +1,6 @@
 import { format } from "date-fns"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar } from "@/components/ui/avatar"
+import Image from "next/image"
 import type { PostContentStyleRendererProps } from "./index"
 
 const defaultAuthor = {
@@ -49,8 +50,13 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
         <div className="flex items-center gap-3 text-sm md:text-base">
           {showAuthor && (
             <Avatar className="h-8 w-8 border">
-              <AvatarImage src={defaultAuthor.image} />
-              <AvatarFallback>{defaultAuthor.name.charAt(0)}</AvatarFallback>
+              <Image
+                src={defaultAuthor.image}
+                alt={defaultAuthor.name}
+                fill
+                sizes="32px"
+                className="object-cover rounded-full"
+              />
             </Avatar>
           )}
           <span>
@@ -68,11 +74,15 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
         </div>
       )}
       {featuredImage && showFeaturedImage !== false && (
-        <img
-          src={featuredImage}
-          alt="Featured image"
-          className="mt-4 aspect-video w-full rounded-lg border object-cover"
-        />
+        <div className="relative mt-4 aspect-video w-full rounded-lg border overflow-hidden">
+          <Image
+            src={featuredImage}
+            alt="Featured image"
+            fill
+            sizes="(max-width: 768px) 100vw, 800px"
+            className="object-cover"
+          />
+        </div>
       )}
       {body && (
         <div

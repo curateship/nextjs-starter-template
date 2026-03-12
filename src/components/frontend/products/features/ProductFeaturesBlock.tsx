@@ -100,7 +100,7 @@ const ProductFeaturesBlock = ({
                         width={400}
                         height={225}
                         className="w-full h-auto object-cover object-top"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                       />
                     )}
                   </div>
