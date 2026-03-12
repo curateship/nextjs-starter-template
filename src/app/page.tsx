@@ -1,7 +1,9 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
-import { LandingPage } from "@/components/frontend/pages/LandingPage"
+import dynamic from "next/dynamic"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
+
+const LandingPage = dynamic(() => import("@/components/frontend/pages/LandingPage").then(m => m.LandingPage))
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 
