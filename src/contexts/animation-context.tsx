@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import type { AnimationSettings } from '@/lib/actions/sites/site-actions'
 
 interface AnimationContextType {
@@ -17,14 +17,14 @@ interface AnimationProviderProps {
 }
 
 export function AnimationProvider({ children, settings }: AnimationProviderProps) {
-  // Check if user prefers reduced motion
-  const shouldRespectReducedMotion = typeof window !== 'undefined' 
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false
+  const [shouldRespectReducedMotion, setShouldRespectReducedMotion] = useState(false)
 
-  // Animation is enabled only if:
-  // 1. Settings have it enabled
-  // 2. User doesn't prefer reduced motion (accessibility)
+  useEffect(() => {
+    setShouldRespectReducedMotion(
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+  }, [])
+
   const isEnabled = settings.enabled && !shouldRespectReducedMotion
 
   const value: AnimationContextType = {

@@ -47,9 +47,9 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
       )}
 
       {/* Main content */}
-      <div className={navigation ? "pt-16" : ""}>
+      <main className={navigation ? "pt-16" : ""}>
         {children}
-      </div>
+      </main>
 
       {/* Footer - only render if footer data exists */}
       {footer && (

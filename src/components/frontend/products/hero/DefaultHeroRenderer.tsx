@@ -105,6 +105,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
               width={1608}
               height={1002}
               priority
+              fetchPriority="high"
             />
           </div>
         </div>

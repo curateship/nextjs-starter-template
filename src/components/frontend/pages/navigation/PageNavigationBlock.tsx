@@ -296,15 +296,9 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
   // State management for responsive navigation
   const [menuState, setMenuState] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
 
   // Timeout ref for dropdown hover delay
   const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  // Handle client-side mounting to prevent hydration mismatch
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   // Handle dropdown hover with delay to prevent accidental closing
   const handleDropdownMouseEnter = () => {
@@ -398,14 +392,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
         )}
         style={{
           backgroundColor: style ? `${style.backgroundColor}E6` : undefined,
-          WebkitBackfaceVisibility: 'hidden',
-          backfaceVisibility: 'hidden',
-          WebkitPerspective: 1000,
-          perspective: 1000,
-          WebkitTransform: 'translate3d(0,0,0)',
-          transform: 'translate3d(0,0,0)',
-          willChange: 'backdrop-filter',
-        } as React.CSSProperties}
+        }}
       >
         <div
           className={getNavContainerClass()}

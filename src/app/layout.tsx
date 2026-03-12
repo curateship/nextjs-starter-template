@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { DeferredAnalytics } from "@/components/frontend/layout/deferred-analytics";
 import { Toaster } from "sonner";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
@@ -94,8 +93,7 @@ export default async function RootLayout({
         <HeaderScripts scripts={site?.settings?.tracking_scripts} />
         {children}
         <Toaster />
-        <Analytics />
-        <SpeedInsights />
+        <DeferredAnalytics />
       </body>
     </html>
   );

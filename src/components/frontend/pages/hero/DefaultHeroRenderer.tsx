@@ -126,6 +126,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
               alt=""
               fill
               priority
+              fetchPriority="high"
             />
           </div>
         </div>
@@ -142,6 +143,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
         fill
         style={{ objectPosition }}
         priority
+        fetchPriority="high"
       />
       <div className="absolute inset-0 bg-background/60" />
     </div>
