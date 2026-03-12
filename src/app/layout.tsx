@@ -37,38 +37,30 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const { success, site } = await getSiteFromHeaders()
-  const { getFontFamily, getFontFaceCSS } = await import("@/lib/utils/font-config")
+  const { getFontConfig } = await import("@/lib/utils/font-config")
 
-  const primaryFontValue = site?.settings?.font_family || 'playfair-display'
-  const secondaryFontValue = site?.settings?.secondary_font_family || 'urbanist'
-  const fontPrimary = success && site?.settings ? getFontFamily(primaryFontValue) : ''
-  const fontSecondary = success && site?.settings ? getFontFamily(secondaryFontValue) : ''
-
-  // Only load the weights actually used on the frontend
-  const FRONTEND_WEIGHTS = ['400', '500', '600', '700']
-
-  // Generate @font-face CSS pointing to self-hosted woff2 files — no external requests
-  const fontCSS = success && site?.settings
-    ? [
-        getFontFaceCSS(primaryFontValue, FRONTEND_WEIGHTS),
-        primaryFontValue !== secondaryFontValue ? getFontFaceCSS(secondaryFontValue, FRONTEND_WEIGHTS) : '',
-      ].filter(Boolean).join('\n')
-    : ''
+  const fonts = success && site?.settings
+    ? getFontConfig(
+        site.settings.font_family || 'playfair-display',
+        site.settings.secondary_font_family || 'urbanist'
+      )
+    : null
 
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      style={fontPrimary ? {
-        ['--font-primary' as string]: fontPrimary,
-        ['--font-secondary' as string]: fontSecondary,
-        ['--font-sans' as string]: fontSecondary
+      style={fonts ? {
+        ['--font-primary' as string]: fonts.fontPrimary,
+        ['--font-secondary' as string]: fonts.fontSecondary,
+        ['--font-sans' as string]: fonts.fontSecondary
       } : undefined}
     >
-      <head>{fontCSS ? (<>
-        <link rel="preload" href={`/fonts/${primaryFontValue}-latin-400.woff2`} as="font" type="font/woff2" crossOrigin="anonymous" />
-        {primaryFontValue !== secondaryFontValue && <link rel="preload" href={`/fonts/${secondaryFontValue}-latin-400.woff2`} as="font" type="font/woff2" crossOrigin="anonymous" />}
-        <style dangerouslySetInnerHTML={{ __html: fontCSS }} />
+      <head>{fonts ? (<>
+        {fonts.preloadPaths.map(path => (
+          <link key={path} rel="preload" href={path} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+        <style dangerouslySetInnerHTML={{ __html: fonts.fontCSS }} />
       </>) : null}</head>
       <body
         className="min-h-screen bg-background font-sans antialiased"

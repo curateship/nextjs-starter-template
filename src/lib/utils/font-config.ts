@@ -203,3 +203,36 @@ export function getFontFamily(fontValue: string): string {
 
   return `'${font.label}', ${font.fallback}`
 }
+
+const FRONTEND_WEIGHTS = ['400', '500', '600', '700']
+
+/**
+ * Returns everything the root layout needs for fonts:
+ * CSS custom properties, @font-face CSS, and preload paths.
+ */
+export function getFontConfig(primaryValue: string, secondaryValue: string) {
+  const fontPrimary = getFontFamily(primaryValue)
+  const fontSecondary = getFontFamily(secondaryValue)
+
+  const primaryFont = getFontByValue(primaryValue)
+  const secondaryFont = getFontByValue(secondaryValue)
+
+  const fontCSS = [
+    getFontFaceCSS(primaryValue, FRONTEND_WEIGHTS),
+    primaryValue !== secondaryValue ? getFontFaceCSS(secondaryValue, FRONTEND_WEIGHTS) : '',
+  ].filter(Boolean).join('\n')
+
+  const preloadPaths: string[] = []
+  const primaryWeights = FRONTEND_WEIGHTS.filter(w => primaryFont?.weights.includes(w))
+  for (const w of primaryWeights) {
+    preloadPaths.push(`/fonts/${primaryValue}-latin-${w}.woff2`)
+  }
+  if (primaryValue !== secondaryValue) {
+    const secondaryWeights = FRONTEND_WEIGHTS.filter(w => secondaryFont?.weights.includes(w))
+    for (const w of secondaryWeights) {
+      preloadPaths.push(`/fonts/${secondaryValue}-latin-${w}.woff2`)
+    }
+  }
+
+  return { fontPrimary, fontSecondary, fontCSS, preloadPaths }
+}
