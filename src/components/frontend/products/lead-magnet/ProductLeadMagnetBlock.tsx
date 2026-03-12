@@ -92,7 +92,7 @@ export default function ProductLeadMagnetBlock({
 
   if (isSuccess) {
     return (
-      <BlockContainer siteWidth={siteWidth} customWidth={customWidth} animated={false}>
+      <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         <div className="mx-auto max-w-2xl">
           <div className="rounded-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-12 text-center shadow-lg">
             <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">

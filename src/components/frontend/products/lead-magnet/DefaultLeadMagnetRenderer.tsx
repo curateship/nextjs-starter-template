@@ -13,7 +13,7 @@ export function DefaultLeadMagnetRenderer({ config, content, email, setEmail, is
   const showPrivacyNote = config.showPrivacyNote ?? true
 
   return (
-    <BlockContainer siteWidth={siteWidth} customWidth={customWidth} animated={false}>
+    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         <div className="grid gap-10 md:gap-14 lg:grid-cols-2 lg:items-center">
           <div className="flex max-w-md flex-col items-start justify-center justify-self-center gap-8 text-center lg:justify-self-start lg:self-start lg:text-left">
             <div className="flex flex-col items-start gap-6">

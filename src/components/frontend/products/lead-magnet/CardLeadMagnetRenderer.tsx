@@ -21,7 +21,7 @@ export function CardLeadMagnetRenderer({ config, content, email, setEmail, isLoa
   const colors = COLOR_MAP[accentColor] || COLOR_MAP.indigo
 
   return (
-    <BlockContainer siteWidth={siteWidth} customWidth={customWidth} animated={false}>
+    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
       <div className="mx-auto max-w-2xl">
       <div className={`rounded-xl border-2 ${colors.border} bg-gradient-to-br ${colors.bgFrom} ${colors.bgTo} p-8 shadow-xl md:p-12`}>
         {showMailIcon && (
