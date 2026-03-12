@@ -112,12 +112,12 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
     const siteName = site?.name || "Your Site"
     const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
     return (
-        <footer 
-            className="py-1"
-            style={style ? {
-                backgroundColor: style.backgroundColor,
-                color: style.textColor
-            } : undefined}
+        <footer
+            className="py-1 bg-background text-foreground"
+            style={{
+                ...(style?.backgroundColor ? { backgroundColor: style.backgroundColor } : {}),
+                ...(style?.textColor ? { color: style.textColor } : {}),
+            }}
         >
             <div className="mx-auto max-w-5xl px-6">
                 <Link
@@ -145,7 +145,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
                             }}
                         />
                     ) : (
-                        <Globe className="h-8 w-8 mx-auto" style={{ color: style?.textColor || undefined }} />
+                        <Globe className="h-8 w-8 mx-auto" />
                     )}
                 </Link>
 

@@ -388,10 +388,11 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
         data-state={menuState && 'active'}
         className={cn(
           'fixed top-0 z-50 w-full border-b',
-          blurClass
+          blurClass,
+          (!style?.backgroundColor) && 'bg-background/90'
         )}
         style={{
-          backgroundColor: style ? `${style.backgroundColor}E6` : undefined,
+          backgroundColor: style?.backgroundColor ? `${style.backgroundColor}E6` : undefined,
         }}
       >
         <div

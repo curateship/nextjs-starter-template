@@ -63,6 +63,7 @@ interface MotionGroupProps {
   as?: string;
   asChild?: string;
   optimizedSettings: AnimationSettings;
+  skipInitialAnimation?: boolean;
 }
 
 export function MotionGroup({
@@ -73,6 +74,7 @@ export function MotionGroup({
   as = 'div',
   asChild = 'div',
   optimizedSettings,
+  skipInitialAnimation = false,
 }: MotionGroupProps) {
   const presetVariants = getPresetVariants(optimizedSettings.intensity);
   const effectivePreset = preset || optimizedSettings.preset;
@@ -103,7 +105,7 @@ export function MotionGroup({
 
   return (
     <motion.div
-      initial="hidden"
+      initial={skipInitialAnimation ? "visible" : "hidden"}
       animate="visible"
       variants={containerVariants}
       className={className}

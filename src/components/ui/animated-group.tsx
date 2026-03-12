@@ -83,6 +83,7 @@ function AnimatedGroup({
       as={as}
       asChild={asChild}
       optimizedSettings={optimizedSettings}
+      skipInitialAnimation
     >
       {children}
     </MotionGroup>

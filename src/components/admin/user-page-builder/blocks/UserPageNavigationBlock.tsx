@@ -241,7 +241,7 @@ export function UserPageNavigationBlock({
   logoUrl,
   links = [],
   buttons = [],
-  style = { backgroundColor: '#ffffff', textColor: '#000000', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152, showDarkModeToggle: true },
+  style = { backgroundColor: '', textColor: '', blurEffect: 'none', containerWidth: 'custom', customWidth: 1152, showDarkModeToggle: true },
   onLogoChange,
   onLogoUrlChange,
   onLinksChange,
@@ -616,31 +616,79 @@ export function UserPageNavigationBlock({
           <CardTitle className="text-base">Styling</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
             <div className="space-y-2">
-              <Label htmlFor="navBgColor">Background Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navBgColor"
-                  type="color"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="navCustomBgToggle"
+                  checked={style.backgroundColor !== '' && style.backgroundColor != null}
+                  onCheckedChange={(checked) => {
+                    updateStyle('backgroundColor', checked ? '#ffffff' : '')
+                  }}
                 />
-                <input
-                  type="text"
-                  value={style.backgroundColor}
-                  onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#ffffff"
-                />
+                <Label htmlFor="navCustomBgToggle">Custom Background Color</Label>
               </div>
+              {(!style.backgroundColor) && (
+                <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+              )}
+              {style.backgroundColor && (
+                <div className="flex gap-2">
+                  <input
+                    id="navBgColor"
+                    type="color"
+                    value={style.backgroundColor}
+                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
+                    type="text"
+                    value={style.backgroundColor}
+                    onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#ffffff"
+                  />
+                </div>
+              )}
             </div>
-            
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="navCustomTextToggle"
+                  checked={style.textColor !== '' && style.textColor != null}
+                  onCheckedChange={(checked) => {
+                    updateStyle('textColor', checked ? '#000000' : '')
+                  }}
+                />
+                <Label htmlFor="navCustomTextToggle">Custom Text Color</Label>
+              </div>
+              {(!style.textColor) && (
+                <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+              )}
+              {style.textColor && (
+                <div className="flex gap-2">
+                  <input
+                    id="navTextColor"
+                    type="color"
+                    value={style.textColor}
+                    onChange={(e) => updateStyle('textColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
+                    type="text"
+                    value={style.textColor}
+                    onChange={(e) => updateStyle('textColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#000000"
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="navBlurEffect">Glass Blur Effect</Label>
-              <Select 
-                value={style.blurEffect || 'medium'} 
+              <Select
+                value={style.blurEffect || 'medium'}
                 onValueChange={(value) => updateStyle('blurEffect', value as 'none' | 'light' | 'medium' | 'heavy')}
               >
                 <SelectTrigger className="text-sm">
@@ -653,26 +701,6 @@ export function UserPageNavigationBlock({
                   <SelectItem value="heavy">Heavy</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="navTextColor">Text Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navTextColor"
-                  type="color"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                />
-                <input
-                  type="text"
-                  value={style.textColor}
-                  onChange={(e) => updateStyle('textColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#000000"
-                />
-              </div>
             </div>
           </div>
         </CardContent>

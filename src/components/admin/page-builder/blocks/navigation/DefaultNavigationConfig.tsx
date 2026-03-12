@@ -2,13 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import type { NavigationStyleAdminProps } from "./index"
 
 export function DefaultNavigationConfig({ config, onConfigChange }: NavigationStyleAdminProps) {
-  const backgroundColor = config.backgroundColor || '#ffffff'
-  const textColor = config.textColor || '#000000'
+  const hasCustomBg = config.backgroundColor !== '' && config.backgroundColor != null
+  const hasCustomText = config.textColor !== '' && config.textColor != null
+  const backgroundColor = hasCustomBg ? config.backgroundColor : '#ffffff'
+  const textColor = hasCustomText ? config.textColor : '#000000'
   const blurEffect = config.blurEffect || 'none'
 
   return (
@@ -19,45 +22,73 @@ export function DefaultNavigationConfig({ config, onConfigChange }: NavigationSt
           <CardTitle className="text-base">Colors & Effects</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4">
             <div className="space-y-2">
-              <Label htmlFor="navBgColor">Background Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navBgColor"
-                  type="color"
-                  value={backgroundColor}
-                  onChange={(e) => onConfigChange('backgroundColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="customBgToggle"
+                  checked={hasCustomBg}
+                  onCheckedChange={(checked) => {
+                    onConfigChange('backgroundColor', checked ? '#ffffff' : '')
+                  }}
                 />
-                <input
-                  type="text"
-                  value={backgroundColor}
-                  onChange={(e) => onConfigChange('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#ffffff"
-                />
+                <Label htmlFor="customBgToggle">Custom Background Color</Label>
               </div>
+              {!hasCustomBg && (
+                <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+              )}
+              {hasCustomBg && (
+                <div className="flex gap-2">
+                  <input
+                    id="navBgColor"
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => onConfigChange('backgroundColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
+                    type="text"
+                    value={backgroundColor}
+                    onChange={(e) => onConfigChange('backgroundColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#ffffff"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="navTextColor">Text Color</Label>
-              <div className="flex gap-2">
-                <input
-                  id="navTextColor"
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => onConfigChange('textColor', e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="customTextToggle"
+                  checked={hasCustomText}
+                  onCheckedChange={(checked) => {
+                    onConfigChange('textColor', checked ? '#000000' : '')
+                  }}
                 />
-                <input
-                  type="text"
-                  value={textColor}
-                  onChange={(e) => onConfigChange('textColor', e.target.value)}
-                  className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                  placeholder="#000000"
-                />
+                <Label htmlFor="customTextToggle">Custom Text Color</Label>
               </div>
+              {!hasCustomText && (
+                <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+              )}
+              {hasCustomText && (
+                <div className="flex gap-2">
+                  <input
+                    id="navTextColor"
+                    type="color"
+                    value={textColor}
+                    onChange={(e) => onConfigChange('textColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                  />
+                  <input
+                    type="text"
+                    value={textColor}
+                    onChange={(e) => onConfigChange('textColor', e.target.value)}
+                    className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                    placeholder="#000000"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
