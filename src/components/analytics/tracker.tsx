@@ -76,6 +76,7 @@ export function AnalyticsTracker() {
 
     // Click tracking via event delegation
     const handleClick = (e: MouseEvent) => {
+      if (window.location.pathname.startsWith('/admin')) return
       const target = e.target as HTMLElement
       const anchor = target.closest('a')
       const button = target.closest('button')
@@ -98,10 +99,11 @@ export function AnalyticsTracker() {
     }
   }, [flush, track])
 
-  // Track pageviews on route change
+  // Track pageviews on route change (skip admin pages)
   useEffect(() => {
     if (!sessionId.current) return
     if (pathname === lastPath.current) return
+    if (pathname.startsWith('/admin')) return
     lastPath.current = pathname
     track('pageview', pathname + window.location.search)
   }, [pathname, track])

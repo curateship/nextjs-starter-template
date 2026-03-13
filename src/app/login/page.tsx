@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
-export function LandingPage() {
+export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -32,10 +32,7 @@ export function LandingPage() {
 
     try {
       const supabase = createClient()
-      const { error, data } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { error, data } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
         setError(error.message)

@@ -1,9 +1,6 @@
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
-import dynamic from "next/dynamic"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-
-const LandingPage = dynamic(() => import("@/components/frontend/pages/LandingPage").then(m => m.LandingPage))
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -23,9 +20,9 @@ async function checkAuth() {
 export default async function SiteHomePage() {
   const { success, site } = await getHomePageSite()
 
-  // No site found for this host — show landing page
+  // No site found for this host — redirect to login
   if (!success || !site) {
-    return <LandingPage />
+    redirect('/login')
   }
 
   // Check maintenance mode - only redirect if not logged in
