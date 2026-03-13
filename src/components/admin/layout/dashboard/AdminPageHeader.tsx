@@ -74,6 +74,7 @@ export function AdminPageHeader({
           
           {primaryAction && (
             <Button
+              className="ml-2"
               variant={primaryAction.variant || "default"}
               onClick={primaryAction.onClick}
               asChild={!!primaryAction.href}

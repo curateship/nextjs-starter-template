@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/product-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -291,25 +292,12 @@ export default function ProductsPage() {
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader
-          title="Products"
-          subtitle="Manage your product catalog"
-          primaryAction={{
-            label: "Create Product",
-            onClick: () => setShowCreateDialog(true)
-          }}
-        />
-        
-        <AdminCard>
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {loading ? (
-                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' :
-                      `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
-                  )}
-                </h3>
+            title="Products"
+            primaryAction={{
+              label: "Create Product",
+              onClick: () => setShowCreateDialog(true)
+            }}
+            extraContent={
               <div className="flex items-center gap-3">
                 {selectedProductIds.size > 0 && (
                   <Button
@@ -332,16 +320,17 @@ export default function ProductsPage() {
                   </Button>
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()) }}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
-              </div>
-            </div>
-            
+            }
+          />
+
+          <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
@@ -556,7 +545,7 @@ export default function ProductsPage() {
                 ))
               )}
             </div>
-          </AdminCard>
+          </Card>
         
         {/* Create Product Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -254,23 +255,11 @@ export default function PostsPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Posts"
-            subtitle="Manage your blog posts and content"
             primaryAction={{
               label: "Create Post",
               onClick: () => setShowCreateDialog(true)
             }}
-          />
-
-          <AdminCard>
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {loading ? (
-                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${filteredPosts.length} post${filteredPosts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
-                  )}
-                </h3>
+            extraContent={
               <div className="flex items-center gap-3">
                 {selectedPostIds.size > 0 && (
                   <Button
@@ -300,13 +289,14 @@ export default function PostsPage() {
                   </TabsList>
                 </Tabs>
               </div>
-              </div>
-            </div>
-            
+            }
+          />
+
+          <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
+                <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
                   <Checkbox
                     checked={filteredPosts.length > 0 && selectedPostIds.size === filteredPosts.length}
                     onCheckedChange={toggleSelectAll}
@@ -329,7 +319,7 @@ export default function PostsPage() {
                     <div key={i} className="p-6 border-b border-muted/80">
                       <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-4 pl-[3px]">
                             <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                             <div>
@@ -382,7 +372,7 @@ export default function PostsPage() {
                   <div key={post.id} className={`p-6 transition-colors ${selectedPostIds.has(post.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-4 pl-[3px]">
                           <Checkbox
                             checked={selectedPostIds.has(post.id)}
                             onCheckedChange={() => toggleSelectPost(post.id)}
@@ -515,7 +505,7 @@ export default function PostsPage() {
                 ))
               )}
             </div>
-          </AdminCard>
+          </Card>
 
         {/* Create Post Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
