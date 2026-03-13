@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
-import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
+import { getCategoriesForSiteAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
 import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/category-relationship-actions"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
-import { Tag } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Trash2, Tag } from "lucide-react"
 
 export default function CategoriesPage({
   params
@@ -30,6 +31,11 @@ export default function CategoriesPage({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterLevel, setFilterLevel] = useState<string>('all')
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -76,6 +82,57 @@ export default function CategoriesPage({
 
   const handleCategoryDeleted = (categoryId: string) => {
     setCategories(prev => prev.filter(c => c.id !== categoryId))
+  }
+
+  const toggleSelectCategory = (categoryId: string) => {
+    setSelectedCategoryIds(prev => {
+      const next = new Set(prev)
+      if (next.has(categoryId)) next.delete(categoryId)
+      else next.add(categoryId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedCategoryIds.size === filteredCategories.length) {
+      setSelectedCategoryIds(new Set())
+    } else {
+      setSelectedCategoryIds(new Set(filteredCategories.map(c => c.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedCategoryIds)
+      const { success, error: deleteError } = await deleteCategoriesAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        // Remove selected categories and their descendants from state
+        const removedIds = new Set(ids)
+        // Also remove children of deleted categories
+        const removeDescendants = (parentIds: string[]) => {
+          const children = categories.filter(c => c.parent_id && parentIds.includes(c.parent_id))
+          children.forEach(c => removedIds.add(c.id))
+          if (children.length > 0) {
+            removeDescendants(children.map(c => c.id))
+          }
+        }
+        removeDescendants(ids)
+        setCategories(prev => prev.filter(c => !removedIds.has(c.id)))
+        setSelectedCategoryIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete categories')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
   }
 
   // Compute depth level for a category
@@ -168,13 +225,35 @@ export default function CategoriesPage({
                   </Select>
                 )}
               </div>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-3">
+                {selectedCategoryIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedCategoryIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()) }}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
           </div>
 
@@ -182,7 +261,14 @@ export default function CategoriesPage({
           {(loading || categories.length > 0) && (
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Category</div>
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredCategories.length > 0 && selectedCategoryIds.size === filteredCategories.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all categories"
+                  />
+                  <span>Category</span>
+                </div>
                 <div>Parent</div>
                 <div>Status</div>
                 <div>Assigned</div>
@@ -200,6 +286,7 @@ export default function CategoriesPage({
                     <div className="grid grid-cols-7 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
+                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                           <div className="w-10 h-10 bg-muted rounded animate-pulse"></div>
                           <div>
                             <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
@@ -257,6 +344,8 @@ export default function CategoriesPage({
                     prev.map(c => (c.id === updated.id ? updated : c))
                   )
                 }}
+                selectedIds={selectedCategoryIds}
+                onToggleSelect={toggleSelectCategory}
               />
             )}
           </div>
@@ -270,6 +359,50 @@ export default function CategoriesPage({
             onClose={() => setShowCreateModal(false)}
             onCreated={handleCategoryCreated}
           />
+        )}
+
+        {/* Mass Delete Confirmation Dialog */}
+        {massDeleteConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMassDeleteConfirmOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete {selectedCategoryIds.size} Categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete {selectedCategoryIds.size} categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}? Child categories will also be deleted. This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setMassDeleteConfirmOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmMassDelete}
+                  variant="destructive"
+                >
+                  Delete {selectedCategoryIds.size} Categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Dialog */}
+        {errorDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Error</h2>
+              <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
+              <div className="flex justify-end">
+                <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
+              </div>
+            </div>
+          </div>
         )}
         </div>
       </AdminLayout>

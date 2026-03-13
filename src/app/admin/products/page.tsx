@@ -25,11 +25,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSiteProductsAction, deleteProductAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
+import { getSiteProductsAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
@@ -53,6 +54,9 @@ export default function ProductsPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
 
   // Load products
@@ -133,6 +137,46 @@ export default function ProductsPage() {
   const cancelDeleteProduct = () => {
     setConfirmDialogOpen(false)
     setPendingDeleteId(null)
+  }
+
+  const toggleSelectProduct = (productId: string) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedProductIds.size === filteredProducts.length) {
+      setSelectedProductIds(new Set())
+    } else {
+      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedProductIds)
+      const { success, error: deleteError } = await deleteProductsAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        setProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)))
+        setSelectedProductIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete products')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
   }
 
   const handleDuplicateProduct = async (productId: string) => {
@@ -266,7 +310,28 @@ export default function ProductsPage() {
                       `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
                   )}
                 </h3>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
+              <div className="flex items-center gap-3">
+                {selectedProductIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedProductIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()) }}>
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                   <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -274,12 +339,20 @@ export default function ProductsPage() {
                 </TabsList>
               </Tabs>
               </div>
+              </div>
             </div>
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Product</div>
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredProducts.length > 0 && selectedProductIds.size === filteredProducts.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all products"
+                  />
+                  <span>Product</span>
+                </div>
                 <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
@@ -296,6 +369,7 @@ export default function ProductsPage() {
                       <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
+                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                             <div>
                               <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
@@ -346,9 +420,15 @@ export default function ProductsPage() {
                 </div>
               ) : (
                 filteredProducts.map((product) => (
-                  <div key={product.id} className="p-6">
+                  <div key={product.id} className={`p-6 transition-colors ${selectedProductIds.has(product.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
+                        <div className="flex items-center space-x-4">
+                          <Checkbox
+                            checked={selectedProductIds.has(product.id)}
+                            onCheckedChange={() => toggleSelectProduct(product.id)}
+                            aria-label={`Select ${product.title}`}
+                          />
                         <Link
                           href={`/admin/products/builder/${product.site_id}?product=${product.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
@@ -371,6 +451,7 @@ export default function ProductsPage() {
                             </p>
                           </div>
                         </Link>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {productCategories[product.id]?.length ? (
@@ -540,6 +621,36 @@ export default function ProductsPage() {
                   variant="destructive"
                 >
                   Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mass Delete Confirmation Dialog */}
+        {massDeleteConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMassDeleteConfirmOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete {selectedProductIds.size} Product{selectedProductIds.size !== 1 ? 's' : ''}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete {selectedProductIds.size} product{selectedProductIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setMassDeleteConfirmOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmMassDelete}
+                  variant="destructive"
+                >
+                  Delete {selectedProductIds.size} Product{selectedProductIds.size !== 1 ? 's' : ''}
                 </Button>
               </div>
             </div>

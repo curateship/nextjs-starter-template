@@ -256,6 +256,69 @@ export async function deleteDirectoryAction(directoryId: string) {
   }
 }
 
+/**
+ * Delete multiple directories at once
+ */
+export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!directoryIds.length) {
+      return { success: false, error: 'No directories selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of directoryIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid directory ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    const { data: directories, error: directoriesError } = await supabaseAdmin
+      .from('directory')
+      .select('id, site_id')
+      .in('id', directoryIds)
+
+    if (directoriesError || !directories?.length) {
+      return { success: false, error: 'Directories not found' }
+    }
+
+    const siteIds = [...new Set(directories.map(d => d.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more directories' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('directory')
+      .delete()
+      .in('id', directoryIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete directories: ${error.message}` }
+    }
+
+    revalidateTag('directory')
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
 export async function duplicateDirectoryAction(directoryId: string, newTitle: string) {
   try {
     // Validate directory ID format

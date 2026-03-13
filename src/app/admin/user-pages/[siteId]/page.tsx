@@ -25,11 +25,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
 import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
-import { getUserPagesAction, deleteUserPageAction, duplicateUserPageAction } from "@/lib/actions/user-pages/user-pages-actions"
+import { getUserPagesAction, deleteUserPageAction, deleteUserPagesAction, duplicateUserPageAction } from "@/lib/actions/user-pages/user-pages-actions"
 import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -56,6 +57,9 @@ export default function UserUserPagesPage({ params }: PageProps) {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
 
   // Load site and pages data
@@ -155,6 +159,47 @@ export default function UserUserPagesPage({ params }: PageProps) {
   const cancelDeletePage = () => {
     setConfirmDialogOpen(false)
     setPendingDeleteId(null)
+  }
+
+  const toggleSelectPage = (pageId: string) => {
+    setSelectedPageIds(prev => {
+      const next = new Set(prev)
+      if (next.has(pageId)) next.delete(pageId)
+      else next.add(pageId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    const selectablePages = filteredPages.filter(p => !p.is_default)
+    if (selectedPageIds.size === selectablePages.length) {
+      setSelectedPageIds(new Set())
+    } else {
+      setSelectedPageIds(new Set(selectablePages.map(p => p.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedPageIds)
+      const { success, error: deleteError } = await deleteUserPagesAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        setPages(prev => prev.filter(p => !selectedPageIds.has(p.id)))
+        setSelectedPageIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete pages')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
   }
 
   const handleDuplicatePage = async (pageId: string) => {
@@ -281,20 +326,49 @@ export default function UserUserPagesPage({ params }: PageProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-3">
+                {selectedPageIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedPageIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()) }}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
           </div>
           
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
             <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-              <div className="col-span-2">Page</div>
+              <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredPages.filter(p => !p.is_default).length > 0 && selectedPageIds.size === filteredPages.filter(p => !p.is_default).length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all pages"
+                  />
+                  <span>Page</span>
+                </div>
               <div>Status</div>
               <div>Modified</div>
               <div>Actions</div>
@@ -310,6 +384,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
+                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                           <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                           <div>
                             <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
@@ -355,9 +430,19 @@ export default function UserUserPagesPage({ params }: PageProps) {
               </div>
             ) : (
               filteredPages.map((page) => (
-                <div key={page.id} className="p-6">
+                <div key={page.id} className={`p-6 transition-colors ${selectedPageIds.has(page.id) ? 'bg-accent/50' : ''}`}>
                   <div className="grid grid-cols-5 gap-4 items-center">
                     <div className="col-span-2">
+                      <div className="flex items-center space-x-4">
+                        {!page.is_default ? (
+                          <Checkbox
+                            checked={selectedPageIds.has(page.id)}
+                            onCheckedChange={() => toggleSelectPage(page.id)}
+                            aria-label={`Select ${page.title}`}
+                          />
+                        ) : (
+                          <div className="w-4" />
+                        )}
                       <Link
                         href={`/admin/user-pages/builder/${siteId}?page=${page.slug}`}
                         className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
@@ -376,6 +461,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
                           </p>
                         </div>
                       </Link>
+                      </div>
                     </div>
                     <div>
                       {getStatusBadge(page)}
@@ -514,6 +600,36 @@ export default function UserUserPagesPage({ params }: PageProps) {
               <div className="flex justify-end gap-2">
                 <Button onClick={cancelDeletePage} variant="outline">Cancel</Button>
                 <Button onClick={confirmDeletePage} variant="destructive">Delete</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mass Delete Confirmation Dialog */}
+        {massDeleteConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMassDeleteConfirmOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? 's' : ''}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete {selectedPageIds.size} page{selectedPageIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setMassDeleteConfirmOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmMassDelete}
+                  variant="destructive"
+                >
+                  Delete {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? 's' : ''}
+                </Button>
               </div>
             </div>
           </div>

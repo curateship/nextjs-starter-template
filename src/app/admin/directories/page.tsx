@@ -26,11 +26,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FolderOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSiteDirectoriesAction, deleteDirectoryAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { getSiteDirectoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
@@ -54,6 +55,9 @@ export default function DirectoriesPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [selectedDirectoryIds, setSelectedDirectoryIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
 
   // Load directories
@@ -134,6 +138,46 @@ export default function DirectoriesPage() {
   const cancelDeleteDirectory = () => {
     setConfirmDialogOpen(false)
     setPendingDeleteId(null)
+  }
+
+  const toggleSelectDirectory = (directoryId: string) => {
+    setSelectedDirectoryIds(prev => {
+      const next = new Set(prev)
+      if (next.has(directoryId)) next.delete(directoryId)
+      else next.add(directoryId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedDirectoryIds.size === filteredDirectories.length) {
+      setSelectedDirectoryIds(new Set())
+    } else {
+      setSelectedDirectoryIds(new Set(filteredDirectories.map(d => d.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedDirectoryIds)
+      const { success, error: deleteError } = await deleteDirectoriesAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        setDirectories(prev => prev.filter(d => !selectedDirectoryIds.has(d.id)))
+        setSelectedDirectoryIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete directories')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
   }
 
   const handleDuplicateDirectory = async (directoryId: string) => {
@@ -247,20 +291,49 @@ export default function DirectoriesPage() {
                       `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
                   )}
                 </h3>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-3">
+                {selectedDirectoryIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedDirectoryIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()) }}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
               </div>
             </div>
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Directory</div>
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredDirectories.length > 0 && selectedDirectoryIds.size === filteredDirectories.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all directories"
+                  />
+                  <span>Directory</span>
+                </div>
                 <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
@@ -277,6 +350,7 @@ export default function DirectoriesPage() {
                       <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
+                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                             <div>
                               <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
@@ -327,9 +401,15 @@ export default function DirectoriesPage() {
                 </div>
               ) : (
                 filteredDirectories.map((directory) => (
-                  <div key={directory.id} className="p-6">
+                  <div key={directory.id} className={`p-6 transition-colors ${selectedDirectoryIds.has(directory.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
+                        <div className="flex items-center space-x-4">
+                          <Checkbox
+                            checked={selectedDirectoryIds.has(directory.id)}
+                            onCheckedChange={() => toggleSelectDirectory(directory.id)}
+                            aria-label={`Select ${directory.title}`}
+                          />
                         <Link
                           href={`/admin/directories/builder/${directory.site_id}?directory=${directory.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
@@ -352,6 +432,7 @@ export default function DirectoriesPage() {
                             </p>
                           </div>
                         </Link>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {directoryCategories[directory.id]?.length ? (
@@ -512,6 +593,36 @@ export default function DirectoriesPage() {
               <div className="flex justify-end gap-2">
                 <Button onClick={cancelDeleteDirectory} variant="outline">Cancel</Button>
                 <Button onClick={confirmDeleteDirectory} variant="destructive">Delete</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mass Delete Confirmation Dialog */}
+        {massDeleteConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMassDeleteConfirmOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete {selectedDirectoryIds.size} Director{selectedDirectoryIds.size !== 1 ? 'ies' : 'y'}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete {selectedDirectoryIds.size} director{selectedDirectoryIds.size !== 1 ? 'ies' : 'y'}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setMassDeleteConfirmOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmMassDelete}
+                  variant="destructive"
+                >
+                  Delete {selectedDirectoryIds.size} Director{selectedDirectoryIds.size !== 1 ? 'ies' : 'y'}
+                </Button>
               </div>
             </div>
           </div>

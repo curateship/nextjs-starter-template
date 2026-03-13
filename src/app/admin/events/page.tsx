@@ -25,12 +25,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Calendar, X, AlertCircle, ExternalLink } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"
 import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import { getSiteEventsAction, deleteEventAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
+import { getSiteEventsAction, deleteEventAction, deleteEventsAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
@@ -56,6 +57,9 @@ export default function EventsPage() {
   const [eventCategories, setEventCategories] = useState<Record<string, CategoryInfo[]>>({})
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
   // Load events data
   useEffect(() => {
@@ -170,6 +174,46 @@ export default function EventsPage() {
     setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e))
   }
 
+  const toggleSelectEvent = (eventId: string) => {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev)
+      if (next.has(eventId)) next.delete(eventId)
+      else next.add(eventId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedEventIds.size === filteredEvents.length) {
+      setSelectedEventIds(new Set())
+    } else {
+      setSelectedEventIds(new Set(filteredEvents.map(e => e.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedEventIds)
+      const { success, error: deleteError } = await deleteEventsAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError || 'Failed to delete events')
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        setEvents(prev => prev.filter(e => !selectedEventIds.has(e.id)))
+        setSelectedEventIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete events')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
+  }
+
   const getStatusBadge = (event: Event) => {
     if (event.is_published) {
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
@@ -254,20 +298,49 @@ export default function EventsPage() {
                       `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
                   )}
                 </h3>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-3">
+                {selectedEventIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedEventIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()) }}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
               </div>
             </div>
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Event</div>
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredEvents.length > 0 && selectedEventIds.size === filteredEvents.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all events"
+                  />
+                  <span>Event</span>
+                </div>
                 <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
@@ -282,6 +355,7 @@ export default function EventsPage() {
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
+                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                           <div className="w-16 h-16 bg-muted rounded animate-pulse"></div>
                           <div className="space-y-2">
                             <div className="h-4 bg-muted rounded animate-pulse w-48"></div>
@@ -319,9 +393,15 @@ export default function EventsPage() {
                 </div>
               ) : (
                 filteredEvents.map((event) => (
-                  <div key={event.id} className="p-6">
+                  <div key={event.id} className={`p-6 transition-colors ${selectedEventIds.has(event.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
+                        <div className="flex items-center space-x-4">
+                          <Checkbox
+                            checked={selectedEventIds.has(event.id)}
+                            onCheckedChange={() => toggleSelectEvent(event.id)}
+                            aria-label={`Select ${event.title}`}
+                          />
                         <Link
                           href={`/admin/events/builder/${event.site_id}?event=${event.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
@@ -344,6 +424,7 @@ export default function EventsPage() {
                             </p>
                           </div>
                         </Link>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {eventCategories[event.id]?.length ? (
@@ -469,6 +550,36 @@ export default function EventsPage() {
         </div>
       )}
 
+      {/* Mass Delete Confirmation Dialog */}
+      {massDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => setMassDeleteConfirmOpen(false)}
+          />
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+            <h2 className="text-lg font-semibold mb-2">Delete {selectedEventIds.size} Event{selectedEventIds.size !== 1 ? 's' : ''}</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to delete {selectedEventIds.size} event{selectedEventIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={() => setMassDeleteConfirmOpen(false)}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmMassDelete}
+                variant="destructive"
+              >
+                Delete {selectedEventIds.size} Event{selectedEventIds.size !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Settings Modal */}
       {selectedEvent && (
         <EventSettingsModal
@@ -478,6 +589,19 @@ export default function EventsPage() {
           site={currentSite}
           onSuccess={handleSettingsSuccess}
         />
+      )}
+      {/* Error Dialog */}
+      {errorDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+            <h2 className="text-lg font-semibold mb-2">Error</h2>
+            <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
+            <div className="flex justify-end">
+              <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminLayout>
     </>

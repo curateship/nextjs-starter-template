@@ -30,9 +30,10 @@ import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePo
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, BookOpen, X } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSitePostsAction, deletePostAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
+import { getSitePostsAction, deletePostAction, deletePostsAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
@@ -49,6 +50,9 @@ export default function PostsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [postCategories, setPostCategories] = useState<Record<string, CategoryInfo[]>>({})
 
+  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -133,6 +137,46 @@ export default function PostsPage() {
   const cancelDeletePost = () => {
     setConfirmDialogOpen(false)
     setPendingDeleteId(null)
+  }
+
+  const toggleSelectPost = (postId: string) => {
+    setSelectedPostIds(prev => {
+      const next = new Set(prev)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedPostIds.size === filteredPosts.length) {
+      setSelectedPostIds(new Set())
+    } else {
+      setSelectedPostIds(new Set(filteredPosts.map(p => p.id)))
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(selectedPostIds)
+      const { success, error: deleteError } = await deletePostsAction(ids)
+      if (deleteError) {
+        setErrorMessage(deleteError)
+        setErrorDialogOpen(true)
+        return
+      }
+      if (success) {
+        setPosts(prev => prev.filter(p => !selectedPostIds.has(p.id)))
+        setSelectedPostIds(new Set())
+      }
+    } catch (err) {
+      setErrorMessage('Failed to delete posts')
+      setErrorDialogOpen(true)
+    } finally {
+      setMassDeleting(false)
+    }
   }
 
   const handleDuplicatePost = async (postId: string) => {
@@ -227,20 +271,49 @@ export default function PostsPage() {
                     `${filteredPosts.length} post${filteredPosts.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
                   )}
                 </h3>
-              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-3">
+                {selectedPostIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete ({selectedPostIds.size})
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()) }}>
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
               </div>
             </div>
             
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Post</div>
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={filteredPosts.length > 0 && selectedPostIds.size === filteredPosts.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all posts"
+                  />
+                  <span>Post</span>
+                </div>
                 <div>Category</div>
                 <div>Status</div>
                 <div>Modified</div>
@@ -257,6 +330,7 @@ export default function PostsPage() {
                       <div className="grid grid-cols-6 gap-4 items-center">
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
+                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
                             <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
                             <div>
                               <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
@@ -305,9 +379,15 @@ export default function PostsPage() {
                 </div>
               ) : (
                 filteredPosts.map((post) => (
-                  <div key={post.id} className="p-6">
+                  <div key={post.id} className={`p-6 transition-colors ${selectedPostIds.has(post.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
+                        <div className="flex items-center space-x-4">
+                          <Checkbox
+                            checked={selectedPostIds.has(post.id)}
+                            onCheckedChange={() => toggleSelectPost(post.id)}
+                            aria-label={`Select ${post.title}`}
+                          />
                         <Link
                           href={`/admin/posts/builder/${post.site_id}?post=${post.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
@@ -330,6 +410,7 @@ export default function PostsPage() {
                             </p>
                           </div>
                         </Link>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {postCategories[post.id]?.length ? (
@@ -496,6 +577,36 @@ export default function PostsPage() {
                   variant="destructive"
                 >
                   Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mass Delete Confirmation Dialog */}
+        {massDeleteConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={() => setMassDeleteConfirmOpen(false)}
+            />
+            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+              <h2 className="text-lg font-semibold mb-2">Delete {selectedPostIds.size} Post{selectedPostIds.size !== 1 ? 's' : ''}</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Are you sure you want to delete {selectedPostIds.size} post{selectedPostIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setMassDeleteConfirmOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmMassDelete}
+                  variant="destructive"
+                >
+                  Delete {selectedPostIds.size} Post{selectedPostIds.size !== 1 ? 's' : ''}
                 </Button>
               </div>
             </div>

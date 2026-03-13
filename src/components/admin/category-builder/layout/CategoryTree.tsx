@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CategorySettingsModal } from "./CategorySettingsModal"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface CategoryTreeProps {
   categories: Category[]
@@ -31,6 +32,8 @@ interface CategoryTreeProps {
   siteId: string
   onCategoryDeleted: (categoryId: string) => void
   onCategoryUpdated: (category: Category) => void
+  selectedIds?: Set<string>
+  onToggleSelect?: (categoryId: string) => void
 }
 
 export function CategoryTree({
@@ -39,7 +42,9 @@ export function CategoryTree({
   assignmentCounts,
   siteId,
   onCategoryDeleted,
-  onCategoryUpdated
+  onCategoryUpdated,
+  selectedIds,
+  onToggleSelect
 }: CategoryTreeProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
@@ -106,10 +111,17 @@ export function CategoryTree({
   return (
     <>
       {categories.map((category) => (
-        <div key={category.id} className="p-6">
+        <div key={category.id} className={`p-6 transition-colors ${selectedIds?.has(category.id) ? 'bg-accent/50' : ''}`}>
           <div className="grid grid-cols-7 gap-4 items-center">
             <div className="col-span-2">
               <div className="flex items-center space-x-4">
+                {onToggleSelect && (
+                  <Checkbox
+                    checked={selectedIds?.has(category.id) ?? false}
+                    onCheckedChange={() => onToggleSelect(category.id)}
+                    aria-label={`Select ${category.title}`}
+                  />
+                )}
                 {category.featured_image ? (
                   <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted">
                     <img

@@ -421,6 +421,78 @@ export async function deleteUserPageAction(pageId: string): Promise<{ success: b
 }
 
 /**
+ * Delete multiple user pages at once
+ */
+export async function deleteUserPagesAction(pageIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!pageIds.length) {
+      return { success: false, error: 'No pages selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of pageIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid page ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    const { data: pages, error: pagesError } = await supabaseAdmin
+      .from('users_pages')
+      .select('id, site_id, is_default')
+      .in('id', pageIds)
+
+    if (pagesError || !pages?.length) {
+      return { success: false, error: 'Pages not found' }
+    }
+
+    if (pages.some(p => p.is_default)) {
+      return { success: false, error: 'Cannot delete the default page. Please deselect it and try again.' }
+    }
+
+    const siteIds = [...new Set(pages.map(p => p.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more pages' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('users_pages')
+      .delete()
+      .in('id', pageIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete pages: ${error.message}` }
+    }
+
+    for (const siteId of siteIds) {
+      revalidateTag(`user-pages-${siteId}`)
+    }
+    for (const pageId of pageIds) {
+      revalidateTag(`user-page-${pageId}`)
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
  * Update user page content blocks
  */
 export async function updateUserPageBlocksAction(

@@ -425,9 +425,72 @@ export async function deleteProductAction(productId: string): Promise<{ success:
 
     return { success: true, error: null }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
+ * Delete multiple products at once
+ */
+export async function deleteProductsAction(productIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!productIds.length) {
+      return { success: false, error: 'No products selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of productIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid product ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'User not authenticated. Please log in first.' }
+    }
+
+    const { data: products, error: productsError } = await supabaseAdmin
+      .from('products')
+      .select('id, site_id')
+      .in('id', productIds)
+
+    if (productsError || !products?.length) {
+      return { success: false, error: 'Products not found' }
+    }
+
+    const siteIds = [...new Set(products.map(p => p.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more products' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('products')
+      .delete()
+      .in('id', productIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete products: ${error.message}` }
+    }
+
+    revalidateTag('listing-views')
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }

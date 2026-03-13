@@ -249,6 +249,69 @@ export async function deleteEventAction(eventId: string) {
   }
 }
 
+/**
+ * Delete multiple events at once
+ */
+export async function deleteEventsAction(eventIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!eventIds.length) {
+      return { success: false, error: 'No events selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of eventIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid event ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    const { data: events, error: eventsError } = await supabaseAdmin
+      .from('events')
+      .select('id, site_id')
+      .in('id', eventIds)
+
+    if (eventsError || !events?.length) {
+      return { success: false, error: 'Events not found' }
+    }
+
+    const siteIds = [...new Set(events.map(e => e.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more events' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('events')
+      .delete()
+      .in('id', eventIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete events: ${error.message}` }
+    }
+
+    revalidateTag('events')
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
 export async function duplicateEventAction(eventId: string, newTitle: string) {
   try {
     // Validate event ID format

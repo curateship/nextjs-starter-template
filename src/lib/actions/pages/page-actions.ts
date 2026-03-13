@@ -440,6 +440,72 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
 }
 
 /**
+ * Delete multiple pages at once
+ */
+export async function deletePagesAction(pageIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!pageIds.length) {
+      return { success: false, error: 'No pages selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of pageIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid page ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'User not authenticated. Please log in first.' }
+    }
+
+    const { data: pages, error: pagesError } = await supabaseAdmin
+      .from('pages')
+      .select('id, site_id, slug')
+      .in('id', pageIds)
+
+    if (pagesError || !pages?.length) {
+      return { success: false, error: 'Pages not found' }
+    }
+
+    // Prevent deleting homepage
+    if (pages.some(p => p.slug === 'home')) {
+      return { success: false, error: 'Cannot delete the homepage. Please deselect it and try again.' }
+    }
+
+    const siteIds = [...new Set(pages.map(p => p.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more pages' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('pages')
+      .delete()
+      .in('id', pageIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete pages: ${error.message}` }
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
  * Duplicate a page
  */
 export async function duplicatePageAction(pageId: string, newTitle: string): Promise<{ data: Page | null; error: string | null }> {

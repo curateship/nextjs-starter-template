@@ -422,6 +422,104 @@ export async function deleteCategoryAction(categoryId: string) {
 }
 
 /**
+ * Delete multiple categories at once (with cascading child deletion)
+ */
+export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!categoryIds.length) {
+      return { success: false, error: 'No categories selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of categoryIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid category ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Fetch all selected categories and verify ownership
+    const { data: categories, error: categoriesError } = await supabaseAdmin
+      .from('categories')
+      .select('id, site_id')
+      .in('id', categoryIds)
+
+    if (categoriesError || !categories?.length) {
+      return { success: false, error: 'Categories not found' }
+    }
+
+    const siteIds = [...new Set(categories.map(c => c.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more categories' }
+    }
+
+    // Collect all IDs to delete including descendants
+    const allIdsToDelete = new Set(categoryIds)
+    const queue = [...categoryIds]
+
+    while (queue.length > 0) {
+      const parentId = queue.shift()!
+      const { data: children } = await supabaseAdmin
+        .from('categories')
+        .select('id')
+        .eq('parent_id', parentId)
+
+      if (children) {
+        for (const child of children) {
+          if (!allIdsToDelete.has(child.id)) {
+            allIdsToDelete.add(child.id)
+            queue.push(child.id)
+          }
+        }
+      }
+    }
+
+    const idsArray = Array.from(allIdsToDelete)
+
+    // Delete all content relationships
+    const { error: relDeleteError } = await supabaseAdmin
+      .from('category_relationships')
+      .delete()
+      .in('category_id', idsArray)
+
+    if (relDeleteError) {
+      return { success: false, error: relDeleteError.message }
+    }
+
+    // Delete all categories
+    const { error: deleteError } = await supabaseAdmin
+      .from('categories')
+      .delete()
+      .in('id', idsArray)
+
+    if (deleteError) {
+      return { success: false, error: deleteError.message }
+    }
+
+    revalidateTag('categories')
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
  * Update category blocks (for builder)
  */
 export async function updateCategoryBlocksAction(categoryId: string, contentBlocks: Record<string, any>) {

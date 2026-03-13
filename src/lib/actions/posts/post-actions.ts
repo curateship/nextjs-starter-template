@@ -376,9 +376,71 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
 
     return { success: true, error: null }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+}
+
+/**
+ * Delete multiple posts at once
+ */
+export async function deletePostsAction(postIds: string[]): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!postIds.length) {
+      return { success: false, error: 'No posts selected' }
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const id of postIds) {
+      if (!uuidRegex.test(id)) {
+        return { success: false, error: 'Invalid post ID format' }
+      }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return { success: false, error: 'User not authenticated. Please log in first.' }
+    }
+
+    // Get all posts and verify they belong to sites owned by this user
+    const { data: posts, error: postsError } = await supabaseAdmin
+      .from('posts')
+      .select('id, site_id')
+      .in('id', postIds)
+
+    if (postsError || !posts?.length) {
+      return { success: false, error: 'Posts not found' }
+    }
+
+    const siteIds = [...new Set(posts.map(p => p.site_id))]
+    const { data: sites, error: sitesError } = await supabaseAdmin
+      .from('sites')
+      .select('id')
+      .in('id', siteIds)
+      .eq('user_id', user.id)
+
+    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied to one or more posts' }
+    }
+
+    const { error } = await supabaseAdmin
+      .from('posts')
+      .delete()
+      .in('id', postIds)
+
+    if (error) {
+      return { success: false, error: `Failed to delete posts: ${error.message}` }
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
