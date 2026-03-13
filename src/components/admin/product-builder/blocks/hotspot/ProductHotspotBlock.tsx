@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, ArrowLeft } from "lucide-react"
@@ -170,6 +171,48 @@ export function ProductHotspotBlock({
         <TabsContent value="content">
           <Card className="shadow-sm">
             <CardHeader>
+              <CardTitle className="text-base">Header Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Header</Label>
+                  <Input
+                    id="title"
+                    value={header}
+                    onChange={(e) => onHeaderChange(e.target.value)}
+                    placeholder="Interactive Product Overview"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle">Sub Header</Label>
+                  <Input
+                    id="subtitle"
+                    value={subheader}
+                    onChange={(e) => onSubheaderChange(e.target.value)}
+                    placeholder="Hover over the blinking dots to discover more about our features"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="hotspot-align">Header Alignment</Label>
+                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                    <SelectTrigger id="hotspot-align">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="center">Center</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Interactive Hotspots</CardTitle>
                 <div className="flex items-center gap-2">
@@ -282,53 +325,16 @@ export function ProductHotspotBlock({
         <TabsContent value="settings">
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Header Content</CardTitle>
+              <CardTitle className="text-base">Display Options</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Header</Label>
-                  <Input
-                    id="title"
-                    value={header}
-                    onChange={(e) => onHeaderChange(e.target.value)}
-                    placeholder="Interactive Product Overview"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="subtitle">Sub Header</Label>
-                  <Input
-                    id="subtitle"
-                    value={subheader}
-                    onChange={(e) => onSubheaderChange(e.target.value)}
-                    placeholder="Hover over the blinking dots to discover more about our features"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="hotspot-align">Header Alignment</Label>
-                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                    <SelectTrigger id="hotspot-align">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 mt-6">
-                <input
+              <div className="flex items-center space-x-2">
+                <Checkbox
                   id="showTooltipsAlways"
-                  type="checkbox"
                   checked={showTooltipsAlways}
-                  onChange={(e) => onShowTooltipsAlwaysChange(e.target.checked)}
-                  className="rounded"
+                  onCheckedChange={(checked) => onShowTooltipsAlwaysChange(!!checked)}
                 />
-                <Label htmlFor="showTooltipsAlways" className="text-xs font-normal whitespace-nowrap">
+                <Label htmlFor="showTooltipsAlways" className="cursor-pointer">
                   Always show tooltips
                 </Label>
               </div>
