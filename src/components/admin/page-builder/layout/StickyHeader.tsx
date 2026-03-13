@@ -42,9 +42,16 @@ interface BreadcrumbItem {
   isPage?: boolean
 }
 
+interface NavLink {
+  label: string
+  href: string
+  active?: boolean
+}
+
 interface StickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItem[]
+  navLinks?: NavLink[]
   // Page builder specific props
   pages?: Page[]
   selectedPage?: string
@@ -62,6 +69,7 @@ interface StickyHeaderProps {
 export function StickyHeader({
   className,
   breadcrumbItems = [],
+  navLinks,
   pages,
   selectedPage,
   onPageChange,
@@ -106,7 +114,7 @@ export function StickyHeader({
         "sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b bg-sidebar z-50",
         className
       )}>
-        <div className="flex items-center justify-between flex-1 px-4">
+        <div className="flex items-center justify-between flex-1 px-4 h-full">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             {breadcrumbItems.length > 0 && (
@@ -202,6 +210,26 @@ export function StickyHeader({
               </>
             )}
           </div>
+
+          {/* Nav Links */}
+          {navLinks && navLinks.length > 0 && (
+            <div className="flex items-center gap-8 h-full pr-14">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "text-sm font-medium h-full flex items-center border-b-[3px] transition-colors",
+                    link.active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Page Builder Actions */}
           {isPageBuilder && (

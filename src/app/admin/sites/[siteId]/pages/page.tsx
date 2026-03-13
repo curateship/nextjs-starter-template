@@ -3,7 +3,8 @@
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
 import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
@@ -287,75 +287,53 @@ export default function SitePagesPage({ params }: PageProps) {
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { label: "Pages", isPage: true }
         ]}
+        navLinks={[
+          { label: "Pages", href: `/admin/sites/${siteId}/pages`, active: true },
+          { label: "User Pages", href: `/admin/user-pages/${siteId}` },
+        ]}
       />
       <AdminLayout>
         <div className="w-full">
         <AdminPageHeader
           title="Pages"
-          subtitle="Manage Pages"
           primaryAction={{
             label: "Create Page",
             onClick: () => setShowCreateDialog(true)
           }}
-        />
-        
-        <AdminCard>
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <h3 className="text-lg font-semibold">
-                  {loading ? (
-                    <div className="h-5 bg-muted rounded animate-pulse w-20"></div>
+          extraContent={
+            <div className="flex items-center gap-3">
+              {selectedPageIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Deleting...
+                    </>
                   ) : (
-                    `${filteredPages.length} page${filteredPages.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete ({selectedPageIds.size})
+                    </>
                   )}
-                </h3>
-                <Select value="pages" onValueChange={(value) => {
-                  if (value === 'user-pages') {
-                    router.push(`/admin/user-pages/${siteId}`)
-                  }
-                }}>
-                  <SelectTrigger size="sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pages">Pages</SelectItem>
-                    <SelectItem value="user-pages">User Pages</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3">
-                {selectedPageIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedPageIds.size})
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()) }}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+                </Button>
+              )}
+              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()) }}>
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
-          </div>
-          
+          }
+        />
+
+        <Card className="shadow-sm">
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
             <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
@@ -555,7 +533,7 @@ export default function SitePagesPage({ params }: PageProps) {
               ))
             )}
           </div>
-        </AdminCard>
+        </Card>
         
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

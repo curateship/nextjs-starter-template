@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/directory-builder/layout/StickyHeader"
@@ -273,24 +274,11 @@ export default function DirectoriesPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Directory"
-            subtitle="Manage your directory listings"
             primaryAction={{
               label: "Create Item",
               onClick: () => setShowCreateDialog(true)
             }}
-          />
-        
-        <AdminCard>
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {loading ? (
-                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${filteredDirectories.length} ${filteredDirectories.length !== 1 ? 'directories' : 'directory'} ${filterStatus === 'all' && filterPrivacy === 'all' ? 'total' :
-                      `${filterStatus === 'all' ? '' : filterStatus}${filterStatus !== 'all' && filterPrivacy === 'private' ? ', ' : ''}${filterPrivacy === 'private' ? 'private' : ''}`}`
-                  )}
-                </h3>
+            extraContent={
               <div className="flex items-center gap-3">
                 {selectedDirectoryIds.size > 0 && (
                   <Button
@@ -320,9 +308,10 @@ export default function DirectoriesPage() {
                   </TabsList>
                 </Tabs>
               </div>
-              </div>
-            </div>
-            
+            }
+          />
+
+          <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
@@ -537,7 +526,7 @@ export default function DirectoriesPage() {
                 ))
               )}
             </div>
-          </AdminCard>
+          </Card>
         
         {/* Create Directory Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

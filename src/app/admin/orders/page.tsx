@@ -528,47 +528,46 @@ function OrdersContent() {
         <div className="w-full">
           <AdminPageHeader
             title="Orders"
-            subtitle="View lead magnet signups and paid product purchases"
+            extraContent={
+              <div className="flex items-center gap-3">
+                {Object.keys(rowSelection).length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">
+                      {Object.keys(rowSelection).length} selected
+                    </span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={deleting}
+                      onClick={() => promptDelete(Object.keys(rowSelection))}
+                    >
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                      {deleting ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                )}
+                <Tabs
+                  value={activeTab}
+                  onValueChange={(v) => {
+                    setActiveTab(v as "all" | OrderType)
+                    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+                  }}
+                >
+                  <TabsList className="gap-1">
+                    <TabsTrigger value="all">All ({tabCounts.all})</TabsTrigger>
+                    <TabsTrigger value="lead_magnet">
+                      Lead Magnets ({tabCounts.lead_magnet})
+                    </TabsTrigger>
+                    <TabsTrigger value="paid_purchase">
+                      Paid Purchases ({tabCounts.paid_purchase})
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            }
           />
 
           <div className="mx-6 pb-10 space-y-6">
-          {/* Tab Filters & Bulk Actions */}
-          <div className="flex items-center justify-between">
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => {
-              setActiveTab(v as "all" | OrderType)
-              setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-            }}
-            >
-              <TabsList className="gap-1">
-                <TabsTrigger value="all">All ({tabCounts.all})</TabsTrigger>
-                <TabsTrigger value="lead_magnet">
-                  Lead Magnets ({tabCounts.lead_magnet})
-                </TabsTrigger>
-                <TabsTrigger value="paid_purchase">
-                  Paid Purchases ({tabCounts.paid_purchase})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            {Object.keys(rowSelection).length > 0 && (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  {Object.keys(rowSelection).length} selected
-                </span>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={deleting}
-                  onClick={() => promptDelete(Object.keys(rowSelection))}
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  {deleting ? "Deleting..." : "Delete"}
-                </Button>
-              </div>
-            )}
-          </div>
 
           {/* Table */}
           <div className="overflow-hidden rounded-lg border border-border/60 bg-card [--dt-cell-bg:var(--background)] [--dt-header-bg:var(--muted)] [--dt-row-hover-bg:color-mix(in_oklab,var(--background)_98%,var(--foreground)_2%)] [--dt-row-selected-bg:color-mix(in_oklab,var(--background)_98%,var(--foreground)_2%)] [--dt-row-selected-hover-bg:color-mix(in_oklab,var(--background)_96%,var(--foreground)_4%)] dark:[--dt-header-bg:var(--card)] dark:[--dt-row-hover-bg:var(--muted)] dark:[--dt-row-selected-bg:var(--muted)] dark:[--dt-row-selected-hover-bg:color-mix(in_oklab,var(--muted)_80%,var(--foreground)_20%)]">

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
@@ -83,29 +84,24 @@ export default function UsersPage() {
       <div className="w-full">
         <AdminPageHeader
           title="Users"
-          subtitle="Manage your user accounts"
           primaryAction={{
             label: "Add User",
             href: "/admin/users/new"
           }}
+          extraContent={
+            <Tabs defaultValue="all">
+              <TabsList className="gap-1">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="admin">Admin</TabsTrigger>
+                <TabsTrigger value="editor">Editor</TabsTrigger>
+                <TabsTrigger value="user">User</TabsTrigger>
+                <TabsTrigger value="guest">Guest</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
         />
-        
-        <AdminCard>
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Users</h3>
-              <Tabs defaultValue="all">
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="admin">Admin</TabsTrigger>
-                  <TabsTrigger value="editor">Editor</TabsTrigger>
-                  <TabsTrigger value="user">User</TabsTrigger>
-                  <TabsTrigger value="guest">Guest</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </div>
-          
+
+        <Card className="shadow-sm">
           <div className="divide-y">
             {loading ? (
               <div className="p-6 text-center">
@@ -148,7 +144,7 @@ export default function UsersPage() {
               ))
             )}
           </div>
-        </AdminCard>
+        </Card>
       </div>
     </AdminLayout>
   )

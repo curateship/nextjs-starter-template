@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, Settings, Trash2, Edit, MoreHorizontal, Globe } from "lucide-react"
@@ -116,34 +117,24 @@ export default function SitesPage() {
       <div className="w-full">
         <AdminPageHeader
           title="Sites"
-          subtitle="Manage your site collection"
           primaryAction={{
             label: "Create Site",
             href: "/admin/sites/new"
           }}
+          extraContent={
+            <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
+              <TabsList className="gap-1">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="active">Active</TabsTrigger>
+                <TabsTrigger value="inactive">Inactive</TabsTrigger>
+                <TabsTrigger value="draft">Draft</TabsTrigger>
+                <TabsTrigger value="suspended">Suspended</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
         />
-        
-        <AdminCard>
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">
-                {loading ? (
-                  <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
-                ) : (
-                  `${filteredSites.length} site${filteredSites.length !== 1 ? 's' : ''} found`
-                )}
-              </h3>
-              <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
-                <TabsList className="gap-1">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="active">Active</TabsTrigger>
-                  <TabsTrigger value="inactive">Inactive</TabsTrigger>
-                  <TabsTrigger value="draft">Draft</TabsTrigger>
-                  <TabsTrigger value="suspended">Suspended</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </div>
+
+        <Card className="shadow-sm">
           
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
@@ -291,7 +282,7 @@ export default function SitesPage() {
               })
             )}
           </div>
-        </AdminCard>
+        </Card>
       </div>
     </AdminLayout>
   )

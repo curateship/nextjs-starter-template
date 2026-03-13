@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
@@ -97,30 +98,23 @@ export default function AutomationsPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Automations"
-            subtitle="Manage your automated workflows"
             primaryAction={{
               label: "New Workflow",
               onClick: () => {},
             }}
+            extraContent={
+              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | WorkflowStatus)}>
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
+                  <TabsTrigger value="paused">Paused ({statusCounts.paused})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            }
           />
 
-          <AdminCard>
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {`${filteredWorkflows.length} workflow${filteredWorkflows.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`}
-                </h3>
-                <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | WorkflowStatus)}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
-                    <TabsTrigger value="paused">Paused ({statusCounts.paused})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </div>
-
+          <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
@@ -221,7 +215,7 @@ export default function AutomationsPage() {
                 ))
               )}
             </div>
-          </AdminCard>
+          </Card>
         </div>
       </AdminLayout>
     </>

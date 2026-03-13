@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 interface AdminPageHeaderProps {
-  title: string
+  title: React.ReactNode
   subtitle?: string
   backUrl?: string
   primaryAction?: {

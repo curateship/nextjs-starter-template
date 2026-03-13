@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
+import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -118,29 +119,22 @@ export default function NewslettersPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Newsletters"
-            subtitle="Manage your newsletter content"
             primaryAction={{
               label: "Create Newsletter",
               onClick: () => setShowCreateDialog(true),
             }}
+            extraContent={
+              <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
+                <TabsList className="gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            }
           />
 
-          <AdminCard>
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {`${filteredNewsletters.length} newsletter${filteredNewsletters.length !== 1 ? 's' : ''} ${filterStatus === 'all' ? 'total' : filterStatus}`}
-                </h3>
-                <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | 'published' | 'draft')}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </div>
-
+          <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
@@ -237,7 +231,7 @@ export default function NewslettersPage() {
                 ))
               )}
             </div>
-          </AdminCard>
+          </Card>
 
           {/* Create Newsletter Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

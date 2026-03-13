@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -288,32 +289,11 @@ export default function ImagesPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Media Library"
-            subtitle={currentSite ? `Manage images and videos for ${currentSite.name}` : "Manage images and videos"}
             primaryAction={{
               label: isUploading ? "Uploading..." : "Upload Media",
               onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
             }}
-          />
-
-        {/* Hidden file input */}
-        <input
-          id="image-upload-input"
-          type="file"
-          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime"
-          onChange={handleImageUpload}
-          className="hidden"
-        />
-        
-        <AdminCard>
-          <div className="p-6">
-            <div className="flex justify-between items-center">
-              {isLoading ? (
-                <div className="h-6 bg-muted rounded animate-pulse w-48"></div>
-              ) : (
-                <h3 className="text-lg font-semibold">
-                  Media Library ({paginatedData?.total || 0})
-                </h3>
-              )}
+            extraContent={
               <div className="flex items-center space-x-4">
                 {/* Bulk Actions */}
                 {selectedIds.size > 0 && (
@@ -367,9 +347,19 @@ export default function ImagesPage() {
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
-          
+            }
+          />
+
+        {/* Hidden file input */}
+        <input
+          id="image-upload-input"
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
+        
+        <Card className="shadow-sm">
           {isLoading ? (
             // Skeleton loading states
             viewMode === 'gallery' ? (
@@ -537,7 +527,7 @@ export default function ImagesPage() {
               })}
             </div>
           )}
-        </AdminCard>
+        </Card>
 
         {/* Pagination Controls */}
         {paginatedData && paginatedData.totalPages > 1 && (
