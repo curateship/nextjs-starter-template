@@ -4,23 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 
 interface TrackingSettingsCardProps {
   trackingScripts?: string
   posthogApiKey?: string
   posthogHost?: string
+  customAnalyticsEnabled?: boolean
   onTrackingScriptsChange?: (value: string) => void
   onPosthogApiKeyChange?: (value: string) => void
   onPosthogHostChange?: (value: string) => void
+  onCustomAnalyticsEnabledChange?: (value: boolean) => void
 }
 
 export function TrackingSettingsCard({
   trackingScripts = "",
   posthogApiKey = "",
   posthogHost = "",
+  customAnalyticsEnabled = false,
   onTrackingScriptsChange,
   onPosthogApiKeyChange,
-  onPosthogHostChange
+  onPosthogHostChange,
+  onCustomAnalyticsEnabledChange,
 }: TrackingSettingsCardProps) {
   return (
     <Card className="shadow-sm">
@@ -28,6 +33,23 @@ export function TrackingSettingsCard({
         <CardTitle>Tracking Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Custom Analytics */}
+        {onCustomAnalyticsEnabledChange && (
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="customAnalytics">Built-in Analytics</Label>
+              <p className="text-xs text-muted-foreground">
+                Track page views, visitors, and engagement without third-party tools.
+              </p>
+            </div>
+            <Switch
+              id="customAnalytics"
+              checked={customAnalyticsEnabled}
+              onCheckedChange={onCustomAnalyticsEnabledChange}
+            />
+          </div>
+        )}
+
         {/* PostHog */}
         {onPosthogApiKeyChange && (
           <div className="space-y-4">

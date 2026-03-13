@@ -17,6 +17,7 @@ import {
   Tag,
   ExternalLink,
   Workflow,
+  BarChart3,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -132,6 +133,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Pages",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
       icon: FileText,
+    },
+    {
+      name: "Analytics",
+      url: currentSite ? `/admin/sites/${currentSite.id}/analytics` : "/admin/sites",
+      icon: BarChart3,
     },
     {
       name: "Categories",

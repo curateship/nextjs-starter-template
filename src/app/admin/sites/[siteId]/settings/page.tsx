@@ -318,6 +318,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [trackingScripts, setTrackingScripts] = useState("")
   const [posthogApiKey, setPosthogApiKey] = useState("")
   const [posthogHost, setPosthogHost] = useState("")
+  const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(false)
   const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
   const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
@@ -377,6 +378,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setTrackingScripts(data.settings?.tracking_scripts || "")
         setPosthogApiKey(data.settings?.posthog_api_key || "")
         setPosthogHost(data.settings?.posthog_host || "")
+        setCustomAnalyticsEnabled(!!data.settings?.custom_analytics_enabled)
         setSiteWidth(data.settings?.site_width || 'custom')
         setCustomWidth(data.settings?.custom_width)
         setDefaultTheme(data.settings?.default_theme || 'system')
@@ -504,6 +506,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             tracking_scripts: trackingScripts,
             posthog_api_key: posthogApiKey,
             posthog_host: posthogHost,
+            custom_analytics_enabled: customAnalyticsEnabled,
             site_width: siteWidth,
             custom_width: customWidth,
             default_theme: defaultTheme,
@@ -620,6 +623,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     trackingScripts={trackingScripts}
                     posthogApiKey={posthogApiKey}
                     posthogHost={posthogHost}
+                    customAnalyticsEnabled={customAnalyticsEnabled}
                     maintenanceEnabled={maintenanceEnabled}
                     isEditMode={true}
                     loading={loading}
@@ -630,6 +634,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onTrackingScriptsChange={setTrackingScripts}
                     onPosthogApiKeyChange={setPosthogApiKey}
                     onPosthogHostChange={setPosthogHost}
+                    onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
                 </form>

@@ -1,13 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { BarChart3, Users, Globe, TrendingUp, Settings, Edit3 } from 'lucide-react'
+import { Users, Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
 import Link from 'next/link'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
+import { getAnalyticsOverview } from '@/lib/actions/analytics/analytics-actions'
 
 interface PageProps {
   params: Promise<{
@@ -15,11 +16,21 @@ interface PageProps {
   }>
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}m ${secs}s`
+}
+
 export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
-  
-  // Get the site data
-  const { data: site } = await getSiteByIdAction(siteId)
+
+  // Get the site data and analytics in parallel
+  const [{ data: site }, analytics] = await Promise.all([
+    getSiteByIdAction(siteId),
+    getAnalyticsOverview(siteId, '30d'),
+  ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
 
@@ -61,53 +72,45 @@ export default async function SiteDashboard({ params }: PageProps) {
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Visitors</CardTitle>
+            <CardTitle className="text-sm font-medium">Unique Visitors</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,847</div>
-            <p className="text-xs text-muted-foreground">
-              +12.5% from last month
-            </p>
+            <div className="text-2xl font-bold">{analytics.uniqueVisitors.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Page Views</CardTitle>
             <Globe className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8,932</div>
-            <p className="text-xs text-muted-foreground">
-              +8.2% from last month
-            </p>
+            <div className="text-2xl font-bold">{analytics.pageViews.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Bounce Rate</CardTitle>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3.24%</div>
-            <p className="text-xs text-muted-foreground">
-              +0.4% from last month
-            </p>
+            <div className="text-2xl font-bold">{analytics.bounceRate}%</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Avg. Session</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$12,847</div>
-            <p className="text-xs text-muted-foreground">
-              +18.7% from last month
-            </p>
+            <div className="text-2xl font-bold">{formatDuration(analytics.avgDuration)}</div>
+            <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
       </div>

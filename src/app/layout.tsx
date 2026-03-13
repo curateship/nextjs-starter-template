@@ -4,6 +4,7 @@ import { DeferredScripts } from "@/components/frontend/layout/deferred-scripts";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
+import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -74,6 +75,7 @@ export default async function RootLayout({
           posthogHost={site?.settings?.posthog_host}
         />
         <HeaderScripts scripts={site?.settings?.tracking_scripts} />
+        {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
         {children}
         <DeferredScripts />
       </body>
