@@ -114,7 +114,7 @@ export function CategoryTree({
         <div key={category.id} className={`p-6 transition-colors ${selectedIds?.has(category.id) ? 'bg-accent/50' : ''}`}>
           <div className="grid grid-cols-7 gap-4 items-center">
             <div className="col-span-2">
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 pl-[3px]">
                 {onToggleSelect && (
                   <Checkbox
                     checked={selectedIds?.has(category.id) ?? false}
@@ -122,34 +122,30 @@ export function CategoryTree({
                     aria-label={`Select ${category.title}`}
                   />
                 )}
-                {category.featured_image ? (
-                  <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted">
-                    <img
-                      src={category.featured_image}
-                      alt={category.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center flex-shrink-0">
-                    <Tag className="h-5 w-5 text-primary" />
-                  </div>
-                )}
-
                 <Link
                   href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
-                  className="flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                  className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                 >
-                  <div className="font-medium hover:underline truncate">{category.title}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {category.description && (
-                      <div className="truncate">
-                        <span dangerouslySetInnerHTML={{ __html: category.description.replace(/<[^>]*>/g, '') }} />
-                      </div>
-                    )}
-                    {!category.description && (
-                      <span>No description</span>
-                    )}
+                  {category.featured_image ? (
+                    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted ml-2">
+                      <img
+                        src={category.featured_image}
+                        alt={category.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center flex-shrink-0 ml-2">
+                      <Tag className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="font-medium hover:underline truncate">{category.title}</h4>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {category.description
+                        ? category.description.replace(/<[^>]*>/g, '')
+                        : 'No description'}
+                    </p>
                   </div>
                 </Link>
               </div>

@@ -364,7 +364,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                          <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
+                          <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
                           <div>
                             <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
                             <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
@@ -426,7 +426,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
                         href={`/admin/user-pages/builder/${siteId}?page=${page.slug}`}
                         className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                       >
-                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+                        <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center ml-2">
                           {page.is_default ? (
                             <Home className="h-6 w-6 text-blue-600" />
                           ) : (

@@ -101,10 +101,10 @@ export function StickyHeader({
   // Generate page URL for frontend viewing
   const getPageUrl = (pageSlug?: string) => {
     const slug = pageSlug || currentPage?.slug
-    if (!slug) {
+    if (!slug || !currentSite?.subdomain) {
       return '#'
     }
-    const url = `/${slug === 'home' ? '' : slug}`
+    const url = `http://${currentSite.subdomain}.localhost:3000/${slug === 'home' ? '' : slug}`
     return url
   }
 

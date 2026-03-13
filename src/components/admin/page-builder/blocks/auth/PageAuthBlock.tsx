@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ArrowLeft } from "lucide-react"
 
 interface PageAuthBlockProps {
   defaultTab?: 'login' | 'register'
@@ -39,6 +40,7 @@ interface PageAuthBlockProps {
   onRegisterDescriptionChange: (value: string) => void
   onResetTitleChange: (value: string) => void
   onResetDescriptionChange: (value: string) => void
+  onBack?: () => void
 }
 
 export function PageAuthBlock({
@@ -72,81 +74,32 @@ export function PageAuthBlock({
   onRegisterDescriptionChange,
   onResetTitleChange,
   onResetDescriptionChange,
+  onBack,
 }: PageAuthBlockProps) {
-  const [activeTab, setActiveTab] = useState("login")
+  const [activeTab, setActiveTab] = useState("content")
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 rounded-none gap-2">
-        <TabsTrigger value="login">Login</TabsTrigger>
-        <TabsTrigger value="registration">Registration</TabsTrigger>
-        <TabsTrigger value="forgot-password">Forgot Password</TabsTrigger>
-      </TabsList>
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
+        <TabsList className="gap-1">
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      </div>
 
-      {/* Tab 1: Login */}
-      <TabsContent value="login" className="mt-6">
+      {/* Content Tab */}
+      <TabsContent value="content" className="mt-6">
         <div className="space-y-4">
-          {/* Tab Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Tab Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="defaultTab">Default Tab</Label>
-                <Select value={defaultTab} onValueChange={onDefaultTabChange}>
-                  <SelectTrigger id="defaultTab">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="login">Login</SelectItem>
-                    <SelectItem value="register">Register</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showLoginTab">Show Login Tab</Label>
-                <Switch
-                  id="showLoginTab"
-                  checked={showLoginTab}
-                  onCheckedChange={onShowLoginTabChange}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showRegisterTab">Show Register Tab</Label>
-                <Switch
-                  id="showRegisterTab"
-                  checked={showRegisterTab}
-                  onCheckedChange={onShowRegisterTabChange}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Redirect Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Redirect Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="loginRedirectPath">Login Redirect Path</Label>
-                <Input
-                  id="loginRedirectPath"
-                  type="text"
-                  placeholder="/user-pages"
-                  value={loginRedirectPath}
-                  onChange={(e) => onLoginRedirectPathChange(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Where to redirect after successful login (for non-admin users)
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Login Form Text */}
           <Card>
             <CardHeader>
@@ -180,47 +133,6 @@ export function PageAuthBlock({
                   type="text"
                   value={loginButtonText}
                   onChange={(e) => onLoginButtonTextChange(e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
-
-      {/* Tab 2: Registration */}
-      <TabsContent value="registration" className="mt-6">
-        <div className="space-y-4">
-          {/* Redirect Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Redirect Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="registerRedirectPath">Register Redirect Path</Label>
-                <Input
-                  id="registerRedirectPath"
-                  type="text"
-                  placeholder="/user-pages"
-                  value={registerRedirectPath}
-                  onChange={(e) => onRegisterRedirectPathChange(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Where to redirect after registration (if email verification is disabled)
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="emailVerification">Email Verification</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Require email verification after signup
-                  </p>
-                </div>
-                <Switch
-                  id="emailVerification"
-                  checked={emailVerificationEnabled}
-                  onCheckedChange={onEmailVerificationEnabledChange}
                 />
               </div>
             </CardContent>
@@ -263,12 +175,7 @@ export function PageAuthBlock({
               </div>
             </CardContent>
           </Card>
-        </div>
-      </TabsContent>
 
-      {/* Tab 3: Forgot Password */}
-      <TabsContent value="forgot-password" className="mt-6">
-        <div className="space-y-4">
           {/* Password Reset Form Text */}
           <Card>
             <CardHeader>
@@ -303,6 +210,104 @@ export function PageAuthBlock({
                   value={resetButtonText}
                   onChange={(e) => onResetButtonTextChange(e.target.value)}
                 />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
+        <div className="space-y-4">
+          {/* Tab Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tab Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="defaultTab">Default Tab</Label>
+                <Select value={defaultTab} onValueChange={onDefaultTabChange}>
+                  <SelectTrigger id="defaultTab">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="login">Login</SelectItem>
+                    <SelectItem value="register">Register</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showLoginTab"
+                  checked={showLoginTab}
+                  onCheckedChange={onShowLoginTabChange}
+                />
+                <Label htmlFor="showLoginTab" className="cursor-pointer">Show Login Tab</Label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showRegisterTab"
+                  checked={showRegisterTab}
+                  onCheckedChange={onShowRegisterTabChange}
+                />
+                <Label htmlFor="showRegisterTab" className="cursor-pointer">Show Register Tab</Label>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Redirect Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Redirect Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="loginRedirectPath">Login Redirect Path</Label>
+                <Input
+                  id="loginRedirectPath"
+                  type="text"
+                  placeholder="/user-pages"
+                  value={loginRedirectPath}
+                  onChange={(e) => onLoginRedirectPathChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Where to redirect after successful login (for non-admin users)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="registerRedirectPath">Register Redirect Path</Label>
+                <Input
+                  id="registerRedirectPath"
+                  type="text"
+                  placeholder="/user-pages"
+                  value={registerRedirectPath}
+                  onChange={(e) => onRegisterRedirectPathChange(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Where to redirect after registration (if email verification is disabled)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="emailVerification"
+                  checked={emailVerificationEnabled}
+                  onCheckedChange={onEmailVerificationEnabledChange}
+                />
+                <div>
+                  <Label htmlFor="emailVerification" className="cursor-pointer">Email Verification</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Require email verification after signup
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

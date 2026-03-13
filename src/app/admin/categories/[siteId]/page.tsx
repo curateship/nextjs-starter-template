@@ -2,7 +2,8 @@
 
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { StickyHeader } from "@/components/admin/category-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -115,7 +116,6 @@ export default function CategoriesPage({
       if (success) {
         // Remove selected categories and their descendants from state
         const removedIds = new Set(ids)
-        // Also remove children of deleted categories
         const removeDescendants = (parentIds: string[]) => {
           const children = categories.filter(c => c.parent_id && parentIds.includes(c.parent_id))
           children.forEach(c => removedIds.add(c.id))
@@ -179,36 +179,15 @@ export default function CategoriesPage({
       />
       <AdminLayout>
         <div className="w-full">
-          {loading ? (
-            <div className="flex items-center justify-between my-6 mx-6">
-              <div>
-                <div className="h-9 w-48 bg-muted rounded animate-pulse" />
-                <div className="h-4 w-64 bg-muted/60 rounded animate-pulse mt-2" />
-              </div>
-              <div className="h-9 w-28 bg-muted rounded animate-pulse" />
-            </div>
-          ) : (
-            <AdminPageHeader
-              title="Categories"
-              subtitle="Organize your content with hierarchical categories"
-              primaryAction={{
-                label: "Create Category",
-                onClick: () => setShowCreateModal(true)
-              }}
-            />
-          )}
-
-        <AdminCard>
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <div className="flex items-start gap-3">
-                <h3 className="text-lg font-semibold">
-                  {loading ? (
-                    <div className="h-5 bg-muted rounded animate-pulse w-24"></div>
-                  ) : (
-                    `${filteredCategories.length} categor${filteredCategories.length !== 1 ? 'ies' : 'y'} ${filterStatus === 'all' ? 'total' : filterStatus}`
-                  )}
-                </h3>
+          <AdminPageHeader
+            title="Categories"
+            subtitle="Organize your content with hierarchical categories"
+            primaryAction={{
+              label: "Create Category",
+              onClick: () => setShowCreateModal(true)
+            }}
+            extraContent={
+              <div className="flex items-center gap-3">
                 {depthLevels.length > 1 && (
                   <Select value={filterLevel} onValueChange={setFilterLevel}>
                     <SelectTrigger size="sm">
@@ -224,8 +203,6 @@ export default function CategoriesPage({
                     </SelectContent>
                   </Select>
                 )}
-              </div>
-              <div className="flex items-center gap-3">
                 {selectedCategoryIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -254,14 +231,14 @@ export default function CategoriesPage({
                   </TabsList>
                 </Tabs>
               </div>
-            </div>
-          </div>
+            }
+          />
 
-          {/* Table Header */}
-          {(loading || categories.length > 0) && (
+          <Card className="shadow-sm">
+            {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
+                <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
                   <Checkbox
                     checked={filteredCategories.length > 0 && selectedCategoryIds.size === filteredCategories.length}
                     onCheckedChange={toggleSelectAll}
@@ -276,80 +253,79 @@ export default function CategoriesPage({
                 <div>Actions</div>
               </div>
             </div>
-          )}
 
-          <div className="divide-y divide-muted/80">
-            {loading ? (
-              <div className="space-y-0">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-6 border-b border-muted/80">
-                    <div className="grid grid-cols-7 gap-4 items-center">
-                      <div className="col-span-2">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                          <div className="w-10 h-10 bg-muted rounded animate-pulse"></div>
-                          <div>
-                            <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
+            <div className="divide-y divide-muted/80">
+              {loading ? (
+                <div className="space-y-0">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="p-6 border-b border-muted/80">
+                      <div className="grid grid-cols-7 gap-4 items-center">
+                        <div className="col-span-2">
+                          <div className="flex items-center space-x-4 pl-[3px]">
+                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
+                            <div className="w-10 h-10 bg-muted rounded animate-pulse ml-2"></div>
+                            <div>
+                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
+                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div>
-                        <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
-                      </div>
-                      <div>
-                        <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
-                      </div>
-                      <div>
-                        <div className="h-3 bg-muted/60 rounded animate-pulse w-8"></div>
-                      </div>
-                      <div>
-                        <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
-                      </div>
-                      <div>
-                        <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                        <div>
+                          <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
+                        </div>
+                        <div>
+                          <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
+                        </div>
+                        <div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-8"></div>
+                        </div>
+                        <div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
+                        </div>
+                        <div>
+                          <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : error ? (
-              <div className="p-8 text-center">
-                <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={() => window.location.reload()} variant="outline" size="sm">
-                  Try Again
-                </Button>
-              </div>
-            ) : categories.length === 0 ? (
-              <div className="p-8 text-center">
-                <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">No categories found</p>
-                <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                  Create your first category to start organizing content.
-                  You can create nested hierarchies like Country &gt; City.
-                </p>
-                <Button onClick={() => setShowCreateModal(true)} variant="outline">
-                  Create First Category
-                </Button>
-              </div>
-            ) : (
-              <CategoryTree
-                categories={filteredCategories}
-                allCategories={categories}
-                assignmentCounts={assignmentCounts}
-                siteId={siteId}
-                onCategoryDeleted={handleCategoryDeleted}
-                onCategoryUpdated={(updated) => {
-                  setCategories(prev =>
-                    prev.map(c => (c.id === updated.id ? updated : c))
-                  )
-                }}
-                selectedIds={selectedCategoryIds}
-                onToggleSelect={toggleSelectCategory}
-              />
-            )}
-          </div>
-        </AdminCard>
+                  ))}
+                </div>
+              ) : error ? (
+                <div className="p-8 text-center">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">No categories found</p>
+                  <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                    Create your first category to start organizing content.
+                    You can create nested hierarchies like Country &gt; City.
+                  </p>
+                  <Button onClick={() => setShowCreateModal(true)} variant="outline">
+                    Create First Category
+                  </Button>
+                </div>
+              ) : (
+                <CategoryTree
+                  categories={filteredCategories}
+                  allCategories={categories}
+                  assignmentCounts={assignmentCounts}
+                  siteId={siteId}
+                  onCategoryDeleted={handleCategoryDeleted}
+                  onCategoryUpdated={(updated) => {
+                    setCategories(prev =>
+                      prev.map(c => (c.id === updated.id ? updated : c))
+                    )
+                  }}
+                  selectedIds={selectedCategoryIds}
+                  onToggleSelect={toggleSelectCategory}
+                />
+              )}
+            </div>
+          </Card>
 
         {/* Create Modal */}
         {showCreateModal && (

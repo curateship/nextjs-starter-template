@@ -159,6 +159,7 @@ export function BlockPropertiesPanel({
                   'registerTitle', 'registerDescription',
                   'resetTitle', 'resetDescription'
                 ]) as any)}
+                onBack={onBack}
               />
             )}
 

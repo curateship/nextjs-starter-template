@@ -321,7 +321,7 @@ export default function PostsPage() {
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4 pl-[3px]">
                             <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
+                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
                             <div>
                               <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
                               <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
@@ -382,7 +382,7 @@ export default function PostsPage() {
                           href={`/admin/posts/builder/${post.site_id}?post=${post.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
-                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
+                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden ml-2">
                             {post.featured_image ? (
                               <img
                                 src={post.featured_image}

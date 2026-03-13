@@ -345,7 +345,7 @@ export default function EventsPage() {
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                          <div className="w-16 h-16 bg-muted rounded animate-pulse"></div>
+                          <div className="w-16 h-16 bg-muted rounded animate-pulse ml-2"></div>
                           <div className="space-y-2">
                             <div className="h-4 bg-muted rounded animate-pulse w-48"></div>
                             <div className="h-3 bg-muted rounded animate-pulse w-32"></div>
@@ -395,7 +395,7 @@ export default function EventsPage() {
                           href={`/admin/events/builder/${event.site_id}?event=${event.slug}`}
                           className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
                         >
-                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden">
+                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden ml-2">
                             {event.featured_image ? (
                               <img
                                 src={event.featured_image}
