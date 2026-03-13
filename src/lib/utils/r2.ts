@@ -36,7 +36,10 @@ export async function uploadToR2(
 
   await r2Client.send(command)
 
-  // Return cached CDN path (proxied via Next.js rewrite with cache headers)
+  // Return full public URL
+  if (R2_PUBLIC_URL) {
+    return `${R2_PUBLIC_URL}/${fileName}`
+  }
   return `/cdn/${fileName}`
 }
 
@@ -69,6 +72,9 @@ export async function getPresignedUrl(fileName: string, expiresIn = 3600): Promi
  * Get public URL for a file
  */
 export function getPublicUrl(fileName: string): string {
+  if (R2_PUBLIC_URL) {
+    return `${R2_PUBLIC_URL}/${fileName}`
+  }
   return `/cdn/${fileName}`
 }
 
