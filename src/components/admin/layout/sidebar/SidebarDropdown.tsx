@@ -1,28 +1,22 @@
 "use client"
 
-import {
-  Folder,
-  Forward,
-  MoreHorizontal,
-  Trash2,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronRight, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
 
@@ -34,13 +28,16 @@ export function SidebarDropdown({
     name: string
     url: string
     icon: LucideIcon
+    items?: {
+      title: string
+      url: string
+    }[]
   }[]
   title?: string
 }) {
-  const { isMobile, setOpenMobile } = useSidebar()
-  
+  const { state, setOpenMobile } = useSidebar()
+
   const handleNavClick = () => {
-    // Close mobile sidebar on navigation
     setOpenMobile(false)
   }
 
@@ -49,41 +46,45 @@ export function SidebarDropdown({
       <SidebarGroupLabel>{title || "Admin"}</SidebarGroupLabel>
       <SidebarMenu>
         {projects.map((item) => (
-          <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild tooltip={item.name}>
-              <Link href={item.url} onClick={handleNavClick}>
-                <item.icon />
-                <span>{item.name}</span>
-              </Link>
-            </SidebarMenuButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuAction showOnHover>
-                  <MoreHorizontal />
-                  <span className="sr-only">More</span>
-                </SidebarMenuAction>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-48 rounded-lg"
-                side={isMobile ? "bottom" : "right"}
-                align={isMobile ? "end" : "start"}
-              >
-                <DropdownMenuItem>
-                  <Folder className="text-muted-foreground" />
-                  <span>View Project</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Forward className="text-muted-foreground" />
-                  <span>Share Project</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Trash2 className="text-muted-foreground" />
-                  <span>Delete Project</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
+          <Collapsible
+            key={item.name}
+            asChild
+            className="group/collapsible"
+          >
+            <SidebarMenuItem>
+              <div className="flex items-center w-full">
+                <SidebarMenuButton asChild tooltip={item.name} className="flex-1">
+                  <Link href={item.url} onClick={handleNavClick}>
+                    <item.icon />
+                    <span>{item.name}</span>
+                  </Link>
+                </SidebarMenuButton>
+                {state === "expanded" && item.items && item.items.length > 0 && (
+                  <CollapsibleTrigger asChild>
+                    <button
+                      className="p-2 hover:bg-muted rounded-md"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ChevronRight className="w-4 h-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </button>
+                  </CollapsibleTrigger>
+                )}
+              </div>
+              <CollapsibleContent>
+                <SidebarMenuSub>
+                  {item.items?.map((subItem) => (
+                    <SidebarMenuSubItem key={subItem.title}>
+                      <SidebarMenuSubButton asChild>
+                        <Link href={subItem.url} onClick={handleNavClick}>
+                          <span>{subItem.title}</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))}
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
         ))}
       </SidebarMenu>
     </SidebarGroup>

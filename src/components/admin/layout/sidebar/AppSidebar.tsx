@@ -133,6 +133,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: "Pages",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
       icon: FileText,
+      items: [
+        { title: "User Dashboard", url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites" },
+      ],
     },
     {
       name: "Analytics",
