@@ -307,6 +307,16 @@ export function ProductLeadMagnetBlock({
           </div>
         </div>
 
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'heading', label: 'Heading' },
+            { key: 'subheading', label: 'Subheading' },
+            { key: 'buttonText', label: 'Button' },
+          ]}
+        />
+
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Flodesk</CardTitle>
@@ -398,16 +408,6 @@ export function ProductLeadMagnetBlock({
             )}
           </CardContent>
         </Card>
-
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'heading', label: 'Heading' },
-            { key: 'subheading', label: 'Subheading' },
-            { key: 'buttonText', label: 'Button' },
-          ]}
-        />
       </TabsContent>
 
       {/* Styling Tab */}

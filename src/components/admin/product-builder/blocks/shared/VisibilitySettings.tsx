@@ -11,13 +11,14 @@ interface VisibilitySettingsProps {
   visibility: Record<string, boolean> | undefined
   onChange: (visibility: Record<string, boolean>) => void
   fields: VisibilityField[]
+  title?: string
 }
 
-export function VisibilitySettings({ visibility, onChange, fields }: VisibilitySettingsProps) {
+export function VisibilitySettings({ visibility, onChange, fields, title = "Header Visibility" }: VisibilitySettingsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Element Visibility</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {fields.map((field) => (

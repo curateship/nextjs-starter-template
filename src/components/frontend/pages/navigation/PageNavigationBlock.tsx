@@ -414,9 +414,8 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                     alt="Logo" 
                     className="h-8 w-auto"
                     onError={(e) => {
-                      // Fallback to default logo on error
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      // Hide broken image via opacity (avoids forced reflow)
+                      e.currentTarget.style.opacity = '0';
                     }}
                   />
                 ) : site?.settings?.favicon ? (
@@ -425,9 +424,8 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                     alt="Site favicon" 
                     className="h-10 w-10 object-contain rounded-lg p-0.5"
                     onError={(e) => {
-                      // Fallback to Globe icon on error
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      // Hide broken image via opacity (avoids forced reflow)
+                      e.currentTarget.style.opacity = '0';
                     }}
                   />
                 ) : (

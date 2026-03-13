@@ -173,6 +173,15 @@ export function ProductGalleryBlock({
       </TabsContent>
 
       <TabsContent value="settings" className="px-6 pb-6">
+        {onVisibilityChange && (
+          <VisibilitySettings
+            visibility={visibility}
+            onChange={onVisibilityChange}
+            fields={[
+              { key: 'thumbnails', label: 'Thumbnails' },
+            ]}
+          />
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Gallery Settings</CardTitle>
@@ -190,15 +199,6 @@ export function ProductGalleryBlock({
             </div>
           </CardContent>
         </Card>
-        {onVisibilityChange && (
-          <VisibilitySettings
-            visibility={visibility}
-            onChange={onVisibilityChange}
-            fields={[
-              { key: 'thumbnails', label: 'Thumbnails' },
-            ]}
-          />
-        )}
       </TabsContent>
     </Tabs>
   )

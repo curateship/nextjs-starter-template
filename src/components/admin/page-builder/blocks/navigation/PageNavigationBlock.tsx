@@ -596,6 +596,14 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
           </div>
         </div>
 
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'ctaButtons', label: 'CTA Buttons' },
+          ]}
+        />
+
         {/* Navigation Width */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -641,14 +649,6 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
             </div>
           </CardContent>
         </Card>
-
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'ctaButtons', label: 'CTA Buttons' },
-          ]}
-        />
 
         {/* Dark Mode */}
         <Card className="shadow-sm">

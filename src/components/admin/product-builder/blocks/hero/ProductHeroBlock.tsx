@@ -260,6 +260,7 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
         </div>
 
         <VisibilitySettings
+          title="Element Visibility"
           visibility={content.visibility}
           onChange={(v) => onContentChange('visibility', v)}
           fields={[

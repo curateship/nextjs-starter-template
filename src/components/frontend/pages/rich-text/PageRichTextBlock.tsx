@@ -1,7 +1,8 @@
 "use client"
 
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
+import DOMPurify from "dompurify"
 
 interface RichTextBlockProps {
   content: {
@@ -18,22 +19,15 @@ interface RichTextBlockProps {
 }
 
 export function RichTextBlock({ content, className = "", siteWidth = 'custom', customWidth }: RichTextBlockProps) {
-  const [sanitizedContent, setSanitizedContent] = useState('')
-  
-  useEffect(() => {
-    // Only run DOMPurify on client side
-    if (typeof window !== 'undefined') {
-      import('dompurify').then((DOMPurify) => {
-        const sanitized = DOMPurify.default.sanitize(content.content, {
-          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
-          ALLOWED_ATTR: ['href', 'target', 'rel'],
-          ALLOW_DATA_ATTR: false,
-          SANITIZE_DOM: true,
-          SANITIZE_NAMED_PROPS: true
-        })
-        setSanitizedContent(sanitized)
-      })
-    }
+  const sanitizedContent = useMemo(() => {
+    if (typeof window === 'undefined') return content.content
+    return DOMPurify.sanitize(content.content, {
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
+      ALLOWED_ATTR: ['href', 'target', 'rel'],
+      ALLOW_DATA_ATTR: false,
+      SANITIZE_DOM: true,
+      SANITIZE_NAMED_PROPS: true
+    })
   }, [content.content])
 
   return (

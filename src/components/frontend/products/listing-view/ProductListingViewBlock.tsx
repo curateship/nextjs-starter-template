@@ -124,13 +124,8 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
                   className="object-cover"
                   sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
                   onError={(e) => {
-                    // Fallback to placeholder on error
-                    const target = e.target as HTMLElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      parent.innerHTML = '<div class="bg-muted rounded-md aspect-square flex items-center justify-center text-muted-foreground w-full h-full">Image Error</div>';
-                    }
+                    // Hide broken image via opacity (avoids forced reflow from style.display)
+                    (e.target as HTMLElement).style.opacity = '0';
                   }}
                 />
               </div>

@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ArrowLeft, Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -316,75 +315,93 @@ export function PageListingViewBlock({
               <CardTitle className="text-base">Display Options</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showImage">Show Image</Label>
-                <Switch
+              <div className="flex items-center space-x-2">
+                <Checkbox
                   id="showImage"
                   checked={showImage}
-                  onCheckedChange={onShowImageChange}
+                  onCheckedChange={(checked) => onShowImageChange(!!checked)}
                 />
+                <Label htmlFor="showImage" className="cursor-pointer">Show Image</Label>
               </div>
 
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showTitle">Show Title</Label>
-                <Switch
+              <div className="flex items-center space-x-2">
+                <Checkbox
                   id="showTitle"
                   checked={showTitle}
-                  onCheckedChange={onShowTitleChange}
+                  onCheckedChange={(checked) => onShowTitleChange(!!checked)}
                 />
+                <Label htmlFor="showTitle" className="cursor-pointer">Show Title</Label>
               </div>
 
-              <div className="flex items-center justify-between">
-                <Label htmlFor="showDescription">Show Description</Label>
-                <Switch
+              <div className="flex items-center space-x-2">
+                <Checkbox
                   id="showDescription"
                   checked={showDescription}
-                  onCheckedChange={onShowDescriptionChange}
+                  onCheckedChange={(checked) => onShowDescriptionChange(!!checked)}
                 />
+                <Label htmlFor="showDescription" className="cursor-pointer">Show Description</Label>
               </div>
 
-              <div className="flex items-center justify-between">
-                <Label htmlFor="isPaginated">Enable Pagination</Label>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {isPaginated ? 'Enter items per page' : 'Items to show'}
-                  </span>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={isPaginated ? itemsPerPage : itemsToShow}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
-                      if (isPaginated) {
-                        onItemsPerPageChange(value)
-                      } else {
-                        onItemsToShowChange(value)
-                      }
-                    }}
-                    placeholder={isPaginated ? "12" : "6"}
-                    className="w-20"
-                  />
-                  <Switch
-                    id="isPaginated"
-                    checked={isPaginated}
-                    onCheckedChange={onIsPaginatedChange}
-                  />
-                </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isPaginated"
+                  checked={isPaginated}
+                  onCheckedChange={(checked) => onIsPaginatedChange(!!checked)}
+                />
+                <Label htmlFor="isPaginated" className="cursor-pointer">Enable Pagination</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={isPaginated ? itemsPerPage : itemsToShow}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || (isPaginated ? 12 : 6)
+                    if (isPaginated) {
+                      onItemsPerPageChange(value)
+                    } else {
+                      onItemsToShowChange(value)
+                    }
+                  }}
+                  placeholder={isPaginated ? "12" : "6"}
+                  className="w-20"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {isPaginated ? 'per page' : 'items'}
+                </span>
               </div>
+
+              {onVisibilityChange && (
+                <>
+                  <div className="pt-4">
+                    <Label className="text-base font-semibold">Header Visibility</Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Toggle elements on or off without deleting their content.
+                    </p>
+                    <div className="space-y-4">
+                      {[
+                        { key: 'title', label: 'Title' },
+                        { key: 'subtitle', label: 'Subtitle' },
+                      ].map((field) => (
+                        <div key={field.key} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`visibility-${field.key}`}
+                            checked={visibility?.[field.key] !== false}
+                            onCheckedChange={(checked) => {
+                              onVisibilityChange({
+                                ...visibility,
+                                [field.key]: !!checked,
+                              })
+                            }}
+                          />
+                          <Label htmlFor={`visibility-${field.key}`} className="cursor-pointer">{field.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
-
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'title', label: 'Title' },
-                { key: 'subtitle', label: 'Subtitle' },
-              ]}
-            />
-          )}
         </div>
       </TabsContent>
     </Tabs>

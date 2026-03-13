@@ -346,6 +346,17 @@ export function ProductContentBlock({
           </div>
         </div>
 
+        <VisibilitySettings
+          visibility={content.visibility}
+          onChange={(v) => onContentChange('visibility', v)}
+          fields={[
+            { key: 'title', label: 'Title' },
+            { key: 'body', label: 'Description' },
+            { key: 'featuredImage', label: 'Featured Image' },
+            { key: 'downloadButton', label: 'Download Button' },
+          ]}
+        />
+
         {/* Show Featured Image */}
         <Card className="shadow-sm">
           <CardHeader>
@@ -414,17 +425,6 @@ export function ProductContentBlock({
             </div>
           </CardContent>
         </Card>
-
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'title', label: 'Title' },
-            { key: 'body', label: 'Description' },
-            { key: 'featuredImage', label: 'Featured Image' },
-            { key: 'downloadButton', label: 'Download Button' },
-          ]}
-        />
       </TabsContent>
 
       <TabsContent value="styling" className="mt-6">

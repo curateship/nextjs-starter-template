@@ -219,6 +219,17 @@ export function ProductVideoBlock({
 
         {/* Settings Tab */}
         <TabsContent value="settings">
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Playback Settings</CardTitle>
@@ -258,17 +269,6 @@ export function ProductVideoBlock({
               )}
             </CardContent>
           </Card>
-
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
         </TabsContent>
       </Tabs>
 

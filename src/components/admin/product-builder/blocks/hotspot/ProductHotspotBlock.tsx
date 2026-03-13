@@ -323,6 +323,17 @@ export function ProductHotspotBlock({
 
         {/* Settings Tab */}
         <TabsContent value="settings">
+          {onVisibilityChange && (
+            <VisibilitySettings
+              visibility={visibility}
+              onChange={onVisibilityChange}
+              fields={[
+                { key: 'header', label: 'Header' },
+                { key: 'subheader', label: 'Sub Header' },
+              ]}
+            />
+          )}
+
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Display Options</CardTitle>
@@ -340,17 +351,6 @@ export function ProductHotspotBlock({
               </div>
             </CardContent>
           </Card>
-
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
         </TabsContent>
       </Tabs>
 
