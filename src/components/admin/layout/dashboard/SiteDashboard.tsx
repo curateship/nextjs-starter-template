@@ -17,8 +17,6 @@ interface SiteDashboardProps {
   subdomain?: string
   customDomain?: string
   trackingScripts?: string
-  posthogApiKey?: string
-  posthogHost?: string
   customAnalyticsEnabled?: boolean
   isEditMode?: boolean
   maintenanceEnabled?: boolean
@@ -28,8 +26,6 @@ interface SiteDashboardProps {
   onSubdomainChange?: (value: string) => void
   onCustomDomainChange?: (value: string) => void
   onTrackingScriptsChange?: (value: string) => void
-  onPosthogApiKeyChange?: (value: string) => void
-  onPosthogHostChange?: (value: string) => void
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
   onMaintenanceChange?: (value: boolean) => void
 }
@@ -40,8 +36,6 @@ export function SiteDashboard({
   subdomain = "",
   customDomain = "",
   trackingScripts = "",
-  posthogApiKey = "",
-  posthogHost = "",
   customAnalyticsEnabled = false,
   isEditMode = false,
   maintenanceEnabled = false,
@@ -51,8 +45,6 @@ export function SiteDashboard({
   onSubdomainChange,
   onCustomDomainChange,
   onTrackingScriptsChange,
-  onPosthogApiKeyChange,
-  onPosthogHostChange,
   onCustomAnalyticsEnabledChange,
   onMaintenanceChange,
 }: SiteDashboardProps) {
@@ -305,12 +297,8 @@ export function SiteDashboard({
     {onTrackingScriptsChange && (
       <TrackingSettingsCard
         trackingScripts={trackingScripts}
-        posthogApiKey={posthogApiKey}
-        posthogHost={posthogHost}
         customAnalyticsEnabled={customAnalyticsEnabled}
         onTrackingScriptsChange={onTrackingScriptsChange}
-        onPosthogApiKeyChange={onPosthogApiKeyChange}
-        onPosthogHostChange={onPosthogHostChange}
         onCustomAnalyticsEnabledChange={onCustomAnalyticsEnabledChange}
       />
     )}

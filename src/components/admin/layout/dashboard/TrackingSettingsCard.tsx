@@ -1,30 +1,21 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 
 interface TrackingSettingsCardProps {
   trackingScripts?: string
-  posthogApiKey?: string
-  posthogHost?: string
   customAnalyticsEnabled?: boolean
   onTrackingScriptsChange?: (value: string) => void
-  onPosthogApiKeyChange?: (value: string) => void
-  onPosthogHostChange?: (value: string) => void
   onCustomAnalyticsEnabledChange?: (value: boolean) => void
 }
 
 export function TrackingSettingsCard({
   trackingScripts = "",
-  posthogApiKey = "",
-  posthogHost = "",
   customAnalyticsEnabled = false,
   onTrackingScriptsChange,
-  onPosthogApiKeyChange,
-  onPosthogHostChange,
   onCustomAnalyticsEnabledChange,
 }: TrackingSettingsCardProps) {
   return (
@@ -47,35 +38,6 @@ export function TrackingSettingsCard({
               checked={customAnalyticsEnabled}
               onCheckedChange={onCustomAnalyticsEnabledChange}
             />
-          </div>
-        )}
-
-        {/* PostHog */}
-        {onPosthogApiKeyChange && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="posthogApiKey">PostHog API Key</Label>
-              <Input
-                id="posthogApiKey"
-                value={posthogApiKey}
-                onChange={(e) => onPosthogApiKeyChange(e.target.value)}
-                placeholder="phc_..."
-                className="font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="posthogHost">PostHog Host</Label>
-              <Input
-                id="posthogHost"
-                value={posthogHost}
-                onChange={(e) => onPosthogHostChange?.(e.target.value)}
-                placeholder="https://us.i.posthog.com"
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave blank to use the default PostHog US cloud host.
-              </p>
-            </div>
           </div>
         )}
 

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { DeferredScripts } from "@/components/frontend/layout/deferred-scripts";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
-import { PostHogScript } from "@/components/admin/shared/analytics/posthog-script";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
@@ -67,14 +66,7 @@ export default async function RootLayout({
       </>) : null}</head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
-      >
-        <PostHogScript
-          siteId={site?.id}
-          siteName={site?.name}
-          posthogKey={site?.settings?.posthog_api_key}
-          posthogHost={site?.settings?.posthog_host}
-        />
-        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
+      >        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
         {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
         {children}
         <DeferredScripts />

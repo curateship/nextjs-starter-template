@@ -29,11 +29,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com https://*.posthog.com https://*.google-analytics.com https://*.googletagmanager.com https://*.flodesk.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.supabase.co https://js.stripe.com https://*.google-analytics.com https://*.googletagmanager.com https://*.flodesk.com;
       style-src 'self' 'unsafe-inline';
       img-src 'self' blob: data: https:;
       font-src 'self' data:;
-      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.posthog.com https://*.google-analytics.com https://*.googletagmanager.com https://*.analytics.google.com https://*.flodesk.com;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.google-analytics.com https://*.googletagmanager.com https://*.analytics.google.com https://*.flodesk.com;
       frame-src https://js.stripe.com;
       object-src 'none';
       frame-ancestors 'none';

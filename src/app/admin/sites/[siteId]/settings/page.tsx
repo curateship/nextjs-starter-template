@@ -316,8 +316,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
   const [trackingScripts, setTrackingScripts] = useState("")
-  const [posthogApiKey, setPosthogApiKey] = useState("")
-  const [posthogHost, setPosthogHost] = useState("")
   const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(false)
   const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
   const [customWidth, setCustomWidth] = useState<number | undefined>()
@@ -376,8 +374,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
         setFavicon(data.settings?.favicon || "")
         setTrackingScripts(data.settings?.tracking_scripts || "")
-        setPosthogApiKey(data.settings?.posthog_api_key || "")
-        setPosthogHost(data.settings?.posthog_host || "")
         setCustomAnalyticsEnabled(!!data.settings?.custom_analytics_enabled)
         setSiteWidth(data.settings?.site_width || 'custom')
         setCustomWidth(data.settings?.custom_width)
@@ -504,8 +500,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             secondary_font_family: secondaryFontFamily,
             favicon: favicon === '' ? '' : favicon || undefined,
             tracking_scripts: trackingScripts,
-            posthog_api_key: posthogApiKey,
-            posthog_host: posthogHost,
             custom_analytics_enabled: customAnalyticsEnabled,
             site_width: siteWidth,
             custom_width: customWidth,
@@ -621,8 +615,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     customDomain={customDomain}
                     status={status}
                     trackingScripts={trackingScripts}
-                    posthogApiKey={posthogApiKey}
-                    posthogHost={posthogHost}
                     customAnalyticsEnabled={customAnalyticsEnabled}
                     maintenanceEnabled={maintenanceEnabled}
                     isEditMode={true}
@@ -632,8 +624,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onCustomDomainChange={setCustomDomain}
                     onStatusChange={setStatus}
                     onTrackingScriptsChange={setTrackingScripts}
-                    onPosthogApiKeyChange={setPosthogApiKey}
-                    onPosthogHostChange={setPosthogHost}
                     onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
