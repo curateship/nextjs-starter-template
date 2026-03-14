@@ -86,8 +86,8 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = options?.page ?? 1
-    const pageSize = options?.pageSize ?? 50
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 

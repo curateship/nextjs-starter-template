@@ -126,6 +126,14 @@ export async function updateAdminSettingsAction(
       }
     }
 
+    // Validate dashboard_page_size if provided
+    if (settingsData.dashboard_page_size !== undefined) {
+      const validSizes = [25, 50, 100]
+      if (!validSizes.includes(settingsData.dashboard_page_size)) {
+        return { success: false, error: 'Invalid page size. Must be 25, 50, or 100.' }
+      }
+    }
+
     // Merge new settings with existing settings
     const updatedSettings = {
       ...currentSettings.settings,
