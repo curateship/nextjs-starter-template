@@ -7,13 +7,12 @@ import { StickyHeader } from "@/components/admin/newsletter-builder/layout/Stick
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
-import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
-import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
+import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/config/useAutomationEmailBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Settings, Plus, Save } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Plus, Save, ArrowLeft } from "lucide-react"
 
 interface PageProps {
-  params: Promise<{ newsletterId: string }>
+  params: Promise<{ automationId: string; stepId: string }>
 }
 
 const PREVIEW_WIDTHS = {
@@ -22,16 +21,19 @@ const PREVIEW_WIDTHS = {
   mobile: 320,
 } as const
 
-export default function NewsletterBuilderPage({ params }: PageProps) {
-  const { newsletterId } = use(params)
+export default function AutomationEmailEditorPage({ params }: PageProps) {
+  const { automationId, stepId } = use(params)
   const router = useRouter()
   const { currentSite } = useSiteContext()
 
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
 
-  const builder = useNewsletterBuilder({ newsletterId })
+  const builder = useAutomationEmailBuilder({ stepId, automationId })
+
+  const handleBack = () => {
+    router.push(`/admin/newsletters/automations/${automationId}`)
+  }
 
   if (builder.loading) {
     return (
@@ -39,54 +41,34 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         <StickyHeader
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters", label: "Newsletters" },
+            { href: "/admin/newsletters/automations", label: "Automations" },
             { label: "Loading...", isPage: true },
           ]}
           rightActions={
             <div className="flex items-center gap-2">
               <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-              <div className="h-8 w-8 bg-muted rounded animate-pulse" />
               <div className="h-8 w-20 bg-muted rounded animate-pulse" />
               <div className="h-8 w-24 bg-muted rounded animate-pulse" />
             </div>
           }
         />
         <div className="flex-1 flex overflow-hidden">
-          {/* Left panel skeleton */}
           <div className="flex-1 border-r bg-background overflow-hidden">
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
               <div className="mx-auto bg-white shadow-sm rounded-sm" style={{ maxWidth: 600 }}>
-                {/* Header skeleton */}
                 <div className="p-5 flex flex-col items-center">
                   <div className="w-16 h-16 bg-muted rounded-lg animate-pulse mb-3" />
                   <div className="h-6 w-40 bg-muted rounded animate-pulse" />
                 </div>
-                {/* Content skeleton */}
                 <div className="p-5 space-y-3">
                   <div className="h-4 bg-muted rounded animate-pulse w-full" />
                   <div className="h-4 bg-muted rounded animate-pulse w-5/6" />
                   <div className="h-4 bg-muted rounded animate-pulse w-4/6" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-full" />
-                  <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
-                </div>
-                {/* Divider skeleton */}
-                <div className="py-5 px-5">
-                  <div className="h-px bg-muted animate-pulse" />
-                </div>
-                {/* Footer skeleton */}
-                <div className="p-5 flex flex-col items-center">
-                  <div className="h-3 w-32 bg-muted rounded animate-pulse mb-2" />
-                  <div className="h-3 w-48 bg-muted rounded animate-pulse mb-2" />
-                  <div className="h-3 w-20 bg-muted rounded animate-pulse" />
                 </div>
               </div>
             </div>
           </div>
-          {/* Right panel skeleton */}
           <div className="w-[250px] p-2.5">
-            <div className="flex items-center justify-between mb-4 px-5">
-              <div className="h-6 w-16 bg-muted rounded animate-pulse" />
-            </div>
             <div className="space-y-1">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="p-3">
@@ -103,20 +85,20 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
     )
   }
 
-  if (builder.error && !builder.newsletter) {
+  if (builder.error && !builder.step) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <StickyHeader
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters", label: "Newsletters" },
+            { href: "/admin/newsletters/automations", label: "Automations" },
             { label: "Error", isPage: true },
           ]}
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{builder.error}</p>
-            <Button onClick={() => router.push("/admin/newsletters")} variant="outline">Back to Newsletters</Button>
+            <Button onClick={handleBack} variant="outline">Back to Automation</Button>
           </div>
         </div>
       </div>
@@ -128,8 +110,9 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
       <StickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
-          { href: "/admin/newsletters", label: "Newsletters" },
-          { label: builder.newsletter?.name || "Builder", isPage: true },
+          { href: "/admin/newsletters/automations", label: "Automations" },
+          { href: `/admin/newsletters/automations/${automationId}`, label: builder.automation?.name || "Automation" },
+          { label: "Edit Email", isPage: true },
         ]}
         rightActions={
           <div className="flex items-center gap-2">
@@ -170,16 +153,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
                 <Smartphone className="w-4 h-4" />
               </Button>
             </div>
-
-            {/* Settings */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSettingsModalOpen(true)}
-            >
-              <Settings className="w-4 h-4 mr-1" />
-              Settings
-            </Button>
 
             {/* Save button */}
             <Button
@@ -230,17 +203,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         open={blockModalOpen}
         onOpenChange={setBlockModalOpen}
         onAddBlocks={builder.handleAddBlocks}
-      />
-
-      <NewsletterSettingsModal
-        open={settingsModalOpen}
-        onOpenChange={setSettingsModalOpen}
-        newsletter={builder.newsletter}
-        siteId={currentSite?.id || ''}
-        onSuccess={(updated) => {
-          builder.reloadNewsletter()
-          setSettingsModalOpen(false)
-        }}
       />
     </div>
   )

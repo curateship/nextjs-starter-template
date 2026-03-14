@@ -16,7 +16,8 @@ interface BlockPropertiesPanelProps {
   onSelectBlock: (block: NewsletterBlock | null) => void
   siteId: string
   subject?: string
-  onOpenSettings?: () => void
+  onSubjectChange?: (value: string) => void
+  onSubjectClick?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -27,7 +28,8 @@ export function BlockPropertiesPanel({
   onSelectBlock,
   siteId,
   subject,
-  onOpenSettings,
+  onSubjectChange,
+  onSubjectClick,
 }: BlockPropertiesPanelProps) {
   const handleContentChange = (field: string, value: any) => {
     if (!selectedBlock) return
@@ -79,7 +81,8 @@ export function BlockPropertiesPanel({
             onSelectBlock={onSelectBlock}
             selectedBlock={selectedBlock}
             subject={subject}
-            onOpenSettings={onOpenSettings}
+            onSubjectChange={onSubjectChange}
+            onSubjectClick={onSubjectClick}
           />
         </div>
       )}

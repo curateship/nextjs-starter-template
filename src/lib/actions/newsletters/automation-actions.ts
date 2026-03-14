@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { generateEmailHtml } from './email-html'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,6 +44,7 @@ export interface AutomationStep {
   delay_minutes: number
   subject: string | null
   content: string
+  content_blocks: Record<string, any>
   from_name: string | null
   created_at: string
   updated_at: string
@@ -369,9 +371,31 @@ export async function reorderSteps(automationId: string, stepIds: string[]): Pro
   }
 }
 
+export async function getStepById(stepId: string): Promise<{ data: AutomationStep | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(stepId)) return { data: null, error: 'Invalid ID' }
+    const user = await verifyAuth()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const { data: step } = await supabaseAdmin
+      .from('email_automation_steps').select('*').eq('id', stepId).single()
+    if (!step) return { data: null, error: 'Step not found' }
+
+    const { data: automation } = await supabaseAdmin
+      .from('email_automations').select('site_id').eq('id', step.automation_id).single()
+    if (!automation) return { data: null, error: 'Automation not found' }
+    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+
+    return { data: step as AutomationStep, error: null }
+  } catch (err) {
+    console.error('getStepById error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
 export async function updateStep(
   stepId: string,
-  updates: { subject?: string; content?: string; delay_minutes?: number; node_config?: Record<string, any> }
+  updates: { subject?: string; content?: string; content_blocks?: Record<string, any>; delay_minutes?: number; node_config?: Record<string, any> }
 ): Promise<{ data: AutomationStep | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(stepId)) return { data: null, error: 'Invalid ID' }
@@ -392,6 +416,16 @@ export async function updateStep(
     if (updates.content !== undefined) fields.content = updates.content
     if (updates.delay_minutes !== undefined) fields.delay_minutes = updates.delay_minutes
     if (updates.node_config !== undefined) fields.node_config = updates.node_config
+    if (updates.content_blocks !== undefined) {
+      fields.content_blocks = updates.content_blocks
+      // Regenerate email HTML from blocks
+      const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
+      const sortedBlocks = (blockEntries as { id: string; type: string; title: string; content: Record<string, any> }[])
+        .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      if (sortedBlocks.length > 0) {
+        fields.content = generateEmailHtml(sortedBlocks)
+      }
+    }
 
     const { data, error } = await supabaseAdmin
       .from('email_automation_steps').update(fields).eq('id', stepId).select().single()

@@ -1,14 +1,9 @@
 import { useState, useEffect } from "react"
 import { getNewsletterById, updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
-import { getBlockTypeDefinition } from "./newsletter-block-types"
+import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "./useBlockEditor"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 
-export interface NewsletterBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+export type { NewsletterBlock } from "./useBlockEditor"
 
 interface BlockSelection {
   type: string
@@ -21,29 +16,32 @@ interface UseNewsletterBuilderParams {
 
 interface UseNewsletterBuilderReturn {
   newsletter: Newsletter | null
-  blocks: NewsletterBlock[]
-  selectedBlock: NewsletterBlock | null
-  setSelectedBlock: (block: NewsletterBlock | null) => void
+  subject: string
+  setSubject: (value: string) => void
+  blocks: ReturnType<typeof useBlockEditor>['blocks']
+  selectedBlock: ReturnType<typeof useBlockEditor>['selectedBlock']
+  setSelectedBlock: ReturnType<typeof useBlockEditor>['setSelectedBlock']
   isSaving: boolean
   saveMessage: string
   loading: boolean
   error: string | null
-  updateBlockContent: (blockId: string, field: string, value: any) => void
-  handleDeleteBlock: (block: NewsletterBlock) => void
-  handleReorderBlocks: (blocks: NewsletterBlock[]) => void
-  handleAddBlocks: (selections: BlockSelection[]) => void
+  updateBlockContent: ReturnType<typeof useBlockEditor>['updateBlockContent']
+  handleDeleteBlock: ReturnType<typeof useBlockEditor>['handleDeleteBlock']
+  handleReorderBlocks: ReturnType<typeof useBlockEditor>['handleReorderBlocks']
+  handleAddBlocks: ReturnType<typeof useBlockEditor>['handleAddBlocks']
   handleSave: () => Promise<void>
   reloadNewsletter: () => Promise<void>
 }
 
 export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParams): UseNewsletterBuilderReturn {
   const [newsletter, setNewsletter] = useState<Newsletter | null>(null)
-  const [blocks, setBlocks] = useState<NewsletterBlock[]>([])
-  const [selectedBlock, setSelectedBlock] = useState<NewsletterBlock | null>(null)
+  const [subject, setSubject] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const blockEditor = useBlockEditor()
 
   const loadNewsletter = async () => {
     setLoading(true)
@@ -54,20 +52,8 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
       return
     }
     setNewsletter(data)
-
-    // Parse content_blocks into blocks array
-    const contentBlocks = data.content_blocks || {}
-    const parsed: NewsletterBlock[] = Object.values(contentBlocks)
-      .filter((b: any) => b.id && b.type)
-      .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
-      .map((b: any) => ({
-        id: b.id,
-        type: b.type,
-        title: getBlockTypeDefinition(b.type)?.name || 'Block',
-        content: b.content || {}
-      }))
-
-    setBlocks(parsed)
+    setSubject(data.subject || "")
+    blockEditor.setBlocks(parseBlocksFromJson(data.content_blocks || {}))
     setLoading(false)
   }
 
@@ -75,71 +61,16 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     loadNewsletter()
   }, [newsletterId])
 
-  const updateBlockContent = (blockId: string, field: string, value: any) => {
-    setBlocks(prev => {
-      const updated = prev.map(b => {
-        if (b.id !== blockId) return b
-        const newBlock = { ...b, content: { ...b.content, [field]: value } }
-        // Keep selectedBlock in sync
-        if (selectedBlock?.id === blockId) {
-          setSelectedBlock(newBlock)
-        }
-        return newBlock
-      })
-      return updated
-    })
-  }
-
-  const handleDeleteBlock = (block: NewsletterBlock) => {
-    setBlocks(prev => prev.filter(b => b.id !== block.id))
-    if (selectedBlock?.id === block.id) {
-      setSelectedBlock(null)
-    }
-  }
-
-  const handleReorderBlocks = (reorderedBlocks: NewsletterBlock[]) => {
-    setBlocks(reorderedBlocks)
-  }
-
-  const handleAddBlocks = (selections: BlockSelection[]) => {
-    const newBlocks: NewsletterBlock[] = []
-    for (const selection of selections) {
-      const blockDef = getBlockTypeDefinition(selection.type)
-      if (!blockDef) continue
-      for (let i = 0; i < selection.quantity; i++) {
-        const timestamp = Date.now() + i
-        newBlocks.push({
-          id: `${selection.type}-${timestamp}`,
-          type: selection.type,
-          title: blockDef.name,
-          content: { ...blockDef.defaultContent }
-        })
-      }
-    }
-    setBlocks(prev => [...prev, ...newBlocks])
-    if (newBlocks.length > 0) {
-      setSelectedBlock(newBlocks[newBlocks.length - 1])
-    }
-  }
-
   const handleSave = async () => {
     if (!newsletter) return
     setIsSaving(true)
     setSaveMessage("Saving...")
 
-    // Convert blocks to content_blocks JSON
-    const contentBlocks: Record<string, any> = {}
-    blocks.forEach((block, index) => {
-      contentBlocks[block.id] = {
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        display_order: index
-      }
-    })
+    const contentBlocks = blocksToJson(blockEditor.blocks)
 
     try {
       const { data, error: saveError } = await updateNewsletter(newsletter.id, {
+        subject,
         content_blocks: contentBlocks
       })
       if (saveError) {
@@ -160,17 +91,19 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
 
   return {
     newsletter,
-    blocks,
-    selectedBlock,
-    setSelectedBlock,
+    subject,
+    setSubject,
+    blocks: blockEditor.blocks,
+    selectedBlock: blockEditor.selectedBlock,
+    setSelectedBlock: blockEditor.setSelectedBlock,
     isSaving,
     saveMessage,
     loading,
     error,
-    updateBlockContent,
-    handleDeleteBlock,
-    handleReorderBlocks,
-    handleAddBlocks,
+    updateBlockContent: blockEditor.updateBlockContent,
+    handleDeleteBlock: blockEditor.handleDeleteBlock,
+    handleReorderBlocks: blockEditor.handleReorderBlocks,
+    handleAddBlocks: blockEditor.handleAddBlocks,
     handleSave,
     reloadNewsletter: loadNewsletter
   }

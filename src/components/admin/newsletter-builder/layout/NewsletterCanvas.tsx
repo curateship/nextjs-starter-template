@@ -10,7 +10,8 @@ interface NewsletterCanvasProps {
   onSelectBlock: (block: NewsletterBlock) => void
   selectedBlock: NewsletterBlock | null
   subject?: string
-  onOpenSettings?: () => void
+  onSubjectChange?: (value: string) => void
+  onSubjectClick?: () => void
 }
 
 function CanvasRichTextBlock({ block }: { block: NewsletterBlock }) {
@@ -90,7 +91,8 @@ export function NewsletterCanvas({
   onSelectBlock,
   selectedBlock,
   subject,
-  onOpenSettings,
+  onSubjectChange,
+  onSubjectClick,
 }: NewsletterCanvasProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-muted/30 p-8">
@@ -114,15 +116,36 @@ export function NewsletterCanvas({
         style={{ maxWidth: previewWidth }}
       >
         {/* Email subject */}
-        {subject && (
+        {onSubjectChange ? (
+          <div
+            className="canvas-block"
+            style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb' }}
+          >
+            <input
+              type="text"
+              value={subject || ''}
+              onChange={e => onSubjectChange(e.target.value)}
+              placeholder="Email subject line..."
+              style={{
+                width: '100%',
+                border: 'none',
+                outline: 'none',
+                fontSize: 16,
+                fontWeight: 600,
+                color: '#333',
+                background: 'transparent',
+              }}
+            />
+          </div>
+        ) : subject ? (
           <div
             className="cursor-pointer canvas-block"
-            style={{ padding: 20, borderBottom: '1px solid #e5e7eb' }}
-            onClick={onOpenSettings}
+            style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb' }}
+            onClick={onSubjectClick}
           >
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>
           </div>
-        )}
+        ) : null}
 
         {blocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">

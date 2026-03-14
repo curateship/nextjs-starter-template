@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import {
   getAutomationById,
   updateAutomation,
@@ -32,7 +31,7 @@ import {
   reorderSteps,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
-import { Plus, Trash2, Clock, Zap, Mail, Target } from "lucide-react"
+import { Plus, Trash2, Clock, Zap, Mail, Layers } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -52,12 +51,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   // Add node picker
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null)
 
-  // Edit email node
-  const [editingEmail, setEditingEmail] = useState<AutomationStep | null>(null)
-  const [emailSubject, setEmailSubject] = useState("")
-  const [emailContent, setEmailContent] = useState({ content: "" })
-  const [savingNode, setSavingNode] = useState(false)
-
   // Edit delay node
   const [editingDelay, setEditingDelay] = useState<AutomationStep | null>(null)
   const [delayType, setDelayType] = useState("amount_of_time")
@@ -66,6 +59,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDay, setDelayDay] = useState("1")
   const [delayTime, setDelayTime] = useState("09:00")
   const [delayDate, setDelayDate] = useState("")
+  const [savingNode, setSavingNode] = useState(false)
+
+  // Pending insert state
+  const [pendingNodeType, setPendingNodeType] = useState<'email' | 'delay' | null>(null)
+  const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
 
   useEffect(() => { loadAutomation() }, [automationId])
 
@@ -87,24 +85,32 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSaving(false)
   }
 
-  // --- Add Node ---
-  // Don't create the node until the user saves from the modal.
-  // The add button just opens the editor with a pending insert position.
-  const [pendingNodeType, setPendingNodeType] = useState<'email' | 'delay' | null>(null)
-  const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
-
-  const handleAddNode = (nodeType: 'email' | 'delay', afterIndex: number) => {
+  const handleAddNode = async (nodeType: 'email' | 'delay', afterIndex: number) => {
     setAddAfterIndex(null)
-    setPendingNodeType(nodeType)
     setPendingInsertIndex(afterIndex)
 
     if (nodeType === 'email') {
-      setEditingEmail(null) // clear any existing
-      setEmailSubject('New Email')
-      setEmailContent({ content: '' })
-      // Use a sentinel to indicate "new"
-      setEditingEmail({ id: '__new__' } as AutomationStep)
+      // Create email node and navigate to editor
+      if (!automation) return
+      const tempOrder = 99999 + Math.floor(Math.random() * 1000)
+      const { data, error: createError } = await createStep({
+        automationId: automation.id,
+        stepOrder: tempOrder,
+        nodeType: 'email',
+        subject: 'New Email',
+      })
+      if (createError || !data) {
+        setError(createError || 'Failed to create node')
+        return
+      }
+      // Insert at position and reorder
+      const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
+      const newOrder = [...sorted.slice(0, afterIndex), data, ...sorted.slice(afterIndex)]
+      await reorderSteps(automation.id, newOrder.map(n => n.id))
+      // Navigate to email editor
+      router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
     } else {
+      setPendingNodeType('delay')
       setEditingDelay(null)
       setDelayType('amount_of_time')
       setDelayValue('1')
@@ -142,40 +148,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     await reorderSteps(automation.id, newOrder.map(n => n.id))
 
     return data
-  }
-
-  // --- Email Editor ---
-  const openEmailEditor = (node: AutomationStep) => {
-    setEditingEmail(node)
-    setEmailSubject(node.subject || "")
-    setEmailContent({ content: node.content || "" })
-  }
-
-  const saveEmailNode = async () => {
-    if (!editingEmail) return
-    setSavingNode(true)
-
-    if (editingEmail.id === '__new__') {
-      const data = await createAndInsertNode('email', {
-        subject: emailSubject,
-        content: emailContent.content,
-      })
-      if (data) flash("Added")
-    } else {
-      const { data, error } = await updateStep(editingEmail.id, {
-        subject: emailSubject,
-        content: emailContent.content,
-      })
-      if (data) {
-        setNodes(prev => prev.map(n => n.id === data.id ? data : n))
-        flash("Saved")
-      }
-      if (error) setError(error)
-    }
-
-    setEditingEmail(null)
-    setPendingNodeType(null)
-    setSavingNode(false)
   }
 
   // --- Delay Editor ---
@@ -240,7 +212,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const { success } = await deleteStep(nodeId)
     if (success) {
       setNodes(prev => prev.filter(n => n.id !== nodeId))
-      if (editingEmail?.id === nodeId) setEditingEmail(null)
       if (editingDelay?.id === nodeId) setEditingDelay(null)
     }
   }
@@ -262,6 +233,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (type === 'time_of_day') return `Wait until ${cfg.time || '09:00'}`
     if (type === 'specific_date') return `Wait until ${cfg.date || 'date'}`
     return 'Wait'
+  }
+
+  const getBlockCount = (node: AutomationStep) => {
+    const blocks = node.content_blocks || {}
+    return Object.keys(blocks).length
   }
 
   const AddNodeButton = ({ afterIndex }: { afterIndex: number }) => (
@@ -304,12 +280,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         <AdminLayout>
           <div className="w-full max-w-2xl mx-auto px-6 py-8">
             <div className="flex flex-col items-center">
-              {/* Trigger skeleton */}
               <div className="h-10 w-48 bg-muted rounded-xl animate-pulse" />
               <div className="w-px h-6 bg-border" />
               <div className="w-6 h-6 rounded-full bg-muted animate-pulse" />
               <div className="w-px h-6 bg-border" />
-              {/* Node skeletons */}
               {[1, 2, 3].map(i => (
                 <div key={i} className="w-full flex flex-col items-center">
                   <Card className="w-full p-4 border-l-4 border-l-muted">
@@ -419,7 +393,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               ) : (
                 <Card
                   className="w-full p-4 cursor-pointer hover:border-primary/50 transition-colors border-l-4 border-l-blue-400"
-                  onClick={() => openEmailEditor(node)}
+                  onClick={() => router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -429,9 +403,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <div>
                         <p className="text-xs text-muted-foreground font-medium uppercase">Send Email</p>
                         <p className="text-sm font-medium">{node.subject || "No subject"}</p>
-                        {node.content && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {node.content.replace(/<[^>]*>/g, '').slice(0, 80)}{node.content.length > 80 ? '...' : ''}
+                        {getBlockCount(node) > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <Layers className="h-3 w-3" />
+                            {getBlockCount(node)} block{getBlockCount(node) !== 1 ? 's' : ''}
                           </p>
                         )}
                       </div>
@@ -456,37 +431,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             </div>
           )}
         </div>
-
-        {/* Email Editor Modal */}
-        <Dialog open={editingEmail !== null} onOpenChange={(open) => { if (!open) { setEditingEmail(null); setPendingNodeType(null) } }}>
-          <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-            <DialogHeader className="mb-6">
-              <DialogTitle>Edit Email</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              <div>
-                <Label>Subject Line *</Label>
-                <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Email subject" />
-              </div>
-              <div>
-                <Label>Content</Label>
-                <div className="mt-1">
-                  <RichTextEditor
-                    content={{ ...emailContent, hideHeader: true, hideEditorHeader: true }}
-                    onContentChange={c => setEmailContent({ content: c.content })}
-                    inline
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setEditingEmail(null)}>Cancel</Button>
-                <Button onClick={saveEmailNode} disabled={savingNode || !emailSubject.trim()}>
-                  {savingNode ? "Saving..." : "Save"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
 
         {/* Delay Editor Modal */}
         <Dialog open={editingDelay !== null} onOpenChange={(open) => { if (!open) { setEditingDelay(null); setPendingNodeType(null) } }}>
