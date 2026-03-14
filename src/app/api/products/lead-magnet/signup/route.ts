@@ -31,6 +31,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(siteId) || !uuidRegex.test(productId)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request' },
+        { status: 400 }
+      )
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
@@ -151,7 +160,7 @@ export async function POST(request: NextRequest) {
       // Mark email as sent
       await markEmailSent(order.id)
 
-      console.log('Lead magnet email sent to:', email)
+      console.log('Lead magnet email sent successfully')
     } catch (emailError) {
       console.error('Failed to send lead magnet email:', emailError)
       // Don't fail the request - order was still created
@@ -173,7 +182,7 @@ export async function POST(request: NextRequest) {
           })
 
           if (result.success) {
-            console.log('Added to Flodesk:', email, 'with tags:', flodeskSettings.tags)
+            console.log('Added to Flodesk successfully')
           } else {
             console.error('Failed to add to Flodesk:', result.error)
           }
@@ -193,11 +202,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in lead magnet signup:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to process signup',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { success: false, error: 'Failed to process signup' },
       { status: 500 }
     )
   }

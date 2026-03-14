@@ -13,6 +13,23 @@ const supabaseAdmin = createClient(
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+async function verifyAuth() {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return null
+  return user
+}
+
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const { data: site } = await supabaseAdmin
+    .from('sites')
+    .select('id')
+    .eq('id', siteId)
+    .eq('user_id', userId)
+    .single()
+  return !!site
+}
+
 /**
  * Get or create a Resend audience for a site.
  * Stores the audience ID in site_integrations config.
@@ -20,6 +37,9 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function getOrCreateResendAudience(siteId: string): Promise<{ audienceId: string | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { audienceId: null, error: 'Invalid site ID' }
+    const user = await verifyAuth()
+    if (!user) return { audienceId: null, error: 'Not authenticated' }
+    if (!await verifySiteOwnership(siteId, user.id)) return { audienceId: null, error: 'Access denied' }
 
     const config = await getResendConfig(siteId)
     if (!config?.apiKey) return { audienceId: null, error: 'Resend not configured' }
@@ -77,6 +97,9 @@ export async function getOrCreateResendAudience(siteId: string): Promise<{ audie
  */
 export async function syncContactsToResend(siteId: string): Promise<{ synced: number; error: string | null }> {
   try {
+    const user = await verifyAuth()
+    if (!user) return { synced: 0, error: 'Not authenticated' }
+    if (!await verifySiteOwnership(siteId, user.id)) return { synced: 0, error: 'Access denied' }
     if (!UUID_REGEX.test(siteId)) return { synced: 0, error: 'Invalid site ID' }
 
     const config = await getResendConfig(siteId)
@@ -135,6 +158,9 @@ export async function getAudienceCount(
 ): Promise<{ count: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { count: 0, error: 'Invalid site ID' }
+    const user = await verifyAuth()
+    if (!user) return { count: 0, error: 'Not authenticated' }
+    if (!await verifySiteOwnership(siteId, user.id)) return { count: 0, error: 'Access denied' }
 
     let query = supabaseAdmin
       .from('newsletter_contacts')

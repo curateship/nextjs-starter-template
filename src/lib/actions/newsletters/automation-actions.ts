@@ -222,6 +222,10 @@ export async function updateAutomation(
     if (!automation) return { data: null, error: 'Not found' }
     if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
 
+    if (updates.status !== undefined && !['draft', 'active', 'paused'].includes(updates.status)) {
+      return { data: null, error: 'Invalid status' }
+    }
+
     const fields: Record<string, any> = {}
     if (updates.name !== undefined) fields.name = updates.name
     if (updates.description !== undefined) fields.description = updates.description
@@ -272,22 +276,26 @@ export async function deleteAutomations(ids: string[]): Promise<{ success: boole
   }
 }
 
+/** Internal — called from API routes only. Returns just IDs for enrollment. */
 export async function findActiveAutomations(
   siteId: string, triggerType: string, productId?: string
-): Promise<EmailAutomation[]> {
+): Promise<{ id: string }[]> {
+  if (!UUID_REGEX.test(siteId)) return []
+
   const { data } = await supabaseAdmin
     .from('email_automations')
-    .select('*')
+    .select('id, trigger_config')
     .eq('site_id', siteId)
     .eq('status', 'active')
     .eq('trigger_type', triggerType)
 
   if (!data) return []
 
-  if (productId) {
-    return data.filter(a => !a.trigger_config?.product_id || a.trigger_config.product_id === productId)
-  }
-  return data
+  const filtered = productId
+    ? data.filter(a => !a.trigger_config?.product_id || a.trigger_config.product_id === productId)
+    : data
+
+  return filtered.map(a => ({ id: a.id }))
 }
 
 // --- Steps ---
@@ -428,9 +436,19 @@ export async function deleteStep(stepId: string): Promise<{ success: boolean; er
 
 // --- Enrollments ---
 
+/** Enroll a contact in an automation. Verifies the automation and contact belong to the same site. */
 export async function enrollContact(automationId: string, contactId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId) || !UUID_REGEX.test(contactId)) return { success: false, error: 'Invalid ID' }
+
+    // Verify automation and contact belong to same site
+    const { data: automation } = await supabaseAdmin
+      .from('email_automations').select('site_id').eq('id', automationId).single()
+    const { data: contact } = await supabaseAdmin
+      .from('newsletter_contacts').select('site_id').eq('id', contactId).single()
+    if (!automation || !contact || automation.site_id !== contact.site_id) {
+      return { success: false, error: 'Invalid enrollment' }
+    }
 
     const { error } = await supabaseAdmin
       .from('email_automation_enrollments')
@@ -458,6 +476,22 @@ export async function cancelEnrollment(enrollmentId: string): Promise<{ success:
     if (!UUID_REGEX.test(enrollmentId)) return { success: false, error: 'Invalid ID' }
     const user = await verifyAuth()
     if (!user) return { success: false, error: 'Not authenticated' }
+
+    // Verify ownership: enrollment → automation → site
+    const { data: enrollment } = await supabaseAdmin
+      .from('email_automation_enrollments')
+      .select('automation_id')
+      .eq('id', enrollmentId)
+      .single()
+    if (!enrollment) return { success: false, error: 'Not found' }
+
+    const { data: automation } = await supabaseAdmin
+      .from('email_automations')
+      .select('site_id')
+      .eq('id', enrollment.automation_id)
+      .single()
+    if (!automation) return { success: false, error: 'Not found' }
+    if (!await verifySiteOwnership(automation.site_id, user.id)) return { success: false, error: 'Access denied' }
 
     const { error } = await supabaseAdmin
       .from('email_automation_enrollments')

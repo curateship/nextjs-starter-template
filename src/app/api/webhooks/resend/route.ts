@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No email found' }, { status: 400 })
     }
 
-    console.log(`Resend webhook: ${type} for ${email}`)
+    console.log(`Resend webhook: ${type}`)
 
     // Find the most recent order for this email
     const { data: orders, error: orderError } = await supabaseAdmin
@@ -302,10 +302,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in Resend webhook:', error)
     return NextResponse.json(
-      {
-        error: 'Webhook processing failed',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Webhook processing failed' },
       { status: 500 }
     )
   }

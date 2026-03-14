@@ -183,6 +183,10 @@ export async function updateNewsletter(
       return { data: null, error: 'Access denied' }
     }
 
+    if (updates.status !== undefined && !['draft', 'scheduled'].includes(updates.status)) {
+      return { data: null, error: 'Invalid status' }
+    }
+
     const allowedFields: Record<string, any> = {}
     if (updates.name !== undefined) allowedFields.name = updates.name
     if (updates.subject !== undefined) allowedFields.subject = updates.subject
