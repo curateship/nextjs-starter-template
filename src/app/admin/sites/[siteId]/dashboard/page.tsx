@@ -59,7 +59,7 @@ export default async function SiteDashboard({ params }: PageProps) {
         }
       />
       <AdminLayout>
-        <div className="w-full space-y-6">
+        <div className="w-full">
           <AdminPageHeader
             title={`${siteName} Dashboard`}
             subtitle={`Overview and analytics for ${siteName} (${siteUrl})`}

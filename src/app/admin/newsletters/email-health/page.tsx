@@ -74,7 +74,7 @@ export default function EmailHealthPage() {
           />
 
           {loading ? (
-            <div className="space-y-4">
+            <div>
               {[1, 2, 3, 4].map(i => (
                 <Card key={i} className="p-6">
                   <div className="h-6 bg-muted rounded animate-pulse w-40 mb-4" />
@@ -88,7 +88,7 @@ export default function EmailHealthPage() {
               <Button onClick={loadReport} variant="outline">Try Again</Button>
             </div>
           ) : report ? (
-            <div className="space-y-6 pb-8">
+            <div className="pb-8">
               {/* Domain Health */}
               <Card className="p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">

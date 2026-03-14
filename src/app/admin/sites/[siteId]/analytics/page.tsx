@@ -87,7 +87,7 @@ export default function AnalyticsPage({ params }: PageProps) {
         ]}
       />
       <AdminLayout>
-        <div className="w-full space-y-6">
+        <div className="w-full">
           <AdminPageHeader
             title="Analytics"
             subtitle="Track visitors, page views, and engagement"
@@ -162,7 +162,7 @@ export default function AnalyticsPage({ params }: PageProps) {
 
               {/* Traffic Chart */}
               {traffic.length > 0 && (
-                <div className="pt-2"><Card>
+                <Card>
                   <CardHeader>
                     <CardTitle>Traffic Over Time</CardTitle>
                   </CardHeader>
@@ -180,7 +180,7 @@ export default function AnalyticsPage({ params }: PageProps) {
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
-                </Card></div>
+                </Card>
               )}
 
               {/* Top Pages & Referrers */}

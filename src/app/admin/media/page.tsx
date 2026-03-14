@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, CheckSquare, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
@@ -361,14 +361,6 @@ export default function ImagesPage() {
                 {/* Bulk Actions */}
                 {selectedIds.size > 0 && (
                   <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleToggleSelectAll}
-                    >
-                      <CheckSquare className="w-4 h-4 mr-2" />
-                      {allPageSelected ? 'Deselect All' : 'Select All'}
-                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"
