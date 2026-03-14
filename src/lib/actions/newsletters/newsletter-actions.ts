@@ -18,6 +18,7 @@ export interface Newsletter {
   name: string
   subject: string
   content: string
+  content_blocks: Record<string, any>
   from_name: string | null
   status: 'draft' | 'scheduled' | 'sending' | 'sent'
   audience_filter: Record<string, any>
@@ -30,6 +31,57 @@ export interface Newsletter {
   metadata: Record<string, any>
   created_at: string
   updated_at: string
+}
+
+interface NewsletterBlock {
+  id: string
+  type: string
+  title: string
+  content: Record<string, any>
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function generateEmailHtml(blocks: NewsletterBlock[]): string {
+  const blockHtmlParts = blocks.map(block => {
+    switch (block.type) {
+      case 'newsletter-header': {
+        const { logoUrl, siteName, showSiteName, alignment = 'center', backgroundColor = '#ffffff', padding = 20 } = block.content
+        const align = alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'center'
+        let inner = ''
+        if (logoUrl) {
+          inner += `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(siteName || '')}" style="max-width:200px;height:auto;display:block;margin:0 ${align === 'center' ? 'auto' : '0'};" />`
+        }
+        if (showSiteName !== false && siteName) {
+          inner += `<h1 style="margin:${logoUrl ? '12px' : '0'} 0 0 0;font-size:24px;font-weight:bold;color:#333333;text-align:${align};">${escapeHtml(siteName)}</h1>`
+        }
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;text-align:${align};">${inner}</td></tr></table>`
+      }
+      case 'newsletter-rich-text': {
+        const { htmlContent = '', backgroundColor = '#ffffff', padding = 20 } = block.content
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${htmlContent}</td></tr></table>`
+      }
+      case 'newsletter-divider': {
+        const { color = '#e5e7eb', thickness = 1, width = 100, spacing = 20 } = block.content
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${spacing}px 0;text-align:center;"><hr style="border:none;border-top:${thickness}px solid ${escapeHtml(color)};width:${width}%;margin:0 auto;" /></td></tr></table>`
+      }
+      case 'newsletter-footer': {
+        const { companyName = '', companyAddress = '', showUnsubscribe = true, alignment = 'center' } = block.content
+        const align = alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'center'
+        let inner = ''
+        if (companyName) inner += `<p style="margin:0 0 4px 0;font-weight:bold;">${escapeHtml(companyName)}</p>`
+        if (companyAddress) inner += `<p style="margin:0 0 12px 0;">${escapeHtml(companyAddress)}</p>`
+        if (showUnsubscribe) inner += `<p style="margin:0;"><a href="{{unsubscribe_url}}" style="color:#999999;text-decoration:underline;">Unsubscribe</a></p>`
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:20px;text-align:${align};font-family:Arial,sans-serif;font-size:12px;color:#999999;">${inner}</td></tr></table>`
+      }
+      default:
+        return ''
+    }
+  })
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;"><tr><td align="center" style="padding:20px 0;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;">${blockHtmlParts.join('')}</table></td></tr></table></body></html>`
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -163,7 +215,7 @@ export async function createNewsletter(input: {
 
 export async function updateNewsletter(
   newsletterId: string,
-  updates: { name?: string; subject?: string; content?: string; status?: string; audience_filter?: Record<string, any> }
+  updates: { name?: string; subject?: string; content?: string; content_blocks?: Record<string, any>; status?: string; audience_filter?: Record<string, any> }
 ): Promise<{ data: Newsletter | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid ID' }
@@ -193,6 +245,15 @@ export async function updateNewsletter(
     if (updates.content !== undefined) allowedFields.content = updates.content
     if (updates.status !== undefined) allowedFields.status = updates.status
     if (updates.audience_filter !== undefined) allowedFields.audience_filter = updates.audience_filter
+    if (updates.content_blocks !== undefined) {
+      allowedFields.content_blocks = updates.content_blocks
+      // Regenerate email HTML from blocks
+      const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
+      const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      if (sortedBlocks.length > 0) {
+        allowedFields.content = generateEmailHtml(sortedBlocks)
+      }
+    }
 
     const { data, error } = await supabaseAdmin
       .from('newsletters')

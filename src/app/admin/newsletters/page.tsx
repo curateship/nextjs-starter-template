@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import Link from "next/link"
 
 export default function NewslettersPage() {
   const { currentSite } = useSiteContext()
@@ -392,7 +393,7 @@ export default function NewslettersPage() {
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center ml-2">
                             <Mail className="h-6 w-6 text-muted-foreground" />
                           </div>
-                          <a
+                          <Link
                             href={`/admin/newsletters/${newsletter.id}`}
                             className="hover:opacity-80 transition-opacity"
                           >
@@ -400,7 +401,7 @@ export default function NewslettersPage() {
                             {newsletter.subject && newsletter.subject !== newsletter.name && (
                               <p className="text-sm text-muted-foreground">{newsletter.subject}</p>
                             )}
-                          </a>
+                          </Link>
                         </div>
                       </div>
                       <div>{getStatusBadge(newsletter)}</div>
@@ -479,6 +480,7 @@ export default function NewslettersPage() {
             open={settingsNewsletterId !== null}
             onOpenChange={(open) => setSettingsNewsletterId(open ? settingsNewsletterId : null)}
             newsletter={newsletters.find((n) => n.id === settingsNewsletterId) || null}
+            siteId={currentSite?.id || ''}
             onSuccess={(updated) => {
               setNewsletters((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
             }}
