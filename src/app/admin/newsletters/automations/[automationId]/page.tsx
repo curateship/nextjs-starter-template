@@ -257,7 +257,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     }
     if (type === 'day_of_week') {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      return `Wait until ${days[cfg.day] || 'Monday'}`
+      return `Wait until ${days[cfg.day as number] || 'Monday'}`
     }
     if (type === 'time_of_day') return `Wait until ${cfg.time || '09:00'}`
     if (type === 'specific_date') return `Wait until ${cfg.date || 'date'}`

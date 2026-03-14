@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
               if (bc) {
                 await supabaseAdmin
                   .from('newsletters')
-                  .update({ [statField]: (bc[statField] || 0) + 1 })
+                  .update({ [statField]: ((bc as Record<string, number>)[statField] || 0) + 1 })
                   .eq('id', existingEvent.source_id)
               }
             }

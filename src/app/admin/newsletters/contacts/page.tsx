@@ -675,7 +675,7 @@ export default function ContactsPage() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                         {(contact.metadata?.tags?.length ?? 0) > 3 && (
-                          <span className="text-xs text-muted-foreground">+{contact.metadata.tags.length - 3}</span>
+                          <span className="text-xs text-muted-foreground">+{contact.metadata!.tags!.length - 3}</span>
                         )}
                       </div>
                       <div>
