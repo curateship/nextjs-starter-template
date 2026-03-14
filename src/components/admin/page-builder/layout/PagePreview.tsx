@@ -139,22 +139,83 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
       >
         <div className="bg-background">
           {blocksLoading ? (
-            <div className="space-y-6 p-6">
-              <div className="space-y-4">
-                <div className="h-8 bg-muted rounded animate-pulse w-3/4"></div>
-                <div className="h-4 bg-muted/60 rounded animate-pulse w-1/2"></div>
+            <div>
+              {/* Navigation skeleton */}
+              <div className="flex items-center gap-6 px-8 py-4 border-b">
+                <div className="h-7 w-7 bg-muted rounded animate-pulse" />
+                <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
+                <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
+                <div className="flex-1" />
+                <div className="h-5 w-5 bg-muted/40 rounded animate-pulse" />
               </div>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border rounded-lg p-6 space-y-4">
-                  <div className="h-6 bg-muted rounded animate-pulse w-1/3"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 bg-muted/60 rounded animate-pulse"></div>
-                    <div className="h-4 bg-muted/60 rounded animate-pulse w-4/5"></div>
-                    <div className="h-4 bg-muted/60 rounded animate-pulse w-3/5"></div>
+
+              {/* Hero skeleton — left text + right image */}
+              <div className="max-w-[1152px] mx-auto px-10 py-16">
+                <div className="grid grid-cols-2 gap-10 items-center">
+                  <div className="space-y-5">
+                    <div className="space-y-3">
+                      <div className="h-12 bg-muted rounded animate-pulse w-full" />
+                      <div className="h-12 bg-muted rounded animate-pulse w-4/5" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-4 bg-muted/50 rounded animate-pulse w-full" />
+                      <div className="h-4 bg-muted/50 rounded animate-pulse w-11/12" />
+                      <div className="h-4 bg-muted/50 rounded animate-pulse w-3/4" />
+                    </div>
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="h-10 bg-muted/60 rounded animate-pulse flex-1 max-w-[240px]" />
+                      <div className="h-10 bg-muted rounded-md animate-pulse w-24" />
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <div className="flex -space-x-2">
+                        <div className="h-8 w-8 bg-muted/60 rounded-full animate-pulse border-2 border-background" />
+                        <div className="h-8 w-8 bg-muted/60 rounded-full animate-pulse border-2 border-background" />
+                        <div className="h-8 w-8 bg-muted/60 rounded-full animate-pulse border-2 border-background" />
+                      </div>
+                      <div className="h-4 bg-muted/40 rounded animate-pulse w-40" />
+                    </div>
                   </div>
-                  <div className="h-32 bg-muted/60 rounded animate-pulse"></div>
+                  <div className="h-80 bg-muted/30 rounded-xl animate-pulse" />
                 </div>
-              ))}
+              </div>
+
+              {/* Divider */}
+              <div className="max-w-[1152px] mx-auto px-10"><div className="border-t" /></div>
+
+              {/* Listing section skeleton — title + subtitle + 3 product cards */}
+              <div className="max-w-[1152px] mx-auto px-10 py-14 space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="h-9 bg-muted rounded animate-pulse w-52" />
+                    <div className="h-4 bg-muted/50 rounded animate-pulse w-72" />
+                  </div>
+                  <div className="h-9 bg-muted/40 rounded-md animate-pulse w-24" />
+                </div>
+                <div className="grid grid-cols-3 gap-5 pt-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="space-y-3">
+                      <div className="h-52 bg-muted/40 rounded-lg animate-pulse" />
+                      <div className="h-5 bg-muted rounded animate-pulse w-3/4" />
+                      <div className="space-y-1.5">
+                        <div className="h-3.5 bg-muted/40 rounded animate-pulse" />
+                        <div className="h-3.5 bg-muted/40 rounded animate-pulse w-5/6" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer skeleton */}
+              <div className="border-t px-8 py-8">
+                <div className="flex items-center justify-between">
+                  <div className="h-4 bg-muted/60 rounded animate-pulse w-40" />
+                  <div className="flex gap-4">
+                    <div className="h-4 bg-muted/40 rounded animate-pulse w-12" />
+                    <div className="h-4 bg-muted/40 rounded animate-pulse w-14" />
+                    <div className="h-4 bg-muted/40 rounded animate-pulse w-10" />
+                  </div>
+                </div>
+              </div>
             </div>
           ) : blocks.length === 0 ? (
             <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
