@@ -41,7 +41,6 @@ export function NewsletterSettingsModal({
   onSuccess,
 }: NewsletterSettingsModalProps) {
   const [subject, setSubject] = useState('')
-  const [subHeader, setSubHeader] = useState('')
   const [filterTags, setFilterTags] = useState('')
   const [testEmail, setTestEmail] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
@@ -54,13 +53,14 @@ export function NewsletterSettingsModal({
 
   // Segment picker state
   const [segments, setSegments] = useState<Segment[]>([])
-  const [audienceMode, setAudienceMode] = useState<string>('all') // 'all' | segment ID | 'custom'
+  const [audienceMode, setAudienceMode] = useState<string>('none') // 'none' | 'all' | segment ID | 'custom'
+  const [maxWidth, setMaxWidth] = useState(600)
 
   useEffect(() => {
     if (newsletter) {
       setSubject(newsletter.subject || newsletter.name)
-      setSubHeader(newsletter.sub_header || '')
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
+      setMaxWidth(newsletter.metadata?.maxWidth || 600)
       setError(null)
       setSuccessMsg(null)
 
@@ -69,8 +69,10 @@ export function NewsletterSettingsModal({
         setAudienceMode(newsletter.audience_filter.segment_id)
       } else if (newsletter.audience_filter?.tags?.length) {
         setAudienceMode('custom')
-      } else {
+      } else if (newsletter.audience_filter?.audience === 'all') {
         setAudienceMode('all')
+      } else {
+        setAudienceMode('none')
       }
     }
   }, [newsletter])
@@ -84,6 +86,11 @@ export function NewsletterSettingsModal({
   // Update audience count based on mode
   useEffect(() => {
     if (!open || !siteId) return
+
+    if (audienceMode === 'none') {
+      setAudienceCount(null)
+      return
+    }
 
     let tags: string[] = []
 
@@ -102,8 +109,7 @@ export function NewsletterSettingsModal({
   function handleAudienceModeChange(value: string) {
     setAudienceMode(value)
     if (value !== 'custom') {
-      // When selecting a segment or "all", clear manual tags
-      if (value === 'all') {
+      if (value === 'all' || value === 'none') {
         setFilterTags('')
       } else {
         const seg = segments.find(s => s.id === value)
@@ -113,7 +119,8 @@ export function NewsletterSettingsModal({
   }
 
   function buildAudienceFilter(): Record<string, any> {
-    if (audienceMode === 'all') return {}
+    if (audienceMode === 'none') return {}
+    if (audienceMode === 'all') return { audience: 'all' }
     if (audienceMode === 'custom') {
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       return tags.length ? { tags } : {}
@@ -135,8 +142,8 @@ export function NewsletterSettingsModal({
     const { data, error: updateError } = await updateNewsletter(newsletter.id, {
       name: subject.trim(),
       subject: subject.trim(),
-      sub_header: subHeader.trim(),
       audience_filter: buildAudienceFilter(),
+      metadata: { ...newsletter.metadata, maxWidth },
     })
     setSaving(false)
     if (updateError) {
@@ -154,16 +161,13 @@ export function NewsletterSettingsModal({
     if (!newsletter || !testEmail) return
     setSendingTest(true)
     setError(null)
-
-    // Save first
-    await handleSave()
+    setSuccessMsg(null)
 
     const { success, error: sendError } = await sendTestNewsletter(newsletter.id, testEmail)
     if (sendError) {
       setError(sendError)
     } else if (success) {
-      setSuccessMsg('Test email sent!')
-      setTimeout(() => setSuccessMsg(null), 3000)
+      setSuccessMsg(`Test sent to ${testEmail}`)
     }
     setSendingTest(false)
   }
@@ -237,14 +241,18 @@ export function NewsletterSettingsModal({
               />
             </div>
             <div>
-              <Label htmlFor="settings-sub-header">Sub Header</Label>
+              <Label htmlFor="settings-max-width">Content Max Width (px)</Label>
               <Input
-                id="settings-sub-header"
-                value={subHeader}
-                onChange={(e) => setSubHeader(e.target.value)}
-                placeholder="Preview text shown after subject line"
+                id="settings-max-width"
+                type="number"
+                value={maxWidth}
+                onChange={(e) => setMaxWidth(parseInt(e.target.value) || 600)}
+                placeholder="600"
                 disabled={isSent}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Maximum width of the email content. Default is 600px.
+              </p>
             </div>
 
             {/* Audience */}
@@ -256,7 +264,8 @@ export function NewsletterSettingsModal({
                   <SelectTrigger id="audience-select">
                     <SelectValue placeholder="Select audience" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[60]">
+                    <SelectItem value="none">No segment</SelectItem>
                     <SelectItem value="all">All Contacts</SelectItem>
                     {segments.map(seg => (
                       <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
@@ -292,14 +301,16 @@ export function NewsletterSettingsModal({
                 </div>
               )}
 
-              <div className="flex items-center gap-2 text-sm mt-3">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {audienceCount !== null
-                    ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
-                    : 'Calculating...'}
-                </span>
-              </div>
+              {audienceMode !== 'none' && (
+                <div className="flex items-center gap-2 text-sm mt-3">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    {audienceCount !== null
+                      ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
+                      : 'Calculating...'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Test Email */}
@@ -347,23 +358,22 @@ export function NewsletterSettingsModal({
       </Dialog>
 
       {/* Confirm Send Dialog */}
-      {confirmSendOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmSendOpen(false)} />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-[60]">
-            <h2 className="text-lg font-semibold mb-2">Send Newsletter</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This will send &quot;{subject}&quot; to {audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setConfirmSendOpen(false)} variant="outline">Cancel</Button>
-              <Button onClick={handleSend} disabled={sending}>
-                {sending ? 'Sending...' : 'Send Now'}
-              </Button>
-            </div>
+      <Dialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send Newsletter</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will send &quot;{subject}&quot; to {audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button onClick={() => setConfirmSendOpen(false)} variant="outline">Cancel</Button>
+            <Button onClick={handleSend} disabled={sending}>
+              {sending ? 'Sending...' : 'Send Now'}
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

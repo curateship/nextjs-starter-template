@@ -214,7 +214,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           onSelectBlock={builder.setSelectedBlock}
           siteId={currentSite?.id || ''}
           subject={builder.newsletter?.subject}
-          subHeader={builder.newsletter?.sub_header}
           onOpenSettings={() => setSettingsModalOpen(true)}
         />
 

@@ -1,1 +1,2 @@
-ALTER TABLE newsletters ADD COLUMN sub_header VARCHAR(255) DEFAULT '';
+-- sub_header column removed: not used, preheader injection into email HTML was unreliable across email clients
+-- This migration is intentionally empty (column was added then dropped)

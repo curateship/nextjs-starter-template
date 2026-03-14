@@ -45,7 +45,7 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [pageSize, setPageSize] = useState(50)
-  const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'opens' | 'clicks' | 'modified' | null>(null)
+  const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
@@ -170,7 +170,7 @@ export default function NewslettersPage() {
     return true
   })
 
-  const toggleSort = (column: 'name' | 'status' | 'opens' | 'clicks' | 'modified') => {
+  const toggleSort = (column: 'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
         setSortColumn(null)
@@ -184,7 +184,7 @@ export default function NewslettersPage() {
     }
   }
 
-  const getSortIcon = (column: 'name' | 'status' | 'opens' | 'clicks' | 'modified') => {
+  const getSortIcon = (column: 'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
     if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
@@ -195,6 +195,7 @@ export default function NewslettersPage() {
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
     if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortColumn === 'recipients') return (a.total_sent - b.total_sent) * dir
     if (sortColumn === 'opens') {
       const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_opened / b.total_sent : -1
@@ -274,7 +275,7 @@ export default function NewslettersPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-8 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-9 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-3 flex items-center space-x-4">
                   <Checkbox
                     checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
@@ -305,6 +306,18 @@ export default function NewslettersPage() {
                 >
                   <span>Status</span>
                   <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('recipients')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Recipients</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('recipients')}</span>
                 </button>
                 <button
                   type="button"
@@ -351,7 +364,7 @@ export default function NewslettersPage() {
                 <div className="space-y-0">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-8 gap-4 items-center">
+                      <div className="grid grid-cols-9 gap-4 items-center">
                         <div className="col-span-3 flex items-center space-x-4">
                           <div className="w-12 h-12 bg-muted rounded animate-pulse" />
                           <div>
@@ -360,6 +373,7 @@ export default function NewslettersPage() {
                           </div>
                         </div>
                         <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
@@ -383,7 +397,7 @@ export default function NewslettersPage() {
               ) : (
                 sortedNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-8 gap-4 items-center">
+                    <div className="grid grid-cols-9 gap-4 items-center">
                       <div className="col-span-3">
                         <div className="flex items-center space-x-4">
                           <Checkbox
@@ -406,6 +420,13 @@ export default function NewslettersPage() {
                         </div>
                       </div>
                       <div>{getStatusBadge(newsletter)}</div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {newsletter.total_sent > 0
+                            ? newsletter.total_sent.toLocaleString()
+                            : "—"}
+                        </span>
+                      </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
                           {newsletter.total_sent > 0

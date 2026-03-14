@@ -29,13 +29,12 @@ interface CreateNewsletterModalProps {
 export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterModalProps) {
   const { currentSite } = useSiteContext()
   const [subject, setSubject] = useState('')
-  const [subHeader, setSubHeader] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Segment picker state
   const [segments, setSegments] = useState<Segment[]>([])
-  const [audienceMode, setAudienceMode] = useState<string>('all')
+  const [audienceMode, setAudienceMode] = useState<string>('none')
   const [filterTags, setFilterTags] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
 
@@ -49,10 +48,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   useEffect(() => {
     if (!currentSite?.id) return
 
+    if (audienceMode === 'none') {
+      setAudienceCount(null)
+      return
+    }
+
     let tags: string[] = []
     if (audienceMode === 'custom') {
       tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
-    } else if (audienceMode !== 'all') {
+    } else if (audienceMode !== 'all' && audienceMode !== 'none') {
       const seg = segments.find(s => s.id === audienceMode)
       tags = seg?.filter_rules?.tags || []
     }
@@ -64,7 +68,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   function handleAudienceModeChange(value: string) {
     setAudienceMode(value)
     if (value !== 'custom') {
-      if (value === 'all') {
+      if (value === 'all' || value === 'none') {
         setFilterTags('')
       } else {
         const seg = segments.find(s => s.id === value)
@@ -74,7 +78,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   }
 
   function buildAudienceFilter(): Record<string, any> {
-    if (audienceMode === 'all') return {}
+    if (audienceMode === 'none') return {}
+    if (audienceMode === 'all') return { audience: 'all' }
     if (audienceMode === 'custom') {
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       return tags.length ? { tags } : {}
@@ -84,7 +89,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     return { segment_id: audienceMode, tags }
   }
 
-  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'custom'
+  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'none' && audienceMode !== 'custom'
     ? segments.find(s => s.id === audienceMode)
     : null
 
@@ -106,7 +111,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       siteId: currentSite.id,
       name: subject.trim(),
       subject: subject.trim(),
-      sub_header: subHeader.trim(),
       audience_filter: buildAudienceFilter(),
       status,
     })
@@ -147,16 +151,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
         />
       </div>
 
-      <div>
-        <Label htmlFor="newsletter-sub-header">Sub Header</Label>
-        <Input
-          id="newsletter-sub-header"
-          value={subHeader}
-          onChange={(e) => setSubHeader(e.target.value)}
-          placeholder="Preview text shown after subject line"
-        />
-      </div>
-
       {/* Audience */}
       <div>
         <h3 className="font-medium mb-4">Audience</h3>
@@ -166,7 +160,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             <SelectTrigger id="create-audience-select">
               <SelectValue placeholder="Select audience" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[60]">
+              <SelectItem value="none">No segment</SelectItem>
               <SelectItem value="all">All Contacts</SelectItem>
               {segments.map(seg => (
                 <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
@@ -199,14 +194,16 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-sm mt-3">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span>
-            {audienceCount !== null
-              ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
-              : 'Calculating...'}
-          </span>
-        </div>
+        {audienceMode !== 'none' && (
+          <div className="flex items-center gap-2 text-sm mt-3">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span>
+              {audienceCount !== null
+                ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
+                : 'Calculating...'}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between">

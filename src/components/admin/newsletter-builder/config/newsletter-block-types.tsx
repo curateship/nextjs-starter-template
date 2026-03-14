@@ -16,11 +16,10 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Logo and site name header',
     defaultContent: {
       logoUrl: '',
-      siteName: '',
-      showSiteName: true,
       alignment: 'center',
       backgroundColor: '#ffffff',
-      padding: 20,
+      paddingTop: 20,
+      paddingBottom: 20,
     }
   },
   {

@@ -17,7 +17,6 @@ export interface Newsletter {
   site_id: string
   name: string
   subject: string
-  sub_header: string
   content: string
   content_blocks: Record<string, any>
   from_name: string | null
@@ -45,20 +44,21 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function generateEmailHtml(blocks: NewsletterBlock[]): string {
+function generateEmailHtml(blocks: NewsletterBlock[], maxWidth: number = 600): string {
   const blockHtmlParts = blocks.map(block => {
     switch (block.type) {
       case 'newsletter-header': {
-        const { logoUrl, siteName, showSiteName, alignment = 'center', backgroundColor = '#ffffff', padding = 20 } = block.content
+        const { logoUrl, alignment = 'center', backgroundColor = '#ffffff', paddingTop, paddingBottom, padding = 20 } = block.content
+        const pTop = paddingTop ?? padding
+        const pBottom = paddingBottom ?? padding
         const align = alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'center'
         let inner = ''
         if (logoUrl) {
-          inner += `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(siteName || '')}" style="max-width:200px;height:auto;display:block;margin:0 ${align === 'center' ? 'auto' : '0'};" />`
+          const logoW = block.content.logoWidth || 100
+          const logoH = block.content.logoHeight
+          inner += `<img src="${escapeHtml(logoUrl)}" alt="Logo" style="width:${logoW}px;height:${logoH ? `${logoH}px` : 'auto'};display:block;margin:0 ${align === 'center' ? 'auto' : '0'};" />`
         }
-        if (showSiteName !== false && siteName) {
-          inner += `<h1 style="margin:${logoUrl ? '12px' : '0'} 0 0 0;font-size:24px;font-weight:bold;color:#333333;text-align:${align};">${escapeHtml(siteName)}</h1>`
-        }
-        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;text-align:${align};">${inner}</td></tr></table>`
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${pTop}px 20px ${pBottom}px 20px;text-align:${align};">${inner}</td></tr></table>`
       }
       case 'newsletter-rich-text': {
         const { htmlContent = '', backgroundColor = '#ffffff', padding = 20 } = block.content
@@ -82,7 +82,7 @@ function generateEmailHtml(blocks: NewsletterBlock[]): string {
     }
   })
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head><body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;"><tr><td align="center" style="padding:20px 0;"><table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;">${blockHtmlParts.join('')}</table></td></tr></table></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;"><center><div style="max-width:${maxWidth}px;margin:0 auto;"><!--[if mso]><table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:${maxWidth}px;margin:0 auto;">${blockHtmlParts.join('')}</table><!--[if mso]></td></tr></table><![endif]--></div></center></body></html>`
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -174,7 +174,6 @@ export async function createNewsletter(input: {
   siteId: string
   name: string
   subject: string
-  sub_header?: string
   audience_filter?: Record<string, any>
   content?: string
   status?: 'draft' | 'scheduled'
@@ -198,7 +197,6 @@ export async function createNewsletter(input: {
         site_id: input.siteId,
         name: input.name.trim(),
         subject: input.subject.trim(),
-        sub_header: input.sub_header?.trim() || '',
         audience_filter: input.audience_filter || {},
         content: input.content || '',
         status: input.status || 'draft',
@@ -220,7 +218,7 @@ export async function createNewsletter(input: {
 
 export async function updateNewsletter(
   newsletterId: string,
-  updates: { name?: string; subject?: string; sub_header?: string; content?: string; content_blocks?: Record<string, any>; status?: string; audience_filter?: Record<string, any> }
+  updates: { name?: string; subject?: string; content?: string; content_blocks?: Record<string, any>; status?: string; audience_filter?: Record<string, any>; metadata?: Record<string, any> }
 ): Promise<{ data: Newsletter | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid ID' }
@@ -230,7 +228,7 @@ export async function updateNewsletter(
 
     const { data: newsletter } = await supabaseAdmin
       .from('newsletters')
-      .select('site_id')
+      .select('site_id, metadata')
       .eq('id', newsletterId)
       .single()
 
@@ -247,17 +245,19 @@ export async function updateNewsletter(
     const allowedFields: Record<string, any> = {}
     if (updates.name !== undefined) allowedFields.name = updates.name
     if (updates.subject !== undefined) allowedFields.subject = updates.subject
-    if (updates.sub_header !== undefined) allowedFields.sub_header = updates.sub_header
     if (updates.content !== undefined) allowedFields.content = updates.content
     if (updates.status !== undefined) allowedFields.status = updates.status
     if (updates.audience_filter !== undefined) allowedFields.audience_filter = updates.audience_filter
+    if (updates.metadata !== undefined) allowedFields.metadata = updates.metadata
     if (updates.content_blocks !== undefined) {
       allowedFields.content_blocks = updates.content_blocks
       // Regenerate email HTML from blocks
       const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
       const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
       if (sortedBlocks.length > 0) {
-        allowedFields.content = generateEmailHtml(sortedBlocks)
+        // Get maxWidth from metadata (check updates first, then existing DB metadata)
+        const maxWidth = updates.metadata?.maxWidth || newsletter.metadata?.maxWidth || 600
+        allowedFields.content = generateEmailHtml(sortedBlocks, maxWidth)
       }
     }
 
@@ -478,13 +478,21 @@ export async function sendTestNewsletter(
     if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
       return { success: false, error: 'Access denied' }
     }
-    if (!newsletter.content?.trim()) {
-      return { success: false, error: 'Newsletter has no content' }
+
+    // Generate HTML from content_blocks (always fresh)
+    const contentBlocks = newsletter.content_blocks || {}
+    const blockEntries = Object.values(contentBlocks).filter((b: any) => b.id && b.type)
+    const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+
+    const maxWidth = newsletter.metadata?.maxWidth || 600
+    const html = sortedBlocks.length > 0 ? generateEmailHtml(sortedBlocks, maxWidth) : newsletter.content
+    if (!html?.trim()) {
+      return { success: false, error: 'Newsletter has no content. Add some blocks and save first.' }
     }
 
     const config = await getResendConfig(newsletter.site_id)
     if (!config?.apiKey || !config?.fromEmail) {
-      return { success: false, error: 'Resend not configured' }
+      return { success: false, error: 'Resend not configured. Add your Resend API key in site integrations.' }
     }
 
     const resend = new Resend(config.apiKey)
@@ -494,7 +502,7 @@ export async function sendTestNewsletter(
       from,
       to: testEmail,
       subject: `[TEST] ${newsletter.subject || newsletter.name}`,
-      html: newsletter.content,
+      html,
     })
 
     if (result.error) {

@@ -10,7 +10,6 @@ interface NewsletterCanvasProps {
   onSelectBlock: (block: NewsletterBlock) => void
   selectedBlock: NewsletterBlock | null
   subject?: string
-  subHeader?: string
   onOpenSettings?: () => void
 }
 
@@ -37,26 +36,23 @@ function CanvasRichTextBlock({ block }: { block: NewsletterBlock }) {
 }
 
 function CanvasHeaderBlock({ block }: { block: NewsletterBlock }) {
-  const { logoUrl, siteName, showSiteName, alignment = 'center', backgroundColor = '#ffffff', padding = 20 } = block.content
+  const { logoUrl, alignment = 'center', backgroundColor = '#ffffff', paddingTop, paddingBottom, padding = 20 } = block.content
+  const pTop = paddingTop ?? padding
+  const pBottom = paddingBottom ?? padding
   const align = alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'center'
 
   return (
-    <div style={{ backgroundColor, padding: `${padding}px`, textAlign: align as any }}>
+    <div style={{ backgroundColor, padding: `${pTop}px 20px ${pBottom}px 20px`, textAlign: align as any }}>
       {logoUrl ? (
         <img
           src={logoUrl}
-          alt={siteName || 'Logo'}
-          style={{ maxWidth: 200, height: 'auto', display: 'inline-block' }}
+          alt="Logo"
+          style={{ width: block.content.logoWidth ? `${block.content.logoWidth}px` : 100, height: block.content.logoHeight ? `${block.content.logoHeight}px` : 'auto', display: 'inline-block' }}
         />
       ) : (
         <div className="inline-flex items-center justify-center w-16 h-16 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/30">
           <ImageIcon className="w-6 h-6 text-muted-foreground" />
         </div>
-      )}
-      {showSiteName !== false && siteName && (
-        <h1 style={{ margin: logoUrl ? '12px 0 0 0' : '0', fontSize: 24, fontWeight: 'bold', color: '#333' }}>
-          {siteName}
-        </h1>
       )}
     </div>
   )
@@ -94,7 +90,6 @@ export function NewsletterCanvas({
   onSelectBlock,
   selectedBlock,
   subject,
-  subHeader,
   onOpenSettings,
 }: NewsletterCanvasProps) {
   return (
@@ -118,19 +113,14 @@ export function NewsletterCanvas({
         className="mx-auto bg-white shadow-sm rounded-sm transition-all duration-300"
         style={{ maxWidth: previewWidth }}
       >
-        {/* Email subject & sub header */}
-        {(subject || subHeader) && (
+        {/* Email subject */}
+        {subject && (
           <div
             className="cursor-pointer canvas-block"
             style={{ padding: 20, borderBottom: '1px solid #e5e7eb' }}
             onClick={onOpenSettings}
           >
-            {subject && (
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>
-            )}
-            {subHeader && (
-              <p style={{ margin: subject ? '4px 0 0 0' : 0, fontSize: 12, color: '#999' }} className="truncate">{subHeader}</p>
-            )}
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>
           </div>
         )}
 
