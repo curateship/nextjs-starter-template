@@ -38,10 +38,7 @@ export function NewsletterRichTextBlock({ content, onContentChange, onBack }: Ne
       {/* Content Tab */}
       <TabsContent value="content" className="mt-6">
         <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Rich Text Content</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-0">
             <RichTextEditor
               content={{ content: content.htmlContent || '', hideHeader: true, hideEditorHeader: true }}
               onContentChange={(c) => onContentChange('htmlContent', c.content)}

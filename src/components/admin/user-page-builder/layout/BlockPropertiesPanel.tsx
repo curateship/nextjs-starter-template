@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { UserPageNavigationBlock } from "../blocks/UserPageNavigationBlock"
 import { UserPageFooterBlock } from "../blocks/UserPageFooterBlock"
 import { UserProfileEditorBlock } from "../blocks/UserProfileEditorBlock"
@@ -47,8 +48,7 @@ export function BlockPropertiesPanel({
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
-        <div>
-          <div className="space-y-4">
+        <AdminLayout>
             {selectedBlock.type === 'navigation' && (
               <UserPageNavigationBlock
                 {...selectedBlock.content}
@@ -75,8 +75,7 @@ export function BlockPropertiesPanel({
                 ]) as any)}
               />
             )}
-          </div>
-        </div>
+        </AdminLayout>
       ) : (
         <div className="h-full">
           {currentPage ? (

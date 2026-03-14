@@ -221,6 +221,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           onSelectBlock={builder.setSelectedBlock}
           onDeleteBlock={builder.handleDeleteBlock}
           onReorderBlocks={builder.handleReorderBlocks}
+          onPreview={() => builder.setSelectedBlock(null)}
         />
       </div>
 

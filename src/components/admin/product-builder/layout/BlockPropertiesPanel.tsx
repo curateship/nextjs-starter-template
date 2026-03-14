@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { ProductContentBlock } from "@/components/admin/product-builder/blocks/content/ProductContentBlock"
 import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
@@ -73,8 +74,7 @@ export function BlockPropertiesPanel({
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
-        <div>
-          <div className="">
+        <AdminLayout>
             {(selectedBlock.type === 'product-content' || selectedBlock.type === 'product-default') && (
               <ProductContentBlock
                 content={selectedBlock.content}
@@ -299,8 +299,7 @@ export function BlockPropertiesPanel({
                 onBack={onBack}
               />
             )}
-          </div>
-        </div>
+        </AdminLayout>
       ) : (
         <div className="h-full">
           <ProductPreview 

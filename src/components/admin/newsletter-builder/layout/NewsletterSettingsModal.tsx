@@ -188,7 +188,7 @@ export function NewsletterSettingsModal({
             </div>
 
             {/* Audience */}
-            <div className="border-t pt-6">
+            <div>
               <h3 className="font-medium mb-4">Audience</h3>
               <div>
                 <Label htmlFor="filter-tags">Filter by Tags (optional)</Label>
@@ -215,7 +215,7 @@ export function NewsletterSettingsModal({
 
             {/* Test Email */}
             {!isSent && (
-              <div className="border-t pt-6">
+              <div>
                 <h3 className="font-medium mb-4">Test Email</h3>
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
@@ -237,7 +237,7 @@ export function NewsletterSettingsModal({
             )}
 
             {/* Actions */}
-            <div className="flex justify-between pt-4 border-t">
+            <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Close
               </Button>

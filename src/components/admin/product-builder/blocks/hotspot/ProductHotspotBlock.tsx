@@ -148,7 +148,7 @@ export function ProductHotspotBlock({
 
 
   return (
-    <div>
+    <>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="px-6 pt-6 flex items-center gap-2">
           {onBack && (
@@ -168,7 +168,7 @@ export function ProductHotspotBlock({
         </div>
 
         {/* Content Tab */}
-        <TabsContent value="content">
+        <TabsContent value="content" className="mt-6">
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Header Content</CardTitle>
@@ -313,7 +313,7 @@ export function ProductHotspotBlock({
         </TabsContent>
 
         {/* Style Tab */}
-        <TabsContent value="style">
+        <TabsContent value="style" className="mt-6">
           <Card className="shadow-sm">
             <CardContent className="py-8 text-center text-muted-foreground">
               Style options coming soon.
@@ -322,7 +322,7 @@ export function ProductHotspotBlock({
         </TabsContent>
 
         {/* Settings Tab */}
-        <TabsContent value="settings">
+        <TabsContent value="settings" className="mt-6">
           {onVisibilityChange && (
             <VisibilitySettings
               visibility={visibility}
@@ -424,6 +424,6 @@ export function ProductHotspotBlock({
           />
         </div>
       )}
-    </div>
+    </>
   )
 }

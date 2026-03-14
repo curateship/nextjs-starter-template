@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
 import { DirectoryPreview } from "./DirectoryPreview"
 
@@ -58,8 +59,7 @@ export function BlockPropertiesPanel({
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
-        <div>
-          <div className="">
+        <AdminLayout>
             {selectedBlock.type === 'directory-content' && (
               <DirectoryContentBlock
                 content={selectedBlock.content}
@@ -73,8 +73,7 @@ export function BlockPropertiesPanel({
                 onDirectoryTitleChange={onTitleChange}
               />
             )}
-          </div>
-        </div>
+        </AdminLayout>
       ) : (
         <div className="h-full">
           <DirectoryPreview

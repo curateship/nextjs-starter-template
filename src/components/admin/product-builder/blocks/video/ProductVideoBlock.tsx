@@ -64,7 +64,7 @@ export function ProductVideoBlock({
   const [activeTab, setActiveTab] = useState('content')
 
   return (
-    <div>
+    <>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="px-6 pt-6 flex items-center gap-2">
           {onBack && (
@@ -84,7 +84,7 @@ export function ProductVideoBlock({
         </div>
 
         {/* Content Tab */}
-        <TabsContent value="content">
+        <TabsContent value="content" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Header Settings</CardTitle>
@@ -209,7 +209,7 @@ export function ProductVideoBlock({
         </TabsContent>
 
         {/* Style Tab */}
-        <TabsContent value="style">
+        <TabsContent value="style" className="mt-6">
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               Style options coming soon.
@@ -218,7 +218,7 @@ export function ProductVideoBlock({
         </TabsContent>
 
         {/* Settings Tab */}
-        <TabsContent value="settings">
+        <TabsContent value="settings" className="mt-6">
           {onVisibilityChange && (
             <VisibilitySettings
               visibility={visibility}
@@ -289,6 +289,6 @@ export function ProductVideoBlock({
         currentMediaUrl={coverImage}
         showVideos={false}
       />
-    </div>
+    </>
   )
 }

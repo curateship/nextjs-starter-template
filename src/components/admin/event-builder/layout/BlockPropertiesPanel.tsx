@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { EventContentBlock } from "@/components/admin/event-builder/blocks/EventContentBlock"
 import { EventPreview } from "./EventPreview"
 
@@ -58,8 +59,7 @@ export function BlockPropertiesPanel({
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
-        <div>
-          <div className="">
+        <AdminLayout>
             {selectedBlock.type === 'event-content' && (
               <EventContentBlock
                 content={selectedBlock.content}
@@ -73,8 +73,7 @@ export function BlockPropertiesPanel({
                 onEventTitleChange={onTitleChange}
               />
             )}
-          </div>
-        </div>
+        </AdminLayout>
       ) : (
         <div className="h-full">
           <EventPreview

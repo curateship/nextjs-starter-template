@@ -151,7 +151,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
       </div>
 
       {/* Content Tab */}
-      <TabsContent value="content">
+      <TabsContent value="content" className="mt-6">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Section Header</CardTitle>
@@ -420,7 +420,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
       </TabsContent>
 
       {/* Style Tab */}
-      <TabsContent value="style">
+      <TabsContent value="style" className="mt-6">
         <Card className="shadow-sm">
           <CardContent className="py-8 text-center text-muted-foreground">
             Style options coming soon.
@@ -429,7 +429,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
       </TabsContent>
 
       {/* Settings Tab */}
-      <TabsContent value="settings">
+      <TabsContent value="settings" className="mt-6">
           {onVisibilityChange && (
             <VisibilitySettings
               visibility={visibility}

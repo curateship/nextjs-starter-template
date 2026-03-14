@@ -1,11 +1,7 @@
 "use client"
 
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import TextAlign from '@tiptap/extension-text-align'
 import { ImageIcon, Footprints } from "lucide-react"
-import { useEffect } from "react"
+import DOMPurify from "dompurify"
 import type { NewsletterBlock } from "../config/useNewsletterBuilder"
 
 interface NewsletterCanvasProps {
@@ -13,45 +9,25 @@ interface NewsletterCanvasProps {
   previewWidth: number
   onSelectBlock: (block: NewsletterBlock) => void
   selectedBlock: NewsletterBlock | null
-  onUpdateBlockContent: (blockId: string, field: string, value: any) => void
 }
 
-function CanvasRichTextBlock({ block, onUpdateContent }: { block: NewsletterBlock; onUpdateContent: (field: string, value: any) => void }) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-blue-600 underline' } }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    ],
-    content: block.content.htmlContent || '',
-    immediatelyRender: false,
-    onUpdate: ({ editor }) => {
-      onUpdateContent('htmlContent', editor.getHTML())
-    },
-  })
-
-  useEffect(() => {
-    if (editor && block.content.htmlContent !== editor.getHTML()) {
-      editor.commands.setContent(block.content.htmlContent || '')
-    }
-  }, [block.id])
-
-  if (!editor) return <div className="p-4 text-muted-foreground">Loading editor...</div>
-
+function CanvasRichTextBlock({ block }: { block: NewsletterBlock }) {
   return (
     <div
-      className="cursor-text"
       style={{
         backgroundColor: block.content.backgroundColor || '#ffffff',
         padding: `${block.content.padding || 20}px`,
       }}
-      onClick={() => {
-        if (!editor.isFocused) editor.commands.focus()
-      }}
     >
-      <EditorContent
-        editor={editor}
-        className="prose prose-sm max-w-none [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-0 min-h-[40px]"
+      <div
+        className="prose prose-sm max-w-none"
+        dangerouslySetInnerHTML={{
+          __html: DOMPurify.sanitize(block.content.htmlContent || '<p class="text-muted-foreground">Add your content here...</p>', {
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
+            ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
+            ALLOW_DATA_ATTR: false
+          })
+        }}
       />
     </div>
   )
@@ -70,9 +46,7 @@ function CanvasHeaderBlock({ block }: { block: NewsletterBlock }) {
           style={{ maxWidth: 200, height: 'auto', display: 'inline-block' }}
         />
       ) : (
-        <div
-          className="inline-flex items-center justify-center w-16 h-16 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/30"
-        >
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/30">
           <ImageIcon className="w-6 h-6 text-muted-foreground" />
         </div>
       )}
@@ -116,10 +90,24 @@ export function NewsletterCanvas({
   previewWidth,
   onSelectBlock,
   selectedBlock,
-  onUpdateBlockContent,
 }: NewsletterCanvasProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-muted/30 p-8">
+      <style>{`
+        .canvas-block { position: relative; }
+        .canvas-block::after {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          border: 2px dashed transparent;
+          pointer-events: none;
+          z-index: 9999;
+          transition: border-color 0.15s;
+        }
+        .canvas-block:hover::after {
+          border-color: #3b82f6;
+        }
+      `}</style>
       <div
         className="mx-auto bg-white shadow-sm rounded-sm transition-all duration-300"
         style={{ maxWidth: previewWidth }}
@@ -134,21 +122,11 @@ export function NewsletterCanvas({
           blocks.map(block => (
             <div
               key={block.id}
-              className={`relative cursor-pointer border-2 transition-colors ${
-                selectedBlock?.id === block.id
-                  ? 'border-primary'
-                  : 'border-transparent hover:border-primary/30'
-              }`}
-              onClick={(e) => {
-                // Don't select if clicking inside an editor
-                if ((e.target as HTMLElement).closest('.ProseMirror')) return
-                onSelectBlock(block)
-              }}
+              className="relative cursor-pointer canvas-block"
+              onClick={() => onSelectBlock(block)}
             >
               {block.type === 'newsletter-header' && <CanvasHeaderBlock block={block} />}
-              {block.type === 'newsletter-rich-text' && (
-                <CanvasRichTextBlock block={block} onUpdateContent={(field, value) => onUpdateBlockContent(block.id, field, value)} />
-              )}
+              {block.type === 'newsletter-rich-text' && <CanvasRichTextBlock block={block} />}
               {block.type === 'newsletter-divider' && <CanvasDividerBlock block={block} />}
               {block.type === 'newsletter-footer' && <CanvasFooterBlock block={block} />}
             </div>

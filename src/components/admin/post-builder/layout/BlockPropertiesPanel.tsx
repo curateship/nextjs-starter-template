@@ -1,3 +1,4 @@
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import { PostPreview } from "./PostPreview"
@@ -58,8 +59,7 @@ export function BlockPropertiesPanel({
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
       {selectedBlock ? (
-        <div>
-          <div className="">
+        <AdminLayout>
             {selectedBlock.type === 'post-content' && (
               <PostContentBlock
                 content={selectedBlock.content || {}}
@@ -119,8 +119,7 @@ export function BlockPropertiesPanel({
                 onShowExcerptChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showExcerpt: v } })}
               />
             )}
-          </div>
-        </div>
+        </AdminLayout>
       ) : (
         <div className="h-full">
           <PostPreview 

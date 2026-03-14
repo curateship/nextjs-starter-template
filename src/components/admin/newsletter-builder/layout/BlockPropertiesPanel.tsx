@@ -74,7 +74,6 @@ export function BlockPropertiesPanel({
             previewWidth={previewWidth}
             onSelectBlock={onSelectBlock}
             selectedBlock={selectedBlock}
-            onUpdateBlockContent={updateBlockContent}
           />
         </div>
       )}
