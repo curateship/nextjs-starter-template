@@ -20,12 +20,13 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // Get active enrollments
+    // Get active enrollments — batch of 50 to avoid timeouts
     const { data: enrollments, error: enrollError } = await supabaseAdmin
       .from('email_automation_enrollments')
       .select('*, email_automations!inner(site_id, status)')
       .eq('status', 'active')
       .eq('email_automations.status', 'active')
+      .limit(50)
 
     if (enrollError) {
       console.error('Cron automations error:', enrollError.message)

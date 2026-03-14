@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { createClient } from '@supabase/supabase-js'
+import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,15 +73,71 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
 
+        const customerEmail = session.customer_details?.email
+        const sessionSiteId = session.metadata?.siteId
+        const sessionProductId = session.metadata?.productId
+
         console.log('Payment successful:', {
           sessionId: session.id,
-          customerEmail: session.customer_details?.email,
+          customerEmail,
           amount: session.amount_total,
           productSlug: session.metadata?.productSlug,
-          siteId: session.metadata?.siteId,
+          siteId: sessionSiteId,
         })
 
-        // TODO: Paid product email delivery integration
+        // Add to newsletter contacts + enroll in automations
+        if (customerEmail && sessionSiteId) {
+          try {
+            const { data: contact } = await supabaseAdmin
+              .from('newsletter_contacts')
+              .upsert({
+                site_id: sessionSiteId,
+                email: customerEmail.toLowerCase(),
+                metadata: {
+                  source: 'paid_purchase',
+                  source_product_id: sessionProductId || null,
+                },
+              }, { onConflict: 'site_id,email' })
+              .select('id')
+              .single()
+
+            if (contact) {
+              // Enroll in purchase-triggered automations
+              const automations = await findActiveAutomations(sessionSiteId, 'paid_purchase', sessionProductId)
+              for (const automation of automations) {
+                await enrollContact(automation.id, contact.id)
+              }
+
+              // Check if this purchase fulfills any automation goals
+              const { data: enrollments } = await supabaseAdmin
+                .from('email_automation_enrollments')
+                .select('id, automation_id')
+                .eq('contact_id', contact.id)
+                .eq('status', 'active')
+
+              for (const enrollment of enrollments || []) {
+                const { data: automation } = await supabaseAdmin
+                  .from('email_automations')
+                  .select('goal_type, goal_config')
+                  .eq('id', enrollment.automation_id)
+                  .single()
+
+                if (automation?.goal_type === 'purchase') {
+                  const goalProductId = automation.goal_config?.product_id
+                  if (!goalProductId || goalProductId === sessionProductId) {
+                    await supabaseAdmin
+                      .from('email_automation_enrollments')
+                      .update({ status: 'goal_met', goal_met_at: new Date().toISOString() })
+                      .eq('id', enrollment.id)
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Newsletter contact/enrollment error:', err)
+          }
+        }
+
         break
       }
 

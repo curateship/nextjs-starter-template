@@ -5,6 +5,7 @@ import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actio
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
 import { getFlodeskConfig, getResendConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
+import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 
 // Server-side only: bypasses RLS since visitors aren't authenticated.
 // Safe because this route only reads specific products/sites by ID.
@@ -95,6 +96,29 @@ export async function POST(request: NextRequest) {
         referrer: request.headers.get('referer'),
       },
     })
+
+    // Add to newsletter contacts + enroll in automations
+    try {
+      const { data: contact } = await supabaseAdmin
+        .from('newsletter_contacts')
+        .upsert({
+          site_id: siteId,
+          email: email.toLowerCase(),
+          metadata: { source: 'lead_magnet', source_product_id: productId },
+        }, { onConflict: 'site_id,email' })
+        .select('id')
+        .single()
+
+      if (contact) {
+        const automations = await findActiveAutomations(siteId, 'lead_magnet_signup', productId)
+        for (const automation of automations) {
+          await enrollContact(automation.id, contact.id)
+        }
+      }
+    } catch (err) {
+      console.error('Newsletter contact/enrollment error:', err)
+      // Don't fail the signup
+    }
 
     // Get email settings from lead magnet block
     const emailSettings = leadMagnetBlock.emailSettings || {}

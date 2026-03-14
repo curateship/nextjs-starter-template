@@ -10,9 +10,14 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
+const BATCH_SIZE = 50
+
 /**
  * GET /api/cron/newsletters
- * Process scheduled newsletters that are due.
+ * Process scheduled/sending newsletters in batches of 50.
+ * - 'scheduled' newsletters with scheduled_at <= now get moved to 'sending'
+ * - 'sending' newsletters get the next batch of unsent contacts processed
+ * - When all contacts are sent, status moves to 'sent'
  * Protected by CRON_SECRET.
  */
 export async function GET(request: NextRequest) {
@@ -24,13 +29,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Find scheduled newsletters that are due
     const now = new Date().toISOString()
+
+    // Move scheduled newsletters to sending
+    await supabaseAdmin
+      .from('newsletters')
+      .update({ status: 'sending' })
+      .eq('status', 'scheduled')
+      .lte('scheduled_at', now)
+
+    // Get newsletters that are currently sending
     const { data: newsletters, error } = await supabaseAdmin
       .from('newsletters')
       .select('*')
-      .eq('status', 'scheduled')
-      .lte('scheduled_at', now)
+      .eq('status', 'sending')
 
     if (error) {
       console.error('Cron newsletters query error:', error.message)
@@ -38,31 +50,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (!newsletters?.length) {
-      return NextResponse.json({ message: 'No newsletters due', processed: 0 })
+      return NextResponse.json({ message: 'No newsletters to process', processed: 0 })
     }
 
-    let processed = 0
+    let totalProcessed = 0
 
     for (const newsletter of newsletters) {
       try {
         const config = await getResendConfig(newsletter.site_id)
-        if (!config?.apiKey || !config?.fromEmail) {
-          console.error(`Resend not configured for site ${newsletter.site_id}`)
-          continue
-        }
+        if (!config?.apiKey || !config?.fromEmail) continue
+        if (!newsletter.content?.trim()) continue
 
-        if (!newsletter.content?.trim()) {
-          console.error(`Broadcast ${newsletter.id} has no content`)
-          continue
-        }
+        // Get contacts that haven't been sent to yet (no 'sent' event for this newsletter)
+        const { data: sentEvents } = await supabaseAdmin
+          .from('newsletter_events')
+          .select('contact_id')
+          .eq('source_id', newsletter.id)
+          .eq('event_type', 'sent')
 
-        // Mark as sending
-        await supabaseAdmin
-          .from('newsletters')
-          .update({ status: 'sending' })
-          .eq('id', newsletter.id)
+        const sentContactIds = new Set((sentEvents || []).map(e => e.contact_id))
 
-        // Get matching contacts
+        // Get matching active contacts
         let query = supabaseAdmin
           .from('newsletter_contacts')
           .select('id, email, metadata')
@@ -79,25 +87,45 @@ export async function GET(request: NextRequest) {
           query = query.in('metadata->>source', filter.sources)
         }
 
-        const { data: contacts } = await query
+        const { data: allContacts } = await query
 
-        if (!contacts?.length) {
+        if (!allContacts?.length) {
+          // No contacts at all — mark as sent
           await supabaseAdmin
             .from('newsletters')
             .update({ status: 'sent', sent_at: now, total_recipients: 0, total_sent: 0 })
             .eq('id', newsletter.id)
-          processed++
+          totalProcessed++
           continue
         }
 
+        // Filter out already-sent contacts
+        const unsent = allContacts.filter(c => !sentContactIds.has(c.id))
+
+        if (unsent.length === 0) {
+          // All contacts sent — mark as complete
+          await supabaseAdmin
+            .from('newsletters')
+            .update({
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+              total_recipients: allContacts.length,
+              total_sent: sentContactIds.size,
+            })
+            .eq('id', newsletter.id)
+          totalProcessed++
+          continue
+        }
+
+        // Process this batch
+        const batch = unsent.slice(0, BATCH_SIZE)
         const resend = new Resend(config.apiKey)
         const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
         const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
-        let totalSent = 0
-        const errors: string[] = []
+        let batchSent = 0
 
-        for (const contact of contacts) {
+        for (const contact of batch) {
           try {
             const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
             const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
@@ -119,7 +147,7 @@ export async function GET(request: NextRequest) {
             })
 
             if (result.data?.id) {
-              totalSent++
+              batchSent++
               await supabaseAdmin.from('newsletter_events').insert({
                 site_id: newsletter.site_id,
                 contact_id: contact.id,
@@ -130,28 +158,30 @@ export async function GET(request: NextRequest) {
               })
             }
           } catch (err) {
-            errors.push(contact.email)
+            console.error(`Failed to send to ${contact.email}:`, err)
           }
         }
+
+        // Update progress
+        const newTotalSent = sentContactIds.size + batchSent
+        const allDone = unsent.length <= BATCH_SIZE
 
         await supabaseAdmin
           .from('newsletters')
           .update({
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-            total_recipients: contacts.length,
-            total_sent: totalSent,
-            metadata: { ...newsletter.metadata, send_errors: errors },
+            ...(allDone ? { status: 'sent', sent_at: new Date().toISOString() } : {}),
+            total_recipients: allContacts.length,
+            total_sent: newTotalSent,
           })
           .eq('id', newsletter.id)
 
-        processed++
+        totalProcessed += batchSent
       } catch (err) {
         console.error(`Failed to process newsletter ${newsletter.id}:`, err)
       }
     }
 
-    return NextResponse.json({ message: `Processed ${processed} newsletters`, processed })
+    return NextResponse.json({ message: `Sent ${totalProcessed} emails`, processed: totalProcessed })
   } catch (err) {
     console.error('Cron newsletters error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
