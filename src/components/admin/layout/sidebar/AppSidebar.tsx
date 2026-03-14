@@ -118,6 +118,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: "/admin/newsletters",
       icon: Mail,
       isActive: false,
+      items: [
+        { title: "Contacts", url: "/admin/newsletters/contacts" },
+      ],
     },
     {
       title: "Events",

@@ -5,15 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { createBroadcast } from "@/lib/actions/newsletters/broadcast-actions"
+import type { Broadcast } from "@/lib/actions/newsletters/broadcast-actions"
+import { useSiteContext } from "@/contexts/site-context"
 
-export interface Newsletter {
-  id: string
-  title: string
-  subtitle: string
-  is_published: boolean
-  created_at: string
-  updated_at: string
-}
+export type Newsletter = Broadcast
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -21,37 +17,48 @@ interface CreateNewsletterModalProps {
 }
 
 export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterModalProps) {
+  const { currentSite } = useSiteContext()
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const createNewsletter = (isPublished: boolean) => {
+  const handleCreate = async (status: 'draft' | 'scheduled') => {
     if (!title.trim()) {
       setError('Newsletter title is required')
+      return
+    }
+
+    if (!currentSite?.id) {
+      setError('No site selected')
       return
     }
 
     setLoading(true)
     setError(null)
 
-    const now = new Date().toISOString()
-    const newsletter: Newsletter = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      subtitle: subtitle.trim(),
-      is_published: isPublished,
-      created_at: now,
-      updated_at: now,
+    const { data, error: createError } = await createBroadcast({
+      siteId: currentSite.id,
+      name: title.trim(),
+      subject: subtitle.trim() || title.trim(),
+      status,
+    })
+
+    if (createError) {
+      setError(createError)
+      setLoading(false)
+      return
     }
 
-    onSuccess(newsletter)
+    if (data) {
+      onSuccess(data)
+    }
     setLoading(false)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    createNewsletter(false)
+    handleCreate('draft')
   }
 
   return (
@@ -74,12 +81,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       </div>
 
       <div>
-        <Label htmlFor="newsletter-subtitle">Newsletter Subtitle</Label>
+        <Label htmlFor="newsletter-subtitle">Subject Line</Label>
         <Textarea
           id="newsletter-subtitle"
           value={subtitle}
           onChange={(e) => setSubtitle(e.target.value)}
-          placeholder="A brief description of this newsletter"
+          placeholder="Email subject line (defaults to title if empty)"
           className="resize-none min-h-[40px] overflow-hidden"
           style={{ height: 'auto' }}
           onInput={(e) => {
@@ -89,7 +96,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           }}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Optional subtitle shown below the newsletter title
+          The subject line recipients will see in their inbox
         </p>
       </div>
 
@@ -107,7 +114,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           </Button>
           <Button
             type="button"
-            onClick={() => createNewsletter(true)}
+            onClick={() => handleCreate('scheduled')}
             disabled={loading}
           >
             {loading ? 'Publishing...' : 'Publish'}
