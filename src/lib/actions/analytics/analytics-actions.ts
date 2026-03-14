@@ -45,166 +45,89 @@ function getDateRange(period: string): DateRange {
 export async function getAnalyticsOverview(siteId: string, period: string) {
   const { from, to } = getDateRange(period)
 
-  // Total pageviews
-  const { count: pageViews } = await supabaseAdmin
-    .from('analytics_events')
-    .select('*', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-    .eq('event_type', 'pageview')
-    .gte('created_at', from)
-    .lte('created_at', to)
+  const { data, error } = await supabaseAdmin.rpc('get_analytics_overview', {
+    p_site_id: siteId,
+    p_from: from,
+    p_to: to,
+  })
 
-  // Unique visitors (distinct visitor_hash)
-  const { data: visitorData } = await supabaseAdmin
-    .from('analytics_events')
-    .select('visitor_hash')
-    .eq('site_id', siteId)
-    .eq('event_type', 'pageview')
-    .gte('created_at', from)
-    .lte('created_at', to)
-
-  const uniqueVisitors = new Set(visitorData?.map(v => v.visitor_hash)).size
-
-  // Sessions data
-  const { data: sessions } = await supabaseAdmin
-    .from('analytics_sessions')
-    .select('is_bounce, duration_seconds')
-    .eq('site_id', siteId)
-    .gte('started_at', from)
-    .lte('started_at', to)
-
-  const totalSessions = sessions?.length || 0
-  const bounces = sessions?.filter(s => s.is_bounce).length || 0
-  const bounceRate = totalSessions > 0 ? Math.round((bounces / totalSessions) * 100) : 0
-  const avgDuration = totalSessions > 0
-    ? Math.round((sessions?.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) || 0) / totalSessions)
-    : 0
-
-  return {
-    pageViews: pageViews || 0,
-    uniqueVisitors,
-    bounceRate,
-    avgDuration,
+  if (error) {
+    console.error('Failed to get analytics overview:', error)
+    return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
   }
+
+  return data as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
 }
 
 export async function getTopPages(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data } = await supabaseAdmin
-    .from('analytics_events')
-    .select('page_path')
-    .eq('site_id', siteId)
-    .eq('event_type', 'pageview')
-    .gte('created_at', from)
-    .lte('created_at', to)
+  const { data, error } = await supabaseAdmin.rpc('get_top_pages', {
+    p_site_id: siteId,
+    p_from: from,
+    p_to: to,
+    p_limit: limit,
+  })
 
-  if (!data?.length) return []
-
-  // Count occurrences
-  const counts = new Map<string, number>()
-  for (const row of data) {
-    if (row.page_path) {
-      counts.set(row.page_path, (counts.get(row.page_path) || 0) + 1)
-    }
+  if (error) {
+    console.error('Failed to get top pages:', error)
+    return []
   }
 
-  return Array.from(counts.entries())
-    .map(([path, views]) => ({ path, views }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, limit)
+  return (data as { path: string; views: number }[]) || []
 }
 
 export async function getTopReferrers(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data } = await supabaseAdmin
-    .from('analytics_events')
-    .select('referrer_domain')
-    .eq('site_id', siteId)
-    .eq('event_type', 'pageview')
-    .gte('created_at', from)
-    .lte('created_at', to)
-    .not('referrer_domain', 'is', null)
+  const { data, error } = await supabaseAdmin.rpc('get_top_referrers', {
+    p_site_id: siteId,
+    p_from: from,
+    p_to: to,
+    p_limit: limit,
+  })
 
-  if (!data?.length) return []
-
-  const counts = new Map<string, number>()
-  for (const row of data) {
-    if (row.referrer_domain) {
-      counts.set(row.referrer_domain, (counts.get(row.referrer_domain) || 0) + 1)
-    }
+  if (error) {
+    console.error('Failed to get top referrers:', error)
+    return []
   }
 
-  return Array.from(counts.entries())
-    .map(([domain, visits]) => ({ domain, visits }))
-    .sort((a, b) => b.visits - a.visits)
-    .slice(0, limit)
+  return (data as { domain: string; visits: number }[]) || []
 }
 
 export async function getTrafficOverTime(siteId: string, period: string) {
   const { from, to } = getDateRange(period)
-
-  const { data } = await supabaseAdmin
-    .from('analytics_events')
-    .select('created_at, visitor_hash')
-    .eq('site_id', siteId)
-    .eq('event_type', 'pageview')
-    .gte('created_at', from)
-    .lte('created_at', to)
-    .order('created_at', { ascending: true })
-
-  if (!data?.length) return []
-
-  // Group by day (or hour for today/yesterday)
   const useHourly = period === 'today' || period === 'yesterday'
-  const buckets = new Map<string, { views: number; visitors: Set<string> }>()
 
-  for (const row of data) {
-    const date = new Date(row.created_at)
-    const key = useHourly
-      ? `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${date.getHours()}:00`
-      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const { data, error } = await supabaseAdmin.rpc('get_traffic_over_time', {
+    p_site_id: siteId,
+    p_from: from,
+    p_to: to,
+    p_hourly: useHourly,
+  })
 
-    if (!buckets.has(key)) {
-      buckets.set(key, { views: 0, visitors: new Set() })
-    }
-    const bucket = buckets.get(key)!
-    bucket.views++
-    if (row.visitor_hash) bucket.visitors.add(row.visitor_hash)
+  if (error) {
+    console.error('Failed to get traffic over time:', error)
+    return []
   }
 
-  return Array.from(buckets.entries()).map(([date, data]) => ({
-    date,
-    views: data.views,
-    visitors: data.visitors.size,
-  }))
+  return (data as { date: string; views: number; visitors: number }[]) || []
 }
 
 export async function getUserJourneys(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data } = await supabaseAdmin
-    .from('analytics_sessions')
-    .select('entry_page, exit_page, page_count')
-    .eq('site_id', siteId)
-    .gte('started_at', from)
-    .lte('started_at', to)
-    .gt('page_count', 1)
-    .order('page_count', { ascending: false })
-    .limit(50)
+  const { data, error } = await supabaseAdmin.rpc('get_user_journeys', {
+    p_site_id: siteId,
+    p_from: from,
+    p_to: to,
+    p_limit: limit,
+  })
 
-  if (!data?.length) return []
-
-  // Group by entry → exit pattern
-  const patterns = new Map<string, number>()
-  for (const session of data) {
-    const key = `${session.entry_page || '/'} → ${session.exit_page || '/'}`
-    patterns.set(key, (patterns.get(key) || 0) + 1)
+  if (error) {
+    console.error('Failed to get user journeys:', error)
+    return []
   }
 
-  return Array.from(patterns.entries())
-    .map(([path, count]) => ({ path, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit)
+  return (data as { path: string; count: number }[]) || []
 }
