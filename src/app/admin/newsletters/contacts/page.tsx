@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/product-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -427,6 +427,12 @@ export default function ContactsPage() {
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { label: "Contacts", isPage: true },
+        ]}
+        navLinks={[
+          { label: "Newsletters", href: "/admin/newsletters" },
+          { label: "Contacts", href: "/admin/newsletters/contacts", active: true },
+          { label: "Automations", href: "/admin/newsletters/automations" },
+          { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}
       />
       <AdminLayout>

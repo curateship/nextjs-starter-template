@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -169,6 +169,12 @@ export default function NewslettersPage() {
           { href: "/admin", label: "Dashboard" },
           { label: "Newsletters", isPage: true },
         ]}
+        navLinks={[
+          { label: "Newsletters", href: "/admin/newsletters", active: true },
+          { label: "Contacts", href: "/admin/newsletters/contacts" },
+          { label: "Automations", href: "/admin/newsletters/automations" },
+          { label: "Email Health", href: "/admin/newsletters/email-health" },
+        ]}
       />
       <AdminLayout>
         <div className="w-full">
@@ -214,7 +220,7 @@ export default function NewslettersPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-8 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-3 flex items-center space-x-4">
                   <Checkbox
                     checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
@@ -224,6 +230,8 @@ export default function NewslettersPage() {
                   <span>Newsletter</span>
                 </div>
                 <div>Status</div>
+                <div>Opens</div>
+                <div>Clicks</div>
                 <div>Modified</div>
                 <div>Actions</div>
               </div>
@@ -234,7 +242,7 @@ export default function NewslettersPage() {
                 <div className="space-y-0">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
+                      <div className="grid grid-cols-8 gap-4 items-center">
                         <div className="col-span-3 flex items-center space-x-4">
                           <div className="w-12 h-12 bg-muted rounded animate-pulse" />
                           <div>
@@ -243,6 +251,8 @@ export default function NewslettersPage() {
                           </div>
                         </div>
                         <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
                         <div><div className="h-8 w-8 bg-muted rounded animate-pulse" /></div>
                       </div>
@@ -264,7 +274,7 @@ export default function NewslettersPage() {
               ) : (
                 filteredNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-6 gap-4 items-center">
+                    <div className="grid grid-cols-8 gap-4 items-center">
                       <div className="col-span-3">
                         <div className="flex items-center space-x-4">
                           <Checkbox
@@ -287,6 +297,20 @@ export default function NewslettersPage() {
                         </div>
                       </div>
                       <div>{getStatusBadge(newsletter)}</div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {newsletter.total_sent > 0
+                            ? `${Math.round((newsletter.total_opened / newsletter.total_sent) * 100)}%`
+                            : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {newsletter.total_sent > 0
+                            ? `${Math.round((newsletter.total_clicked / newsletter.total_sent) * 100)}%`
+                            : "—"}
+                        </span>
+                      </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
                           {formatDate(newsletter.updated_at)}
