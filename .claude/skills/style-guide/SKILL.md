@@ -155,3 +155,35 @@ A builder page (products, newsletters, pages) follows this structure:
 ```
 
 The key difference: builder pages don't wrap the entire page in AdminLayout — they wrap just the block config content area in it, since the canvas/preview and block list have their own layouts.
+
+## Rule 6: Numeric inputs (padding, spacing, thickness, etc.)
+
+**Never** use controlled `<Input type="number">` with `parseInt(e.target.value) || 0` for numeric fields. This pattern prevents users from deleting the last digit because the empty string immediately snaps back to `0`.
+
+Instead, use an **uncontrolled `<input type="text">`** with `defaultValue` and `onBlur`:
+
+```tsx
+// Correct — user can freely type and clear the field
+<input
+  type="text"
+  defaultValue={(content.padding ?? 20).toString()}
+  onBlur={(e) => {
+    const val = e.target.value
+    const num = val === '' ? 0 : parseInt(val)
+    if (!isNaN(num)) {
+      onContentChange('padding', num)
+    }
+  }}
+  className="border p-2 rounded-md mt-1"
+  style={{ width: '100%' }}
+/>
+
+// Wrong — can't delete the last digit, value snaps to 0
+<Input
+  type="number"
+  value={content.padding ?? 20}
+  onChange={(e) => onContentChange('padding', parseInt(e.target.value) || 0)}
+/>
+```
+
+This is the **one exception** to Rule 1 (use shadcn components). Numeric fields for pixel values use a plain `<input>` because the uncontrolled `defaultValue` + `onBlur` pattern doesn't work well with shadcn's controlled `<Input>`. This applies to all pixel-value fields: padding, spacing, thickness, width, etc.

@@ -34,6 +34,7 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
@@ -130,18 +131,27 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
             </div>
             <div>
               <Label htmlFor="header-padding">Padding (px)</Label>
-              <Input
+              <input
                 id="header-padding"
-                type="number"
-                min={0}
-                max={100}
-                value={content.padding ?? 20}
-                onChange={(e) => onContentChange('padding', parseInt(e.target.value) || 0)}
-                className="mt-1"
+                type="text"
+                defaultValue={(content.padding ?? 20).toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 0 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onContentChange('padding', num)
+                  }
+                }}
+                className="border p-2 rounded-md mt-1"
+                style={{ width: '100%' }}
               />
             </div>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
       </TabsContent>
     </Tabs>
   )

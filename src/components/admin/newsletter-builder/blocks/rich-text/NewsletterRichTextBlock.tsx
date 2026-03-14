@@ -31,7 +31,8 @@ export function NewsletterRichTextBlock({ content, onContentChange, onBack }: Ne
         )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="style">Style</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
@@ -48,8 +49,8 @@ export function NewsletterRichTextBlock({ content, onContentChange, onBack }: Ne
         </Card>
       </TabsContent>
 
-      {/* Style Tab */}
-      <TabsContent value="style" className="mt-6">
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Background & Spacing</CardTitle>
@@ -74,18 +75,27 @@ export function NewsletterRichTextBlock({ content, onContentChange, onBack }: Ne
             </div>
             <div>
               <Label htmlFor="richtext-padding">Padding (px)</Label>
-              <Input
+              <input
                 id="richtext-padding"
-                type="number"
-                min={0}
-                max={100}
-                value={content.padding ?? 20}
-                onChange={(e) => onContentChange('padding', parseInt(e.target.value) || 0)}
-                className="mt-1"
+                type="text"
+                defaultValue={(content.padding ?? 20).toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 0 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onContentChange('padding', num)
+                  }
+                }}
+                className="border p-2 rounded-md mt-1"
+                style={{ width: '100%' }}
               />
             </div>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
       </TabsContent>
     </Tabs>
   )

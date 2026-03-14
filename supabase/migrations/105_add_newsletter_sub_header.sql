@@ -1,0 +1,1 @@
+ALTER TABLE newsletters ADD COLUMN sub_header VARCHAR(255) DEFAULT '';

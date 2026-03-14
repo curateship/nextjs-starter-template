@@ -17,6 +17,7 @@ export interface Newsletter {
   site_id: string
   name: string
   subject: string
+  sub_header: string
   content: string
   content_blocks: Record<string, any>
   from_name: string | null
@@ -173,6 +174,8 @@ export async function createNewsletter(input: {
   siteId: string
   name: string
   subject: string
+  sub_header?: string
+  audience_filter?: Record<string, any>
   content?: string
   status?: 'draft' | 'scheduled'
 }): Promise<{ data: Newsletter | null; error: string | null }> {
@@ -195,6 +198,8 @@ export async function createNewsletter(input: {
         site_id: input.siteId,
         name: input.name.trim(),
         subject: input.subject.trim(),
+        sub_header: input.sub_header?.trim() || '',
+        audience_filter: input.audience_filter || {},
         content: input.content || '',
         status: input.status || 'draft',
       })
@@ -215,7 +220,7 @@ export async function createNewsletter(input: {
 
 export async function updateNewsletter(
   newsletterId: string,
-  updates: { name?: string; subject?: string; content?: string; content_blocks?: Record<string, any>; status?: string; audience_filter?: Record<string, any> }
+  updates: { name?: string; subject?: string; sub_header?: string; content?: string; content_blocks?: Record<string, any>; status?: string; audience_filter?: Record<string, any> }
 ): Promise<{ data: Newsletter | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid ID' }
@@ -242,6 +247,7 @@ export async function updateNewsletter(
     const allowedFields: Record<string, any> = {}
     if (updates.name !== undefined) allowedFields.name = updates.name
     if (updates.subject !== undefined) allowedFields.subject = updates.subject
+    if (updates.sub_header !== undefined) allowedFields.sub_header = updates.sub_header
     if (updates.content !== undefined) allowedFields.content = updates.content
     if (updates.status !== undefined) allowedFields.status = updates.status
     if (updates.audience_filter !== undefined) allowedFields.audience_filter = updates.audience_filter

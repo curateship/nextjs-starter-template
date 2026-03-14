@@ -14,7 +14,7 @@ interface NewsletterDividerBlockProps {
 }
 
 export function NewsletterDividerBlock({ content, onContentChange, onBack }: NewsletterDividerBlockProps) {
-  const [activeTab, setActiveTab] = useState("style")
+  const [activeTab, setActiveTab] = useState("content")
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -29,12 +29,18 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
           </button>
         )}
         <TabsList className="gap-1">
-          <TabsTrigger value="style">Style</TabsTrigger>
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
 
-      {/* Style Tab */}
-      <TabsContent value="style" className="mt-6">
+      {/* Content Tab */}
+      <TabsContent value="content" className="mt-6">
+      </TabsContent>
+
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Divider Settings</CardTitle>
@@ -59,38 +65,53 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
             </div>
             <div>
               <Label htmlFor="divider-thickness">Thickness (px)</Label>
-              <Input
+              <input
                 id="divider-thickness"
-                type="number"
-                min={1}
-                max={5}
-                value={content.thickness ?? 1}
-                onChange={(e) => onContentChange('thickness', parseInt(e.target.value) || 1)}
-                className="mt-1"
+                type="text"
+                defaultValue={(content.thickness ?? 1).toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 1 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onContentChange('thickness', num)
+                  }
+                }}
+                className="border p-2 rounded-md mt-1"
+                style={{ width: '100%' }}
               />
             </div>
             <div>
               <Label htmlFor="divider-width">Width (%)</Label>
-              <Input
+              <input
                 id="divider-width"
-                type="number"
-                min={25}
-                max={100}
-                value={content.width ?? 100}
-                onChange={(e) => onContentChange('width', parseInt(e.target.value) || 100)}
-                className="mt-1"
+                type="text"
+                defaultValue={(content.width ?? 100).toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 100 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onContentChange('width', num)
+                  }
+                }}
+                className="border p-2 rounded-md mt-1"
+                style={{ width: '100%' }}
               />
             </div>
             <div>
               <Label htmlFor="divider-spacing">Vertical Spacing (px)</Label>
-              <Input
+              <input
                 id="divider-spacing"
-                type="number"
-                min={0}
-                max={100}
-                value={content.spacing ?? 20}
-                onChange={(e) => onContentChange('spacing', parseInt(e.target.value) || 0)}
-                className="mt-1"
+                type="text"
+                defaultValue={(content.spacing ?? 20).toString()}
+                onBlur={(e) => {
+                  const val = e.target.value
+                  const num = val === '' ? 0 : parseInt(val)
+                  if (!isNaN(num)) {
+                    onContentChange('spacing', num)
+                  }
+                }}
+                className="border p-2 rounded-md mt-1"
+                style={{ width: '100%' }}
               />
             </div>
           </CardContent>
@@ -111,6 +132,10 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
             </div>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      {/* Settings Tab */}
+      <TabsContent value="settings" className="mt-6">
       </TabsContent>
     </Tabs>
   )

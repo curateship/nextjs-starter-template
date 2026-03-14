@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
   Select,
@@ -41,8 +40,8 @@ export function NewsletterSettingsModal({
   siteId,
   onSuccess,
 }: NewsletterSettingsModalProps) {
-  const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
+  const [subHeader, setSubHeader] = useState('')
   const [filterTags, setFilterTags] = useState('')
   const [testEmail, setTestEmail] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
@@ -59,8 +58,8 @@ export function NewsletterSettingsModal({
 
   useEffect(() => {
     if (newsletter) {
-      setName(newsletter.name)
-      setSubject(newsletter.subject)
+      setSubject(newsletter.subject || newsletter.name)
+      setSubHeader(newsletter.sub_header || '')
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
       setError(null)
       setSuccessMsg(null)
@@ -126,16 +125,17 @@ export function NewsletterSettingsModal({
   }
 
   const handleSave = async () => {
-    if (!newsletter || !name.trim()) {
-      setError('Newsletter title is required')
+    if (!newsletter || !subject.trim()) {
+      setError('Subject line is required')
       return
     }
     setSaving(true)
     setError(null)
 
     const { data, error: updateError } = await updateNewsletter(newsletter.id, {
-      name: name.trim(),
-      subject: subject.trim() || name.trim(),
+      name: subject.trim(),
+      subject: subject.trim(),
+      sub_header: subHeader.trim(),
       audience_filter: buildAudienceFilter(),
     })
     setSaving(false)
@@ -225,32 +225,25 @@ export function NewsletterSettingsModal({
           )}
 
           <div className="space-y-6">
-            {/* Title & Subject */}
+            {/* Subject & Sub Header */}
             <div>
-              <Label htmlFor="settings-name">Newsletter Title *</Label>
+              <Label htmlFor="settings-subject">Subject Line *</Label>
               <Input
-                id="settings-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter newsletter title"
-                disabled={isSent}
-              />
-            </div>
-            <div>
-              <Label htmlFor="settings-subject">Subject Line</Label>
-              <Textarea
                 id="settings-subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Email subject line"
-                className="resize-none min-h-[40px] overflow-hidden"
                 disabled={isSent}
-                style={{ height: 'auto' }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = 'auto'
-                  target.style.height = target.scrollHeight + 'px'
-                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="settings-sub-header">Sub Header</Label>
+              <Input
+                id="settings-sub-header"
+                value={subHeader}
+                onChange={(e) => setSubHeader(e.target.value)}
+                placeholder="Preview text shown after subject line"
+                disabled={isSent}
               />
             </div>
 
@@ -360,7 +353,7 @@ export function NewsletterSettingsModal({
           <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-[60]">
             <h2 className="text-lg font-semibold mb-2">Send Newsletter</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              This will send &quot;{subject || name}&quot; to {audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.
+              This will send &quot;{subject}&quot; to {audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <Button onClick={() => setConfirmSendOpen(false)} variant="outline">Cancel</Button>

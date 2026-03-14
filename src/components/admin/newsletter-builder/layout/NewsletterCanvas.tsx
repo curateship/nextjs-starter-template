@@ -9,6 +9,9 @@ interface NewsletterCanvasProps {
   previewWidth: number
   onSelectBlock: (block: NewsletterBlock) => void
   selectedBlock: NewsletterBlock | null
+  subject?: string
+  subHeader?: string
+  onOpenSettings?: () => void
 }
 
 function CanvasRichTextBlock({ block }: { block: NewsletterBlock }) {
@@ -90,6 +93,9 @@ export function NewsletterCanvas({
   previewWidth,
   onSelectBlock,
   selectedBlock,
+  subject,
+  subHeader,
+  onOpenSettings,
 }: NewsletterCanvasProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-muted/30 p-8">
@@ -112,6 +118,22 @@ export function NewsletterCanvas({
         className="mx-auto bg-white shadow-sm rounded-sm transition-all duration-300"
         style={{ maxWidth: previewWidth }}
       >
+        {/* Email subject & sub header */}
+        {(subject || subHeader) && (
+          <div
+            className="cursor-pointer canvas-block"
+            style={{ padding: 20, borderBottom: '1px solid #e5e7eb' }}
+            onClick={onOpenSettings}
+          >
+            {subject && (
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>
+            )}
+            {subHeader && (
+              <p style={{ margin: subject ? '4px 0 0 0' : 0, fontSize: 12, color: '#999' }} className="truncate">{subHeader}</p>
+            )}
+          </div>
+        )}
+
         {blocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
             <Footprints className="w-12 h-12 mb-4 opacity-30" />

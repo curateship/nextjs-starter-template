@@ -1,14 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { createNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 export type { Newsletter }
+import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
+import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
+import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import { Users } from "lucide-react"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -17,14 +28,69 @@ interface CreateNewsletterModalProps {
 
 export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterModalProps) {
   const { currentSite } = useSiteContext()
-  const [title, setTitle] = useState('')
-  const [subtitle, setSubtitle] = useState('')
+  const [subject, setSubject] = useState('')
+  const [subHeader, setSubHeader] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Segment picker state
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [audienceMode, setAudienceMode] = useState<string>('all')
+  const [filterTags, setFilterTags] = useState('')
+  const [audienceCount, setAudienceCount] = useState<number | null>(null)
+
+  // Load segments
+  useEffect(() => {
+    if (!currentSite?.id) return
+    getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
+  }, [currentSite?.id])
+
+  // Update audience count based on mode
+  useEffect(() => {
+    if (!currentSite?.id) return
+
+    let tags: string[] = []
+    if (audienceMode === 'custom') {
+      tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+    } else if (audienceMode !== 'all') {
+      const seg = segments.find(s => s.id === audienceMode)
+      tags = seg?.filter_rules?.tags || []
+    }
+
+    const filter = tags.length ? { tags } : {}
+    getAudienceCount(currentSite.id, filter).then(({ count }) => setAudienceCount(count))
+  }, [audienceMode, filterTags, currentSite?.id, segments])
+
+  function handleAudienceModeChange(value: string) {
+    setAudienceMode(value)
+    if (value !== 'custom') {
+      if (value === 'all') {
+        setFilterTags('')
+      } else {
+        const seg = segments.find(s => s.id === value)
+        setFilterTags(seg?.filter_rules?.tags?.join(', ') || '')
+      }
+    }
+  }
+
+  function buildAudienceFilter(): Record<string, any> {
+    if (audienceMode === 'all') return {}
+    if (audienceMode === 'custom') {
+      const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+      return tags.length ? { tags } : {}
+    }
+    const seg = segments.find(s => s.id === audienceMode)
+    const tags = seg?.filter_rules?.tags || []
+    return { segment_id: audienceMode, tags }
+  }
+
+  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'custom'
+    ? segments.find(s => s.id === audienceMode)
+    : null
+
   const handleCreate = async (status: 'draft' | 'scheduled') => {
-    if (!title.trim()) {
-      setError('Newsletter title is required')
+    if (!subject.trim()) {
+      setError('Subject line is required')
       return
     }
 
@@ -38,8 +104,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
     const { data, error: createError } = await createNewsletter({
       siteId: currentSite.id,
-      name: title.trim(),
-      subject: subtitle.trim() || title.trim(),
+      name: subject.trim(),
+      subject: subject.trim(),
+      sub_header: subHeader.trim(),
+      audience_filter: buildAudienceFilter(),
       status,
     })
 
@@ -69,34 +137,76 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       )}
 
       <div>
-        <Label htmlFor="newsletter-title">Newsletter Title *</Label>
+        <Label htmlFor="newsletter-subject">Subject Line *</Label>
         <Input
-          id="newsletter-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Enter newsletter title"
+          id="newsletter-subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Email subject line"
           required
         />
       </div>
 
       <div>
-        <Label htmlFor="newsletter-subtitle">Subject Line</Label>
-        <Textarea
-          id="newsletter-subtitle"
-          value={subtitle}
-          onChange={(e) => setSubtitle(e.target.value)}
-          placeholder="Email subject line (defaults to title if empty)"
-          className="resize-none min-h-[40px] overflow-hidden"
-          style={{ height: 'auto' }}
-          onInput={(e) => {
-            const target = e.target as HTMLTextAreaElement
-            target.style.height = 'auto'
-            target.style.height = target.scrollHeight + 'px'
-          }}
+        <Label htmlFor="newsletter-sub-header">Sub Header</Label>
+        <Input
+          id="newsletter-sub-header"
+          value={subHeader}
+          onChange={(e) => setSubHeader(e.target.value)}
+          placeholder="Preview text shown after subject line"
         />
-        <p className="text-xs text-muted-foreground mt-1">
-          The subject line recipients will see in their inbox
-        </p>
+      </div>
+
+      {/* Audience */}
+      <div>
+        <h3 className="font-medium mb-4">Audience</h3>
+        <div>
+          <Label htmlFor="create-audience-select">Segment</Label>
+          <Select value={audienceMode} onValueChange={handleAudienceModeChange}>
+            <SelectTrigger id="create-audience-select">
+              <SelectValue placeholder="Select audience" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Contacts</SelectItem>
+              {segments.map(seg => (
+                <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+              ))}
+              <SelectItem value="custom">Custom filter...</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedSegment && selectedSegment.filter_rules?.tags?.length ? (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {selectedSegment.filter_rules.tags.map(tag => (
+              <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {audienceMode === 'custom' && (
+          <div className="mt-3">
+            <Label htmlFor="create-filter-tags">Filter by Tags</Label>
+            <Input
+              id="create-filter-tags"
+              value={filterTags}
+              onChange={(e) => setFilterTags(e.target.value)}
+              placeholder="austin, fitness (comma-separated)"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Only contacts with ALL these tags will receive this newsletter.
+            </p>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 text-sm mt-3">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <span>
+            {audienceCount !== null
+              ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
+              : 'Calculating...'}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

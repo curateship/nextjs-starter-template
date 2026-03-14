@@ -213,6 +213,9 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           updateBlockContent={builder.updateBlockContent}
           onSelectBlock={builder.setSelectedBlock}
           siteId={currentSite?.id || ''}
+          subject={builder.newsletter?.subject}
+          subHeader={builder.newsletter?.sub_header}
+          onOpenSettings={() => setSettingsModalOpen(true)}
         />
 
         <BlockListPanel
@@ -238,6 +241,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         siteId={currentSite?.id || ''}
         onSuccess={(updated) => {
           builder.reloadNewsletter()
+          setSettingsModalOpen(false)
         }}
       />
     </div>

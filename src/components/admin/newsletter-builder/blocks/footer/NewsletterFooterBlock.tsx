@@ -32,6 +32,7 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
         )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="styling">Styling</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </div>
@@ -67,6 +68,28 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
         </Card>
       </TabsContent>
 
+      {/* Styling Tab */}
+      <TabsContent value="styling" className="mt-6">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Layout</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="footer-alignment">Alignment</Label>
+              <Select value={content.alignment || 'center'} onValueChange={(v) => onContentChange('alignment', v)}>
+                <SelectTrigger id="footer-alignment" className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                  <SelectItem value="right">Right</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
       {/* Settings Tab */}
       <TabsContent value="settings" className="mt-6">
         <Card className="shadow-sm">
@@ -81,17 +104,6 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
                 checked={content.showUnsubscribe !== false}
                 onCheckedChange={(checked) => onContentChange('showUnsubscribe', checked)}
               />
-            </div>
-            <div>
-              <Label htmlFor="footer-alignment">Alignment</Label>
-              <Select value={content.alignment || 'center'} onValueChange={(v) => onContentChange('alignment', v)}>
-                <SelectTrigger id="footer-alignment" className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                  <SelectItem value="right">Right</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </CardContent>
         </Card>
