@@ -17,17 +17,10 @@ import {
   DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Calendar, X, AlertCircle, ExternalLink } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, Calendar, X, AlertCircle, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"
 import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
@@ -61,6 +54,8 @@ export default function EventsPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Load events data
   useEffect(() => {
@@ -241,6 +236,40 @@ export default function EventsPage() {
     return statusMatch && privacyMatch
   })
 
+  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === 'category') {
+      const aCat = eventCategories[a.id]?.[0]?.title || '\uffff'
+      const bCat = eventCategories[b.id]?.[0]?.title || '\uffff'
+      return aCat.localeCompare(bCat) * dir
+    }
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   // Get counts for each status
   const statusCounts = {
     all: events.length,
@@ -328,11 +357,55 @@ export default function EventsPage() {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all events"
                   />
-                  <span>Event</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('title')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Event</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
+                  </button>
                 </div>
-                <div>Category</div>
-                <div>Status</div>
-                <div>Modified</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('category')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Category</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('modified')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Modified</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -381,7 +454,7 @@ export default function EventsPage() {
                   )}
                 </div>
               ) : (
-                filteredEvents.map((event) => (
+                sortedEvents.map((event) => (
                   <div key={event.id} className={`p-6 transition-colors ${selectedEventIds.has(event.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
@@ -434,42 +507,48 @@ export default function EventsPage() {
                           {new Date(event.updated_at).toLocaleDateString()}
                         </span>
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="h-8 w-8 p-0"
                             onClick={() => handleOpenSettings(event)}
+                            title="Settings"
                           >
                             <Settings className="h-4 w-4" />
+                            <span className="sr-only">Settings</span>
                           </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => window.open(`/events/${event.slug}`, '_blank')}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleDuplicate(event)}>
-                                <Copy className="mr-2 h-4 w-4" />
-                                Duplicate
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteClick(event.id)}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(currentSite ? `http://${currentSite.subdomain}.localhost:3000/events/${event.slug}` : '#', '_blank')}
+                            title="Preview"
+                          >
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Preview</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleDuplicate(event)}
+                            title="Duplicate"
+                          >
+                            <Copy className="h-4 w-4" />
+                            <span className="sr-only">Duplicate</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                            onClick={() => handleDeleteClick(event.id)}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
                         </div>
-                      </div>
                     </div>
                   </div>
                 ))

@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, Settings, Zap, Mail } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   getAutomationsBySite,
   createAutomation,
@@ -33,6 +36,7 @@ import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actio
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function EmailAutomationsPage() {
+  const router = useRouter()
   const { currentSite } = useSiteContext()
   const [automations, setAutomations] = useState<EmailAutomation[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,6 +52,8 @@ export default function EmailAutomationsPage() {
   const [createName, setCreateName] = useState("")
   const [createTrigger, setCreateTrigger] = useState<string>("lead_magnet_signup")
   const [creating, setCreating] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'steps' | 'enrolled' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => { loadAutomations() }, [currentSite?.id])
 
@@ -108,6 +114,37 @@ export default function EmailAutomationsPage() {
     if (filterStatus === 'paused') return a.status === 'paused'
     if (filterStatus === 'draft') return a.status === 'draft'
     return true
+  })
+
+  const toggleSort = (column: 'name' | 'trigger' | 'status' | 'steps' | 'enrolled') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'name' | 'trigger' | 'status' | 'steps' | 'enrolled') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedAutomations = [...filtered].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (sortColumn === 'trigger') return a.trigger_type.localeCompare(b.trigger_type) * dir
+    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortColumn === 'steps') return ((a.steps_count ?? 0) - (b.steps_count ?? 0)) * dir
+    if (sortColumn === 'enrolled') return ((a.enrollments_count ?? 0) - (b.enrollments_count ?? 0)) * dir
+    return 0
   })
 
   const statusCounts = {
@@ -172,12 +209,67 @@ export default function EmailAutomationsPage() {
               <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox checked={filtered.length > 0 && selectedIds.size === filtered.length} onCheckedChange={toggleSelectAll} />
-                  <span>Automation</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('name')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Automation</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
+                  </button>
                 </div>
-                <div>Trigger</div>
-                <div>Status</div>
-                <div>Steps</div>
-                <div>Enrolled</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('trigger')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Trigger</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('trigger')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('steps')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Steps</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('steps')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('enrolled')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Enrolled</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('enrolled')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -200,7 +292,7 @@ export default function EmailAutomationsPage() {
                   <p className="text-muted-foreground mb-4">No email automations yet</p>
                   <Button onClick={() => setCreateOpen(true)} variant="outline">Create Your First Automation</Button>
                 </div>
-              ) : filtered.map(automation => (
+              ) : sortedAutomations.map(automation => (
                 <div key={automation.id} className={`p-6 transition-colors ${selectedIds.has(automation.id) ? "bg-accent/50" : ""}`}>
                   <div className="grid grid-cols-7 gap-4 items-center">
                     <div className="col-span-2 flex items-center space-x-4">
@@ -208,10 +300,10 @@ export default function EmailAutomationsPage() {
                       <div className="w-10 h-10 bg-muted rounded flex items-center justify-center ml-2">
                         <Mail className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <a href={`/admin/newsletters/automations/${automation.id}`} className="hover:opacity-80 transition-opacity">
+                      <Link href={`/admin/newsletters/automations/${automation.id}`} className="hover:opacity-80 transition-opacity">
                         <h4 className="font-medium text-sm hover:underline">{automation.name}</h4>
                         {automation.description && <p className="text-xs text-muted-foreground">{automation.description}</p>}
-                      </a>
+                      </Link>
                     </div>
                     <div>
                       <Badge variant="outline" className="text-xs">
@@ -222,7 +314,7 @@ export default function EmailAutomationsPage() {
                     <div><span className="text-sm text-muted-foreground">{automation.steps_count ?? 0}</span></div>
                     <div><span className="text-sm text-muted-foreground">{automation.enrollments_count ?? 0}</span></div>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => window.location.href = `/admin/newsletters/automations/${automation.id}`} title="Edit">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => router.push(`/admin/newsletters/automations/${automation.id}`)} title="Edit">
                         <Settings className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-600" onClick={() => handleDelete(automation.id)} title="Delete">

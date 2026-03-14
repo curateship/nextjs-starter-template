@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   getContactsBySite,
   deleteContacts,
@@ -51,6 +52,8 @@ export default function ContactsPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
+  const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<{ total: number; active: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null>(null)
 
@@ -110,6 +113,45 @@ export default function ContactsPage() {
   }
 
   const filteredContacts = contacts
+
+  const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'contact' | 'source' | 'status' | 'tags' | 'added') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedContacts = [...filteredContacts].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'contact') return a.email.localeCompare(b.email) * dir
+    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortColumn === 'source') {
+      const aSource = a.metadata?.source || 'manual'
+      const bSource = b.metadata?.source || 'manual'
+      return aSource.localeCompare(bSource) * dir
+    }
+    if (sortColumn === 'tags') {
+      const aTag = a.metadata?.tags?.[0] || '\uffff'
+      const bTag = b.metadata?.tags?.[0] || '\uffff'
+      return aTag.localeCompare(bTag) * dir
+    }
+    if (sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    return 0
+  })
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -494,12 +536,67 @@ export default function ContactsPage() {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all contacts"
                   />
-                  <span>Contact</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('contact')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Contact</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('contact')}</span>
+                  </button>
                 </div>
-                <div>Source</div>
-                <div>Status</div>
-                <div>Tags</div>
-                <div>Added</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('source')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Source</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('source')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('tags')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Tags</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('tags')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('added')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Added</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('added')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -543,7 +640,7 @@ export default function ContactsPage() {
                   </Button>
                 </div>
               ) : (
-                filteredContacts.map((contact) => (
+                sortedContacts.map((contact) => (
                   <div key={contact.id} className={`p-6 transition-colors ${selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-7 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">

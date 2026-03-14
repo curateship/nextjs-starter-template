@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -292,15 +292,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   if (loading) {
     return (
       <>
-        <div className="sticky top-0 z-40 bg-background border-b">
-          <div className="flex items-center justify-between px-4 h-14">
-            <StickyHeader breadcrumbItems={[{ href: "/admin", label: "Dashboard" }, { href: "/admin/newsletters/automations", label: "Automations" }, { label: "Loading...", isPage: true }]} />
-            <div className="flex items-center gap-2">
+        <StickyHeader
+          breadcrumbItems={[{ href: "/admin", label: "Dashboard" }, { href: "/admin/newsletters/automations", label: "Automations" }, { label: "Loading...", isPage: true }]}
+          rightActions={
+            <>
               <div className="h-6 w-16 bg-muted rounded-full animate-pulse" />
               <div className="h-8 w-20 bg-muted rounded animate-pulse" />
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
         <AdminLayout>
           <div className="w-full max-w-2xl mx-auto px-6 py-8">
             <div className="flex flex-col items-center">
@@ -347,14 +347,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   return (
     <>
-      <div className="sticky top-0 z-40 bg-background border-b">
-        <div className="flex items-center justify-between px-4 h-14">
-          <StickyHeader breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters/automations", label: "Automations" },
-            { label: automation.name, isPage: true },
-          ]} />
-          <div className="flex items-center gap-2">
+      <StickyHeader
+        breadcrumbItems={[
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/newsletters/automations", label: "Automations" },
+          { label: automation.name, isPage: true },
+        ]}
+        rightActions={
+          <>
             {saveMessage && <span className="text-sm text-green-600">{saveMessage}</span>}
             <Badge variant={automation.status === 'active' ? "default" : "secondary"} className={automation.status === 'active' ? "bg-green-100 text-green-800" : ""}>
               {automation.status === 'active' ? 'Active' : automation.status === 'paused' ? 'Paused' : 'Draft'}
@@ -367,9 +367,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             >
               {automation.status === 'active' ? 'Pause' : 'Activate'}
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
       <AdminLayout>
         <div className="w-full max-w-2xl mx-auto px-6 py-8">
           {error && (

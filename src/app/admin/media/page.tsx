@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, CheckSquare } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, CheckSquare, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -27,7 +28,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ImagesPage() {
   const { currentSite } = useSiteContext()
-  const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery')
+  const [viewMode, setViewMode] = useState<'list' | 'gallery'>('list')
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
@@ -38,6 +39,9 @@ export default function ImagesPage() {
   const [pageSize] = useState(20)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'name' | 'type' | 'size' | 'added' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [typeCounts, setTypeCounts] = useState<{ all: number; image: number; video: number }>({ all: 0, image: 0, video: 0 })
 
   // Load images when page, pageSize, filterType, or currentSite changes
   useEffect(() => {
@@ -45,6 +49,25 @@ export default function ImagesPage() {
       loadImages()
     }
   }, [currentPage, pageSize, filterType, currentSite])
+
+  // Load type counts when site changes or after mutations
+  const loadTypeCounts = async () => {
+    if (!currentSite) return
+    const [allRes, imgRes, vidRes] = await Promise.all([
+      getPaginatedMediaAction(1, 1, undefined, currentSite.id),
+      getPaginatedMediaAction(1, 1, 'image', currentSite.id),
+      getPaginatedMediaAction(1, 1, 'video', currentSite.id),
+    ])
+    setTypeCounts({
+      all: allRes.data?.total ?? 0,
+      image: imgRes.data?.total ?? 0,
+      video: vidRes.data?.total ?? 0,
+    })
+  }
+
+  useEffect(() => {
+    if (currentSite) loadTypeCounts()
+  }, [currentSite])
 
   const loadImages = async () => {
     if (!currentSite) return
@@ -87,8 +110,8 @@ export default function ImagesPage() {
         toast.error(`Failed to delete image: ${error}`)
       } else {
         toast.success('Image deleted successfully')
-        // Reload the current page to refresh data
         loadImages()
+        loadTypeCounts()
       }
     } catch (error) {
       toast.error('Failed to delete image')
@@ -170,9 +193,8 @@ export default function ImagesPage() {
       }
 
       toast.success("Image uploaded successfully!")
-
-      // Refresh the images list
       loadImages()
+      loadTypeCounts()
 
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Upload failed')
@@ -252,9 +274,9 @@ export default function ImagesPage() {
         toast.error(`Failed to delete ${failCount} ${failCount === 1 ? 'item' : 'items'}`)
       }
 
-      // Clear selection and reload
       setSelectedIds(new Set())
       loadImages()
+      loadTypeCounts()
 
     } catch (error) {
       toast.error('Failed to delete items')
@@ -268,6 +290,47 @@ export default function ImagesPage() {
 
   // Check if all items on current page are selected
   const allPageSelected = images.length > 0 && images.every(media => selectedIds.has(media.id))
+
+  const toggleSort = (column: 'name' | 'type' | 'size' | 'added') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'name' | 'type' | 'size' | 'added') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedImages = [...images].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'name') return a.original_name.localeCompare(b.original_name) * dir
+    if (sortColumn === 'type') return a.file_type.localeCompare(b.file_type) * dir
+    if (sortColumn === 'size') return (a.file_size - b.file_size) * dir
+    if (sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    return 0
+  })
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
+    return `${Math.ceil(diffDays / 30)} months ago`
+  }
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -321,9 +384,9 @@ export default function ImagesPage() {
                 {/* Filter Tabs */}
                 <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All</TabsTrigger>
-                    <TabsTrigger value="image">Images</TabsTrigger>
-                    <TabsTrigger value="video">Videos</TabsTrigger>
+                    <TabsTrigger value="all">All ({typeCounts.all})</TabsTrigger>
+                    <TabsTrigger value="image">Images ({typeCounts.image})</TabsTrigger>
+                    <TabsTrigger value="video">Videos ({typeCounts.video})</TabsTrigger>
                   </TabsList>
                 </Tabs>
 
@@ -360,8 +423,72 @@ export default function ImagesPage() {
         />
         
         <Card className="shadow-sm">
+          {viewMode === 'list' && (
+            /* Table Header */
+            <div className="px-6 py-4 border-b bg-muted/30">
+              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
+                <div className="col-span-2 flex items-center space-x-4">
+                  <Checkbox
+                    checked={allPageSelected}
+                    onCheckedChange={handleToggleSelectAll}
+                    aria-label="Select all media"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('name')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>File</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('type')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Type</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('type')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('size')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Size</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('size')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('added')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Added</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('added')}</span>
+                </button>
+                <div className="">Actions</div>
+              </div>
+            </div>
+          )}
+
+          <div className="divide-y divide-muted/80">
           {isLoading ? (
-            // Skeleton loading states
             viewMode === 'gallery' ? (
               <div className="p-6">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -373,44 +500,45 @@ export default function ImagesPage() {
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-muted/80">
+              <div className="space-y-0">
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className="p-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-16 h-16 bg-muted rounded-lg animate-pulse"></div>
-                      <div className="space-y-2">
-                        <div className="h-4 bg-muted rounded animate-pulse w-32"></div>
-                        <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
+                  <div key={i} className="p-6 border-b border-muted/80">
+                    <div className="grid grid-cols-6 gap-4 items-center">
+                      <div className="col-span-2 flex items-center space-x-4">
+                        <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
+                        <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
+                        <div>
+                          <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-20"></div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-8 w-16 bg-muted rounded animate-pulse"></div>
-                      <div className="h-8 w-20 bg-muted rounded animate-pulse"></div>
+                      <div><div className="h-5 bg-muted rounded-full animate-pulse w-16"></div></div>
+                      <div><div className="h-3 bg-muted/60 rounded animate-pulse w-14"></div></div>
+                      <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div></div>
+                      <div><div className="h-8 w-8 bg-muted rounded animate-pulse"></div></div>
                     </div>
                   </div>
                 ))}
               </div>
             )
           ) : images.length === 0 ? (
-            <div className="p-6 text-center">
+            <div className="p-8 text-center">
               <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-2">No media found</p>
               <p className="text-muted-foreground mb-4">
-                You haven&apos;t uploaded any images or videos yet.
+                No media found. Upload your first file to get started.
               </p>
-              <Button onClick={() => document.getElementById('image-upload-input')?.click()}>
+              <Button onClick={() => document.getElementById('image-upload-input')?.click()} variant="outline">
                 Upload Your First Media File
               </Button>
             </div>
           ) : viewMode === 'gallery' ? (
-            // Gallery View
             <div className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {images.map((media) => (
                   <div key={media.id} className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
                     {media.file_type === 'video' ? (
                       <div className="relative w-full h-full bg-black">
-                        <video 
+                        <video
                           key={media.id}
                           src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
                           className="w-full h-full object-contain"
@@ -459,74 +587,89 @@ export default function ImagesPage() {
               </div>
             </div>
           ) : (
-            // List View
-            <div className="divide-y divide-muted/80">
-              {images.map((media) => {
-                const isSelected = selectedIds.has(media.id)
-                return (
-                  <div
-                    key={media.id}
-                    className={`p-6 flex items-center justify-between transition-colors ${isSelected ? 'bg-accent/50' : ''}`}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => handleToggleSelection(media.id)}
-                        aria-label={`Select ${media.original_name}`}
-                      />
-                      <div className="w-16 h-16 bg-muted rounded-lg overflow-hidden relative">
-                        {media.file_type === 'video' ? (
-                          <video
-                            src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
-                            className="w-full h-full object-contain"
-                            muted
-                            preload="metadata"
-                            onLoadedMetadata={(e) => {
-                              e.currentTarget.currentTime = 0.1;
-                            }}
-                          />
-                        ) : (
-                          <Image
-                            src={media.public_url}
-                            alt={media.alt_text || media.original_name}
-                            fill
-                            className="object-contain"
-                            sizes="64px"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-medium">{media.original_name}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {formatFileSize(media.file_size)}
-                        </p>
+            sortedImages.map((media) => {
+              const isSelected = selectedIds.has(media.id)
+              return (
+                <div
+                  key={media.id}
+                  className={`p-6 transition-colors ${isSelected ? 'bg-accent/50' : ''}`}
+                >
+                  <div className="grid grid-cols-6 gap-4 items-center">
+                    <div className="col-span-2">
+                      <div className="flex items-center space-x-4">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleSelection(media.id)}
+                          aria-label={`Select ${media.original_name}`}
+                        />
+                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden relative ml-2">
+                          {media.file_type === 'video' ? (
+                            <VideoIcon className="h-6 w-6 text-muted-foreground" />
+                          ) : (
+                            <Image
+                              src={media.public_url}
+                              alt={media.alt_text || media.original_name}
+                              fill
+                              className="object-contain"
+                              sizes="48px"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm">{media.original_name}</h4>
+                          {media.alt_text && (
+                            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{media.alt_text}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div>
+                      <span className="text-sm text-muted-foreground capitalize">{media.file_type}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-muted-foreground">{formatFileSize(media.file_size)}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-muted-foreground">{formatDate(media.created_at)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
                       <Button
+                        variant="ghost"
                         size="sm"
-                        variant="outline"
+                        className="h-8 w-8 p-0"
                         onClick={() => handleEditImage(media)}
-                        className="cursor-pointer"
+                        title="Edit Details"
                       >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit</span>
                       </Button>
                       <Button
+                        variant="ghost"
                         size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteImage(media)}
-                        className="cursor-pointer"
+                        className="h-8 w-8 p-0"
+                        onClick={() => window.open(media.public_url, '_blank')}
+                        title="View Original"
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
+                        <ImageIcon className="h-4 w-4" />
+                        <span className="sr-only">View Original</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                        onClick={() => handleDeleteImage(media)}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
                       </Button>
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              )
+            })
           )}
+          </div>
         </Card>
 
         {/* Pagination Controls */}

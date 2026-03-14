@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,7 +19,8 @@ import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/l
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function NewslettersPage() {
@@ -37,6 +38,9 @@ export default function NewslettersPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+
+  const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'opens' | 'clicks' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     loadNewsletters()
@@ -156,6 +160,45 @@ export default function NewslettersPage() {
     return true
   })
 
+  const toggleSort = (column: 'name' | 'status' | 'opens' | 'clicks' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'name' | 'status' | 'opens' | 'clicks' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedNewsletters = [...filteredNewsletters].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortColumn === 'opens') {
+      const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
+      const bRate = b.total_sent > 0 ? b.total_opened / b.total_sent : -1
+      return (aRate - bRate) * dir
+    }
+    if (sortColumn === 'clicks') {
+      const aRate = a.total_sent > 0 ? a.total_clicked / a.total_sent : -1
+      const bRate = b.total_sent > 0 ? b.total_clicked / b.total_sent : -1
+      return (aRate - bRate) * dir
+    }
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   const statusCounts = {
     all: newsletters.length,
     sent: newsletters.filter((n) => n.status === 'sent' || n.status === 'sending').length,
@@ -227,12 +270,67 @@ export default function NewslettersPage() {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all newsletters"
                   />
-                  <span>Newsletter</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('name')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Newsletter</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
+                  </button>
                 </div>
-                <div>Status</div>
-                <div>Opens</div>
-                <div>Clicks</div>
-                <div>Modified</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('opens')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Opens</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('opens')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('clicks')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Clicks</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('clicks')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('modified')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Modified</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -272,7 +370,7 @@ export default function NewslettersPage() {
                   </Button>
                 </div>
               ) : (
-                filteredNewsletters.map((newsletter) => (
+                sortedNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-8 gap-4 items-center">
                       <div className="col-span-3">

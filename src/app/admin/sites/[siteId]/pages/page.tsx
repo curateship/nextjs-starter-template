@@ -17,19 +17,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
-import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FileText, Home } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -59,6 +52,8 @@ export default function SitePagesPage({ params }: PageProps) {
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set())
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'title' | 'status' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Load site and pages data
   useEffect(() => {
@@ -258,6 +253,35 @@ export default function SitePagesPage({ params }: PageProps) {
     return true // 'all'
   })
 
+  const toggleSort = (column: 'title' | 'status' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'title' | 'status' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedPages = [...filteredPages].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   // Get counts for each status
   const statusCounts = {
     all: pages.length,
@@ -343,10 +367,43 @@ export default function SitePagesPage({ params }: PageProps) {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all pages"
                   />
-                  <span>Page</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('title')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Page</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
+                  </button>
                 </div>
-              <div>Status</div>
-              <div>Modified</div>
+              <button
+                type="button"
+                onClick={() => toggleSort('status')}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Status</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort('modified')}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Modified</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+              </button>
               <div>Actions</div>
             </div>
           </div>
@@ -405,7 +462,7 @@ export default function SitePagesPage({ params }: PageProps) {
                 </Button>
               </div>
             ) : (
-              filteredPages.map((page) => (
+              sortedPages.map((page) => (
                 <div key={page.id} className={`p-6 transition-colors ${selectedPageIds.has(page.id) ? 'bg-accent/50' : ''}`}>
                   <div className="grid grid-cols-5 gap-4 items-center">
                     <div className="col-span-2">
@@ -447,10 +504,10 @@ export default function SitePagesPage({ params }: PageProps) {
                         {formatDate(page.updated_at)}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                    <div className="flex items-center space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-8 w-8 p-0"
                         onClick={() => setSettingsPageId(page.id)}
                         title="Page Settings"
@@ -458,75 +515,41 @@ export default function SitePagesPage({ params }: PageProps) {
                         <Settings className="h-4 w-4" />
                         <span className="sr-only">Page Settings</span>
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/admin/pages/${siteId}?page=${page.slug}`} className="flex items-center">
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Content
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <a 
-                              href={site ? `/${page.slug}` : `#`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center"
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              Preview Page
-                            </a>
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            onClick={() => handleDuplicatePage(page.id)}
-                            disabled={duplicatingPageId === page.id}
-                            className="flex items-center"
-                          >
-                            {duplicatingPageId === page.id ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                                Duplicating...
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="mr-2 h-4 w-4" />
-                                Duplicate Page
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          {!page.is_homepage && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeletePage(page.id)}
-                              disabled={deletePageId === page.id}
-                              className="flex items-center text-red-600 focus:text-red-600"
-                            >
-                              {deletePageId === page.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Page
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        asChild
+                      >
+                        <a href={site ? `http://${site.subdomain}.localhost:3000/${page.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">Preview</span>
+                        </a>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handleDuplicatePage(page.id)}
+                        disabled={duplicatingPageId === page.id}
+                        title="Duplicate"
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sr-only">Duplicate</span>
+                      </Button>
+                      {!page.is_homepage && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={() => handleDeletePage(page.id)}
+                          disabled={deletePageId === page.id}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

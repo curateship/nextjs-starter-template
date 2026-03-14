@@ -15,7 +15,8 @@ import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/cate
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Tag } from "lucide-react"
+import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export default function CategoriesPage({
   params
@@ -37,6 +38,8 @@ export default function CategoriesPage({
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [sortColumn, setSortColumn] = useState<'title' | 'parent' | 'status' | 'assigned' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -162,6 +165,43 @@ export default function CategoriesPage({
     return statusMatch && levelMatch
   })
 
+  const toggleSort = (column: 'title' | 'parent' | 'status' | 'assigned' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'title' | 'parent' | 'status' | 'assigned' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedCategories = [...filteredCategories].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === 'parent') {
+      const aParent = categories.find(c => c.id === a.parent_id)?.title || '\uffff'
+      const bParent = categories.find(c => c.id === b.parent_id)?.title || '\uffff'
+      return aParent.localeCompare(bParent) * dir
+    }
+    if (sortColumn === 'assigned') {
+      return ((assignmentCounts[a.id] || 0) - (assignmentCounts[b.id] || 0)) * dir
+    }
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   // Get counts
   const statusCounts = {
     all: categories.length,
@@ -244,12 +284,67 @@ export default function CategoriesPage({
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all categories"
                   />
-                  <span>Category</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('title')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Category</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
+                  </button>
                 </div>
-                <div>Parent</div>
-                <div>Status</div>
-                <div>Assigned</div>
-                <div>Modified</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('parent')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Parent</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('parent')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('assigned')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Assigned</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('assigned')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('modified')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Modified</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -310,7 +405,7 @@ export default function CategoriesPage({
                 </div>
               ) : (
                 <CategoryTree
-                  categories={filteredCategories}
+                  categories={sortedCategories}
                   allCategories={categories}
                   assignmentCounts={assignmentCounts}
                   siteId={siteId}

@@ -6,15 +6,8 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-la
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, Settings, Trash2, Edit, MoreHorizontal, Globe } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -28,6 +21,8 @@ export default function SitesPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [sortColumn, setSortColumn] = useState<'name' | 'created' | 'status' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     loadSites()
@@ -90,6 +85,35 @@ export default function SitesPage() {
     return site.status === filter
   })
 
+  const toggleSort = (column: 'name' | 'created' | 'status') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'name' | 'created' | 'status') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedSites = [...filteredSites].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (sortColumn === 'created') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    return 0
+  })
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800'
@@ -139,10 +163,45 @@ export default function SitesPage() {
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">
             <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-              <div className="col-span-2">Site</div>
-              <div>User</div>
-              <div>Created</div>
-              <div>Status</div>
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort('name')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Site</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
+                </button>
+              </div>
+              <div className="text-[0.8125rem]">User</div>
+              <button
+                type="button"
+                onClick={() => toggleSort('created')}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Created</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('created')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort('status')}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Status</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+              </button>
               <div>Actions</div>
             </div>
           </div>
@@ -170,7 +229,7 @@ export default function SitesPage() {
                 </Button>
               </div>
             ) : (
-              filteredSites.map((site) => {
+              sortedSites.map((site) => {
                 const initials = site.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
                 
                 return (
@@ -218,63 +277,40 @@ export default function SitesPage() {
                           {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
                         </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/pages/${site.id}`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit in Builder
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <a 
-                                href={getSiteUrl(site)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center"
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview Site
-                              </a>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/sites/${site.id}/settings`} className="flex items-center">
-                                <Settings className="mr-2 h-4 w-4" />
-                                Site Settings
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(site.id)}
-                              disabled={deleting === site.id}
-                              className="flex items-center text-red-600 focus:text-red-600"
-                            >
-                              {deleting === site.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Site
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a href={getSiteUrl(site)} target="_blank" rel="noopener noreferrer" title="Preview Site">
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Preview Site</span>
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <Link href={`/admin/sites/${site.id}/settings`} title="Site Settings">
+                            <Settings className="h-4 w-4" />
+                            <span className="sr-only">Site Settings</span>
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={() => handleDelete(site.id)}
+                          disabled={deleting === site.id}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
                       </div>
                     </div>
                   </div>

@@ -8,14 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow } from "lucide-react"
+import { Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 type WorkflowTrigger = 'manual' | 'schedule' | 'webhook' | 'event'
 type WorkflowStatus = 'active' | 'paused' | 'draft'
@@ -73,10 +67,47 @@ function getStatusBadge(status: WorkflowStatus) {
 
 export default function AutomationsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | WorkflowStatus>('all')
+  const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'lastRun' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const filteredWorkflows = mockWorkflows.filter(w => {
     if (filterStatus === 'all') return true
     return w.status === filterStatus
+  })
+
+  const toggleSort = (column: 'name' | 'trigger' | 'status' | 'lastRun') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'name' | 'trigger' | 'status' | 'lastRun') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedWorkflows = [...filteredWorkflows].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (sortColumn === 'trigger') return a.trigger.localeCompare(b.trigger) * dir
+    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (sortColumn === 'lastRun') {
+      if (!a.lastRun && !b.lastRun) return 0
+      if (!a.lastRun) return 1
+      if (!b.lastRun) return -1
+      return a.lastRun.localeCompare(b.lastRun) * dir
+    }
+    return 0
   })
 
   const statusCounts = {
@@ -118,10 +149,56 @@ export default function AutomationsPage() {
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Workflow</div>
-                <div>Trigger</div>
-                <div>Status</div>
-                <div>Last Run</div>
+                <div className="col-span-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('name')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Workflow</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('trigger')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Trigger</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('trigger')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('lastRun')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Last Run</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('lastRun')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -138,7 +215,7 @@ export default function AutomationsPage() {
                   </p>
                 </div>
               ) : (
-                filteredWorkflows.map((workflow) => (
+                sortedWorkflows.map((workflow) => (
                   <div key={workflow.id} className="p-6">
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
@@ -168,47 +245,43 @@ export default function AutomationsPage() {
                           <span className="text-sm text-muted-foreground">Never</span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          title="Workflow Settings"
+                          title="Edit"
                         >
                           <Settings className="h-4 w-4" />
-                          <span className="sr-only">Workflow Settings</span>
+                          <span className="sr-only">Edit</span>
                         </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuItem className="flex items-center">
-                              <Settings className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center">
-                              <Play className="mr-2 h-4 w-4" />
-                              Run Now
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="flex items-center">
-                              <Pause className="mr-2 h-4 w-4" />
-                              {workflow.status === 'paused' ? 'Resume' : 'Pause'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="flex items-center text-red-600 focus:text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          title="Run Now"
+                        >
+                          <Play className="h-4 w-4" />
+                          <span className="sr-only">Run Now</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          title={workflow.status === 'paused' ? 'Resume' : 'Pause'}
+                        >
+                          <Pause className="h-4 w-4" />
+                          <span className="sr-only">{workflow.status === 'paused' ? 'Resume' : 'Pause'}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
                       </div>
                     </div>
                   </div>

@@ -17,19 +17,12 @@ import {
   DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
-import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, Package, X } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -58,6 +51,8 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
 
   // Load products
@@ -266,6 +261,43 @@ export default function ProductsPage() {
     return statusMatch && privacyMatch
   })
 
+  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (sortColumn === 'category') {
+      const catA = productCategories[a.id]?.[0]?.title
+      const catB = productCategories[b.id]?.[0]?.title
+      if (!catA && !catB) return 0
+      if (!catA) return 1
+      if (!catB) return -1
+      return catA.localeCompare(catB) * dir
+    }
+    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   // Get counts for each status
   const statusCounts = {
     all: products.length,
@@ -340,11 +372,55 @@ export default function ProductsPage() {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all products"
                   />
-                  <span>Product</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('title')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Product</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
+                  </button>
                 </div>
-                <div>Category</div>
-                <div>Status</div>
-                <div>Modified</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('category')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Category</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('modified')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Modified</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -408,7 +484,7 @@ export default function ProductsPage() {
                   </Button>
                 </div>
               ) : (
-                filteredProducts.map((product) => (
+                sortedProducts.map((product) => (
                   <div key={product.id} className={`p-6 transition-colors ${selectedProductIds.has(product.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
@@ -461,10 +537,10 @@ export default function ProductsPage() {
                           {formatDate(product.updated_at)}
                         </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-8 w-8 p-0"
                           onClick={() => setSettingsProductId(product.id)}
                           title="Product Settings"
@@ -472,73 +548,39 @@ export default function ProductsPage() {
                           <Settings className="h-4 w-4" />
                           <span className="sr-only">Product Settings</span>
                         </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/products/builder/${product.site_id}?product=${product.slug}`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Product
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link 
-                                href={`/products/${product.slug}`}
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center"
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview Product
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => handleDuplicateProduct(product.id)}
-                              disabled={duplicatingProductId === product.id}
-                              className="flex items-center"
-                            >
-                              {duplicatingProductId === product.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                                  Duplicating...
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="mr-2 h-4 w-4" />
-                                  Duplicate Product
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteProduct(product.id)}
-                              disabled={deleteProductId === product.id}
-                              className="flex items-center text-red-600 focus:text-red-600"
-                            >
-                              {deleteProductId === product.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Product
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a href={currentSite ? `http://${currentSite.subdomain}.localhost:3000/products/${product.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Preview</span>
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleDuplicateProduct(product.id)}
+                          disabled={duplicatingProductId === product.id}
+                          title="Duplicate"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="sr-only">Duplicate</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={() => handleDeleteProduct(product.id)}
+                          disabled={deleteProductId === product.id}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
                       </div>
                     </div>
                   </div>

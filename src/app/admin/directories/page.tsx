@@ -18,19 +18,12 @@ import {
   DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
-import { Eye, Edit, Copy, Trash2, Plus, Settings, MoreHorizontal, FolderOpen, X } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteDirectoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -59,6 +52,8 @@ export default function DirectoriesPage() {
   const [selectedDirectoryIds, setSelectedDirectoryIds] = useState<Set<string>>(new Set())
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
 
   // Load directories
@@ -247,6 +242,40 @@ export default function DirectoriesPage() {
     return statusMatch && privacyMatch
   })
 
+  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortColumn(null)
+        setSortDirection('asc')
+      } else {
+        setSortDirection('desc')
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedDirectories = [...filteredDirectories].sort((a, b) => {
+    if (!sortColumn) return 0
+    const dir = sortDirection === 'asc' ? 1 : -1
+    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === 'category') {
+      const aCat = directoryCategories[a.id]?.[0]?.title || '\uffff'
+      const bCat = directoryCategories[b.id]?.[0]?.title || '\uffff'
+      return aCat.localeCompare(bCat) * dir
+    }
+    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    return 0
+  })
+
   // Get counts for each status
   const statusCounts = {
     all: directories.length,
@@ -321,11 +350,55 @@ export default function DirectoriesPage() {
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all directories"
                   />
-                  <span>Directory</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort('title')}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Directory</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
+                  </button>
                 </div>
-                <div>Category</div>
-                <div>Status</div>
-                <div>Modified</div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('category')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Category</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('status')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('modified')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Modified</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -389,7 +462,7 @@ export default function DirectoriesPage() {
                   </Button>
                 </div>
               ) : (
-                filteredDirectories.map((directory) => (
+                sortedDirectories.map((directory) => (
                   <div key={directory.id} className={`p-6 transition-colors ${selectedDirectoryIds.has(directory.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
@@ -442,10 +515,10 @@ export default function DirectoriesPage() {
                           {formatDate(directory.updated_at)}
                         </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                      <div className="flex items-center space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-8 w-8 p-0"
                           onClick={() => setSettingsDirectoryId(directory.id)}
                           title="Directory Settings"
@@ -453,73 +526,39 @@ export default function DirectoriesPage() {
                           <Settings className="h-4 w-4" />
                           <span className="sr-only">Directory Settings</span>
                         </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/directories/builder/${directory.site_id}?directory=${directory.slug}`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit Directory
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link 
-                                href={`/directories/${directory.slug}`}
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center"
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview Directory
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => handleDuplicateDirectory(directory.id)}
-                              disabled={duplicatingDirectoryId === directory.id}
-                              className="flex items-center"
-                            >
-                              {duplicatingDirectoryId === directory.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                                  Duplicating...
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="mr-2 h-4 w-4" />
-                                  Duplicate Directory
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteDirectory(directory.id)}
-                              disabled={deleteDirectoryId === directory.id}
-                              className="flex items-center text-red-600 focus:text-red-600"
-                            >
-                              {deleteDirectoryId === directory.id ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Directory
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          asChild
+                        >
+                          <a href={currentSite ? `http://${currentSite.subdomain}.localhost:3000/directories/${directory.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Preview</span>
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleDuplicateDirectory(directory.id)}
+                          disabled={duplicatingDirectoryId === directory.id}
+                          title="Duplicate"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="sr-only">Duplicate</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={() => handleDeleteDirectory(directory.id)}
+                          disabled={deleteDirectoryId === directory.id}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
                       </div>
                     </div>
                   </div>

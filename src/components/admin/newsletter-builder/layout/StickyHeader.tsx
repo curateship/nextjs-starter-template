@@ -78,6 +78,8 @@ export function StickyHeader({
             </>
           )}
         </div>
+
+        {/* Nav Links */}
         {navLinks && navLinks.length > 0 && (
           <div className="flex items-center gap-8 h-full pr-14">
             {navLinks.map((link) => (
@@ -96,6 +98,7 @@ export function StickyHeader({
             ))}
           </div>
         )}
+
         {rightActions && (
           <div className="flex items-center gap-2">
             {rightActions}
