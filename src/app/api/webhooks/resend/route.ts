@@ -80,14 +80,110 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(rawBody)
     const { type, data } = body
 
-    // Only handle email.opened and email.clicked events
-    if (type !== 'email.opened' && type !== 'email.clicked') {
-      return NextResponse.json({ message: 'Event ignored' })
+    const email = data?.to?.[0] || data?.email
+    const messageId = data?.email_id || data?.id
+
+    // Map Resend event types to our event types
+    const eventTypeMap: Record<string, string> = {
+      'email.opened': 'opened',
+      'email.clicked': 'clicked',
+      'email.bounced': 'bounced',
+      'email.complained': 'complained',
+      'email.delivered': 'sent',
     }
 
-    const email = data?.to?.[0] || data?.email
+    const eventType = eventTypeMap[type]
+
+    // Record to newsletter_events if we have a message ID
+    if (eventType && messageId) {
+      try {
+        // Find the event record by resend_message_id to get contact_id and source
+        const { data: existingEvent } = await supabaseAdmin
+          .from('newsletter_events')
+          .select('site_id, contact_id, source_type, source_id')
+          .eq('resend_message_id', messageId)
+          .limit(1)
+          .single()
+
+        if (existingEvent) {
+          await supabaseAdmin.from('newsletter_events').insert({
+            site_id: existingEvent.site_id,
+            contact_id: existingEvent.contact_id,
+            event_type: eventType,
+            source_type: existingEvent.source_type,
+            source_id: existingEvent.source_id,
+            resend_message_id: messageId,
+            metadata: { link_url: data?.click?.link, bounce_type: data?.bounce?.type },
+          })
+
+          // Update contact status on bounces/complaints
+          if (eventType === 'bounced' && existingEvent.contact_id) {
+            const bounceType = data?.bounce?.type
+            if (bounceType === 'hard') {
+              await supabaseAdmin
+                .from('newsletter_contacts')
+                .update({ status: 'bounced' })
+                .eq('id', existingEvent.contact_id)
+            } else {
+              // Soft bounce — increment count, suppress after 3
+              const { data: contact } = await supabaseAdmin
+                .from('newsletter_contacts')
+                .select('bounce_count')
+                .eq('id', existingEvent.contact_id)
+                .single()
+              const newCount = (contact?.bounce_count || 0) + 1
+              await supabaseAdmin
+                .from('newsletter_contacts')
+                .update({ bounce_count: newCount, ...(newCount >= 3 ? { status: 'bounced' } : {}) })
+                .eq('id', existingEvent.contact_id)
+            }
+          }
+
+          if (eventType === 'complained' && existingEvent.contact_id) {
+            await supabaseAdmin
+              .from('newsletter_contacts')
+              .update({ status: 'complained' })
+              .eq('id', existingEvent.contact_id)
+          }
+
+          // Update newsletter open/click counts
+          if (existingEvent.source_type === 'broadcast' && existingEvent.source_id) {
+            const statField = eventType === 'opened' ? 'total_opened' : eventType === 'clicked' ? 'total_clicked' : null
+            if (statField) {
+              const { data: bc } = await supabaseAdmin
+                .from('newsletters')
+                .select(statField)
+                .eq('id', existingEvent.source_id)
+                .single()
+              if (bc) {
+                await supabaseAdmin
+                  .from('newsletters')
+                  .update({ [statField]: (bc[statField] || 0) + 1 })
+                  .eq('id', existingEvent.source_id)
+              }
+            }
+          }
+
+          // Update engagement
+          if (existingEvent.contact_id && (eventType === 'opened' || eventType === 'clicked')) {
+            await supabaseAdmin
+              .from('newsletter_contacts')
+              .update({ last_engaged_at: new Date().toISOString() })
+              .eq('id', existingEvent.contact_id)
+          }
+        }
+      } catch (err) {
+        console.error('Error recording newsletter event:', err)
+        // Don't fail the webhook — continue to Flodesk logic below
+      }
+    }
+
+    // Only handle email.opened and email.clicked for Flodesk integration
+    if (type !== 'email.opened' && type !== 'email.clicked') {
+      return NextResponse.json({ message: 'Event recorded' })
+    }
+
     if (!email) {
-      console.error('No email found in webhook data')
       return NextResponse.json({ error: 'No email found' }, { status: 400 })
     }
 

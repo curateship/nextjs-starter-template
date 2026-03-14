@@ -17,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateNewsletterModal } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { getBroadcastsBySite, deleteBroadcasts } from "@/lib/actions/newsletters/broadcast-actions"
+import { getNewslettersBySite, deleteNewsletters } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
@@ -51,7 +51,7 @@ export default function NewslettersPage() {
 
     try {
       setLoading(true)
-      const { data, error } = await getBroadcastsBySite(currentSite.id)
+      const { data, error } = await getNewslettersBySite(currentSite.id)
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
@@ -74,7 +74,7 @@ export default function NewslettersPage() {
     if (!pendingDeleteId) return
     setConfirmDialogOpen(false)
 
-    const { success, error } = await deleteBroadcasts([pendingDeleteId])
+    const { success, error } = await deleteNewsletters([pendingDeleteId])
     if (error) {
       setErrorMessage(error)
       setErrorDialogOpen(true)
@@ -111,7 +111,7 @@ export default function NewslettersPage() {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const { success, error } = await deleteBroadcasts(Array.from(selectedIds))
+      const { success, error } = await deleteNewsletters(Array.from(selectedIds))
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
@@ -276,8 +276,7 @@ export default function NewslettersPage() {
                             <Mail className="h-6 w-6 text-muted-foreground" />
                           </div>
                           <a
-                            onClick={(e) => { e.preventDefault(); setSettingsNewsletterId(newsletter.id) }}
-                            href="#"
+                            href={`/admin/newsletters/${newsletter.id}`}
                             className="hover:opacity-80 transition-opacity"
                           >
                             <h4 className="font-medium hover:underline">{newsletter.name}</h4>

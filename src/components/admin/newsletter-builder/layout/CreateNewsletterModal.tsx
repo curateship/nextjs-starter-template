@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createBroadcast } from "@/lib/actions/newsletters/broadcast-actions"
-import type { Broadcast } from "@/lib/actions/newsletters/broadcast-actions"
+import { createNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
+export type { Newsletter }
 import { useSiteContext } from "@/contexts/site-context"
-
-export type Newsletter = Broadcast
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -37,7 +36,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     setLoading(true)
     setError(null)
 
-    const { data, error: createError } = await createBroadcast({
+    const { data, error: createError } = await createNewsletter({
       siteId: currentSite.id,
       name: title.trim(),
       subject: subtitle.trim() || title.trim(),

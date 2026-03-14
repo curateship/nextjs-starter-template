@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { updateBroadcast } from "@/lib/actions/newsletters/broadcast-actions"
+import { updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Newsletter } from "./CreateNewsletterModal"
 
 interface NewsletterSettingsModalProps {
@@ -54,7 +54,7 @@ export function NewsletterSettingsModal({
     setSaving(true)
     setError(null)
 
-    const { data, error: updateError } = await updateBroadcast(newsletter.id, {
+    const { data, error: updateError } = await updateNewsletter(newsletter.id, {
       name: name.trim(),
       subject: subject.trim() || name.trim(),
       status,
