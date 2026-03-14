@@ -25,6 +25,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"
 import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getSiteEventsAction, deleteEventAction, deleteEventsAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
@@ -56,6 +58,9 @@ export default function EventsPage() {
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   // Load events data
   useEffect(() => {
@@ -69,15 +74,21 @@ export default function EventsPage() {
       try {
         setLoading(true)
         setError(null)
-        
-        const { data: eventsData, error: eventsError } = await getSiteEventsAction(currentSite.id)
-        
+
+        // Load admin settings for page size
+        const settingsResult = await getAdminSettingsAction()
+        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+        setPageSize(ps)
+
+        const { data: eventsData, total: eventsTotal, error: eventsError } = await getSiteEventsAction(currentSite.id, { page: currentPage, pageSize: ps })
+
         if (eventsError) {
           setError(eventsError)
           setEvents([])
         } else {
           const loadedEvents = eventsData || []
           setEvents(loadedEvents)
+          setTotal(eventsTotal)
           // Fetch categories for all events in a single query
           const { data: categoryMap } = await getBulkContentCategoriesAction(
             loadedEvents.map(e => e.id), 'event'
@@ -93,7 +104,7 @@ export default function EventsPage() {
     }
 
     loadEvents()
-  }, [currentSite?.id])
+  }, [currentSite?.id, currentPage])
 
   // Handle delete confirmation
   const handleDeleteClick = (eventId: string) => {
@@ -336,7 +347,7 @@ export default function EventsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -554,6 +565,12 @@ export default function EventsPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
         </Card>
       </div>
 

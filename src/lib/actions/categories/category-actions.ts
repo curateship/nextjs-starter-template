@@ -68,13 +68,13 @@ function generateSlug(title: string): string {
 /**
  * Get all categories for a site
  */
-export async function getCategoriesForSiteAction(siteId: string) {
+export async function getCategoriesForSiteAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
     const supabase = await createServerSupabaseClient()
 
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
+      return { data: null, total: 0, error: 'Authentication required' }
     }
 
     const { data: site, error: siteError } = await supabaseAdmin
@@ -84,28 +84,35 @@ export async function getCategoriesForSiteAction(siteId: string) {
       .single()
 
     if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
+      return { data: null, total: 0, error: 'Site not found' }
     }
 
     if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
+      return { data: null, total: 0, error: 'Unauthorized' }
     }
 
-    const { data: categories, error: categoriesError } = await supabaseAdmin
+    // Pagination
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data: categories, count, error: categoriesError } = await supabaseAdmin
       .from('categories')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
       .order('title', { ascending: true })
+      .range(from, to)
 
     if (categoriesError) {
-      return { data: null, error: categoriesError.message }
+      return { data: null, total: 0, error: categoriesError.message }
     }
 
-    return { data: categories as Category[], error: null }
+    return { data: categories as Category[], total: count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching categories:', error)
-    return { data: null, error: 'Failed to fetch categories' }
+    return { data: null, total: 0, error: 'Failed to fetch categories' }
   }
 }
 

@@ -28,6 +28,8 @@ import { getSitePostsAction, deletePostAction, deletePostsAction, duplicatePostA
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
@@ -54,6 +56,9 @@ export default function PostsPage() {
 
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   // Load posts
   useEffect(() => {
@@ -64,18 +69,24 @@ export default function PostsPage() {
         setPosts([])
         return
       }
-      
+
       try {
         setLoading(true)
         setError(null)
 
-        const { data: postsData, error: postsError } = await getSitePostsAction(currentSite.id)
+        const settingsResult = await getAdminSettingsAction()
+        if (settingsResult.success && settingsResult.data?.settings?.dashboard_page_size) {
+          setPageSize(settingsResult.data.settings.dashboard_page_size)
+        }
+
+        const { data: postsData, total: postsTotal, error: postsError } = await getSitePostsAction(currentSite.id, { page: currentPage, pageSize })
         if (postsError) {
           setError(postsError)
           setLoading(false)
           return
         }
-        
+
+        setTotal(postsTotal)
         if (postsData) {
           setPosts(postsData)
           // Fetch categories for all posts in a single query
@@ -92,7 +103,7 @@ export default function PostsPage() {
     }
 
     loadPosts()
-  }, [currentSite?.id])
+  }, [currentSite?.id, currentPage])
 
 
   const handleDeletePost = async (postId: string) => {
@@ -310,7 +321,7 @@ export default function PostsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -544,6 +555,12 @@ export default function PostsPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
 
         {/* Create Post Dialog */}

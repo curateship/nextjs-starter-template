@@ -24,6 +24,7 @@ export interface AdminSettings {
     font_weights?: string[]
     secondary_font_weights?: string[]
     default_theme?: 'system' | 'light' | 'dark'
+    dashboard_page_size?: number
   }
   created_at: string
   updated_at: string
@@ -35,6 +36,7 @@ export interface UpdateAdminSettingsData {
   font_weights?: string[]
   secondary_font_weights?: string[]
   default_theme?: 'system' | 'light' | 'dark'
+  dashboard_page_size?: number
 }
 
 /**

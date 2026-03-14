@@ -57,14 +57,14 @@ function generateSlug(title: string): string {
     .substring(0, 100)
 }
 
-export async function getSiteDirectoriesAction(siteId: string) {
+export async function getSiteDirectoriesAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
+      return { data: null, total: 0, error: 'Authentication required' }
     }
 
     // Use admin client to verify site ownership
@@ -75,29 +75,36 @@ export async function getSiteDirectoriesAction(siteId: string) {
       .single()
 
     if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
+      return { data: null, total: 0, error: 'Site not found' }
     }
 
     if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
+      return { data: null, total: 0, error: 'Unauthorized' }
     }
 
+    // Pagination
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
     // Get directories for the site using admin client
-    const { data: directories, error: directoriesError } = await supabaseAdmin
+    const { data: directories, error: directoriesError, count } = await supabaseAdmin
       .from('directory')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (directoriesError) {
-      return { data: null, error: directoriesError.message }
+      return { data: null, total: 0, error: directoriesError.message }
     }
 
-    return { data: directories as Directory[], error: null }
+    return { data: directories as Directory[], total: count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching directory:', error)
-    return { data: null, error: 'Failed to fetch directory' }
+    return { data: null, total: 0, error: 'Failed to fetch directory' }
   }
 }
 

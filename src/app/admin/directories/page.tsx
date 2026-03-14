@@ -25,6 +25,8 @@ import { DirectorySettingsModal } from "@/components/admin/directory-builder/lay
 import { Eye, Copy, Trash2, Plus, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getSiteDirectoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
@@ -54,6 +56,9 @@ export default function DirectoriesPage() {
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
 
   // Load directories
@@ -65,20 +70,26 @@ export default function DirectoriesPage() {
         setDirectories([])
         return
       }
-      
+
       try {
         setLoading(true)
         setError(null)
 
-        const { data: directoriesData, error: directoriesError } = await getSiteDirectoriesAction(currentSite.id)
+        // Load admin settings for page size
+        const settingsResult = await getAdminSettingsAction()
+        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+        setPageSize(ps)
+
+        const { data: directoriesData, total: directoriesTotal, error: directoriesError } = await getSiteDirectoriesAction(currentSite.id, { page: currentPage, pageSize: ps })
         if (directoriesError) {
           setError(directoriesError)
           setLoading(false)
           return
         }
-        
+
         if (directoriesData) {
           setDirectories(directoriesData)
+          setTotal(directoriesTotal)
           // Fetch categories for all directories in a single query
           const { data: categoryMap } = await getBulkContentCategoriesAction(
             directoriesData.map(d => d.id), 'directory'
@@ -93,7 +104,7 @@ export default function DirectoriesPage() {
     }
 
     loadDirectories()
-  }, [currentSite?.id])
+  }, [currentSite?.id, currentPage])
 
 
   const handleDeleteDirectory = async (directoryId: string) => {
@@ -329,7 +340,7 @@ export default function DirectoriesPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -565,8 +576,14 @@ export default function DirectoriesPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
-        
+
         {/* Create Directory Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogPortal>

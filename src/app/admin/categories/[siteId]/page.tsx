@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getCategoriesForSiteAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
 import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/category-relationship-actions"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
@@ -40,6 +42,9 @@ export default function CategoriesPage({
   const [errorMessage, setErrorMessage] = useState('')
   const [sortColumn, setSortColumn] = useState<'title' | 'parent' | 'status' | 'assigned' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -55,7 +60,12 @@ export default function CategoriesPage({
         setLoading(true)
         setError(null)
 
-        const { data: categoriesData, error: categoriesError } = await getCategoriesForSiteAction(siteId)
+        // Load admin settings for page size
+        const settingsResult = await getAdminSettingsAction()
+        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+        setPageSize(ps)
+
+        const { data: categoriesData, total: categoriesTotal, error: categoriesError } = await getCategoriesForSiteAction(siteId, { page: currentPage, pageSize: ps })
 
         if (categoriesError) {
           setError(categoriesError)
@@ -64,6 +74,7 @@ export default function CategoriesPage({
 
         const cats = categoriesData || []
         setCategories(cats)
+        setTotal(categoriesTotal)
 
         if (cats.length > 0) {
           const { data: counts } = await getCategoryAssignmentCountsAction(cats.map(c => c.id))
@@ -77,7 +88,7 @@ export default function CategoriesPage({
     }
 
     loadData()
-  }, [siteId])
+  }, [siteId, currentPage])
 
   const handleCategoryCreated = (newCategory: Category) => {
     setCategories(prev => [...prev, newCategory])
@@ -263,7 +274,7 @@ export default function CategoriesPage({
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -420,6 +431,12 @@ export default function CategoriesPage({
                 />
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
 
         {/* Create Modal */}

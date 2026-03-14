@@ -33,6 +33,8 @@ import {
   deleteAutomations,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function EmailAutomationsPage() {
@@ -52,17 +54,24 @@ export default function EmailAutomationsPage() {
   const [createName, setCreateName] = useState("")
   const [createTrigger, setCreateTrigger] = useState<string>("lead_magnet_signup")
   const [creating, setCreating] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
   const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'steps' | 'enrolled' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  useEffect(() => { loadAutomations() }, [currentSite?.id])
+  useEffect(() => { loadAutomations() }, [currentSite?.id, currentPage])
 
   async function loadAutomations() {
     if (!currentSite?.id) { setLoading(true); setAutomations([]); return }
     setLoading(true)
-    const { data, error } = await getAutomationsBySite(currentSite.id)
+    const settingsResult = await getAdminSettingsAction()
+    const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+    setPageSize(ps)
+    const { data, total: t, error } = await getAutomationsBySite(currentSite.id, { page: currentPage, pageSize: ps })
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
     setAutomations(data ?? [])
+    setTotal(t)
     setLoading(false)
   }
 
@@ -192,7 +201,7 @@ export default function EmailAutomationsPage() {
                     Delete ({selectedIds.size})
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
@@ -325,6 +334,12 @@ export default function EmailAutomationsPage() {
                 </div>
               ))}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
 
           {/* Create Dialog */}

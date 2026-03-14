@@ -125,12 +125,12 @@ export async function updateUserPagesSettingsAction(
 /**
  * Get all user pages for a site
  */
-export async function getUserPagesAction(siteId: string): Promise<{ data: UserPage[] | null; error: string | null }> {
+export async function getUserPagesAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: UserPage[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(siteId)) {
-      return { data: null, error: 'Invalid site ID format' }
+      return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
     // Get the authenticated user's ID from the session
@@ -138,7 +138,7 @@ export async function getUserPagesAction(siteId: string): Promise<{ data: UserPa
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return { data: null, error: 'Authentication required' }
+      return { data: null, total: 0, error: 'Authentication required' }
     }
 
     // Verify user owns this site
@@ -150,25 +150,32 @@ export async function getUserPagesAction(siteId: string): Promise<{ data: UserPa
       .single()
 
     if (!site) {
-      return { data: null, error: 'Access denied' }
+      return { data: null, total: 0, error: 'Access denied' }
     }
 
+    // Pagination
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
     // Use admin client to fetch all pages
-    const { data, error } = await supabaseAdmin
+    const { data, count, error } = await supabaseAdmin
       .from('users_pages')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
+      .range(from, to)
 
     if (error) {
       console.error('Error fetching user pages:', error)
-      return { data: null, error: error.message }
+      return { data: null, total: 0, error: error.message }
     }
 
-    return { data: data || [], error: null }
+    return { data: data || [], total: count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getUserPagesAction:', error)
-    return { data: null, error: error.message || 'Failed to fetch user pages' }
+    return { data: null, total: 0, error: error.message || 'Failed to fetch user pages' }
   }
 }
 

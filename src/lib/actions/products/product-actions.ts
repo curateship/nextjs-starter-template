@@ -59,20 +59,20 @@ export interface UpdateProductData {
 /**
  * Get all products for a site
  */
-export async function getSiteProductsAction(siteId: string): Promise<{ data: Product[] | null; error: string | null }> {
+export async function getSiteProductsAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: Product[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(siteId)) {
-      return { data: null, error: 'Invalid site ID format' }
+      return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
     // Get the authenticated user's ID from the session
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
+
     if (authError || !user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
+      return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
     }
 
     // Verify user owns this site
@@ -84,14 +84,20 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
       .single()
 
     if (siteError || !site) {
-      return { data: null, error: 'Site not found or access denied' }
+      return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
-    const { data, error } = await supabaseAdmin
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data, error, count } = await supabaseAdmin
       .from('products')
-      .select('*, featured_image, description')
+      .select('*, featured_image, description', { count: 'exact' })
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
+      .range(from, to)
 
     if (error) {
       console.error('Products query error:', error.message)
@@ -115,17 +121,19 @@ export async function getSiteProductsAction(siteId: string): Promise<{ data: Pro
               updated_at: new Date().toISOString()
             }
           ],
+          total: 1,
           error: null
         }
       }
-      return { data: null, error: `Failed to fetch products: ${error.message}` }
+      return { data: null, total: 0, error: `Failed to fetch products: ${error.message}` }
     }
 
-    return { data: data as Product[], error: null }
+    return { data: data as Product[], total: count ?? 0, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      total: 0,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }

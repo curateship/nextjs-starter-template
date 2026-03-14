@@ -708,24 +708,22 @@ export default function ContactsPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(total / pageSize)}
+                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()) }}
+                  showFirstLast={false}
+                />
+              </div>
+            )}
           </Card>
-
-          {/* Pagination */}
-          {!loading && total > 0 && (
-            <div className="flex items-center justify-between mt-4 mb-8 mx-6">
-              <PaginationInfo
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-              />
-              <Pagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(total / pageSize)}
-                onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()) }}
-                showFirstLast={false}
-              />
-            </div>
-          )}
 
           {/* Import Modal */}
           {importModalOpen && (

@@ -21,6 +21,8 @@ import { getNewslettersBySite, deleteNewsletters } from "@/lib/actions/newslette
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function NewslettersPage() {
@@ -39,12 +41,15 @@ export default function NewslettersPage() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
   const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'opens' | 'clicks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     loadNewsletters()
-  }, [currentSite?.id])
+  }, [currentSite?.id, currentPage])
 
   async function loadNewsletters() {
     if (!currentSite?.id) {
@@ -55,7 +60,10 @@ export default function NewslettersPage() {
 
     try {
       setLoading(true)
-      const { data, error } = await getNewslettersBySite(currentSite.id)
+      const settingsResult = await getAdminSettingsAction()
+      const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+      setPageSize(ps)
+      const { data, total: t, error } = await getNewslettersBySite(currentSite.id, { page: currentPage, pageSize: ps })
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
@@ -63,6 +71,7 @@ export default function NewslettersPage() {
         return
       }
       setNewsletters(data ?? [])
+      setTotal(t)
       setLoading(false)
     } catch {
       setLoading(false)
@@ -249,7 +258,7 @@ export default function NewslettersPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="draft">Drafts ({statusCounts.draft})</TabsTrigger>
@@ -441,6 +450,12 @@ export default function NewslettersPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
 
           {/* Create Newsletter Dialog */}

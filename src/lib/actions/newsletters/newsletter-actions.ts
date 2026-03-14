@@ -52,33 +52,40 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 }
 
 export async function getNewslettersBySite(
-  siteId: string
-): Promise<{ data: Newsletter[] | null; error: string | null }> {
+  siteId: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<{ data: Newsletter[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
+    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
 
     const user = await verifyAuth()
-    if (!user) return { data: null, error: 'Not authenticated' }
+    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
+      return { data: null, total: 0, error: 'Access denied' }
     }
 
-    const { data, error } = await supabaseAdmin
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data, error, count } = await supabaseAdmin
       .from('newsletters')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (error) {
       console.error('getNewslettersBySite error:', error.message)
-      return { data: null, error: 'Failed to load newsletters' }
+      return { data: null, total: 0, error: 'Failed to load newsletters' }
     }
 
-    return { data: data as Newsletter[], error: null }
+    return { data: data as Newsletter[], total: count ?? 0, error: null }
   } catch (err) {
     console.error('getNewslettersBySite error:', err)
-    return { data: null, error: 'Server error' }
+    return { data: null, total: 0, error: 'Server error' }
   }
 }
 

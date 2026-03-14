@@ -23,6 +23,8 @@ import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePa
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -54,6 +56,9 @@ export default function SitePagesPage({ params }: PageProps) {
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'status' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
   // Load site and pages data
   useEffect(() => {
@@ -61,6 +66,11 @@ export default function SitePagesPage({ params }: PageProps) {
       try {
         setLoading(true)
         setError(null)
+
+        // Load admin settings for page size
+        const settingsResult = await getAdminSettingsAction()
+        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
+        setPageSize(ps)
 
         // Load site data
         const siteResponse = await fetch(`/api/sites/${siteId}`)
@@ -71,16 +81,17 @@ export default function SitePagesPage({ params }: PageProps) {
         }
         setSite(siteResult.data)
 
-        // Load pages data
-        const { data: pagesData, error: pagesError } = await getSitePagesAction(siteId)
+        // Load pages data with pagination
+        const { data: pagesData, total: pagesTotal, error: pagesError } = await getSitePagesAction(siteId, { page: currentPage, pageSize: ps })
         if (pagesError) {
           setError(pagesError)
           return
         }
-        
+
         if (pagesData) {
           setPages(pagesData)
         }
+        setTotal(pagesTotal ?? 0)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data')
       } finally {
@@ -89,7 +100,7 @@ export default function SitePagesPage({ params }: PageProps) {
     }
 
     loadData()
-  }, [siteId])
+  }, [siteId, currentPage])
 
   const handleDeletePage = async (pageId: string) => {
     const page = pages.find(p => p.id === pageId)
@@ -346,7 +357,7 @@ export default function SitePagesPage({ params }: PageProps) {
                   )}
                 </Button>
               )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()) }}>
+              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setCurrentPage(1) }}>
                 <TabsList className="gap-1">
                   <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                   <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -556,8 +567,14 @@ export default function SitePagesPage({ params }: PageProps) {
               ))
             )}
           </div>
+          {!loading && total > 0 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+              <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+            </div>
+          )}
         </Card>
-        
+
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>

@@ -27,6 +27,8 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
 
@@ -53,6 +55,9 @@ export default function ProductsPage() {
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [pageSize, setPageSize] = useState(50)
 
 
   // Load products
@@ -64,18 +69,24 @@ export default function ProductsPage() {
         setProducts([])
         return
       }
-      
+
       try {
         setLoading(true)
         setError(null)
 
-        const { data: productsData, error: productsError } = await getSiteProductsAction(currentSite.id)
+        const settingsResult = await getAdminSettingsAction()
+        if (settingsResult.success && settingsResult.data?.settings?.dashboard_page_size) {
+          setPageSize(settingsResult.data.settings.dashboard_page_size)
+        }
+
+        const { data: productsData, total: productsTotal, error: productsError } = await getSiteProductsAction(currentSite.id, { page: currentPage, pageSize })
         if (productsError) {
           setError(productsError)
           setLoading(false)
           return
         }
-        
+
+        setTotal(productsTotal)
         if (productsData) {
           setProducts(productsData)
           // Fetch categories for all products in a single query
@@ -92,7 +103,7 @@ export default function ProductsPage() {
     }
 
     loadProducts()
-  }, [currentSite?.id])
+  }, [currentSite?.id, currentPage])
 
 
   const handleDeleteProduct = async (productId: string) => {
@@ -351,7 +362,7 @@ export default function ProductsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
                     <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                     <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
@@ -587,8 +598,14 @@ export default function ProductsPage() {
                 ))
               )}
             </div>
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+              </div>
+            )}
           </Card>
-        
+
         {/* Create Product Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogPortal>

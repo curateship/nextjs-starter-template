@@ -50,14 +50,14 @@ function generateSlug(title: string): string {
     .substring(0, 100)
 }
 
-export async function getSiteEventsAction(siteId: string) {
+export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
     const supabase = await createServerSupabaseClient()
-    
+
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
+      return { data: null, total: 0, error: 'Authentication required' }
     }
 
     // Use admin client to verify site ownership
@@ -68,29 +68,36 @@ export async function getSiteEventsAction(siteId: string) {
       .single()
 
     if (siteError || !site) {
-      return { data: null, error: 'Site not found' }
+      return { data: null, total: 0, error: 'Site not found' }
     }
 
     if (site.user_id !== user.id) {
-      return { data: null, error: 'Unauthorized' }
+      return { data: null, total: 0, error: 'Unauthorized' }
     }
 
+    // Pagination
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
     // Get events for the site using admin client
-    const { data: events, error: eventsError } = await supabaseAdmin
+    const { data: events, error: eventsError, count } = await supabaseAdmin
       .from('events')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('display_order', { ascending: true })
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (eventsError) {
-      return { data: null, error: eventsError.message }
+      return { data: null, total: 0, error: eventsError.message }
     }
 
-    return { data: events as Event[], error: null }
+    return { data: events as Event[], total: count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching events:', error)
-    return { data: null, error: 'Failed to fetch events' }
+    return { data: null, total: 0, error: 'Failed to fetch events' }
   }
 }
 

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertTriangle, Palette } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
@@ -15,6 +16,7 @@ export default function PlatformSettingsPage() {
   // Form states
   const [fontFamily, setFontFamily] = useState("urbanist")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("urbanist")
+  const [dashboardPageSize, setDashboardPageSize] = useState(50)
   const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function PlatformSettingsPage() {
       const settings = result.data.settings
       setFontFamily(settings.font_family || "urbanist")
       setSecondaryFontFamily(settings.secondary_font_family || "urbanist")
+      setDashboardPageSize(settings.dashboard_page_size || 50)
 
     } catch (err) {
       console.error('Error loading settings:', err)
@@ -53,6 +56,7 @@ export default function PlatformSettingsPage() {
       const result = await updateAdminSettingsAction({
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
+        dashboard_page_size: dashboardPageSize,
       })
 
       if (result.error) {
@@ -145,6 +149,50 @@ export default function PlatformSettingsPage() {
                     description="Used for body text and content in the admin panel"
                     disabled={saving}
                   />
+                </div>
+              </div>
+            )}
+          </AdminCard>
+
+          {/* Dashboard Settings */}
+          <AdminCard>
+            {loading ? (
+              <div className="p-6 space-y-6">
+                <div className="space-y-2">
+                  <div className="h-4 bg-muted rounded animate-pulse w-32"></div>
+                  <div className="h-10 bg-muted/60 rounded animate-pulse w-48"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <LayoutGrid className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Dashboard Settings</h3>
+                </div>
+
+                <p className="text-sm text-muted-foreground mb-6">
+                  Configure how many items are shown per page on admin dashboard listing pages.
+                </p>
+
+                <div className="max-w-xs">
+                  <label className="text-sm font-medium mb-2 block">Items Per Page</label>
+                  <Select
+                    value={String(dashboardPageSize)}
+                    onValueChange={(value) => { setDashboardPageSize(Number(value)); setHasChanges(true) }}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Applies to all admin dashboard listing pages (posts, products, events, etc.)
+                  </p>
                 </div>
               </div>
             )}

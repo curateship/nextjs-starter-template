@@ -250,26 +250,33 @@ export async function getOrdersByEmail(
  * Get all orders for a site
  */
 export async function getOrdersBySite(
-  siteId: string
-): Promise<ProductOrder[]> {
+  siteId: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<{ data: ProductOrder[]; total: number }> {
   try {
     await verifySiteOwnership(siteId)
 
-    const { data, error } = await supabaseAdmin
+    const page = options?.page ?? 1
+    const pageSize = options?.pageSize ?? 50
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data, error, count } = await supabaseAdmin
       .from('product_orders')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('site_id', siteId)
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (error) {
       console.error('Error fetching orders by site:', error)
-      throw new Error(`Failed to fetch orders: ${error.message}`)
+      return { data: [], total: 0 }
     }
 
-    return data || []
+    return { data: data || [], total: count ?? 0 }
   } catch (error) {
     console.error('Error in getOrdersBySite:', error)
-    return []
+    return { data: [], total: 0 }
   }
 }
 

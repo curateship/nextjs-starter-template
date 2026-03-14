@@ -9,7 +9,6 @@ import {
   type PaginationState,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   type RowSelectionState,
   type SortingState,
@@ -55,6 +54,7 @@ import {
   type OrderType,
 } from "@/lib/actions/email/order-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
+import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
 // --- Data table utilities (from data-table26 pattern) ---
 
@@ -402,6 +402,7 @@ function OrdersContent() {
       : "all"
   )
 
+  const [total, setTotal] = useState(0)
   const [sorting, setSorting] = useState<SortingState>([
     { id: "created_at", desc: true },
   ])
@@ -417,12 +418,19 @@ function OrdersContent() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [ordersData, productsResult] = await Promise.all([
-          getOrdersBySite(currentSite.id),
+        const adminSettings = await getAdminSettingsAction()
+        const pageSize = adminSettings.data?.settings?.dashboard_page_size || pagination.pageSize
+        if (pageSize !== pagination.pageSize) {
+          setPagination((prev) => ({ ...prev, pageSize }))
+        }
+
+        const [ordersResult, productsResult] = await Promise.all([
+          getOrdersBySite(currentSite.id, { page: pagination.pageIndex + 1, pageSize: pagination.pageSize }),
           getSiteProductsAction(currentSite.id),
         ])
 
-        setOrders(ordersData)
+        setOrders(ordersResult.data)
+        setTotal(ordersResult.total)
 
         const map: Record<string, string> = {}
         if (productsResult.data) {
@@ -439,7 +447,7 @@ function OrdersContent() {
     }
 
     fetchData()
-  }, [currentSite?.id])
+  }, [currentSite?.id, pagination.pageIndex, pagination.pageSize])
 
   const promptDelete = React.useCallback((ids: string[]) => {
     setDeleteIds(ids)
@@ -483,8 +491,6 @@ function OrdersContent() {
 
   const coreRowModel = React.useMemo(() => getCoreRowModel<ProductOrder>(), [])
   const sortedRowModel = React.useMemo(() => getSortedRowModel<ProductOrder>(), [])
-  const paginationRowModel = React.useMemo(() => getPaginationRowModel<ProductOrder>(), [])
-
   const table = useReactTable({
     data: filteredOrders,
     columns,
@@ -494,12 +500,13 @@ function OrdersContent() {
     onPaginationChange: setPagination,
     getCoreRowModel: coreRowModel,
     getSortedRowModel: sortedRowModel,
-    getPaginationRowModel: paginationRowModel,
     getRowId: (row) => row.id,
+    manualPagination: true,
+    pageCount: Math.ceil(total / pagination.pageSize),
   })
 
   const visibleColumnCount = table.getVisibleLeafColumns().length
-  const totalPages = table.getPageCount()
+  const totalPages = Math.ceil(total / pagination.pageSize)
   const currentPage = pagination.pageIndex + 1
 
   return (
@@ -677,12 +684,12 @@ function OrdersContent() {
           </div>
 
           {/* Pagination */}
-          {!loading && filteredOrders.length > 0 && (
+          {!loading && total > 0 && (
             <div className="flex items-center justify-between">
               <PaginationInfo
                 currentPage={currentPage}
                 pageSize={pagination.pageSize}
-                total={filteredOrders.length}
+                total={total}
               />
               <Pagination
                 currentPage={currentPage}
