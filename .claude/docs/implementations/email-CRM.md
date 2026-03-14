@@ -8,6 +8,7 @@
 | `newsletter_contacts` | 098 | Subscribers: email, status, bounce_count, engagement_score, last_engaged_at, metadata (first_name, last_name, source, tags) |
 | `newsletters` | 099 | Email campaigns: name, subject, content, status, audience_filter, send stats |
 | `newsletter_events` | 100 | Tracking: sent/opened/clicked/bounced/complained per contact per newsletter |
+| `newsletter_segments` | 104 | Saved audience filter presets: name, description, filter_rules (tags) |
 
 ### Server Actions (all in `/src/lib/actions/newsletters/`)
 
@@ -28,6 +29,14 @@
 - `deleteNewsletters(ids)` — bulk delete
 - `sendNewsletter(newsletterId)` — sends to matching contacts via Resend, records events, adds unsubscribe footer + List-Unsubscribe header
 - `sendTestNewsletter(newsletterId, testEmail)` — preview to single email
+
+**`segment-actions.ts`** — Segment CRUD
+- `getSegmentsBySite(siteId)` — list all segments for a site
+- `getSegmentById(segmentId)` — single segment with auth
+- `createSegment(...)` — create with name, description, filterRules
+- `updateSegment(segmentId, updates)` — name, description, filterRules
+- `deleteSegments(ids)` — bulk delete with ownership check
+- `getSegmentContactCount(segmentId)` — live count matching segment's filter_rules
 
 **`audience-sync-actions.ts`** — Resend audience management
 - `getOrCreateResendAudience(siteId)` — creates Resend audience, stores ID in site_integrations
@@ -133,11 +142,13 @@ src/lib/actions/newsletters/
   contact-actions.ts          # Contact CRUD + import + unsubscribe
   newsletter-actions.ts       # Newsletter CRUD + send
   audience-sync-actions.ts    # Resend audience sync
+  segment-actions.ts          # Segment CRUD + contact count
 
 src/app/admin/newsletters/
   page.tsx                    # Newsletters list dashboard
   [newsletterId]/page.tsx     # Newsletter composer
   contacts/page.tsx           # Contacts dashboard
+  segments/page.tsx           # Segments dashboard
   new/page.tsx                # (legacy, unused)
 
 src/app/unsubscribe/

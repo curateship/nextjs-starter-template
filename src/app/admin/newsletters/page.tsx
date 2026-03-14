@@ -225,6 +225,7 @@ export default function NewslettersPage() {
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters", active: true },
           { label: "Contacts", href: "/admin/newsletters/contacts" },
+          { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations" },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}

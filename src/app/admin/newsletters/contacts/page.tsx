@@ -35,6 +35,8 @@ import {
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
+import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function ContactsPage() {
@@ -67,6 +69,12 @@ export default function ContactsPage() {
   const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" as string })
   const [saving, setSaving] = useState(false)
 
+  // Segment state
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
+  const [addingToSegment, setAddingToSegment] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
   // CSV Import state — columnMap maps CSV header name → our field (or "skip")
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
@@ -79,6 +87,12 @@ export default function ContactsPage() {
   useEffect(() => {
     loadContacts()
   }, [currentSite?.id, filterSource, currentPage])
+
+  useEffect(() => {
+    if (currentSite?.id) {
+      getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
+    }
+  }, [currentSite?.id])
 
   async function loadContacts() {
     if (!currentSite?.id) {
@@ -216,6 +230,30 @@ export default function ContactsPage() {
       setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
+    }
+  }
+
+  const handleAddToSegment = async () => {
+    if (!selectedSegmentId || !selectedIds.size) return
+    setAddingToSegment(true)
+    try {
+      const segName = segments.find(s => s.id === selectedSegmentId)?.name || "segment"
+      const { updated, error } = await addContactsToSegment(Array.from(selectedIds), selectedSegmentId)
+      if (error) {
+        setErrorMessage(error)
+        setErrorDialogOpen(true)
+      } else {
+        setSuccessMessage(`${updated} contact${updated !== 1 ? "s" : ""} added to ${segName}`)
+        setTimeout(() => setSuccessMessage(null), 5000)
+        setSelectedIds(new Set())
+        setSelectedSegmentId("")
+        loadContacts()
+      }
+    } catch {
+      setErrorMessage("Failed to add contacts to segment")
+      setErrorDialogOpen(true)
+    } finally {
+      setAddingToSegment(false)
     }
   }
 
@@ -473,6 +511,7 @@ export default function ContactsPage() {
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters" },
           { label: "Contacts", href: "/admin/newsletters/contacts", active: true },
+          { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations" },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}
@@ -484,24 +523,54 @@ export default function ContactsPage() {
             extraContent={
               <div className="flex items-center gap-3">
                 {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedIds.size})
-                      </>
+                  <>
+                    {segments.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                          <SelectTrigger className="h-8 w-[180px] text-sm">
+                            <SelectValue placeholder="Select segment..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {segments.map(seg => (
+                              <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant={selectedSegmentId ? "default" : "outline"}
+                          size="sm"
+                          className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                          onClick={handleAddToSegment}
+                          disabled={!selectedSegmentId || addingToSegment}
+                        >
+                          {addingToSegment ? "Adding..." : "Add to Segment"}
+                        </Button>
+                      </div>
                     )}
-                  </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setMassDeleteConfirmOpen(true)}
+                      disabled={massDeleting}
+                    >
+                      {massDeleting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete ({selectedIds.size})
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+                {successMessage && (
+                  <div className="p-2 px-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-800 text-sm">{successMessage}</p>
+                  </div>
                 )}
                 <Tabs value={filterSource} onValueChange={(v) => { setFilterSource(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">

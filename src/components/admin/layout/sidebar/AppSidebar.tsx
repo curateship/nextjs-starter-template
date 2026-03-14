@@ -120,6 +120,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       isActive: false,
       items: [
         { title: "Contacts", url: "/admin/newsletters/contacts" },
+        { title: "Segments", url: "/admin/newsletters/segments" },
         { title: "Automations", url: "/admin/newsletters/automations" },
         { title: "Email Health", url: "/admin/newsletters/email-health" },
       ],

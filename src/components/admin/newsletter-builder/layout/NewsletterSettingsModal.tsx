@@ -11,9 +11,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
+import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Users, TestTube, Send } from "lucide-react"
 
 interface NewsletterSettingsModalProps {
@@ -43,6 +53,10 @@ export function NewsletterSettingsModal({
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
+  // Segment picker state
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [audienceMode, setAudienceMode] = useState<string>('all') // 'all' | segment ID | 'custom'
+
   useEffect(() => {
     if (newsletter) {
       setName(newsletter.name)
@@ -50,15 +64,66 @@ export function NewsletterSettingsModal({
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
       setError(null)
       setSuccessMsg(null)
+
+      // Determine audience mode from saved data
+      if (newsletter.audience_filter?.segment_id) {
+        setAudienceMode(newsletter.audience_filter.segment_id)
+      } else if (newsletter.audience_filter?.tags?.length) {
+        setAudienceMode('custom')
+      } else {
+        setAudienceMode('all')
+      }
     }
   }, [newsletter])
 
+  // Load segments when modal opens
   useEffect(() => {
     if (!open || !siteId) return
-    const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+    getSegmentsBySite(siteId).then(({ data }) => setSegments(data || []))
+  }, [open, siteId])
+
+  // Update audience count based on mode
+  useEffect(() => {
+    if (!open || !siteId) return
+
+    let tags: string[] = []
+
+    if (audienceMode === 'custom') {
+      tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+    } else if (audienceMode !== 'all') {
+      // It's a segment ID — find the segment's tags
+      const seg = segments.find(s => s.id === audienceMode)
+      tags = seg?.filter_rules?.tags || []
+    }
+
     const filter = tags.length ? { tags } : {}
     getAudienceCount(siteId, filter).then(({ count }) => setAudienceCount(count))
-  }, [filterTags, siteId, open])
+  }, [audienceMode, filterTags, siteId, open, segments])
+
+  function handleAudienceModeChange(value: string) {
+    setAudienceMode(value)
+    if (value !== 'custom') {
+      // When selecting a segment or "all", clear manual tags
+      if (value === 'all') {
+        setFilterTags('')
+      } else {
+        const seg = segments.find(s => s.id === value)
+        setFilterTags(seg?.filter_rules?.tags?.join(', ') || '')
+      }
+    }
+  }
+
+  function buildAudienceFilter(): Record<string, any> {
+    if (audienceMode === 'all') return {}
+    if (audienceMode === 'custom') {
+      const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+      return tags.length ? { tags } : {}
+    }
+    // Segment selected — store segment_id + resolved tags
+    const seg = segments.find(s => s.id === audienceMode)
+    const tags = seg?.filter_rules?.tags || []
+    return { segment_id: audienceMode, tags }
+  }
 
   const handleSave = async () => {
     if (!newsletter || !name.trim()) {
@@ -68,13 +133,10 @@ export function NewsletterSettingsModal({
     setSaving(true)
     setError(null)
 
-    const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
-    const audienceFilter = tags.length ? { tags } : {}
-
     const { data, error: updateError } = await updateNewsletter(newsletter.id, {
       name: name.trim(),
       subject: subject.trim() || name.trim(),
-      audience_filter: audienceFilter,
+      audience_filter: buildAudienceFilter(),
     })
     setSaving(false)
     if (updateError) {
@@ -129,6 +191,11 @@ export function NewsletterSettingsModal({
 
   if (!newsletter) return null
   const isSent = newsletter.status === 'sent' || newsletter.status === 'sending'
+
+  // Get selected segment for display
+  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'custom'
+    ? segments.find(s => s.id === audienceMode)
+    : null
 
   return (
     <>
@@ -191,18 +258,47 @@ export function NewsletterSettingsModal({
             <div>
               <h3 className="font-medium mb-4">Audience</h3>
               <div>
-                <Label htmlFor="filter-tags">Filter by Tags (optional)</Label>
-                <Input
-                  id="filter-tags"
-                  value={filterTags}
-                  onChange={(e) => setFilterTags(e.target.value)}
-                  placeholder="austin, fitness (comma-separated)"
-                  disabled={isSent}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Only contacts with ALL these tags will receive this newsletter.
-                </p>
+                <Label htmlFor="audience-select">Segment</Label>
+                <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
+                  <SelectTrigger id="audience-select">
+                    <SelectValue placeholder="Select audience" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Contacts</SelectItem>
+                    {segments.map(seg => (
+                      <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                    ))}
+                    <SelectItem value="custom">Custom filter...</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Show segment tags as badges when a segment is selected */}
+              {selectedSegment && selectedSegment.filter_rules?.tags?.length ? (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {selectedSegment.filter_rules.tags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Show manual tags input for custom filter */}
+              {audienceMode === 'custom' && (
+                <div className="mt-3">
+                  <Label htmlFor="filter-tags">Filter by Tags</Label>
+                  <Input
+                    id="filter-tags"
+                    value={filterTags}
+                    onChange={(e) => setFilterTags(e.target.value)}
+                    placeholder="austin, fitness (comma-separated)"
+                    disabled={isSent}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Only contacts with ALL these tags will receive this newsletter.
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 text-sm mt-3">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span>

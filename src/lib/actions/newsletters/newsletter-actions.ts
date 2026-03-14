@@ -354,7 +354,20 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       .eq('site_id', newsletter.site_id)
       .eq('status', 'active')
 
-    const filter = newsletter.audience_filter || {}
+    let filter = newsletter.audience_filter || {}
+
+    // Resolve segment if segment_id is set
+    if (filter.segment_id) {
+      const { data: segment } = await supabaseAdmin
+        .from('newsletter_segments')
+        .select('filter_rules')
+        .eq('id', filter.segment_id)
+        .single()
+      if (segment?.filter_rules?.tags?.length) {
+        filter = { ...filter, tags: segment.filter_rules.tags }
+      }
+    }
+
     if (filter.tags?.length) {
       for (const tag of filter.tags) {
         query = query.contains('metadata', { tags: [tag] })

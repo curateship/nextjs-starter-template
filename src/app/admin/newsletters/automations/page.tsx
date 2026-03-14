@@ -184,6 +184,7 @@ export default function EmailAutomationsPage() {
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters" },
           { label: "Contacts", href: "/admin/newsletters/contacts" },
+          { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations", active: true },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}

@@ -57,6 +57,7 @@ export default function EmailHealthPage() {
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters" },
           { label: "Contacts", href: "/admin/newsletters/contacts" },
+          { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations" },
           { label: "Email Health", href: "/admin/newsletters/email-health", active: true },
         ]}
