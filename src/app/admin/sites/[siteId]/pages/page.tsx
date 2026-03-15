@@ -8,13 +8,11 @@ import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHe
 import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,13 +26,12 @@ const PageSettingsModal = dynamic(() =>
   import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface PageProps {
   params: Promise<{
@@ -44,8 +41,8 @@ interface PageProps {
 
 export default function SitePagesPage({ params }: PageProps) {
   const { siteId } = use(params)
-  const { pageSize: contextPageSize } = useSiteContext()
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
+  const { pageSize: contextPageSize, currentSite, sites } = useSiteContext()
+  const site = sites.find(s => s.id === siteId) || currentSite
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,23 +64,13 @@ export default function SitePagesPage({ params }: PageProps) {
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
 
-  // Load site and pages data
+  // Load pages data
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true)
         setError(null)
 
-        // Load site data
-        const siteResponse = await fetch(`/api/sites/${siteId}`)
-        const siteResult = await siteResponse.json()
-        if (!siteResponse.ok || siteResult.error) {
-          setError(siteResult.error || 'Failed to load site data')
-          return
-        }
-        setSite(siteResult.data)
-
-        // Load pages data with pagination
         const { data: pagesData, total: pagesTotal, error: pagesError } = await getSitePagesAction(siteId, { page: currentPage, pageSize })
         if (pagesError) {
           setError(pagesError)

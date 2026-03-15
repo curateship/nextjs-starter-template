@@ -30,12 +30,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
 import {
-  getOrdersBySite,
+  getOrdersWithProducts,
   deleteOrders,
   type ProductOrder,
   type OrderType,
 } from "@/lib/actions/email/order-actions"
-import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -114,21 +113,11 @@ function OrdersContent() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [ordersResult, productsResult] = await Promise.all([
-          getOrdersBySite(currentSite.id, { page: currentPage, pageSize }),
-          getSiteProductsAction(currentSite.id),
-        ])
+        const result = await getOrdersWithProducts(currentSite.id, { page: currentPage, pageSize })
 
-        setOrders(ordersResult.data)
-        setTotal(ordersResult.total)
-
-        const map: Record<string, string> = {}
-        if (productsResult.data) {
-          for (const p of productsResult.data) {
-            map[p.id] = p.title
-          }
-        }
-        setProductMap(map)
+        setOrders(result.data)
+        setTotal(result.total)
+        setProductMap(result.productMap)
       } catch (error) {
         console.error("Error fetching orders data:", error)
       } finally {

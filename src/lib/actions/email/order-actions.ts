@@ -247,12 +247,12 @@ export async function getOrdersByEmail(
 }
 
 /**
- * Get all orders for a site
+ * Get orders + product name map in a single auth check
  */
-export async function getOrdersBySite(
+export async function getOrdersWithProducts(
   siteId: string,
   options?: { page?: number; pageSize?: number }
-): Promise<{ data: ProductOrder[]; total: number }> {
+): Promise<{ data: ProductOrder[]; total: number; productMap: Record<string, string> }> {
   try {
     await verifySiteOwnership(siteId)
 
@@ -261,22 +261,35 @@ export async function getOrdersBySite(
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('product_orders')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    const [ordersResult, productsResult] = await Promise.all([
+      supabaseAdmin
+        .from('product_orders')
+        .select('*', { count: 'exact' })
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false })
+        .range(from, to),
+      supabaseAdmin
+        .from('products')
+        .select('id, title')
+        .eq('site_id', siteId),
+    ])
 
-    if (error) {
-      console.error('Error fetching orders by site:', error)
-      return { data: [], total: 0 }
+    if (ordersResult.error) {
+      console.error('Error fetching orders:', ordersResult.error)
+      return { data: [], total: 0, productMap: {} }
     }
 
-    return { data: data || [], total: count ?? 0 }
+    const productMap: Record<string, string> = {}
+    if (productsResult.data) {
+      for (const p of productsResult.data) {
+        productMap[p.id] = p.title
+      }
+    }
+
+    return { data: ordersResult.data || [], total: ordersResult.count ?? 0, productMap }
   } catch (error) {
-    console.error('Error in getOrdersBySite:', error)
-    return { data: [], total: 0 }
+    console.error('Error in getOrdersWithProducts:', error)
+    return { data: [], total: 0, productMap: {} }
   }
 }
 

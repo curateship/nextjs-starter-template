@@ -19,11 +19,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getSegmentsBySite,
+  getSegmentsWithCounts,
   createSegment,
   updateSegment,
   deleteSegments,
-  getSegmentContactCounts,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -68,7 +67,7 @@ export default function SegmentsPage() {
     try {
       setLoading(true)
       setError(null)
-      const { data, total: totalCount, error: loadError } = await getSegmentsBySite(currentSite.id, { page: currentPage, pageSize })
+      const { data, total: totalCount, counts, error: loadError } = await getSegmentsWithCounts(currentSite.id, { page: currentPage, pageSize })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -76,12 +75,7 @@ export default function SegmentsPage() {
       }
       setSegments(data || [])
       setTotal(totalCount)
-
-      // Load contact counts in a single batched call
-      if (data?.length) {
-        const { counts } = await getSegmentContactCounts(currentSite.id, data)
-        setContactCounts(counts)
-      }
+      setContactCounts(counts)
       setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load segments")

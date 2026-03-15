@@ -236,93 +236,66 @@ export async function deleteSegments(ids: string[]): Promise<{ success: boolean;
   }
 }
 
-export async function getSegmentContactCount(
-  segmentId: string
-): Promise<{ count: number; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(segmentId)) return { count: 0, error: 'Invalid ID' }
-
-    const user = await verifyAuth()
-    if (!user) return { count: 0, error: 'Not authenticated' }
-
-    const { data: segment } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('site_id, filter_rules')
-      .eq('id', segmentId)
-      .single()
-
-    if (!segment) return { count: 0, error: 'Segment not found' }
-
-    if (!await verifySiteOwnership(segment.site_id, user.id)) {
-      return { count: 0, error: 'Access denied' }
-    }
-
-    let query = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('site_id', segment.site_id)
-      .eq('status', 'active')
-
-    const rules = segment.filter_rules as { tags?: string[] }
-    if (rules.tags?.length) {
-      for (const tag of rules.tags) {
-        query = query.contains('metadata', { tags: [tag] })
-      }
-    }
-
-    const { count, error } = await query
-
-    if (error) {
-      console.error('getSegmentContactCount error:', error.message)
-      return { count: 0, error: 'Failed to count' }
-    }
-
-    return { count: count ?? 0, error: null }
-  } catch (err) {
-    console.error('getSegmentContactCount error:', err)
-    return { count: 0, error: 'Server error' }
-  }
-}
-
-export async function getSegmentContactCounts(
+export async function getSegmentsWithCounts(
   siteId: string,
-  segments: { id: string; filter_rules: { tags?: string[] } }[]
-): Promise<{ counts: Record<string, number>; error: string | null }> {
+  options?: { page?: number; pageSize?: number }
+): Promise<{ data: Segment[] | null; total: number; counts: Record<string, number>; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { counts: {}, error: 'Invalid site ID' }
+    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, counts: {}, error: 'Invalid site ID' }
 
     const user = await verifyAuth()
-    if (!user) return { counts: {}, error: 'Not authenticated' }
+    if (!user) return { data: null, total: 0, counts: {}, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
-      return { counts: {}, error: 'Access denied' }
+      return { data: null, total: 0, counts: {}, error: 'Access denied' }
     }
 
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data, error, count } = await supabaseAdmin
+      .from('newsletter_segments')
+      .select('*', { count: 'exact' })
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.error('getSegmentsWithCounts error:', error.message)
+      return { data: null, total: 0, counts: {}, error: 'Failed to load segments' }
+    }
+
+    const segments = (data as Segment[]) || []
     const counts: Record<string, number> = {}
-    await Promise.all(
-      segments.map(async (seg) => {
-        let query = supabaseAdmin
-          .from('newsletter_contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('site_id', siteId)
-          .eq('status', 'active')
 
-        const rules = seg.filter_rules as { tags?: string[] }
-        if (rules.tags?.length) {
-          for (const tag of rules.tags) {
-            query = query.contains('metadata', { tags: [tag] })
+    if (segments.length) {
+      await Promise.all(
+        segments.map(async (seg) => {
+          let query = supabaseAdmin
+            .from('newsletter_contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('site_id', siteId)
+            .eq('status', 'active')
+
+          const rules = seg.filter_rules as { tags?: string[] }
+          if (rules.tags?.length) {
+            for (const tag of rules.tags) {
+              query = query.contains('metadata', { tags: [tag] })
+            }
           }
-        }
 
-        const { count } = await query
-        counts[seg.id] = count ?? 0
-      })
-    )
+          const { count: contactCount } = await query
+          counts[seg.id] = contactCount ?? 0
+        })
+      )
+    }
 
-    return { counts, error: null }
+    return { data: segments, total: count ?? 0, counts, error: null }
   } catch (err) {
-    console.error('getSegmentContactCounts error:', err)
-    return { counts: {}, error: 'Server error' }
+    console.error('getSegmentsWithCounts error:', err)
+    return { data: null, total: 0, counts: {}, error: 'Server error' }
   }
 }
 

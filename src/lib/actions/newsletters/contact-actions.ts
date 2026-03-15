@@ -51,53 +51,6 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
-export async function getContactsBySite(
-  siteId: string,
-  options?: { source?: string; status?: string; page?: number; pageSize?: number }
-): Promise<{ data: CrmContact[] | null; total: number; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-
-    const user = await verifyAuth()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
-
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
-
-    let query = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-
-    if (options?.source && options.source !== 'all') {
-      query = query.eq('metadata->>source', options.source)
-    }
-    if (options?.status && options.status !== 'all') {
-      query = query.eq('status', options.status)
-    }
-
-    query = query.order('created_at', { ascending: false }).range(from, to)
-
-    const { data, error, count } = await query
-
-    if (error) {
-      console.error('getContactsBySite error:', error.message)
-      return { data: null, total: 0, error: 'Failed to load contacts' }
-    }
-
-    return { data: data as CrmContact[], total: count ?? 0, error: null }
-  } catch (err) {
-    console.error('getContactsBySite error:', err)
-    return { data: null, total: 0, error: 'Server error' }
-  }
-}
-
 export async function createOrUpsertContact(input: {
   siteId: string
   email: string
@@ -324,51 +277,78 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
   }
 }
 
-export async function getContactStats(siteId: string): Promise<{
-  data: { total: number; active: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null
+export async function getContactsWithStats(
+  siteId: string,
+  options?: { source?: string; status?: string; page?: number; pageSize?: number }
+): Promise<{
+  data: CrmContact[] | null
+  total: number
+  stats: { total: number; active: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null
   error: string | null
 }> {
   try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
+    if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, stats: null, error: 'Invalid site ID' }
 
     const user = await verifyAuth()
-    if (!user) return { data: null, error: 'Not authenticated' }
+    if (!user) return { data: null, total: 0, stats: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
+      return { data: null, total: 0, stats: null, error: 'Access denied' }
     }
 
-    const { data: contacts, error } = await supabaseAdmin
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    let contactsQuery = supabaseAdmin
+      .from('newsletter_contacts')
+      .select('*', { count: 'exact' })
+      .eq('site_id', siteId)
+
+    if (options?.source && options.source !== 'all') {
+      contactsQuery = contactsQuery.eq('metadata->>source', options.source)
+    }
+    if (options?.status && options.status !== 'all') {
+      contactsQuery = contactsQuery.eq('status', options.status)
+    }
+
+    contactsQuery = contactsQuery.order('created_at', { ascending: false }).range(from, to)
+
+    const statsQuery = supabaseAdmin
       .from('newsletter_contacts')
       .select('status, metadata')
       .eq('site_id', siteId)
 
-    if (error) {
-      console.error('getContactStats error:', error.message)
-      return { data: null, error: 'Failed to load stats' }
+    const [contactsResult, statsResult] = await Promise.all([contactsQuery, statsQuery])
+
+    if (contactsResult.error) {
+      console.error('getContactsWithStats contacts error:', contactsResult.error.message)
+      return { data: null, total: 0, stats: null, error: 'Failed to load contacts' }
     }
 
-    const stats = {
-      total: contacts?.length ?? 0,
-      active: 0,
-      unsubscribed: 0,
-      bounced: 0,
-      bySource: {} as Record<string, number>,
+    let stats = null
+    if (!statsResult.error && statsResult.data) {
+      stats = {
+        total: statsResult.data.length,
+        active: 0,
+        unsubscribed: 0,
+        bounced: 0,
+        bySource: {} as Record<string, number>,
+      }
+      for (const c of statsResult.data) {
+        if (c.status === 'active') stats.active++
+        else if (c.status === 'unsubscribed') stats.unsubscribed++
+        else if (c.status === 'bounced' || c.status === 'complained') stats.bounced++
+        const source = c.metadata?.source || 'manual'
+        stats.bySource[source] = (stats.bySource[source] || 0) + 1
+      }
     }
 
-    for (const c of contacts ?? []) {
-      if (c.status === 'active') stats.active++
-      else if (c.status === 'unsubscribed') stats.unsubscribed++
-      else if (c.status === 'bounced' || c.status === 'complained') stats.bounced++
-
-      const source = c.metadata?.source || 'manual'
-      stats.bySource[source] = (stats.bySource[source] || 0) + 1
-    }
-
-    return { data: stats, error: null }
+    return { data: contactsResult.data as CrmContact[], total: contactsResult.count ?? 0, stats, error: null }
   } catch (err) {
-    console.error('getContactStats error:', err)
-    return { data: null, error: 'Server error' }
+    console.error('getContactsWithStats error:', err)
+    return { data: null, total: 0, stats: null, error: 'Server error' }
   }
 }
 

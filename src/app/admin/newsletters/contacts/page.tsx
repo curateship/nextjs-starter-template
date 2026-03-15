@@ -26,9 +26,8 @@ import { Label } from "@/components/ui/label"
 import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getContactsBySite,
+  getContactsWithStats,
   deleteContacts,
-  getContactStats,
   bulkImportContacts,
   createOrUpsertContact,
   updateContact,
@@ -105,20 +104,17 @@ export default function ContactsPage() {
       setLoading(true)
       setError(null)
 
-      const [contactsResult, statsResult] = await Promise.all([
-        getContactsBySite(currentSite.id, { source: filterSource, page: currentPage, pageSize }),
-        getContactStats(currentSite.id),
-      ])
+      const result = await getContactsWithStats(currentSite.id, { source: filterSource, page: currentPage, pageSize })
 
-      if (contactsResult.error) {
-        setError(contactsResult.error)
+      if (result.error) {
+        setError(result.error)
         setLoading(false)
         return
       }
 
-      setContacts(contactsResult.data ?? [])
-      setTotal(contactsResult.total)
-      if (statsResult.data) setStats(statsResult.data)
+      setContacts(result.data ?? [])
+      setTotal(result.total)
+      if (result.stats) setStats(result.stats)
       setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load contacts")
