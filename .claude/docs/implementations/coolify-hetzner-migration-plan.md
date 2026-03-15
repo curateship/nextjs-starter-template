@@ -1,1222 +1,289 @@
-# Migration Plan: Vercel + Supabase → Coolify + Self-Hosted on Hetzner
+# Migration Plan: Supabase + Vercel → Hetzner (Coolify)
 
-**Date:** 2025-10-20
+**Date:** 2026-03-15
 **Status:** Planning Phase
-**Estimated Duration:** 2-3 days
-**Complexity:** High
+**Estimated Duration:** 13-18 days
 
-## Overview
+## Context
 
-Migrate from paid cloud services (Vercel + Supabase) to self-hosted infrastructure on Hetzner using Coolify for deployment management.
+Moving the entire stack from Supabase (auth + database) and Vercel (hosting) to a self-hosted Hetzner VPS managed by Coolify. Motivated by cost, control, performance, and data sovereignty. Cloudflare R2, Stripe, Resend, and Flodesk remain unchanged.
 
-### Current Stack
-- **Hosting:** Vercel
-- **Database:** Supabase PostgreSQL
-- **Auth:** Supabase Auth
-- **Storage:** Supabase Storage (for video files)
-- **Framework:** Next.js 15.3.4
+**Key finding:** The codebase already bypasses Supabase RLS — every server action uses `supabaseAdmin` (service role) for all DB queries and manually checks `auth.getUser()` for authentication. This means we don't need to replicate RLS at all, just keep the same auth-check-then-query pattern.
 
-### Target Stack
-- **Hosting:** Hetzner VPS + Coolify
-- **Database:** Self-hosted PostgreSQL 16
-- **Auth:** NextAuth.js
-- **Storage:** MinIO (S3-compatible)
-- **Framework:** Next.js 15.3.4 (unchanged)
-- **Database Access:** Raw SQL with `pg` library (no ORM)
+**Scale:** 59 files import Supabase, 47 files call `auth.getUser()`, 30+ tables, 117 migrations, 10+ PostgreSQL functions.
 
-## Why This Migration?
-
-### Cost Savings
-- Supabase: ~$25-100+/month depending on usage
-- Vercel: ~$20+/month for pro features
-- **Hetzner VPS:** ~€8-15/month for CX31 (8GB RAM, 160GB disk)
-
-### Benefits
-- Full control over infrastructure
-- Better performance potential
-- No vendor lock-in
-- Predictable costs
-
-### Trade-offs
-- Manual server management required
-- Need to handle backups yourself
-- More initial setup complexity
-- Responsible for uptime/monitoring
+**MCP-assisted:** Claude can manage Hetzner, Coolify, and PostgreSQL directly via MCP servers throughout the migration.
 
 ---
 
-## Phase 1: Infrastructure Setup (Hetzner + Coolify)
+## Phase 0: MCP Server Setup
 
-### 1.1 Provision Hetzner VPS
+Set up 3 MCP servers so Claude can directly manage infrastructure, deployments, and database.
 
-**Recommended Server:** CX31 or CX41
-- **CX31:** 8GB RAM, 4 vCPU, 160GB disk (~€13/month)
-- **CX41:** 16GB RAM, 8 vCPU, 240GB disk (~€25/month)
+### 0.1 Hetzner Cloud MCP — `dkruyt/mcp-hetzner`
+- Most mature option (~80+ stars, listed on Hetzner's official awesome-hcloud)
+- Manages: servers, volumes, firewalls, SSH keys, images, locations
+- **Install:** `pip install mcp-hetzner` (or run via `uvx mcp-hetzner`)
+- **Requires:** Hetzner Cloud API token (generate at https://console.hetzner.cloud → project → Security → API Tokens)
+- **Config** (add to `.claude/settings.json` or `claude_desktop_config.json`):
+  ```json
+  {
+    "mcpServers": {
+      "hetzner": {
+        "command": "uvx",
+        "args": ["mcp-hetzner"],
+        "env": { "HCLOUD_API_TOKEN": "<your-hetzner-api-token>" }
+      }
+    }
+  }
+  ```
 
-**Steps:**
-1. Create Hetzner Cloud account
-2. Provision Ubuntu 22.04 LTS server
-3. Configure firewall rules:
-   - Port 22 (SSH)
-   - Port 80 (HTTP)
-   - Port 443 (HTTPS)
-   - Port 8000 (Coolify dashboard)
-4. Set up SSH keys for secure access
+### 0.2 Coolify MCP — `@masonator/coolify-mcp`
+- 38 tools: servers, projects, apps, databases, deployments, SSH keys, env vars, built-in docs search
+- **Install:** `npm install -g @masonator/coolify-mcp`
+- **Requires:** Coolify API token + Coolify instance URL (available after Coolify is installed in Phase 2)
+- **Config:**
+  ```json
+  {
+    "mcpServers": {
+      "coolify": {
+        "command": "npx",
+        "args": ["-y", "@masonator/coolify-mcp"],
+        "env": {
+          "COOLIFY_API_TOKEN": "<your-coolify-api-token>",
+          "COOLIFY_BASE_URL": "https://coolify.yourdomain.com"
+        }
+      }
+    }
+  }
+  ```
 
-**Documentation:** https://docs.hetzner.com/cloud/servers/getting-started
+### 0.3 PostgreSQL MCP — `crystaldba/postgres-mcp`
+- Read/write queries, index tuning, EXPLAIN plans, health checks (buffer cache, vacuum, replication)
+- **Install:** `pip install postgres-mcp` (or run via `uvx postgres-mcp`)
+- **Requires:** PostgreSQL connection string (available after DB is created in Phase 2)
+- **Config:**
+  ```json
+  {
+    "mcpServers": {
+      "postgres": {
+        "command": "uvx",
+        "args": ["postgres-mcp", "postgresql://user:pass@host:5432/dbname"]
+      }
+    }
+  }
+  ```
 
-### 1.2 Install Coolify
-
-Coolify is a self-hosted alternative to Vercel/Netlify/Heroku.
-
-**Installation:**
-```bash
-ssh root@your-server-ip
-curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
-```
-
-**Access:** `http://your-server-ip:8000`
-
-**Initial Setup:**
-1. Create admin account
-2. Connect your GitHub/GitLab repository
-3. Configure SSH keys for deployments
-
-**Documentation:** https://coolify.io/docs/installation
-
-### 1.3 Deploy PostgreSQL via Coolify
-
-**Steps:**
-1. In Coolify dashboard: Add New Resource → Database → PostgreSQL
-2. Choose PostgreSQL 16
-3. Configure:
-   - Database name: `nextjs_app`
-   - Username: `app_user`
-   - Password: Generate strong password
-   - Port: 5432 (internal)
-4. Enable external access if needed for development
-5. Note down connection details
-
-**Connection String Format:**
-```
-postgresql://app_user:password@postgresql-service:5432/nextjs_app
-```
-
-### 1.4 Deploy MinIO via Coolify
-
-MinIO is S3-compatible object storage for media files.
-
-**Steps:**
-1. In Coolify: Add New Resource → Service → MinIO
-2. Configure:
-   - Root user: `admin`
-   - Root password: Generate strong password
-   - Port: 9000 (API), 9001 (Console)
-3. Create bucket: `site-media`
-4. Set bucket policy to public-read for media files
-5. Note down:
-   - MinIO endpoint URL
-   - Access key
-   - Secret key
-
-**Documentation:** https://min.io/docs/minio/linux/index.html
-
-### 1.5 Configure DNS
-
-**DNS Records to Create:**
-
-| Type | Name | Value | TTL |
-|------|------|-------|-----|
-| A | @ | your-server-ip | 300 |
-| A | www | your-server-ip | 300 |
-| CNAME | minio | your-server-ip | 300 |
-
-**Notes:**
-- Set low TTL (300s) initially for easy changes
-- Increase TTL after confirming everything works
-- SSL certificates will be auto-generated by Coolify via Let's Encrypt
+### 0.4 Setup order
+1. Create Hetzner API token → configure Hetzner MCP → Claude provisions VPS
+2. Install Coolify on VPS → get Coolify API token → configure Coolify MCP → Claude manages deployments
+3. Create PostgreSQL via Coolify → get connection string → configure PostgreSQL MCP → Claude manages schema/data
 
 ---
 
-## Phase 2: Database Migration
+## Phase 1: Preparation (Dependencies + Drizzle Schema)
 
-### 2.1 Replace Supabase Dependencies
-
-**Remove:**
-```bash
-npm uninstall @supabase/supabase-js @supabase/ssr
+### 1.1 Install dependencies
+```
+Add: drizzle-orm, drizzle-kit, pg, @types/pg, next-auth@beta, @auth/drizzle-adapter, bcryptjs, @types/bcryptjs, sharp
+Remove: @supabase/ssr, @supabase/supabase-js, @vercel/analytics, @vercel/speed-insights
 ```
 
-**Install:**
-```bash
-npm install pg
-npm install --save-dev @types/pg
+### 1.2 Create Drizzle schema + client
+- **New:** `src/lib/db/schema.ts` — Drizzle table definitions for all 30+ tables (derived from `supabase/migrations/`)
+- **New:** `src/lib/db/index.ts` — Drizzle client (`drizzle(pool)` with `DATABASE_URL`)
+- **New:** `src/lib/db/schema/users.ts` — Local `users` table replacing `auth.users`:
+  ```
+  id (UUID PK), email (unique), password_hash, display_name, role ('super_admin'|'end_user'),
+  email_verified_at, user_metadata (JSONB), created_at, updated_at
+  ```
+- All `user_id REFERENCES auth.users(id)` foreign keys → reference local `users` table instead
+
+### 1.3 Update next.config.ts
+- Add `output: 'standalone'` (required for Docker/Coolify)
+- Remove `*.supabase.co` from CSP headers
+
+---
+
+## Phase 2: Infrastructure (Hetzner + Coolify)
+
+### 2.1 Hetzner VPS
+- Provision **CPX31** (4 vCPU, 8GB RAM, 160GB disk) or larger
+- Ubuntu 22.04 LTS, location based on user base
+
+### 2.2 Coolify
+- Install Coolify on VPS
+- Add PostgreSQL 16 as a Coolify-managed service
+- Connect GitHub repo, set build pack to Dockerfile
+
+### 2.3 Dockerfile
+- **New:** `/Dockerfile` — Multi-stage build (deps → build → standalone runner)
+- Uses `node:20-alpine`, copies `.next/standalone` + `.next/static`
+
+### 2.4 DNS
+- Wildcard `*.yourdomain.com` → Hetzner IP (for multi-tenant subdomains)
+- Root domain → Hetzner IP
+- Coolify handles SSL via Let's Encrypt (wildcard via DNS challenge)
+
+### 2.5 Cron jobs (Coolify scheduled tasks or system cron)
 ```
-
-### 2.2 Create Database Connection Pool
-
-**New File:** `src/lib/db/connection.ts`
-
-```typescript
-import { Pool } from 'pg'
-
-// Connection pool singleton
-let pool: Pool | null = null
-
-export function getPool(): Pool {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    })
-
-    // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err)
-    })
-  }
-
-  return pool
-}
-
-// Helper function for queries
-export async function query(text: string, params?: any[]) {
-  const pool = getPool()
-  const start = Date.now()
-
-  try {
-    const result = await pool.query(text, params)
-    const duration = Date.now() - start
-
-    if (duration > 1000) {
-      console.warn('Slow query detected:', { text, duration })
-    }
-
-    return result
-  } catch (error) {
-    console.error('Database query error:', { text, params, error })
-    throw error
-  }
-}
-
-// Helper for transactions
-export async function transaction<T>(
-  callback: (client: PoolClient) => Promise<T>
-): Promise<T> {
-  const pool = getPool()
-  const client = await pool.connect()
-
-  try {
-    await client.query('BEGIN')
-    const result = await callback(client)
-    await client.query('COMMIT')
-    return result
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
-}
-```
-
-### 2.3 Create TypeScript Types
-
-**New File:** `src/lib/db/types.ts`
-
-Define types for all your database tables based on your migration files. Examples:
-
-```typescript
-export interface Site {
-  id: string
-  name: string
-  slug: string
-  custom_domain: string | null
-  theme_id: string | null
-  navigation: any | null
-  footer: any | null
-  created_at: Date
-  updated_at: Date
-}
-
-export interface Product {
-  id: string
-  site_id: string
-  slug: string
-  title: string
-  description: string | null
-  content_blocks: any[] | null
-  featured_image_url: string | null
-  is_published: boolean
-  meta_title: string | null
-  meta_description: string | null
-  created_at: Date
-  updated_at: Date
-}
-
-export interface Post {
-  id: string
-  site_id: string
-  slug: string
-  title: string
-  excerpt: string | null
-  content_blocks: any[] | null
-  featured_image_url: string | null
-  author_id: string | null
-  is_published: boolean
-  published_at: Date | null
-  meta_title: string | null
-  meta_description: string | null
-  created_at: Date
-  updated_at: Date
-}
-
-// Add types for all other tables...
-```
-
-### 2.4 Run Database Migrations
-
-You have 63 existing SQL migration files in `supabase/migrations/`. These can be run directly on your new PostgreSQL instance.
-
-**Migration Script:** `scripts/run-migrations.ts`
-
-```typescript
-import fs from 'fs'
-import path from 'path'
-import { Pool } from 'pg'
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
-
-async function runMigrations() {
-  const migrationsDir = path.join(process.cwd(), 'supabase/migrations')
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.sql'))
-    .sort()
-
-  console.log(`Found ${files.length} migration files`)
-
-  for (const file of files) {
-    console.log(`Running migration: ${file}`)
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8')
-
-    try {
-      await pool.query(sql)
-      console.log(`✓ ${file}`)
-    } catch (error) {
-      console.error(`✗ ${file}:`, error)
-      throw error
-    }
-  }
-
-  await pool.end()
-  console.log('All migrations completed!')
-}
-
-runMigrations()
-```
-
-**Add to package.json:**
-```json
-{
-  "scripts": {
-    "db:migrate": "tsx scripts/run-migrations.ts"
-  }
-}
-```
-
-### 2.5 Update Supabase Queries to Raw SQL
-
-**Files to Update:** ~15-20 action files in `src/lib/actions/`
-
-**Before (Supabase):**
-```typescript
-import { createClient } from '@/lib/supabase/client'
-
-export async function getProductBySlug(slug: string) {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('slug', slug)
-    .single()
-
-  if (error) throw error
-  return data
-}
-```
-
-**After (Raw SQL):**
-```typescript
-import { query } from '@/lib/db/connection'
-import type { Product } from '@/lib/db/types'
-
-export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const result = await query(
-    'SELECT * FROM products WHERE slug = $1 LIMIT 1',
-    [slug]
-  )
-
-  return result.rows[0] || null
-}
-```
-
-**Pattern for Common Operations:**
-
-```typescript
-// SELECT with WHERE
-const result = await query(
-  'SELECT * FROM products WHERE site_id = $1 AND is_published = $2',
-  [siteId, true]
-)
-const products = result.rows
-
-// INSERT
-const result = await query(
-  'INSERT INTO products (site_id, slug, title) VALUES ($1, $2, $3) RETURNING *',
-  [siteId, slug, title]
-)
-const newProduct = result.rows[0]
-
-// UPDATE
-const result = await query(
-  'UPDATE products SET title = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-  [title, id]
-)
-const updatedProduct = result.rows[0]
-
-// DELETE
-await query('DELETE FROM products WHERE id = $1', [id])
-
-// JOIN
-const result = await query(
-  `SELECT p.*, s.name as site_name
-   FROM products p
-   JOIN sites s ON p.site_id = s.id
-   WHERE p.slug = $1`,
-  [slug]
-)
+*/5 * * * * curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/newsletters
+*/5 * * * * curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/email-automations
+0 * * * *   curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/engagement
 ```
 
 ---
 
-## Phase 3: Authentication Migration
+## Phase 3: Auth Migration (Supabase Auth → Auth.js)
 
-### 3.1 Install NextAuth.js
+### 3.1 Auth.js config
+- **New:** `src/lib/auth.ts` — NextAuth v5 config with Credentials provider + DrizzleAdapter
+  - JWT session strategy (matches current cookie-based auth)
+  - `authorize()` queries local `users` table, uses `bcrypt.compare()`
+  - JWT callback adds `role` and `id` to token
+  - Session callback exposes `role` and `id`
+- **New:** `src/app/api/auth/[...nextauth]/route.ts` — Auth.js route handler
 
-```bash
-npm install next-auth@beta
-npm install @auth/pg-adapter
-npm install bcryptjs
-npm install --save-dev @types/bcryptjs
-```
+### 3.2 Auth helper
+- **New:** `src/lib/auth/session.ts` — `requireAuth()` and `requireAdmin()` helpers
+  - Replaces the pattern: `createServerSupabaseClient()` → `auth.getUser()`
+  - Used by all 47 files that currently check authentication
 
-### 3.2 Create Auth Tables
+### 3.3 Middleware rewrite
+- **Modify:** `src/middleware.ts` — Replace Supabase SSR client with Auth.js `auth()` wrapper
+  - Same route protection logic: `/admin` → super_admin, `/user-pages` + `/user-dashboard` → authenticated
 
-**Migration:** `supabase/migrations/064_create_nextauth_tables.sql`
-
-```sql
--- NextAuth.js tables
-CREATE TABLE IF NOT EXISTS accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL,
-  type TEXT NOT NULL,
-  provider TEXT NOT NULL,
-  provider_account_id TEXT NOT NULL,
-  refresh_token TEXT,
-  access_token TEXT,
-  expires_at BIGINT,
-  token_type TEXT,
-  scope TEXT,
-  id_token TEXT,
-  session_state TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(provider, provider_account_id)
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_token TEXT NOT NULL UNIQUE,
-  user_id UUID NOT NULL,
-  expires TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT,
-  email TEXT UNIQUE NOT NULL,
-  email_verified TIMESTAMPTZ,
-  image TEXT,
-  password_hash TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS verification_tokens (
-  identifier TEXT NOT NULL,
-  token TEXT NOT NULL,
-  expires TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (identifier, token)
-);
-
--- Indexes
-CREATE INDEX idx_accounts_user_id ON accounts(user_id);
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_token ON sessions(session_token);
-CREATE INDEX idx_users_email ON users(email);
-```
-
-### 3.3 Configure NextAuth.js
-
-**New File:** `src/lib/auth/config.ts`
-
+### 3.4 Server action auth replacement (47 files)
+Replace in every server action file:
 ```typescript
-import NextAuth from 'next-auth'
-import Credentials from 'next-auth/providers/credentials'
-import PostgresAdapter from '@auth/pg-adapter'
-import { Pool } from 'pg'
-import bcrypt from 'bcryptjs'
-import { query } from '@/lib/db/connection'
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
-
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PostgresAdapter(pool),
-  session: { strategy: 'jwt' },
-  providers: [
-    Credentials({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
-
-        const result = await query(
-          'SELECT * FROM users WHERE email = $1',
-          [credentials.email]
-        )
-
-        const user = result.rows[0]
-        if (!user || !user.password_hash) {
-          return null
-        }
-
-        const isValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password_hash
-        )
-
-        if (!isValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        }
-      }
-    })
-  ],
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string
-      }
-      return session
-    }
-  }
-})
-```
-
-**New File:** `src/app/api/auth/[...nextauth]/route.ts`
-
-```typescript
-import { handlers } from '@/lib/auth/config'
-
-export const { GET, POST } = handlers
-```
-
-### 3.4 Create Auth Helper Functions
-
-**New File:** `src/lib/auth/actions.ts`
-
-```typescript
-import bcrypt from 'bcryptjs'
-import { query } from '@/lib/db/connection'
-
-export async function registerUser(email: string, password: string, name?: string) {
-  // Check if user exists
-  const existing = await query('SELECT id FROM users WHERE email = $1', [email])
-  if (existing.rows.length > 0) {
-    throw new Error('User already exists')
-  }
-
-  // Hash password
-  const passwordHash = await bcrypt.hash(password, 10)
-
-  // Create user
-  const result = await query(
-    'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
-    [email, passwordHash, name]
-  )
-
-  return result.rows[0]
-}
-
-export async function changePassword(userId: string, oldPassword: string, newPassword: string) {
-  // Verify old password
-  const result = await query('SELECT password_hash FROM users WHERE id = $1', [userId])
-  const user = result.rows[0]
-
-  if (!user) {
-    throw new Error('User not found')
-  }
-
-  const isValid = await bcrypt.compare(oldPassword, user.password_hash)
-  if (!isValid) {
-    throw new Error('Invalid password')
-  }
-
-  // Hash and update new password
-  const newHash = await bcrypt.hash(newPassword, 10)
-  await query(
-    'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-    [newHash, userId]
-  )
-}
-```
-
-### 3.5 Update Auth Usage in App
-
-**Replace all Supabase auth calls:**
-
-```typescript
-// Before (Supabase)
-import { createClient } from '@/lib/supabase/client'
-const supabase = createClient()
+// OLD
+const supabase = await createServerSupabaseClient()
 const { data: { user } } = await supabase.auth.getUser()
 
-// After (NextAuth)
-import { auth } from '@/lib/auth/config'
-const session = await auth()
-const user = session?.user
+// NEW
+const user = await requireAuth()
+```
+
+### 3.5 Client-side auth (2 files)
+- **Modify:** `src/app/login/page.tsx` — Replace `supabase.auth.signInWithPassword()` with `signIn('credentials', ...)`
+- **Modify:** `src/components/frontend/pages/auth/AuthBlock.tsx` — Replace client-side Supabase auth with:
+  - Login: `signIn('credentials', ...)`
+  - Registration: new server action → `bcrypt.hash()` + insert into `users`
+  - Password reset: new server action → generate token, send email via Resend
+
+### 3.6 Auth action rewrites
+- **Modify:** `src/lib/actions/auth/auth-actions.ts` — Replace all Supabase auth calls:
+  - `signUpAction` → bcrypt hash + Drizzle insert into `users`
+  - `updatePasswordAction` → bcrypt hash + Drizzle update
+  - `resetPasswordAction` → generate token, store in DB, send via Resend
+- **Modify:** `src/lib/actions/auth/account-auto-creation.ts` — Replace `supabaseAdmin.auth.admin.createUser()` with Drizzle insert
+
+---
+
+## Phase 4: Database Query Migration (Supabase SDK → Drizzle)
+
+### 4.1 Pattern mapping
+| Supabase | Drizzle |
+|---|---|
+| `.from('t').select('*').eq('id', v).single()` | `db.query.t.findFirst({ where: eq(t.id, v) })` |
+| `.select('*', {count:'exact'}).range(a,b)` | `db.select().from(t).limit(n).offset(a)` + count query |
+| `.insert([{...}]).select().single()` | `db.insert(t).values({...}).returning()` |
+| `.update({...}).eq('id', v)` | `db.update(t).set({...}).where(eq(t.id, v))` |
+| `.delete().eq('id', v)` | `db.delete(t).where(eq(t.id, v))` |
+| `.rpc('fn', params)` | `db.execute(sql\`SELECT fn(...)\`)` |
+
+### 4.2 File migration (59 files) — priority order
+1. `src/lib/actions/sites/site-actions.ts` (most central)
+2. `src/lib/actions/pages/page-frontend-actions.ts` (public-facing)
+3. `src/lib/actions/posts/post-actions.ts`
+4. `src/lib/actions/products/product-actions.ts`
+5. All remaining action files in `src/lib/actions/`
+6. API routes: `src/app/api/cron/`, `src/app/api/webhooks/`
+7. Page components that query directly
+
+Each file: replace `supabaseAdmin` import with `db` import, convert query chains to Drizzle syntax.
+
+### 4.3 PostgreSQL functions
+Keep as database functions, recreate in new DB via Drizzle migration:
+- `get_analytics_overview()`, `get_top_pages()`, `get_top_referrers()`, `get_traffic_over_time()`, `get_user_journeys()`, `increment_click_count()`
+- `generate_subdomain_suggestion()`, `get_system_statistics()`
+- Triggers: `update_updated_at_column()`, `create_default_pages_for_site()`, etc.
+
+---
+
+## Phase 5: Cleanup
+
+### 5.1 Remove Supabase files
+- **Delete:** `src/lib/supabase/client.ts`, `src/lib/supabase/server.ts`
+- **Delete:** `supabase/` directory (config, migrations — keep a backup)
+
+### 5.2 Remove Vercel components
+- **Modify:** `src/components/frontend/layout/deferred-scripts.tsx` — Remove `Analytics` + `SpeedInsights` imports
+
+### 5.3 Environment variables
+Replace:
+```
+NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+```
+With:
+```
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+AUTH_SECRET=<random-32-chars>
+AUTH_URL=https://yourdomain.com
 ```
 
 ---
 
-## Phase 4: Storage Migration (Supabase Storage → MinIO)
+## Phase 6: Data Migration + Cutover
 
-### 4.1 Install MinIO Client
+### 6.1 Data migration script
+- **New:** `scripts/migrate-data.ts` — Connects to both Supabase (direct PG connection) and new PG
+- Exports `auth.users` → transforms → imports into local `users` table (preserving UUIDs + bcrypt hashes)
+- Exports all content tables in FK-dependency order (themes → sites → content → analytics)
 
-```bash
-npm install minio
-npm install --save-dev @types/minio
-```
+### 6.2 Cutover steps
+1. Lower DNS TTL to 60s (1 day before)
+2. Put current app in maintenance mode
+3. Run final data migration script
+4. Verify row counts match
+5. Deploy to Coolify
+6. Update DNS to Hetzner IP
+7. Update Stripe + Resend webhook URLs (if domain changes)
+8. Verify: login, cron jobs, newsletter sends, payments
+9. Keep Supabase running 1 week as rollback
+10. Decommission Supabase after 1 week
 
-### 4.2 Create MinIO Client
-
-**New File:** `src/lib/storage/minio.ts`
-
-```typescript
-import { Client } from 'minio'
-
-let minioClient: Client | null = null
-
-export function getMinioClient(): Client {
-  if (!minioClient) {
-    minioClient = new Client({
-      endPoint: process.env.MINIO_ENDPOINT!, // e.g., 'minio.yourdomain.com'
-      port: parseInt(process.env.MINIO_PORT || '9000'),
-      useSSL: process.env.MINIO_USE_SSL === 'true',
-      accessKey: process.env.MINIO_ACCESS_KEY!,
-      secretKey: process.env.MINIO_SECRET_KEY!,
-    })
-  }
-
-  return minioClient
-}
-
-export const MEDIA_BUCKET = 'site-media'
-
-// Helper functions
-export async function uploadFile(
-  fileName: string,
-  fileBuffer: Buffer,
-  contentType: string
-): Promise<string> {
-  const client = getMinioClient()
-
-  await client.putObject(MEDIA_BUCKET, fileName, fileBuffer, fileBuffer.length, {
-    'Content-Type': contentType,
-  })
-
-  // Return public URL
-  return `${process.env.MINIO_PUBLIC_URL}/${MEDIA_BUCKET}/${fileName}`
-}
-
-export async function deleteFile(fileName: string): Promise<void> {
-  const client = getMinioClient()
-  await client.removeObject(MEDIA_BUCKET, fileName)
-}
-
-export async function getFileUrl(fileName: string, expirySeconds = 3600): Promise<string> {
-  const client = getMinioClient()
-  return await client.presignedGetObject(MEDIA_BUCKET, fileName, expirySeconds)
-}
-```
-
-### 4.3 Update Media Upload Route
-
-**Update:** `src/app/api/media/upload/route.ts`
-
-Replace Supabase storage calls with MinIO:
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server'
-import { uploadFile } from '@/lib/storage/minio'
-import { auth } from '@/lib/auth/config'
-
-export async function POST(request: NextRequest) {
-  // Check authentication
-  const session = await auth()
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now()
-    const fileName = `${timestamp}_${file.name}`
-
-    // Convert to buffer
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    // Upload to MinIO
-    const url = await uploadFile(fileName, buffer, file.type)
-
-    return NextResponse.json({ url }, { status: 200 })
-  } catch (error) {
-    console.error('Upload error:', error)
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
-  }
-}
-```
-
-### 4.4 Update Media Proxy Route
-
-**Update:** `src/app/api/media/proxy/route.ts`
-
-The media proxy can now proxy from MinIO instead of Supabase. Since MinIO is on your server, you might not even need a proxy - you can serve files directly. But if you want to keep the proxy:
-
-```typescript
-import { NextRequest, NextResponse } from 'next/server'
-
-const FETCH_TIMEOUT = 10000
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const url = searchParams.get('url')
-
-  if (!url) {
-    return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 })
-  }
-
-  // If it's a MinIO URL, proxy it
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-
-  try {
-    const range = request.headers.get('range')
-
-    const fetchOptions: RequestInit = {
-      signal: controller.signal,
-      headers: range ? { Range: range } : {},
-    }
-
-    const response = await fetch(url, fetchOptions)
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media: ${response.statusText}`)
-    }
-
-    const contentType = response.headers.get('content-type') || 'video/mp4'
-    const contentLength = response.headers.get('content-length')
-    const contentRange = response.headers.get('content-range')
-
-    if (range && contentRange) {
-      return new NextResponse(response.body, {
-        status: 206,
-        headers: {
-          'Content-Range': contentRange,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': contentLength || '',
-          'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-          'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length',
-        },
-      })
-    }
-
-    return new NextResponse(response.body, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': contentLength || '',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length',
-        'Accept-Ranges': 'bytes',
-      },
-    })
-
-  } catch (error) {
-    clearTimeout(timeoutId)
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error(`Media proxy timeout after ${FETCH_TIMEOUT}ms for URL:`, url)
-      return NextResponse.json(
-        { error: 'Request timeout - media server took too long to respond' },
-        { status: 504 }
-      )
-    }
-
-    console.error('Media proxy error:', error)
-    return NextResponse.json({ error: 'Failed to proxy media' }, { status: 500 })
-  }
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Range, Content-Length',
-    },
-  })
-}
-```
-
-### 4.5 Migrate Existing Media Files
-
-**Script:** `scripts/migrate-media.ts`
-
-```typescript
-import { createClient } from '@supabase/supabase-js'
-import { getMinioClient, MEDIA_BUCKET } from '@/lib/storage/minio'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-async function migrateMedia() {
-  // List all files in Supabase storage
-  const { data: files, error } = await supabase
-    .storage
-    .from('site-media')
-    .list()
-
-  if (error) {
-    console.error('Error listing files:', error)
-    return
-  }
-
-  console.log(`Found ${files.length} files to migrate`)
-
-  const minioClient = getMinioClient()
-
-  for (const file of files) {
-    try {
-      console.log(`Migrating: ${file.name}`)
-
-      // Download from Supabase
-      const { data, error } = await supabase
-        .storage
-        .from('site-media')
-        .download(file.name)
-
-      if (error) throw error
-
-      // Convert to buffer
-      const arrayBuffer = await data.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-
-      // Upload to MinIO
-      await minioClient.putObject(MEDIA_BUCKET, file.name, buffer, buffer.length, {
-        'Content-Type': data.type || 'application/octet-stream',
-      })
-
-      console.log(`✓ ${file.name}`)
-    } catch (error) {
-      console.error(`✗ ${file.name}:`, error)
-    }
-  }
-
-  console.log('Migration complete!')
-}
-
-migrateMedia()
-```
+### 6.3 Backups
+- Daily `pg_dump` via cron → upload to R2 for offsite storage
+- Or use Coolify's built-in backup scheduling to S3-compatible storage
 
 ---
 
-## Phase 5: Docker & Deployment
+## Verification
 
-### 5.1 Create Production Dockerfile
-
-**New File:** `Dockerfile`
-
-```dockerfile
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-# Stage 2: Builder
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-# Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-
-# Build the application
-RUN npm run build
-
-# Stage 3: Runner
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
-EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
-```
-
-### 5.2 Update next.config.ts
-
-Add standalone output for Docker:
-
-```typescript
-const nextConfig: NextConfig = {
-  output: 'standalone', // Add this line
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // ... rest of config
-}
-```
-
-### 5.3 Create .dockerignore
-
-**New File:** `.dockerignore`
-
-```
-node_modules
-.next
-.git
-.gitignore
-.env
-.env.local
-.env*.local
-*.md
-.vscode
-.idea
-coverage
-dist
-out
-build
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.DS_Store
-```
-
-### 5.4 Environment Variables for Production
-
-**List of all required environment variables:**
-
-```bash
-# Database
-DATABASE_URL=postgresql://app_user:password@postgresql-service:5432/nextjs_app
-
-# NextAuth
-NEXTAUTH_URL=https://yourdomain.com
-NEXTAUTH_SECRET=generate-random-32-char-secret
-
-# MinIO Storage
-MINIO_ENDPOINT=minio.yourdomain.com
-MINIO_PORT=9000
-MINIO_USE_SSL=true
-MINIO_ACCESS_KEY=your-access-key
-MINIO_SECRET_KEY=your-secret-key
-MINIO_PUBLIC_URL=https://minio.yourdomain.com
-
-# Stripe (from existing .env)
-STRIPE_SECRET_KEY=sk_live_...
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# App Configuration
-NEXT_PUBLIC_APP_DOMAIN=https://yourdomain.com
-HUB_SITE_ID=5064bfb0-6f08-4b9d-9ee8-a37ec9106aa1
-NEXT_PUBLIC_HUB_SITE_ID=5064bfb0-6f08-4b9d-9ee8-a37ec9106aa1
-
-# Optional
-MAINTENANCE_MODE=false
-NODE_ENV=production
-```
-
-### 5.5 Coolify Deployment Steps
-
-**In Coolify Dashboard:**
-
-1. **Add New Resource** → Application
-2. **Connect Repository:**
-   - Select GitHub/GitLab
-   - Choose your repository
-   - Branch: `main` or `production`
-
-3. **Build Configuration:**
-   - Build Pack: Dockerfile
-   - Dockerfile location: `/Dockerfile`
-   - Docker context: `/`
-
-4. **Environment Variables:**
-   - Add all variables from section 5.4
-   - Mark sensitive ones as "Secret"
-
-5. **Domain Configuration:**
-   - Primary domain: `yourdomain.com`
-   - Add www redirect if needed
-   - Enable SSL (auto Let's Encrypt)
-
-6. **Resources:**
-   - Memory limit: 2GB
-   - CPU limit: 2 cores
-
-7. **Health Check:**
-   - Path: `/`
-   - Port: 3000
-   - Interval: 30s
-
-8. **Deploy!**
+- [ ] Docker build succeeds locally (`docker build .`)
+- [ ] Auth.js login works with migrated bcrypt password hashes
+- [ ] All CRUD operations work (create/edit/delete site, page, post, product)
+- [ ] Multi-tenant subdomain routing resolves correctly
+- [ ] Cron endpoints execute successfully
+- [ ] Stripe webhook processes payments
+- [ ] Resend webhook tracks email events
+- [ ] Newsletter sending works end-to-end
+- [ ] Image upload to R2 still works
+- [ ] Admin dashboard loads with analytics data (RPC functions)
+- [ ] `curl -s -o /dev/null -w "%{http_code}" https://yourdomain.com` returns 200
 
 ---
 
-## Phase 6: Post-Deployment Tasks
+## Effort Estimate
 
-### 6.1 Update Stripe Webhooks
-
-Update webhook endpoints in Stripe dashboard:
-- Old: `https://your-app.vercel.app/api/webhooks/stripe`
-- New: `https://yourdomain.com/api/webhooks/stripe`
-
-### 6.2 Database Backups
-
-**Setup automated backups in Coolify:**
-1. Go to PostgreSQL resource
-2. Enable automated backups
-3. Schedule: Daily at 2 AM
-4. Retention: 7 days
-5. Backup location: S3 or local storage
-
-**Manual backup command:**
-```bash
-ssh root@your-server
-docker exec postgresql-container pg_dump -U app_user nextjs_app > backup.sql
-```
-
-### 6.3 Monitoring Setup
-
-**Recommended tools:**
-- **UptimeRobot:** Free uptime monitoring (https://uptimerobot.com)
-- **Plausible/Umami:** Self-hosted analytics alternative to Vercel Analytics
-- **Grafana + Prometheus:** For detailed metrics (optional)
-
-### 6.4 Performance Optimization
-
-**Database:**
-- Enable connection pooling (already in config)
-- Add database indexes for slow queries
-- Monitor query performance
-
-**CDN (Optional):**
-- Consider Cloudflare for CDN/caching
-- Free tier available
-- Point DNS through Cloudflare
-
-### 6.5 Security Checklist
-
-- [ ] Enable firewall on Hetzner
-- [ ] Set up fail2ban for SSH protection
-- [ ] Enable SSL/TLS for all services
-- [ ] Use strong passwords (min 32 chars)
-- [ ] Enable database encryption at rest
-- [ ] Set up automated security updates
-- [ ] Configure CORS properly
-- [ ] Enable rate limiting on API routes
-
----
-
-## Testing Checklist
-
-### Before Going Live
-
-- [ ] All database migrations run successfully
-- [ ] Authentication works (login/signup/logout)
-- [ ] File uploads work to MinIO
-- [ ] Media proxy serves videos correctly
-- [ ] All pages load correctly
-- [ ] Forms submit properly
-- [ ] Stripe payments work
-- [ ] Email functionality works
-- [ ] Performance is acceptable (< 2s page loads)
-- [ ] SSL certificates are valid
-- [ ] Backups are running
-
-### Load Testing (Optional)
-
-Use tools like Apache Bench or k6 to test:
-```bash
-ab -n 1000 -c 10 https://yourdomain.com/
-```
-
----
-
-## Rollback Plan
-
-If something goes wrong:
-
-1. **Keep Vercel running** until Hetzner is fully tested
-2. **DNS switch:** Change A records back to Vercel
-3. **Database:** Restore from latest backup
-4. **Code:** Revert commits if needed
-
-**DNS propagation:** Takes 5-15 minutes with low TTL
-
----
-
-## Cost Comparison
-
-### Current (Monthly)
-- Vercel Pro: $20
-- Supabase Pro: $25
-- **Total: $45/month**
-
-### New (Monthly)
-- Hetzner CX31: €13 (~$14)
-- Domain: $1-2/month
-- **Total: ~$16/month**
-
-**Savings: ~$29/month (~$348/year)**
-
----
-
-## Timeline Estimate
-
-| Phase | Time | Dependencies |
-|-------|------|--------------|
-| Infrastructure setup | 2-4 hours | Hetzner account |
-| Database migration | 4-6 hours | PostgreSQL running |
-| Auth migration | 3-4 hours | Database ready |
-| Storage migration | 2-3 hours | MinIO running |
-| Docker & deployment | 2-3 hours | All above complete |
-| Testing & debugging | 4-8 hours | Deployed app |
-| **Total** | **17-28 hours** | **~2-3 days** |
-
----
-
-## Resources & Documentation
-
-### Hetzner
-- https://docs.hetzner.com/cloud/
-- https://community.hetzner.com/
-
-### Coolify
-- https://coolify.io/docs
-- https://github.com/coollabsio/coolify
-
-### PostgreSQL
-- https://www.postgresql.org/docs/16/
-- https://node-postgres.com/ (pg library)
-
-### NextAuth.js
-- https://authjs.dev/getting-started/introduction
-- https://authjs.dev/reference/adapter/pg
-
-### MinIO
-- https://min.io/docs/minio/linux/index.html
-- https://min.io/docs/minio/linux/developers/javascript/minio-javascript.html
-
-### Next.js Deployment
-- https://nextjs.org/docs/deployment
-- https://nextjs.org/docs/pages/api-reference/next-config-js/output
-
----
-
-## Next Steps
-
-1. Review this plan thoroughly
-2. Set up Hetzner account and provision server
-3. Test infrastructure setup (PostgreSQL, MinIO, Coolify)
-4. Begin Phase 2: Database migration
-5. Proceed phase by phase, testing at each step
-
-**Questions? Review each phase carefully before starting implementation.**
+| Phase | Days |
+|-------|------|
+| Phase 0: MCP server setup | 0.5 |
+| Phase 1: Prep (deps + schema) | 2-3 |
+| Phase 2: Infrastructure (Hetzner + Coolify) | 1 |
+| Phase 3: Auth migration | 3-4 |
+| Phase 4: DB query migration (59 files) | 5-7 |
+| Phase 5: Cleanup | 0.5 |
+| Phase 6: Data migration + cutover | 1-2 |
+| **Total** | **~13-18 days** |
