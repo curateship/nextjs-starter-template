@@ -116,6 +116,78 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
 }
 
 /**
+ * Get categories with assignment counts in a single action (1 auth check, parallel queries)
+ */
+export async function getCategoriesWithCountsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Authentication required' }
+    }
+
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', siteId)
+      .single()
+
+    if (siteError || !site) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Site not found' }
+    }
+
+    if (site.user_id !== user.id) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Unauthorized' }
+    }
+
+    // Pagination
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    // Fetch paginated categories
+    const categoriesResult = await supabaseAdmin
+      .from('categories')
+      .select('id, title, slug, parent_id, featured_image, description, is_published, display_order, created_at, updated_at', { count: 'exact' })
+      .eq('site_id', siteId)
+      .order('display_order', { ascending: false })
+      .range(from, to)
+
+    if (categoriesResult.error) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, error: categoriesResult.error.message }
+    }
+
+    // Fetch assignment counts for the returned categories
+    const counts: Record<string, number> = {}
+    const categoryIds = (categoriesResult.data || []).map(c => c.id)
+    if (categoryIds.length > 0) {
+      const { data: relationships } = await supabaseAdmin
+        .from('category_relationships')
+        .select('category_id')
+        .in('category_id', categoryIds)
+
+      if (relationships) {
+        for (const rel of relationships) {
+          counts[rel.category_id] = (counts[rel.category_id] || 0) + 1
+        }
+      }
+    }
+
+    return {
+      data: categoriesResult.data as Category[],
+      total: categoriesResult.count ?? 0,
+      counts,
+      error: null
+    }
+  } catch (error) {
+    console.error('Error fetching categories with counts:', error)
+    return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Failed to fetch categories' }
+  }
+}
+
+/**
  * Create a new category
  */
 export async function createCategoryAction(

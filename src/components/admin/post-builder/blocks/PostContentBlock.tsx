@@ -26,7 +26,8 @@ import {
   Undo,
   Redo,
   Code,
-  ImageIcon
+  ImageIcon,
+  ArrowLeft
 } from 'lucide-react'
 
 interface PostContentBlockProps {
@@ -40,9 +41,10 @@ interface PostContentBlockProps {
     [key: string]: any
   }
   onPostTitleChange?: (title: string) => void
+  onBack?: () => void
 }
 
-export function PostContentBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange }: PostContentBlockProps) {
+export function PostContentBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange, onBack }: PostContentBlockProps) {
   const [activeTab, setActiveTab] = useState('content')
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(postData?.title || postData?.name || 'Untitled Post')
@@ -131,7 +133,16 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
+      <div className="px-6 pt-6 flex items-center gap-2">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
+          >
+            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
+            Back
+          </button>
+        )}
         <TabsList className="gap-1">
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="styling">Styling</TabsTrigger>
@@ -140,41 +151,6 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
       </div>
 
       <TabsContent value="content" className="mt-6">
-        {/* Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Block Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('postContentStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  postContentStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  postContentStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {postContentStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Post Title */}
         <div className="space-y-2 px-6 mb-4">
           <Label htmlFor="post-title">Post Title</Label>
@@ -320,6 +296,40 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
       </TabsContent>
 
       <TabsContent value="settings" className="mt-6">
+        <div className="space-y-2 mb-4 px-6">
+          <Label className="text-sm font-medium px-1">Block Style</Label>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('postContentStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  postContentStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  postContentStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {postContentStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Display Options</CardTitle>

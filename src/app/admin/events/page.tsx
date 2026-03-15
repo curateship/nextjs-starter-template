@@ -418,22 +418,27 @@ export default function EventsPage() {
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="p-6">
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                          <div className="w-16 h-16 bg-muted rounded animate-pulse ml-2"></div>
-                          <div className="space-y-2">
-                            <div className="h-4 bg-muted rounded animate-pulse w-48"></div>
-                            <div className="h-3 bg-muted rounded animate-pulse w-32"></div>
+                <div className="space-y-0">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="p-6 border-b border-muted/80">
+                      <div className="grid grid-cols-6 gap-4 items-center">
+                        <div className="col-span-2">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
+                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
+                            <div>
+                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40"></div>
+                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
+                            </div>
                           </div>
                         </div>
-                        <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
+                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16"></div></div>
+                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16"></div></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div></div>
+                        <div><div className="h-8 w-8 bg-muted rounded animate-pulse"></div></div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="p-6 text-center">

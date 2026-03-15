@@ -42,6 +42,7 @@ interface BlockPropertiesPanelProps {
   onOpenPostSettings?: () => void
   onPostTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
+  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -54,7 +55,8 @@ export function BlockPropertiesPanel({
   blocksLoading = false,
   onOpenPostSettings,
   onPostTitleChange,
-  onSelectBlock
+  onSelectBlock,
+  onBack
 }: BlockPropertiesPanelProps) {
   return (
     <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
@@ -72,6 +74,7 @@ export function BlockPropertiesPanel({
                 blockId={selectedBlock.id}
                 postData={currentPost}
                 onPostTitleChange={onPostTitleChange}
+                onBack={onBack}
               />
             )}
             {/* Future block types can be added here */}
@@ -97,26 +100,13 @@ export function BlockPropertiesPanel({
             )}
             {selectedBlock.type === 'related-posts' && (
               <RelatedPostsBlock
-                title={selectedBlock.content?.title}
-                subtitle={selectedBlock.content?.subtitle}
-                displayMode={selectedBlock.content?.displayMode}
-                columns={selectedBlock.content?.columns}
-                itemsToShow={selectedBlock.content?.itemsToShow}
-                sortBy={selectedBlock.content?.sortBy}
-                sortOrder={selectedBlock.content?.sortOrder}
-                showImage={selectedBlock.content?.showImage}
-                showTitle={selectedBlock.content?.showTitle}
-                showExcerpt={selectedBlock.content?.showExcerpt}
-                onTitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, title: v } })}
-                onSubtitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, subtitle: v } })}
-                onDisplayModeChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, displayMode: v } })}
-                onColumnsChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, columns: v } })}
-                onItemsToShowChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, itemsToShow: v } })}
-                onSortByChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, sortBy: v } })}
-                onSortOrderChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, sortOrder: v } })}
-                onShowImageChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showImage: v } })}
-                onShowTitleChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showTitle: v } })}
-                onShowExcerptChange={(v) => updateBlockContent(selectedBlock.id, { content: { ...selectedBlock.content, showExcerpt: v } })}
+                content={selectedBlock.content || {}}
+                onContentChange={(field: string, value: any) =>
+                  updateBlockContent(selectedBlock.id, {
+                    content: { ...selectedBlock.content, [field]: value }
+                  })
+                }
+                onBack={onBack}
               />
             )}
         </AdminLayout>

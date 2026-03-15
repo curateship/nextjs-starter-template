@@ -460,40 +460,6 @@ export async function bulkAssignCategoriesToContentAction(
   }
 }
 
-/**
- * Get assignment counts for multiple categories
- */
-export async function getCategoryAssignmentCountsAction(categoryIds: string[]) {
-  try {
-    if (categoryIds.length === 0) return { data: {} as Record<string, number>, error: null }
-
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const { data: relationships, error: relError } = await supabaseAdmin
-      .from('category_relationships')
-      .select('category_id')
-      .in('category_id', categoryIds)
-
-    if (relError) {
-      return { data: null, error: relError.message }
-    }
-
-    const counts: Record<string, number> = {}
-    for (const rel of relationships || []) {
-      counts[rel.category_id] = (counts[rel.category_id] || 0) + 1
-    }
-
-    return { data: counts, error: null }
-  } catch (error) {
-    console.error('Error getting category assignment counts:', error)
-    return { data: null, error: 'Failed to get assignment counts' }
-  }
-}
-
 function getTableNameForContentType(contentType: ContentType): string | null {
   const tableMap: Record<ContentType, string> = {
     directory: 'directory',

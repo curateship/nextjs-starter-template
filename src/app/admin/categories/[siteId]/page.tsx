@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
@@ -11,13 +12,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getCategoriesForSiteAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
-import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/category-relationship-actions"
-import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
+import { getCategoriesWithCountsAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const CreateCategoryModal = dynamic(() =>
+  import("@/components/admin/category-builder/layout/CreateCategoryModal")
+    .then(m => ({ default: m.CreateCategoryModal })),
+  { ssr: false }
+)
 
 export default function CategoriesPage({
   params
@@ -52,28 +57,23 @@ export default function CategoriesPage({
     }
   }, [currentSite, siteId, router])
 
-  // Load categories
+  // Load categories and assignment counts in a single server action
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true)
         setError(null)
 
-        const { data: categoriesData, total: categoriesTotal, error: categoriesError } = await getCategoriesForSiteAction(siteId, { page: currentPage, pageSize })
+        const { data: categoriesData, total: categoriesTotal, counts, error: categoriesError } = await getCategoriesWithCountsAction(siteId, { page: currentPage, pageSize })
 
         if (categoriesError) {
           setError(categoriesError)
           return
         }
 
-        const cats = categoriesData || []
-        setCategories(cats)
+        setCategories(categoriesData || [])
         setTotal(categoriesTotal)
-
-        if (cats.length > 0) {
-          const { data: counts } = await getCategoryAssignmentCountsAction(cats.map(c => c.id))
-          if (counts) setAssignmentCounts(counts)
-        }
+        setAssignmentCounts(counts)
       } catch (err) {
         setError('Failed to load categories')
       } finally {
