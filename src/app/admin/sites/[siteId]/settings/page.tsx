@@ -314,7 +314,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [siteName, setSiteName] = useState(contextSite?.name || "")
   const [subdomain, setSubdomain] = useState(contextSite?.subdomain || "")
   const [customDomain, setCustomDomain] = useState(contextSite?.custom_domain || "")
-  const [status, setStatus] = useState(contextSite?.status || "draft")
+  const [status, setStatus] = useState<string>(contextSite?.status || "draft")
   const [fontFamily, setFontFamily] = useState(contextSite?.settings?.font_family || "playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState(contextSite?.settings?.secondary_font_family || "inter")
   const [favicon, setFavicon] = useState(contextSite?.settings?.favicon || "")
