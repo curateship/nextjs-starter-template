@@ -176,7 +176,7 @@ export async function getSitePostsWithCategoriesAction(
       .from('posts')
       .select('*', { count: 'exact' })
       .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
+      .order('display_order', { ascending: false })
       .range(from, to)
 
     if (error) {

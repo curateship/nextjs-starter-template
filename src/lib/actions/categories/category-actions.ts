@@ -101,8 +101,7 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
       .from('categories')
       .select('*', { count: 'exact' })
       .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
-      .order('title', { ascending: true })
+      .order('display_order', { ascending: false })
       .range(from, to)
 
     if (categoriesError) {

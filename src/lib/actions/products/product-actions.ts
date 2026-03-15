@@ -182,7 +182,7 @@ export async function getSiteProductsWithCategoriesAction(
       .from('products')
       .select('*, featured_image, description', { count: 'exact' })
       .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
+      .order('display_order', { ascending: false })
       .range(from, to)
 
     if (error) {

@@ -140,8 +140,7 @@ export async function getSiteEventsWithCategoriesAction(
       .from('events')
       .select('*', { count: 'exact' })
       .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
-      .order('created_at', { ascending: false })
+      .order('display_order', { ascending: false })
       .range(from, to)
 
     if (eventsError) {

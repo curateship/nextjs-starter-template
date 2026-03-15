@@ -164,7 +164,7 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
       .from('users_pages')
       .select('*', { count: 'exact' })
       .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
+      .order('display_order', { ascending: false })
       .range(from, to)
 
     if (error) {
