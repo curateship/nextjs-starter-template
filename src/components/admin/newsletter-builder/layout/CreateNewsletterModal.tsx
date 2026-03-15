@@ -17,7 +17,9 @@ import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 export type { Newsletter }
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
+import { getTemplatesBySite } from "@/lib/actions/newsletters/template-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteContext } from "@/contexts/site-context"
@@ -34,6 +36,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Template picker state
+  const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('blank')
+
   // Segment picker state
   const [segments, setSegments] = useState<Segment[]>([])
   const [audienceMode, setAudienceMode] = useState<string>('none')
@@ -48,10 +54,11 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [dripIntervalMax, setDripIntervalMax] = useState('60')
   const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
 
-  // Load segments
+  // Load segments and templates
   useEffect(() => {
     if (!currentSite?.id) return
     getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
+    getTemplatesBySite(currentSite.id).then(({ data }) => setTemplates(data || []))
   }, [currentSite?.id])
 
   // Update audience count based on mode
@@ -132,6 +139,16 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     }
 
     if (data) {
+      // Pre-populate blocks from template if selected
+      const selectedTemplate = selectedTemplateId !== 'blank'
+        ? templates.find(t => t.id === selectedTemplateId)
+        : null
+      if (selectedTemplate?.content_blocks && Object.keys(selectedTemplate.content_blocks).length > 0) {
+        await updateNewsletter(data.id, {
+          content_blocks: selectedTemplate.content_blocks,
+        })
+      }
+
       // Save drip config as metadata if enabled
       if (dripEnabled) {
         await updateNewsletter(data.id, {
@@ -162,6 +179,23 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       {error && (
         <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
           {error}
+        </div>
+      )}
+
+      {templates.length > 0 && (
+        <div>
+          <Label htmlFor="newsletter-template">Start from template</Label>
+          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+            <SelectTrigger id="newsletter-template">
+              <SelectValue placeholder="Select template" />
+            </SelectTrigger>
+            <SelectContent className="z-[60]">
+              <SelectItem value="blank">Blank</SelectItem>
+              {templates.map(t => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 

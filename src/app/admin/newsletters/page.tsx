@@ -231,6 +231,7 @@ export default function NewslettersPage() {
           { label: "Contacts", href: "/admin/newsletters/contacts" },
           { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations" },
+          { label: "Templates", href: "/admin/newsletters/templates" },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}
       />

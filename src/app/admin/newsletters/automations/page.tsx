@@ -186,6 +186,7 @@ export default function EmailAutomationsPage() {
           { label: "Contacts", href: "/admin/newsletters/contacts" },
           { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations", active: true },
+          { label: "Templates", href: "/admin/newsletters/templates" },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}
       />

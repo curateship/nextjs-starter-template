@@ -513,6 +513,7 @@ export default function ContactsPage() {
           { label: "Contacts", href: "/admin/newsletters/contacts", active: true },
           { label: "Segments", href: "/admin/newsletters/segments" },
           { label: "Automations", href: "/admin/newsletters/automations" },
+          { label: "Templates", href: "/admin/newsletters/templates" },
           { label: "Email Health", href: "/admin/newsletters/email-health" },
         ]}
       />

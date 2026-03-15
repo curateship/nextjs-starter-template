@@ -11,8 +11,9 @@ import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/l
 import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/layout/PublishNewsletterModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { SaveAsTemplateModal } from "@/components/admin/newsletter-builder/layout/SaveAsTemplateModal"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send, FileText } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -33,6 +34,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [publishModalOpen, setPublishModalOpen] = useState(false)
+  const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false)
 
   const builder = useNewsletterBuilder({ newsletterId })
 
@@ -174,6 +176,16 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
               </Button>
             </div>
 
+            {/* Save as Template */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSaveAsTemplateOpen(true)}
+            >
+              <FileText className="w-4 h-4 mr-1" />
+              Save as Template
+            </Button>
+
             {/* Settings */}
             <Button
               variant="outline"
@@ -303,6 +315,13 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           builder.reloadNewsletter()
           setPublishModalOpen(false)
         }}
+      />
+
+      <SaveAsTemplateModal
+        open={saveAsTemplateOpen}
+        onOpenChange={setSaveAsTemplateOpen}
+        blocks={builder.blocks}
+        siteId={currentSite?.id || ''}
       />
     </div>
   )
