@@ -6,8 +6,9 @@ import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
-import { getSiteByIdAction, updateSiteAction, createSiteAction } from "@/lib/actions/sites/site-actions"
+import { updateSiteAction, createSiteAction } from "@/lib/actions/sites/site-actions"
 import type { Site } from "@/lib/actions/sites/site-actions"
+import { useSiteContext } from "@/contexts/site-context"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,
@@ -306,24 +307,26 @@ type TabId = (typeof TABS)[number]['id']
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
+  const { sites, currentSite } = useSiteContext()
   const [activeTab, setActiveTab] = useState<TabId>('general')
-  const [site, setSite] = useState<Site | null>(null)
-  const [siteName, setSiteName] = useState("")
-  const [subdomain, setSubdomain] = useState("")
-  const [customDomain, setCustomDomain] = useState("")
-  const [status, setStatus] = useState("draft")
-  const [fontFamily, setFontFamily] = useState("playfair-display")
-  const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
-  const [favicon, setFavicon] = useState("")
-  const [trackingScripts, setTrackingScripts] = useState("")
-  const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(false)
-  const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>('custom')
-  const [customWidth, setCustomWidth] = useState<number | undefined>()
-  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
-  const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(false)
-  const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>({})
+  const contextSite = sites.find(s => s.id === siteId) || currentSite
+  const [site, setSite] = useState<Site | null>(contextSite as Site | null)
+  const [siteName, setSiteName] = useState(contextSite?.name || "")
+  const [subdomain, setSubdomain] = useState(contextSite?.subdomain || "")
+  const [customDomain, setCustomDomain] = useState(contextSite?.custom_domain || "")
+  const [status, setStatus] = useState(contextSite?.status || "draft")
+  const [fontFamily, setFontFamily] = useState(contextSite?.settings?.font_family || "playfair-display")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState(contextSite?.settings?.secondary_font_family || "inter")
+  const [favicon, setFavicon] = useState(contextSite?.settings?.favicon || "")
+  const [trackingScripts, setTrackingScripts] = useState(contextSite?.settings?.tracking_scripts || "")
+  const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(!!contextSite?.settings?.custom_analytics_enabled)
+  const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>(contextSite?.settings?.site_width || 'custom')
+  const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
+  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
+  const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>(contextSite?.settings?.default_blocks || {})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
@@ -352,47 +355,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const aiRef = useRef<IntegrationTabHandle>(null)
   const seoRef = useRef<IntegrationTabHandle>(null)
 
-  const loadSite = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { data, error } = await getSiteByIdAction(siteId)
-
-      if (error) {
-        setError(error)
-        return
-      }
-
-      if (data) {
-        setSite(data)
-        setSiteName(data.name)
-        setSubdomain(data.subdomain || "")
-        setCustomDomain(data.custom_domain || "")
-        setStatus(data.status)
-        setFontFamily(data.settings?.font_family || "playfair-display")
-        setSecondaryFontFamily(data.settings?.secondary_font_family || "inter")
-        setFavicon(data.settings?.favicon || "")
-        setTrackingScripts(data.settings?.tracking_scripts || "")
-        setCustomAnalyticsEnabled(!!data.settings?.custom_analytics_enabled)
-        setSiteWidth(data.settings?.site_width || 'custom')
-        setCustomWidth(data.settings?.custom_width)
-        setDefaultTheme(data.settings?.default_theme || 'system')
-        setMaintenanceEnabled(!!data.settings?.maintenance?.enabled)
-        setDefaultBlocks(data.settings?.default_blocks || {})
-      }
-    } catch (err) {
-      console.error('Error loading site:', err)
-      setError('Failed to load site')
-    } finally {
-      setLoading(false)
-    }
-  }, [siteId])
-
-  useEffect(() => {
-    loadSite()
-  }, [loadSite])
-
   // Theme handlers
   const loadTemplates = useCallback(async () => {
     try {
@@ -409,8 +371,10 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   }, [])
 
   useEffect(() => {
-    loadTemplates()
-  }, [loadTemplates])
+    if (activeTab === 'themes') {
+      loadTemplates()
+    }
+  }, [loadTemplates, activeTab])
 
   const handleCreateTheme = async () => {
     const trimmed = createName.trim()

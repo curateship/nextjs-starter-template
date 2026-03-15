@@ -157,6 +157,56 @@ const CreatePostModal = dynamic(() =>
 
 ---
 
+### 10. Dead Code Removal (~10-20ms saved)
+
+**Problem**: After combining server actions, the old standalone functions were left in the codebase. Additionally, 3 entire action files had zero external callers, and unused icon imports (`Plus`, `ExternalLink`) existed across dashboard pages.
+
+**Deleted standalone functions** (replaced by combined actions):
+- `getContactsBySite` from `contact-actions.ts`
+- `getContactStats` from `contact-actions.ts`
+- `getOrdersBySite` from `order-actions.ts`
+- `getSegmentContactCount` from `segment-actions.ts`
+- `getSegmentContactCounts` from `segment-actions.ts`
+
+**Deleted dead files** (no external imports anywhere in codebase):
+- `src/lib/actions/auth/account-auto-creation.ts` — 5 exported functions, zero callers
+- `src/lib/actions/directories/directory-frontend-actions.ts` — 2 exported functions, zero callers
+- `src/lib/actions/email/account-emails.ts` — 1 exported function, zero callers
+
+**Cleaned unused imports** across dashboard pages:
+- `Plus` icon removed from posts, products, directories, events pages
+- `ExternalLink` icon removed from events page
+
+---
+
+### 11. Site Settings — Site Context + Lazy Templates (~100-200ms saved)
+
+**Problem**: The settings page called `getSiteByIdAction(siteId)` on mount (auth + DB query) even though `useSiteContext()` already had the site data. It also eagerly loaded templates via `getTemplateSitesAction()` (separate auth + DB query) on every mount, even though the Themes tab is rarely the first tab visited. That's 2 unnecessary auth calls on initial load.
+
+**Fix**:
+- Replaced `getSiteByIdAction` fetch + `loadSite` callback with `sites.find()` from `useSiteContext()`. Form state now initializes synchronously from context data.
+- Changed `loadTemplates` to only fire when `activeTab === 'themes'`, deferring the auth + DB call until the user actually visits that tab.
+
+**File modified**: `src/app/admin/sites/[siteId]/settings/page.tsx`
+
+**What was removed**: `getSiteByIdAction` import, `loadSite` callback + useEffect, `setLoading` calls, eager template loading on mount.
+
+---
+
+### 12. Analytics Dashboard — Lightweight Site Query (~50-100ms saved)
+
+**Problem**: The server-rendered analytics dashboard called `getSiteByIdAction(siteId)` which does a full `supabase.auth.getUser()` + ownership query, even though the admin layout already authenticated the user. The dashboard only needs `name` and `subdomain` for display. Also had unused `Users` icon import.
+
+**Fix**: Created `getSiteForDashboard(siteId)` in `analytics-actions.ts` — a lightweight query that fetches only `id, name, subdomain` using `supabaseAdmin` (no auth check, since admin layout already verified). Removed unused `Users` import.
+
+**Files modified**:
+- `src/app/admin/sites/[siteId]/dashboard/page.tsx` — use `getSiteForDashboard`, removed `getSiteByIdAction` import, removed unused `Users` icon
+- `src/lib/actions/analytics/analytics-actions.ts` — added `getSiteForDashboard()` lightweight query
+
+**What was removed**: `getSiteByIdAction` call (auth + full `SELECT *`), unused `Users` import.
+
+---
+
 ## Expected Performance Impact
 
 | Optimization | Estimated Savings |
@@ -170,6 +220,9 @@ const CreatePostModal = dynamic(() =>
 | Segments: combined server action | ~100-200ms (segments page only) |
 | Contacts: combined server action | ~100-200ms (contacts page only) |
 | Orders: combined server action | ~100-200ms (orders page only) |
+| Dead code + file removal | ~10-20ms (reduced bundle) |
+| Settings: site context + lazy templates | ~100-200ms (settings page only) |
+| Dashboard: lightweight site query | ~50-100ms (dashboard only) |
 | **Total (general admin pages)** | **~140-270ms** |
 
 From ~0.6s target to ~0.3-0.45s on general admin pages.
@@ -180,8 +233,9 @@ From ~0.6s target to ~0.3-0.45s on general admin pages.
 
 - User data passed as props is display-only (name, email) — extracted server-side from authenticated user object
 - `localStorage` read in `useState` initializer uses UUID regex validation before matching against server-provided sites array
-- `getSegmentContactCounts` validates siteId format, verifies auth, and verifies site ownership before any DB queries
 - `getSegmentsWithCounts` performs the same auth + ownership validation as the individual actions it replaces
 - `getContactsWithStats` performs the same auth + ownership validation as the individual actions it replaces
 - `getOrdersWithProducts` performs the same auth + ownership validation via `verifySiteOwnership()` as the individual actions it replaces
+- Site settings form state is initialized from `useSiteContext()` which provides server-authenticated site data — no client-side auth bypass
+- `getSiteForDashboard` skips auth intentionally — it runs in a server component behind the admin layout which already calls `supabase.auth.getUser()` and redirects unauthenticated users. Only fetches display fields (`name`, `subdomain`), not sensitive data
 - Known improvement area: the batch function currently trusts client-supplied `filter_rules` instead of fetching from DB — low risk since Supabase parameterizes queries, but could be hardened by fetching segment rules from the database by ID

@@ -131,3 +131,17 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
 
   return (data as { path: string; count: number }[]) || []
 }
+
+/**
+ * Lightweight site fetch for dashboard — skips auth since admin layout already verified.
+ * Only fetches fields needed for display.
+ */
+export async function getSiteForDashboard(siteId: string) {
+  const { data } = await supabaseAdmin
+    .from('sites')
+    .select('id, name, subdomain')
+    .eq('id', siteId)
+    .single()
+
+  return data as { id: string; name: string; subdomain: string } | null
+}

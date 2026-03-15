@@ -1,15 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Users, Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
+import { Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
 import { ChartLineLabel } from '@/components/admin/dashboard/ChartLineLabel'
 import Link from 'next/link'
-import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
-import { getAnalyticsOverview, getTrafficOverTime } from '@/lib/actions/analytics/analytics-actions'
+import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
 import { ChartBarVisitors } from '@/components/admin/dashboard/ChartBarVisitors'
 
 interface PageProps {
@@ -29,8 +28,8 @@ export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
 
   // Get the site data and analytics in parallel
-  const [{ data: site }, analytics, traffic] = await Promise.all([
-    getSiteByIdAction(siteId),
+  const [site, analytics, traffic] = await Promise.all([
+    getSiteForDashboard(siteId),
     getAnalyticsOverview(siteId, '30d'),
     getTrafficOverTime(siteId, '7d'),
   ])
