@@ -18,13 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { updateNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Users, TestTube, Send } from "lucide-react"
+import { Users, TestTube } from "lucide-react"
 
 interface NewsletterSettingsModalProps {
   open: boolean
@@ -47,8 +47,6 @@ export function NewsletterSettingsModal({
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [confirmSendOpen, setConfirmSendOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
@@ -204,54 +202,6 @@ export function NewsletterSettingsModal({
     setSendingTest(false)
   }
 
-  const handleSend = async () => {
-    if (!newsletter) return
-    if (!subject.trim()) {
-      setConfirmSendOpen(false)
-      setError('Subject line is required')
-      return
-    }
-
-    setConfirmSendOpen(false)
-    setSending(true)
-    setError(null)
-
-    // Save settings first (but don't reset to draft since we're about to send)
-    const metadata: Record<string, any> = { ...newsletter.metadata, maxWidth }
-    if (dripEnabled) {
-      metadata.drip_config = {
-        ...(newsletter.metadata?.drip_config || {}),
-        enabled: true,
-        batch_size_min: parseInt(dripBatchMin) || 400,
-        batch_size_max: parseInt(dripBatchMax) || 500,
-        interval_min_minutes: parseInt(dripIntervalMin) || 30,
-        interval_max_minutes: parseInt(dripIntervalMax) || 60,
-        bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
-      }
-    } else {
-      metadata.drip_config = { ...(newsletter.metadata?.drip_config || {}), enabled: false }
-    }
-
-    await updateNewsletter(newsletter.id, {
-      name: subject.trim(),
-      subject: subject.trim(),
-      audience_filter: buildAudienceFilter(),
-      metadata,
-    })
-
-    const { success, error: sendError } = await sendNewsletter(newsletter.id)
-    setSending(false)
-    if (sendError) {
-      setError(sendError)
-      return
-    }
-    if (success) {
-      const { getNewsletterById } = await import("@/lib/actions/newsletters/newsletter-actions")
-      const { data } = await getNewsletterById(newsletter.id)
-      if (data) onSuccess(data)
-      onOpenChange(false)
-    }
-  }
 
   if (!newsletter) return null
   const isSent = newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused'
@@ -478,41 +428,14 @@ export function NewsletterSettingsModal({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Close
               </Button>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" onClick={handleSave} disabled={saving || isSent}>
-                  {saving ? 'Saving...' : 'Save Draft'}
-                </Button>
-                {!isSent && (
-                  <Button onClick={() => setConfirmSendOpen(true)} disabled={sending}>
-                    <Send className="h-4 w-4 mr-2" />
-                    {sending ? 'Sending...' : 'Send Newsletter'}
-                  </Button>
-                )}
-              </div>
+              <Button onClick={handleSave} disabled={saving || isSent}>
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Send Dialog */}
-      <Dialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Send Newsletter</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {dripEnabled
-              ? `This will begin drip sending "${subject}" to ${audienceCount?.toLocaleString() || 'all'} contacts in batches of ${dripBatchMin}-${dripBatchMax} every ${dripIntervalMin}-${dripIntervalMax} minutes. You can pause at any time.`
-              : `This will send "${subject}" to ${audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.`}
-          </p>
-          <div className="flex justify-end gap-2 pt-4">
-            <Button onClick={() => setConfirmSendOpen(false)} variant="outline">Cancel</Button>
-            <Button onClick={handleSend} disabled={sending}>
-              {sending ? 'Sending...' : 'Send Now'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

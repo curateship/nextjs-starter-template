@@ -310,22 +310,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <div className="flex items-center space-x-2">
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : 'Save as Draft'}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => handleCreate('scheduled')}
-            disabled={loading}
-          >
-            {loading ? 'Publishing...' : 'Publish'}
-          </Button>
-        </div>
+        <Button
+          type="submit"
+          disabled={loading}
+        >
+          {loading ? 'Creating...' : 'Continue'}
+        </Button>
       </div>
     </form>
   )

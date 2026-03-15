@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Eye } from "lucide-react"
+import { Trash2, GripVertical, Eye, Plus } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -37,6 +37,7 @@ interface BlockListPanelProps {
   onDeleteBlock: (block: NewsletterBlock) => void
   onReorderBlocks: (blocks: NewsletterBlock[]) => void
   onPreview?: () => void
+  onAddBlock?: () => void
 }
 
 function SortableBlockItem({
@@ -116,6 +117,7 @@ export function BlockListPanel({
   onDeleteBlock,
   onReorderBlocks,
   onPreview,
+  onAddBlock,
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<NewsletterBlock | null>(null)
@@ -188,6 +190,19 @@ export function BlockListPanel({
               </div>
             </SortableContext>
           </DndContext>
+        )}
+
+        {onAddBlock && (
+          <div className="px-5 mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAddBlock}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Block
+            </Button>
+          </div>
         )}
       </div>
 

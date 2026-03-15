@@ -24,10 +24,12 @@ import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 export default function NewslettersPage() {
   const { currentSite } = useSiteContext()
+  const router = useRouter()
   const [newsletters, setNewsletters] = useState<Newsletter[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -522,8 +524,8 @@ export default function NewslettersPage() {
               </DialogHeader>
               <CreateNewsletterModal
                 onSuccess={(newsletter) => {
-                  setNewsletters((prev) => [newsletter, ...prev])
                   setShowCreateDialog(false)
+                  router.push(`/admin/newsletters/${newsletter.id}`)
                 }}
                 onCancel={() => setShowCreateDialog(false)}
               />

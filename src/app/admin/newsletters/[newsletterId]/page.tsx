@@ -8,10 +8,11 @@ import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layo
 import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
+import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/layout/PublishNewsletterModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Settings, Plus, Save, Pause, Play, AlertTriangle } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -31,6 +32,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const [publishModalOpen, setPublishModalOpen] = useState(false)
 
   const builder = useNewsletterBuilder({ newsletterId })
 
@@ -193,14 +195,21 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
               Save
             </Button>
 
-            {/* Add Block */}
-            <Button
-              size="sm"
-              onClick={() => setBlockModalOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Block
-            </Button>
+            {/* Publish button */}
+            {builder.newsletter && builder.newsletter.status !== 'sent' && builder.newsletter.status !== 'sending' && builder.newsletter.status !== 'paused' && (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  await builder.handleSave()
+                  setPublishModalOpen(true)
+                }}
+                disabled={builder.isSaving}
+              >
+                <Send className="w-4 h-4 mr-1" />
+                Publish
+              </Button>
+            )}
+
           </div>
         }
       />
@@ -264,6 +273,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           onDeleteBlock={builder.handleDeleteBlock}
           onReorderBlocks={builder.handleReorderBlocks}
           onPreview={() => builder.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
         />
       </div>
 
@@ -281,6 +291,17 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         onSuccess={(updated) => {
           builder.reloadNewsletter()
           setSettingsModalOpen(false)
+        }}
+      />
+
+      <PublishNewsletterModal
+        open={publishModalOpen}
+        onOpenChange={setPublishModalOpen}
+        newsletter={builder.newsletter}
+        siteId={currentSite?.id || ''}
+        onSuccess={(updated) => {
+          builder.reloadNewsletter()
+          setPublishModalOpen(false)
         }}
       />
     </div>
