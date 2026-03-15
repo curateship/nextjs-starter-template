@@ -26,7 +26,7 @@ const ProductSettingsModal = dynamic(() =>
   import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"

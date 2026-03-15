@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Copy, Trash2, Plus, Settings, Calendar, X, AlertCircle, ExternalLink, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Calendar, X, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"

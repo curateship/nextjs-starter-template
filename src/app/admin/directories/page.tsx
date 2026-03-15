@@ -27,7 +27,7 @@ const DirectorySettingsModal = dynamic(() =>
   import("@/components/admin/directory-builder/layout/DirectorySettingsModal").then(m => ({ default: m.DirectorySettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"

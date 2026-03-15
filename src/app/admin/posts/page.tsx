@@ -25,7 +25,7 @@ const PostSettingsModal = dynamic(() =>
   import("@/components/admin/post-builder/layout/PostSettingsModal").then(m => ({ default: m.PostSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
