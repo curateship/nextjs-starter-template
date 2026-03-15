@@ -17,9 +17,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateNewsletterModal } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { getNewslettersBySite, deleteNewsletters } from "@/lib/actions/newsletters/newsletter-actions"
+import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
@@ -52,7 +52,7 @@ export default function NewslettersPage() {
     loadNewsletters()
   }, [currentSite?.id, currentPage])
 
-  async function loadNewsletters() {
+  async function loadNewsletters(showSkeleton = true) {
     if (!currentSite?.id) {
       setLoading(true)
       setNewsletters([])
@@ -60,7 +60,7 @@ export default function NewslettersPage() {
     }
 
     try {
-      setLoading(true)
+      if (showSkeleton) setLoading(true)
       const settingsResult = await getAdminSettingsAction()
       const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
       setPageSize(ps)
@@ -147,6 +147,7 @@ export default function NewslettersPage() {
     switch (newsletter.status) {
       case 'sent': return <Badge variant="default" className="bg-green-100 text-green-800">Sent</Badge>
       case 'sending': return <Badge variant="default" className="bg-blue-100 text-blue-800">Sending</Badge>
+      case 'paused': return <Badge variant="default" className="bg-orange-100 text-orange-800">Paused</Badge>
       case 'scheduled': return <Badge variant="default" className="bg-yellow-100 text-yellow-800">Scheduled</Badge>
       default: return <Badge variant="secondary">Draft</Badge>
     }
@@ -165,7 +166,7 @@ export default function NewslettersPage() {
   }
 
   const filteredNewsletters = newsletters.filter((n) => {
-    if (filterStatus === 'sent') return n.status === 'sent' || n.status === 'sending'
+    if (filterStatus === 'sent') return n.status === 'sent' || n.status === 'sending' || n.status === 'paused'
     if (filterStatus === 'draft') return n.status === 'draft' || n.status === 'scheduled'
     return true
   })
@@ -212,7 +213,7 @@ export default function NewslettersPage() {
 
   const statusCounts = {
     all: newsletters.length,
-    sent: newsletters.filter((n) => n.status === 'sent' || n.status === 'sending').length,
+    sent: newsletters.filter((n) => n.status === 'sent' || n.status === 'sending' || n.status === 'paused').length,
     draft: newsletters.filter((n) => n.status === 'draft' || n.status === 'scheduled').length,
   }
 
@@ -419,7 +420,39 @@ export default function NewslettersPage() {
                           </Link>
                         </div>
                       </div>
-                      <div>{getStatusBadge(newsletter)}</div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          {getStatusBadge(newsletter)}
+                          {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
+                            <button
+                              type="button"
+                              className={`inline-flex items-center justify-center h-6 w-6 rounded ${newsletter.status === 'sending' ? 'text-orange-600 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'}`}
+                              title={newsletter.status === 'sending' ? 'Pause' : 'Resume'}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (newsletter.status === 'sending') {
+                                  await pauseNewsletter(newsletter.id)
+                                } else {
+                                  await resumeNewsletter(newsletter.id)
+                                }
+                                await loadNewsletters(false)
+                              }}
+                            >
+                              {newsletter.status === 'sending' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                        {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {newsletter.total_sent}/{newsletter.total_recipients} sent
+                            {newsletter.metadata.drip_config.batches_sent > 0 && ` · ${newsletter.metadata.drip_config.batches_sent} batches`}
+                            {newsletter.metadata.drip_config.total_bounced > 0 && ` · ${newsletter.metadata.drip_config.total_bounced} bounced`}
+                            {newsletter.status === 'paused' && newsletter.metadata.drip_config.paused_reason && (
+                              <span className="block text-orange-600">{newsletter.metadata.drip_config.paused_reason}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
                           {newsletter.total_sent > 0

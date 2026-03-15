@@ -9,8 +9,9 @@ import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/Blo
 import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
+import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Settings, Plus, Save } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Settings, Plus, Save, Pause, Play, AlertTriangle } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -203,6 +204,46 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           </div>
         }
       />
+
+      {/* Drip progress / paused alert bar */}
+      {builder.newsletter && (builder.newsletter.status === 'sending' || builder.newsletter.status === 'paused') && builder.newsletter.metadata?.drip_config?.enabled && (
+        <div className={`px-4 py-2.5 flex items-center justify-between text-sm ${builder.newsletter.status === 'paused' ? 'bg-orange-50 border-b border-orange-200' : 'bg-blue-50 border-b border-blue-200'}`}>
+          <div className="flex items-center gap-3">
+            {builder.newsletter.status === 'paused' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
+            <span>
+              {builder.newsletter.status === 'paused' ? 'Paused' : 'Drip sending'}: {builder.newsletter.total_sent}/{builder.newsletter.total_recipients} sent
+              {builder.newsletter.metadata.drip_config.batches_sent > 0 && ` · ${builder.newsletter.metadata.drip_config.batches_sent} batches`}
+              {builder.newsletter.metadata.drip_config.total_bounced > 0 && ` · ${builder.newsletter.metadata.drip_config.total_bounced} bounced`}
+              {builder.newsletter.status === 'paused' && builder.newsletter.metadata.drip_config.paused_reason && (
+                <span className="text-orange-600 ml-2">({builder.newsletter.metadata.drip_config.paused_reason})</span>
+              )}
+              {builder.newsletter.status === 'sending' && builder.newsletter.metadata.drip_config.next_batch_at && (
+                <span className="text-muted-foreground ml-2">
+                  · Next batch: {new Date(builder.newsletter.metadata.drip_config.next_batch_at).toLocaleTimeString()}
+                </span>
+              )}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              if (builder.newsletter!.status === 'sending') {
+                await pauseNewsletter(builder.newsletter!.id)
+              } else {
+                await resumeNewsletter(builder.newsletter!.id)
+              }
+              builder.reloadNewsletter()
+            }}
+          >
+            {builder.newsletter.status === 'sending' ? (
+              <><Pause className="h-3.5 w-3.5 mr-1" /> Pause</>
+            ) : (
+              <><Play className="h-3.5 w-3.5 mr-1" /> Resume</>
+            )}
+          </Button>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel

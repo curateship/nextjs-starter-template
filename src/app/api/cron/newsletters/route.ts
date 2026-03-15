@@ -14,9 +14,11 @@ const BATCH_SIZE = 50
 
 /**
  * GET /api/cron/newsletters
- * Process scheduled/sending newsletters in batches of 50.
+ * Process scheduled/sending newsletters in batches.
  * - 'scheduled' newsletters with scheduled_at <= now get moved to 'sending'
- * - 'sending' newsletters get the next batch of unsent contacts processed
+ * - 'sending' newsletters: drip-enabled use randomized batch sizes + intervals,
+ *   non-drip use fixed BATCH_SIZE of 50
+ * - Auto-pauses on bounce threshold exceeded + sends admin email notification
  * - When all contacts are sent, status moves to 'sent'
  * Protected by CRON_SECRET.
  */
@@ -61,6 +63,14 @@ export async function GET(request: NextRequest) {
         if (!config?.apiKey || !config?.fromEmail) continue
         if (!newsletter.content?.trim()) continue
 
+        const dripConfig = newsletter.metadata?.drip_config
+        const isDrip = dripConfig?.enabled === true
+
+        // For drip mode, skip if next_batch_at is in the future
+        if (isDrip && dripConfig.next_batch_at) {
+          if (new Date(dripConfig.next_batch_at) > new Date()) continue
+        }
+
         // Get contacts that haven't been sent to yet (no 'sent' event for this newsletter)
         const { data: sentEvents } = await supabaseAdmin
           .from('newsletter_events')
@@ -68,7 +78,7 @@ export async function GET(request: NextRequest) {
           .eq('source_id', newsletter.id)
           .eq('event_type', 'sent')
 
-        const sentContactIds = new Set((sentEvents || []).map(e => e.contact_id))
+        const sentContactIds = new Set((sentEvents || []).map((e: any) => e.contact_id))
 
         // Get matching active contacts
         let query = supabaseAdmin
@@ -90,7 +100,6 @@ export async function GET(request: NextRequest) {
         const { data: allContacts } = await query
 
         if (!allContacts?.length) {
-          // No contacts at all — mark as sent
           await supabaseAdmin
             .from('newsletters')
             .update({ status: 'sent', sent_at: now, total_recipients: 0, total_sent: 0 })
@@ -100,10 +109,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Filter out already-sent contacts
-        const unsent = allContacts.filter(c => !sentContactIds.has(c.id))
+        const unsent = allContacts.filter((c: any) => !sentContactIds.has(c.id))
 
         if (unsent.length === 0) {
-          // All contacts sent — mark as complete
           await supabaseAdmin
             .from('newsletters')
             .update({
@@ -117,8 +125,12 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Process this batch
-        const batch = unsent.slice(0, BATCH_SIZE)
+        // Determine batch size
+        const batchSize = isDrip
+          ? Math.floor(Math.random() * ((dripConfig.batch_size_max || 500) - (dripConfig.batch_size_min || 400) + 1)) + (dripConfig.batch_size_min || 400)
+          : BATCH_SIZE
+
+        const batch = unsent.slice(0, batchSize)
         const resend = new Resend(config.apiKey)
         const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
         const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
@@ -162,18 +174,79 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Update progress
         const newTotalSent = sentContactIds.size + batchSent
-        const allDone = unsent.length <= BATCH_SIZE
+        const allDone = unsent.length <= batchSize
 
-        await supabaseAdmin
-          .from('newsletters')
-          .update({
-            ...(allDone ? { status: 'sent', sent_at: new Date().toISOString() } : {}),
-            total_recipients: allContacts.length,
-            total_sent: newTotalSent,
-          })
-          .eq('id', newsletter.id)
+        if (isDrip && !allDone) {
+          // Bounce check
+          const { count: bounceCount } = await supabaseAdmin
+            .from('newsletter_events')
+            .select('id', { count: 'exact', head: true })
+            .eq('source_id', newsletter.id)
+            .eq('event_type', 'bounced')
+
+          const totalBounced = bounceCount || 0
+          const bounceRate = newTotalSent > 0 ? (totalBounced / newTotalSent) * 100 : 0
+          const threshold = dripConfig.bounce_threshold_percent || 5
+
+          if (bounceRate >= threshold) {
+            // Auto-pause due to bounce threshold
+            await supabaseAdmin
+              .from('newsletters')
+              .update({
+                status: 'paused',
+                total_recipients: allContacts.length,
+                total_sent: newTotalSent,
+                metadata: {
+                  ...newsletter.metadata,
+                  drip_config: {
+                    ...dripConfig,
+                    batches_sent: (dripConfig.batches_sent || 0) + 1,
+                    total_bounced: totalBounced,
+                    paused_reason: `Bounce rate ${bounceRate.toFixed(1)}% exceeded ${threshold}% threshold`,
+                  },
+                },
+              })
+              .eq('id', newsletter.id)
+
+            // Send admin email notification
+            await sendBounceAlertEmail(newsletter, config, resend, bounceRate, threshold, totalBounced, newTotalSent)
+          } else {
+            // Schedule next batch
+            const intervalMin = dripConfig.interval_min_minutes || 30
+            const intervalMax = dripConfig.interval_max_minutes || 60
+            const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
+            const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
+
+            await supabaseAdmin
+              .from('newsletters')
+              .update({
+                total_recipients: allContacts.length,
+                total_sent: newTotalSent,
+                metadata: {
+                  ...newsletter.metadata,
+                  drip_config: {
+                    ...dripConfig,
+                    next_batch_at: nextBatchAt,
+                    batches_sent: (dripConfig.batches_sent || 0) + 1,
+                    total_bounced: totalBounced,
+                    paused_reason: null,
+                  },
+                },
+              })
+              .eq('id', newsletter.id)
+          }
+        } else {
+          // Non-drip or all done
+          await supabaseAdmin
+            .from('newsletters')
+            .update({
+              ...(allDone ? { status: 'sent', sent_at: new Date().toISOString() } : {}),
+              total_recipients: allContacts.length,
+              total_sent: newTotalSent,
+            })
+            .eq('id', newsletter.id)
+        }
 
         totalProcessed += batchSent
       } catch (err) {
@@ -185,5 +258,53 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error('Cron newsletters error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
+
+async function sendBounceAlertEmail(
+  newsletter: any,
+  config: any,
+  resend: Resend,
+  bounceRate: number,
+  threshold: number,
+  totalBounced: number,
+  totalSent: number,
+) {
+  try {
+    // Look up site owner email
+    const { data: site } = await supabaseAdmin
+      .from('sites')
+      .select('user_id')
+      .eq('id', newsletter.site_id)
+      .single()
+
+    if (!site?.user_id) return
+
+    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(site.user_id)
+    const adminEmail = userData?.user?.email
+    if (!adminEmail) return
+
+    const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
+
+    await resend.emails.send({
+      from,
+      to: adminEmail,
+      subject: `Newsletter Paused — Bounce rate ${bounceRate.toFixed(1)}% exceeded ${threshold}% threshold`,
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2 style="color:#dc2626;">Newsletter Auto-Paused</h2>
+          <p>Your newsletter "<strong>${newsletter.name}</strong>" has been automatically paused because the bounce rate exceeded your configured threshold.</p>
+          <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Bounce Rate</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:bold;">${bounceRate.toFixed(1)}%</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Threshold</td><td style="padding:8px;border-bottom:1px solid #eee;">${threshold}%</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Total Bounced</td><td style="padding:8px;border-bottom:1px solid #eee;">${totalBounced}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Total Sent</td><td style="padding:8px;border-bottom:1px solid #eee;">${totalSent}</td></tr>
+          </table>
+          <p>You can review your bounce events and resume sending from the newsletter dashboard.</p>
+        </div>
+      `,
+    })
+  } catch (err) {
+    console.error('Failed to send bounce alert email:', err)
   }
 }

@@ -23,6 +23,7 @@ import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-action
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Users, TestTube, Send } from "lucide-react"
 
 interface NewsletterSettingsModalProps {
@@ -56,11 +57,26 @@ export function NewsletterSettingsModal({
   const [audienceMode, setAudienceMode] = useState<string>('none') // 'none' | 'all' | segment ID | 'custom'
   const [maxWidth, setMaxWidth] = useState(600)
 
+  // Drip config state
+  const [dripEnabled, setDripEnabled] = useState(false)
+  const [dripBatchMin, setDripBatchMin] = useState('400')
+  const [dripBatchMax, setDripBatchMax] = useState('500')
+  const [dripIntervalMin, setDripIntervalMin] = useState('30')
+  const [dripIntervalMax, setDripIntervalMax] = useState('60')
+  const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
+
   useEffect(() => {
     if (newsletter) {
       setSubject(newsletter.subject || newsletter.name)
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
       setMaxWidth(newsletter.metadata?.maxWidth || 600)
+      const drip = newsletter.metadata?.drip_config
+      setDripEnabled(drip?.enabled || false)
+      setDripBatchMin(String(drip?.batch_size_min ?? 400))
+      setDripBatchMax(String(drip?.batch_size_max ?? 500))
+      setDripIntervalMin(String(drip?.interval_min_minutes ?? 30))
+      setDripIntervalMax(String(drip?.interval_max_minutes ?? 60))
+      setDripBounceThreshold(String(drip?.bounce_threshold_percent ?? 5))
       setError(null)
       setSuccessMsg(null)
 
@@ -139,11 +155,27 @@ export function NewsletterSettingsModal({
     setSaving(true)
     setError(null)
 
+    const metadata: Record<string, any> = { ...newsletter.metadata, maxWidth }
+    if (dripEnabled) {
+      metadata.drip_config = {
+        ...(newsletter.metadata?.drip_config || {}),
+        enabled: true,
+        batch_size_min: parseInt(dripBatchMin) || 400,
+        batch_size_max: parseInt(dripBatchMax) || 500,
+        interval_min_minutes: parseInt(dripIntervalMin) || 30,
+        interval_max_minutes: parseInt(dripIntervalMax) || 60,
+        bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
+      }
+    } else {
+      metadata.drip_config = { ...(newsletter.metadata?.drip_config || {}), enabled: false }
+    }
+
     const { data, error: updateError } = await updateNewsletter(newsletter.id, {
       name: subject.trim(),
       subject: subject.trim(),
+      status: 'draft',
       audience_filter: buildAudienceFilter(),
-      metadata: { ...newsletter.metadata, maxWidth },
+      metadata,
     })
     setSaving(false)
     if (updateError) {
@@ -174,27 +206,55 @@ export function NewsletterSettingsModal({
 
   const handleSend = async () => {
     if (!newsletter) return
+    if (!subject.trim()) {
+      setConfirmSendOpen(false)
+      setError('Subject line is required')
+      return
+    }
+
     setConfirmSendOpen(false)
     setSending(true)
     setError(null)
 
-    await handleSave()
+    // Save settings first (but don't reset to draft since we're about to send)
+    const metadata: Record<string, any> = { ...newsletter.metadata, maxWidth }
+    if (dripEnabled) {
+      metadata.drip_config = {
+        ...(newsletter.metadata?.drip_config || {}),
+        enabled: true,
+        batch_size_min: parseInt(dripBatchMin) || 400,
+        batch_size_max: parseInt(dripBatchMax) || 500,
+        interval_min_minutes: parseInt(dripIntervalMin) || 30,
+        interval_max_minutes: parseInt(dripIntervalMax) || 60,
+        bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
+      }
+    } else {
+      metadata.drip_config = { ...(newsletter.metadata?.drip_config || {}), enabled: false }
+    }
+
+    await updateNewsletter(newsletter.id, {
+      name: subject.trim(),
+      subject: subject.trim(),
+      audience_filter: buildAudienceFilter(),
+      metadata,
+    })
 
     const { success, error: sendError } = await sendNewsletter(newsletter.id)
+    setSending(false)
     if (sendError) {
       setError(sendError)
-    } else if (success) {
-      setSuccessMsg('Newsletter sent!')
-      // Reload newsletter data
+      return
+    }
+    if (success) {
       const { getNewsletterById } = await import("@/lib/actions/newsletters/newsletter-actions")
       const { data } = await getNewsletterById(newsletter.id)
       if (data) onSuccess(data)
+      onOpenChange(false)
     }
-    setSending(false)
   }
 
   if (!newsletter) return null
-  const isSent = newsletter.status === 'sent' || newsletter.status === 'sending'
+  const isSent = newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused'
 
   // Get selected segment for display
   const selectedSegment = audienceMode !== 'all' && audienceMode !== 'custom'
@@ -313,6 +373,83 @@ export function NewsletterSettingsModal({
               )}
             </div>
 
+            {/* Drip Send */}
+            {!isSent && (
+              <div>
+                <h3 className="font-medium mb-4">Drip Send</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <Checkbox
+                    id="drip-toggle"
+                    checked={dripEnabled}
+                    onCheckedChange={(checked) => setDripEnabled(checked === true)}
+                  />
+                  <Label htmlFor="drip-toggle">Enable drip sending</Label>
+                </div>
+                {dripEnabled && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="drip-batch-min">Batch size min</Label>
+                        <Input
+                          id="drip-batch-min"
+                          type="number"
+                          value={dripBatchMin}
+                          onChange={(e) => setDripBatchMin(e.target.value)}
+                          min={1}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="drip-batch-max">Batch size max</Label>
+                        <Input
+                          id="drip-batch-max"
+                          type="number"
+                          value={dripBatchMax}
+                          onChange={(e) => setDripBatchMax(e.target.value)}
+                          min={1}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="drip-interval-min">Interval min (minutes)</Label>
+                        <Input
+                          id="drip-interval-min"
+                          type="number"
+                          value={dripIntervalMin}
+                          onChange={(e) => setDripIntervalMin(e.target.value)}
+                          min={1}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="drip-interval-max">Interval max (minutes)</Label>
+                        <Input
+                          id="drip-interval-max"
+                          type="number"
+                          value={dripIntervalMax}
+                          onChange={(e) => setDripIntervalMax(e.target.value)}
+                          min={1}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="drip-bounce-threshold">Bounce threshold (%)</Label>
+                      <Input
+                        id="drip-bounce-threshold"
+                        type="number"
+                        value={dripBounceThreshold}
+                        onChange={(e) => setDripBounceThreshold(e.target.value)}
+                        min={0.1}
+                        step="any"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auto-pause and notify you if bounce rate exceeds this percentage
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Test Email */}
             {!isSent && (
               <div>
@@ -343,7 +480,7 @@ export function NewsletterSettingsModal({
               </Button>
               <div className="flex items-center space-x-2">
                 <Button variant="outline" onClick={handleSave} disabled={saving || isSent}>
-                  {saving ? 'Saving...' : 'Save Settings'}
+                  {saving ? 'Saving...' : 'Save Draft'}
                 </Button>
                 {!isSent && (
                   <Button onClick={() => setConfirmSendOpen(true)} disabled={sending}>
@@ -364,7 +501,9 @@ export function NewsletterSettingsModal({
             <DialogTitle>Send Newsletter</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will send &quot;{subject}&quot; to {audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.
+            {dripEnabled
+              ? `This will begin drip sending "${subject}" to ${audienceCount?.toLocaleString() || 'all'} contacts in batches of ${dripBatchMin}-${dripBatchMax} every ${dripIntervalMin}-${dripIntervalMax} minutes. You can pause at any time.`
+              : `This will send "${subject}" to ${audienceCount?.toLocaleString() || 'all'} active contacts. This action cannot be undone.`}
           </p>
           <div className="flex justify-end gap-2 pt-4">
             <Button onClick={() => setConfirmSendOpen(false)} variant="outline">Cancel</Button>

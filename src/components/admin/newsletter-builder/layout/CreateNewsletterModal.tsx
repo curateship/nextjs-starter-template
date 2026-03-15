@@ -18,6 +18,8 @@ export type { Newsletter }
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { Checkbox } from "@/components/ui/checkbox"
+import { updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { Users } from "lucide-react"
 
@@ -37,6 +39,14 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [audienceMode, setAudienceMode] = useState<string>('none')
   const [filterTags, setFilterTags] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
+
+  // Drip config state
+  const [dripEnabled, setDripEnabled] = useState(false)
+  const [dripBatchMin, setDripBatchMin] = useState('400')
+  const [dripBatchMax, setDripBatchMax] = useState('500')
+  const [dripIntervalMin, setDripIntervalMin] = useState('30')
+  const [dripIntervalMax, setDripIntervalMax] = useState('60')
+  const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
 
   // Load segments
   useEffect(() => {
@@ -122,6 +132,21 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     }
 
     if (data) {
+      // Save drip config as metadata if enabled
+      if (dripEnabled) {
+        await updateNewsletter(data.id, {
+          metadata: {
+            drip_config: {
+              enabled: true,
+              batch_size_min: parseInt(dripBatchMin) || 400,
+              batch_size_max: parseInt(dripBatchMax) || 500,
+              interval_min_minutes: parseInt(dripIntervalMin) || 30,
+              interval_max_minutes: parseInt(dripIntervalMax) || 60,
+              bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
+            },
+          },
+        })
+      }
       onSuccess(data)
     }
     setLoading(false)
@@ -202,6 +227,81 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                 ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
                 : 'Calculating...'}
             </span>
+          </div>
+        )}
+      </div>
+
+      {/* Drip Send */}
+      <div>
+        <h3 className="font-medium mb-4">Drip Send</h3>
+        <div className="flex items-center gap-2 mb-3">
+          <Checkbox
+            id="create-drip-toggle"
+            checked={dripEnabled}
+            onCheckedChange={(checked) => setDripEnabled(checked === true)}
+          />
+          <Label htmlFor="create-drip-toggle">Enable drip sending</Label>
+        </div>
+        {dripEnabled && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="create-drip-batch-min">Batch size min</Label>
+                <Input
+                  id="create-drip-batch-min"
+                  type="number"
+                  value={dripBatchMin}
+                  onChange={(e) => setDripBatchMin(e.target.value)}
+                  min={1}
+                />
+              </div>
+              <div>
+                <Label htmlFor="create-drip-batch-max">Batch size max</Label>
+                <Input
+                  id="create-drip-batch-max"
+                  type="number"
+                  value={dripBatchMax}
+                  onChange={(e) => setDripBatchMax(e.target.value)}
+                  min={1}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="create-drip-interval-min">Interval min (minutes)</Label>
+                <Input
+                  id="create-drip-interval-min"
+                  type="number"
+                  value={dripIntervalMin}
+                  onChange={(e) => setDripIntervalMin(e.target.value)}
+                  min={1}
+                />
+              </div>
+              <div>
+                <Label htmlFor="create-drip-interval-max">Interval max (minutes)</Label>
+                <Input
+                  id="create-drip-interval-max"
+                  type="number"
+                  value={dripIntervalMax}
+                  onChange={(e) => setDripIntervalMax(e.target.value)}
+                  min={1}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="create-drip-bounce-threshold">Bounce threshold (%)</Label>
+              <Input
+                id="create-drip-bounce-threshold"
+                type="number"
+                value={dripBounceThreshold}
+                onChange={(e) => setDripBounceThreshold(e.target.value)}
+                min={0.1}
+                step="any"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Auto-pause and notify you if bounce rate exceeds this percentage
+              </p>
+            </div>
           </div>
         )}
       </div>

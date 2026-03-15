@@ -21,7 +21,7 @@ export interface Newsletter {
   content: string
   content_blocks: Record<string, any>
   from_name: string | null
-  status: 'draft' | 'scheduled' | 'sending' | 'sent'
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused'
   audience_filter: Record<string, any>
   scheduled_at: string | null
   sent_at: string | null
@@ -195,7 +195,7 @@ export async function updateNewsletter(
       return { data: null, error: 'Access denied' }
     }
 
-    if (updates.status !== undefined && !['draft', 'scheduled'].includes(updates.status)) {
+    if (updates.status !== undefined && !['draft', 'scheduled', 'paused'].includes(updates.status)) {
       return { data: null, error: 'Invalid status' }
     }
 
@@ -299,8 +299,19 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
     if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
       return { success: false, error: 'Access denied' }
     }
-    if (newsletter.status === 'sent' || newsletter.status === 'sending') {
-      return { success: false, error: 'Already sent' }
+    if (newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused') {
+      return { success: false, error: 'Already sent or in progress' }
+    }
+    // Generate HTML from content_blocks if content is empty
+    if (!newsletter.content?.trim()) {
+      const contentBlocks = newsletter.content_blocks || {}
+      const blockEntries = Object.values(contentBlocks).filter((b: any) => b.id && b.type)
+      const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      if (sortedBlocks.length > 0) {
+        const maxWidth = newsletter.metadata?.maxWidth || 600
+        newsletter.content = generateEmailHtml(sortedBlocks, maxWidth)
+        await supabaseAdmin.from('newsletters').update({ content: newsletter.content }).eq('id', newsletterId)
+      }
     }
     if (!newsletter.content?.trim()) {
       return { success: false, error: 'Newsletter has no content' }
@@ -309,6 +320,11 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
     const config = await getResendConfig(newsletter.site_id)
     if (!config?.apiKey) return { success: false, error: 'Resend not configured' }
 
+    let filter = newsletter.audience_filter || {}
+    if (!filter.audience && !filter.segment_id && !filter.tags?.length && !filter.sources?.length) {
+      return { success: false, error: 'No audience selected. Choose a segment or audience before sending.' }
+    }
+
     await supabaseAdmin.from('newsletters').update({ status: 'sending' }).eq('id', newsletterId)
 
     let query = supabaseAdmin
@@ -316,8 +332,6 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       .select('id, email, metadata')
       .eq('site_id', newsletter.site_id)
       .eq('status', 'active')
-
-    let filter = newsletter.audience_filter || {}
 
     // Resolve segment if segment_id is set
     if (filter.segment_id) {
@@ -357,10 +371,18 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
     const from = config.fromName ? `${config.fromName} <${fromEmail}>` : fromEmail
     const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
+    const dripConfig = newsletter.metadata?.drip_config
+    const isDrip = dripConfig?.enabled === true
+
+    // For drip mode, only send a random-sized first batch
+    const contactsToSend = isDrip
+      ? contacts.slice(0, Math.floor(Math.random() * (dripConfig.batch_size_max - dripConfig.batch_size_min + 1)) + dripConfig.batch_size_min)
+      : contacts
+
     let totalSent = 0
     const errors: string[] = []
 
-    for (const contact of contacts) {
+    for (const contact of contactsToSend) {
       try {
         const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
         const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
@@ -397,16 +419,44 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       }
     }
 
-    await supabaseAdmin
-      .from('newsletters')
-      .update({
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-        total_recipients: contacts.length,
-        total_sent: totalSent,
-        metadata: { ...newsletter.metadata, send_errors: errors },
-      })
-      .eq('id', newsletterId)
+    if (isDrip && contacts.length > contactsToSend.length) {
+      // Drip mode: set next batch time, keep status as 'sending'
+      const intervalMin = dripConfig.interval_min_minutes || 30
+      const intervalMax = dripConfig.interval_max_minutes || 60
+      const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
+      const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
+
+      await supabaseAdmin
+        .from('newsletters')
+        .update({
+          total_recipients: contacts.length,
+          total_sent: totalSent,
+          metadata: {
+            ...newsletter.metadata,
+            send_errors: errors,
+            drip_config: {
+              ...dripConfig,
+              next_batch_at: nextBatchAt,
+              batches_sent: 1,
+              total_bounced: 0,
+              paused_reason: null,
+            },
+          },
+        })
+        .eq('id', newsletterId)
+    } else {
+      // Non-drip or all contacts fit in first batch
+      await supabaseAdmin
+        .from('newsletters')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          total_recipients: contacts.length,
+          total_sent: totalSent,
+          metadata: { ...newsletter.metadata, send_errors: errors },
+        })
+        .eq('id', newsletterId)
+    }
 
     return { success: true, error: null }
   } catch (err) {
@@ -469,6 +519,91 @@ export async function sendTestNewsletter(
     return { success: true, error: null }
   } catch (err) {
     console.error('sendTestNewsletter error:', err)
+    return { success: false, error: 'Server error' }
+  }
+}
+
+export async function pauseNewsletter(newsletterId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
+
+    const user = await verifyAuth()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const { data: newsletter } = await supabaseAdmin
+      .from('newsletters')
+      .select('site_id, status, metadata')
+      .eq('id', newsletterId)
+      .single()
+
+    if (!newsletter) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+      return { success: false, error: 'Access denied' }
+    }
+    if (newsletter.status !== 'sending') {
+      return { success: false, error: 'Newsletter is not currently sending' }
+    }
+
+    await supabaseAdmin
+      .from('newsletters')
+      .update({
+        status: 'paused',
+        metadata: {
+          ...newsletter.metadata,
+          drip_config: {
+            ...newsletter.metadata?.drip_config,
+            paused_reason: 'manual',
+          },
+        },
+      })
+      .eq('id', newsletterId)
+
+    return { success: true, error: null }
+  } catch (err) {
+    console.error('pauseNewsletter error:', err)
+    return { success: false, error: 'Server error' }
+  }
+}
+
+export async function resumeNewsletter(newsletterId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
+
+    const user = await verifyAuth()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const { data: newsletter } = await supabaseAdmin
+      .from('newsletters')
+      .select('site_id, status, metadata')
+      .eq('id', newsletterId)
+      .single()
+
+    if (!newsletter) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+      return { success: false, error: 'Access denied' }
+    }
+    if (newsletter.status !== 'paused') {
+      return { success: false, error: 'Newsletter is not paused' }
+    }
+
+    await supabaseAdmin
+      .from('newsletters')
+      .update({
+        status: 'sending',
+        metadata: {
+          ...newsletter.metadata,
+          drip_config: {
+            ...newsletter.metadata?.drip_config,
+            next_batch_at: new Date().toISOString(),
+            paused_reason: null,
+          },
+        },
+      })
+      .eq('id', newsletterId)
+
+    return { success: true, error: null }
+  } catch (err) {
+    console.error('resumeNewsletter error:', err)
     return { success: false, error: 'Server error' }
   }
 }
