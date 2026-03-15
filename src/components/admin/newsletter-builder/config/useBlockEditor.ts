@@ -94,9 +94,7 @@ export function useBlockEditor(): UseBlockEditorReturn {
       }
     }
     setBlocks(prev => [...prev, ...newBlocks])
-    if (newBlocks.length > 0) {
-      setSelectedBlock(newBlocks[newBlocks.length - 1])
-    }
+    setSelectedBlock(null)
   }
 
   return {

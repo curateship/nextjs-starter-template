@@ -28,7 +28,7 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Formatted text content',
     defaultContent: {
-      htmlContent: '<p>Add your content here...</p>',
+      htmlContent: '',
       backgroundColor: '#ffffff',
       padding: 20,
     }

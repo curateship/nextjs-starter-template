@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
+import Placeholder from '@tiptap/extension-placeholder'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,10 +38,11 @@ export interface RichTextEditorProps {
   onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
   compact?: boolean
   inline?: boolean
+  placeholder?: string
   children?: React.ReactNode
 }
 
-export function RichTextEditor({ content, onContentChange, compact = false, inline = false, children }: RichTextEditorProps) {
+export function RichTextEditor({ content, onContentChange, compact = false, inline = false, placeholder, children }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({
@@ -54,6 +56,9 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
       }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
+      }),
+      Placeholder.configure({
+        placeholder: placeholder || 'Start writing...',
       }),
     ],
     content: content.content,

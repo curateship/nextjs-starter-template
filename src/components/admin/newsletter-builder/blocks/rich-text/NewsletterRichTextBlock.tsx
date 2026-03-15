@@ -44,6 +44,7 @@ export function NewsletterRichTextBlock({ content, onContentChange, onBack }: Ne
               content={{ content: content.htmlContent || '', hideHeader: true, hideEditorHeader: true }}
               onContentChange={(c) => onContentChange('htmlContent', c.content)}
               inline
+              placeholder="Write your content here..."
             />
           </CardContent>
         </Card>

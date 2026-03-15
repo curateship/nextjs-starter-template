@@ -312,3 +312,12 @@ a, a *, button[onclick], button:hover {
 .prose pre {
   @apply bg-muted p-4 rounded-lg overflow-x-auto my-6;
 }
+
+/* Tiptap placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
