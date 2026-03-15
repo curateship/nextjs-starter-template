@@ -155,6 +155,20 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
+  // Handle publishing the current post
+  const [isPublishing, setIsPublishing] = useState(false)
+  const handlePublish = async () => {
+    if (!currentPostId) return
+    try {
+      setIsPublishing(true)
+      const { data: updatedPost, error } = await updatePostAction(currentPostId, { is_published: true })
+      if (error || !updatedPost) return
+      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   // Handle post title changes
   const handlePostTitleChange = async (title: string) => {
     if (!currentPostId || !title.trim()) return
@@ -217,6 +231,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         saveMessage={builderState.saveMessage}
         isSaving={false}
         onSave={builderState.handleSaveAllBlocks}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">

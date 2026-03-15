@@ -156,6 +156,17 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     }
   }
 
+  const [isPublishing, setIsPublishing] = useState(false)
+  const handlePublish = async () => {
+    if (!currentProductData?.id) return
+    try {
+      setIsPublishing(true)
+      await updateCurrentProduct({ is_published: true })
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   const handleTitleChange = (title: string) => {
     updateCurrentProduct({ title })
   }
@@ -216,6 +227,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">

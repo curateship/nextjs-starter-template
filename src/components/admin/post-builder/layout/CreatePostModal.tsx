@@ -25,7 +25,7 @@ interface CreatePostData {
 }
 
 interface CreatePostModalProps {
-  onSuccess: (post: Post) => void
+  onSuccess: (post: Post, continueToBuilder?: boolean) => void
   onCancel: () => void
 }
 
@@ -108,8 +108,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     setFormData(prev => ({ ...prev, featured_image: '' }))
   }
 
-  // Handle saving as draft
-  const handleSaveDraft = async () => {
+  // Handle saving as draft, optionally signaling redirect to builder
+  const handleSave = async (continueToBuilder = false) => {
     if (!formData.title.trim()) {
       setError('Post title is required')
       return
@@ -123,7 +123,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     try {
       setLoading(true)
       setError(null)
-      
+
       const draftData = {
         title: formData.title,
         slug: formData.slug,
@@ -136,7 +136,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           show_featured_image: showFeaturedImage
         }
       }
-      
+
       const response = await fetch('/api/posts', {
         method: 'POST',
         headers: {
@@ -151,72 +151,15 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         setError(result.error || 'Failed to create post')
         return
       }
-      
+
       if (result.data) {
         if (selectedCategoryIds.length > 0) {
           bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
         }
-        onSuccess(result.data)
+        onSuccess(result.data, continueToBuilder)
       }
     } catch (err) {
-      setError('Failed to save post as draft')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle publishing immediately
-  const handlePublish = async () => {
-    if (!formData.title.trim()) {
-      setError('Post title is required')
-      return
-    }
-
-    if (!currentSite?.id) {
-      setError('No site selected')
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const publishData = {
-        title: formData.title,
-        slug: formData.slug,
-        site_id: currentSite.id,
-        meta_description: formData.meta_description,
-        featured_image: formData.featured_image || null,
-        excerpt: formData.excerpt || null,
-        is_published: true,
-        content_blocks: {
-          show_featured_image: showFeaturedImage
-        }
-      }
-      
-      const response = await fetch('/api/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(publishData),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to create post')
-        return
-      }
-      
-      if (result.data) {
-        if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds).catch(() => {})
-        }
-        onSuccess(result.data)
-      }
-    } catch (err) {
-      setError('Failed to publish post')
+      setError('Failed to save post')
     } finally {
       setLoading(false)
     }
@@ -225,7 +168,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   // Handle form submission (default to save as draft)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   return (
@@ -434,12 +377,12 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           >
             {loading ? 'Saving...' : 'Save as Draft'}
           </Button>
-          <Button 
-            type="button" 
-            onClick={handlePublish}
+          <Button
+            type="button"
+            onClick={() => handleSave(true)}
             disabled={loading}
           >
-            {loading ? 'Publishing...' : 'Publish'}
+            {loading ? 'Saving...' : 'Continue'}
           </Button>
         </div>
       </div>

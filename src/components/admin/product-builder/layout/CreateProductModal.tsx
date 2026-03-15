@@ -21,7 +21,7 @@ interface CreateProductData {
 }
 
 interface CreateProductModalProps {
-  onSuccess: (product: Product) => void
+  onSuccess: (product: Product, continueToBuilder?: boolean) => void
   onCancel: () => void
 }
 
@@ -102,8 +102,8 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     setFeaturedImage('')
   }
 
-  // Handle saving as draft
-  const handleSaveDraft = async () => {
+  // Handle saving as draft, optionally signaling redirect to builder
+  const handleSave = async (continueToBuilder = false) => {
     if (!formData.title.trim()) {
       setError('Product title is required')
       return
@@ -117,7 +117,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     try {
       setLoading(true)
       setError(null)
-      
+
       const draftData = {
         ...formData,
         site_id: currentSite.id,
@@ -143,72 +143,16 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         setError(result.error || 'Failed to create product')
         return
       }
-      
+
       if (result.data) {
         if (selectedCategoryIds.length > 0) {
           bulkAssignCategoriesToContentAction(result.data.id, 'product', selectedCategoryIds).catch(() => {})
         }
-        onSuccess(result.data)
+        onSuccess(result.data, continueToBuilder)
       }
     } catch (err) {
-      console.error('Error saving product as draft:', err)
-      setError(`Failed to save product as draft: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle publishing immediately
-  const handlePublish = async () => {
-    if (!formData.title.trim()) {
-      setError('Product title is required')
-      return
-    }
-
-    if (!currentSite?.id) {
-      setError('No site selected')
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const publishData = {
-        ...formData,
-        site_id: currentSite.id,
-        is_published: true,
-        featured_image: featuredImage || null,
-        description: richTextContent || null,
-        content_blocks: {
-          _settings: { is_private: isPrivate }
-        }
-      }
-
-      const response = await fetch('/api/products', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(publishData),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to create product')
-        return
-      }
-      
-      if (result.data) {
-        if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(result.data.id, 'product', selectedCategoryIds).catch(() => {})
-        }
-        onSuccess(result.data)
-      }
-    } catch (err) {
-      console.error('Error publishing product:', err)
-      setError(`Failed to publish product: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      console.error('Error saving product:', err)
+      setError(`Failed to save product: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -217,7 +161,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   // Handle form submission (default to save as draft)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   return (
@@ -381,12 +325,12 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           >
             {loading ? 'Saving...' : 'Save as Draft'}
           </Button>
-          <Button 
-            type="button" 
-            onClick={handlePublish}
+          <Button
+            type="button"
+            onClick={() => handleSave(true)}
             disabled={loading}
           >
-            {loading ? 'Publishing...' : 'Publish'}
+            {loading ? 'Saving...' : 'Continue'}
           </Button>
         </div>
       </div>

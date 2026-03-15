@@ -84,9 +84,12 @@ export default function CategoriesPage({
     loadData()
   }, [siteId, currentPage])
 
-  const handleCategoryCreated = (newCategory: Category) => {
+  const handleCategoryCreated = (newCategory: Category, continueToBuilder?: boolean) => {
     setCategories(prev => [...prev, newCategory])
     setShowCreateModal(false)
+    if (continueToBuilder) {
+      router.push(`/admin/categories/builder/${siteId}?category=${newCategory.slug}`)
+    }
   }
 
   const handleCategoryDeleted = (categoryId: string) => {

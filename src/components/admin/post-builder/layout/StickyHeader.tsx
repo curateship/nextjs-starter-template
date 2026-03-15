@@ -53,6 +53,8 @@ interface StickyHeaderProps {
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
+  onPublish?: () => void
+  isPublishing?: boolean
   onOpenBlockModal?: () => void
 }
 
@@ -67,6 +69,8 @@ export function StickyHeader({
   saveMessage,
   isSaving = false,
   onSave,
+  onPublish,
+  isPublishing = false,
   onOpenBlockModal
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -242,12 +246,22 @@ export function StickyHeader({
               )}
               <Button
                 size="sm"
+                variant="outline"
                 onClick={onSave}
                 disabled={isSaving}
               >
                 <Save className="w-4 h-4 mr-2" />
                 {isSaving ? 'Saving...' : 'Save'}
               </Button>
+              {onPublish && (
+                <Button
+                  size="sm"
+                  onClick={onPublish}
+                  disabled={isPublishing || isSaving}
+                >
+                  {isPublishing ? 'Publishing...' : currentPost?.is_published ? 'Published' : 'Publish'}
+                </Button>
+              )}
             </div>
           )}
         </div>

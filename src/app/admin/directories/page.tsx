@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -37,6 +38,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 export default function DirectoriesPage() {
+  const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [directories, setDirectories] = useState<Directory[]>([])
   const [loading, setLoading] = useState(true)
@@ -594,10 +596,13 @@ export default function DirectoriesPage() {
                     Add a new item to your directory. You can customize the content after creation.
                   </DialogDescription>
                 </DialogHeader>
-                <CreateDirectoryModal 
-                  onSuccess={(directory) => {
+                <CreateDirectoryModal
+                  onSuccess={(directory, continueToBuilder) => {
                     setDirectories(prev => [...prev, directory])
                     setShowCreateDialog(false)
+                    if (continueToBuilder && currentSite?.id) {
+                      router.push(`/admin/directories/builder/${currentSite.id}?directory=${directory.slug}`)
+                    }
                   }}
                   onCancel={() => setShowCreateDialog(false)}
                 />

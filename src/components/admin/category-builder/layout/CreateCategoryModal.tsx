@@ -22,7 +22,7 @@ interface CreateCategoryModalProps {
   siteId: string
   existingCategories: Category[]
   onClose: () => void
-  onCreated: (category: Category) => void
+  onCreated: (category: Category, continueToBuilder?: boolean) => void
 }
 
 export function CreateCategoryModal({
@@ -92,7 +92,7 @@ export function CreateCategoryModal({
     return options
   }
 
-  const handleSaveDraft = async () => {
+  const handleSave = async (continueToBuilder: boolean) => {
     if (!title.trim()) {
       setError('Category title is required')
       return
@@ -125,49 +125,7 @@ export function CreateCategoryModal({
       }
 
       if (data) {
-        onCreated(data)
-        onClose()
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create category')
-      setIsSubmitting(false)
-    }
-  }
-
-  const handlePublish = async () => {
-    if (!title.trim()) {
-      setError('Category title is required')
-      return
-    }
-
-    setError(null)
-    setIsSubmitting(true)
-
-    try {
-      const { data, error: createError } = await createCategoryAction(
-        siteId,
-        {
-          title,
-          slug,
-          description: richTextContent || undefined,
-          parent_id: parentId || null,
-          featured_image: featuredImage || null,
-          content_blocks: {
-            _settings: { is_private: isPrivate },
-            show_featured_image: true
-          },
-          is_published: true
-        }
-      )
-
-      if (createError) {
-        setError(createError)
-        setIsSubmitting(false)
-        return
-      }
-
-      if (data) {
-        onCreated(data)
+        onCreated(data, continueToBuilder)
         onClose()
       }
     } catch (err) {
@@ -178,7 +136,7 @@ export function CreateCategoryModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   const parentOptions = buildParentOptions()
@@ -333,10 +291,10 @@ export function CreateCategoryModal({
               </Button>
               <Button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => handleSave(true)}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Publishing...' : 'Publish'}
+                {isSubmitting ? 'Saving...' : 'Continue'}
               </Button>
             </div>
           </div>

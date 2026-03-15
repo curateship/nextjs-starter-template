@@ -155,6 +155,17 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     }
   }
 
+  const [isPublishing, setIsPublishing] = useState(false)
+  const handlePublish = async () => {
+    if (!currentDirectoryData?.id) return
+    try {
+      setIsPublishing(true)
+      await updateCurrentDirectory({ is_published: true })
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   const handleTitleChange = (title: string) => {
     updateCurrentDirectory({ title })
   }
@@ -203,6 +214,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">

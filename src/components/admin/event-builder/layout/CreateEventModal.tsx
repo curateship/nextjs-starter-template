@@ -15,7 +15,7 @@ import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/ca
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface CreateEventModalProps {
-  onSuccess: (event: Event) => void
+  onSuccess: (event: Event, continueToBuilder?: boolean) => void
   onCancel: () => void
 }
 
@@ -74,11 +74,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     await handleSave(false)
   }
 
-  const handlePublish = async () => {
-    await handleSave(true)
-  }
-
-  const handleSave = async (publish: boolean) => {
+  const handleSave = async (continueToBuilder: boolean) => {
     if (!currentSite?.id) {
       setError("No site selected")
       return
@@ -100,7 +96,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         description: richTextContent || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
-        is_published: publish,
+        is_published: false,
         content_blocks: {
           ...(isPrivate ? { _settings: { is_private: true } } : {}),
           show_featured_image: true
@@ -132,7 +128,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       if (selectedCategoryIds.length > 0) {
         bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds).catch(() => {})
       }
-      onSuccess(result.data)
+      onSuccess(result.data, continueToBuilder)
     } catch (err) {
       setError("Failed to create event")
       setLoading(false)
@@ -305,12 +301,12 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           >
             {loading ? 'Saving...' : 'Save as Draft'}
           </Button>
-          <Button 
-            type="button" 
-            onClick={handlePublish}
+          <Button
+            type="button"
+            onClick={() => handleSave(true)}
             disabled={loading}
           >
-            {loading ? 'Publishing...' : 'Publish'}
+            {loading ? 'Saving...' : 'Continue'}
           </Button>
         </div>
       </div>

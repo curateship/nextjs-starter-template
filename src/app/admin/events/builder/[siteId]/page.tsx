@@ -155,6 +155,17 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
   }
 
+  const [isPublishing, setIsPublishing] = useState(false)
+  const handlePublish = async () => {
+    if (!currentEventData?.id) return
+    try {
+      setIsPublishing(true)
+      await updateCurrentEvent({ is_published: true })
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   const handleTitleChange = (title: string) => {
     updateCurrentEvent({ title })
   }
@@ -203,6 +214,8 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">

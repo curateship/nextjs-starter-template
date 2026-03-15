@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostsPage() {
+  const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -569,10 +571,13 @@ export default function PostsPage() {
                 <DialogHeader className="mb-6">
                   <DialogTitle>Create New Post</DialogTitle>
                 </DialogHeader>
-                <CreatePostModal 
-                  onSuccess={(post) => {
+                <CreatePostModal
+                  onSuccess={(post, continueToBuilder) => {
                     setPosts(prev => [...prev, post])
                     setShowCreateDialog(false)
+                    if (continueToBuilder && currentSite?.id) {
+                      router.push(`/admin/posts/builder/${currentSite.id}?post=${post.slug}`)
+                    }
                   }}
                   onCancel={() => setShowCreateDialog(false)}
                 />

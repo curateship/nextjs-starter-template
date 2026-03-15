@@ -134,6 +134,17 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     }
   }
 
+  const [isPublishing, setIsPublishing] = useState(false)
+  const handlePublish = async () => {
+    if (!currentCategoryData?.id) return
+    try {
+      setIsPublishing(true)
+      await updateCurrentCategory({ is_published: true })
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
   const handleTitleChange = (title: string) => {
     updateCurrentCategory({ title })
   }
@@ -185,6 +196,8 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
         site={site}
         onOpenBlockModal={() => setBlockModalOpen(true)}
       />

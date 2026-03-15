@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import type { CategoryInfo } from "@/lib/actions/categories/category-relationshi
 import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 
 export default function EventsPage() {
+  const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -584,10 +586,13 @@ export default function EventsPage() {
                   Add a new item to your events. You can customize the content after creation.
                 </DialogDescription>
               </DialogHeader>
-              <CreateEventModal 
-                onSuccess={(event) => {
+              <CreateEventModal
+                onSuccess={(event, continueToBuilder) => {
                   setEvents(prev => [...prev, event])
                   setShowCreateDialog(false)
+                  if (continueToBuilder && currentSite?.id) {
+                    router.push(`/admin/events/builder/${currentSite.id}?event=${event.slug}`)
+                  }
                 }}
                 onCancel={() => setShowCreateDialog(false)}
               />

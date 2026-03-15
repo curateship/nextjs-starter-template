@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductsPage() {
+  const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -616,10 +618,13 @@ export default function ProductsPage() {
                     Add a new product to your catalog. You can customize the content after creation.
                   </DialogDescription>
                 </DialogHeader>
-                <CreateProductModal 
-                  onSuccess={(product) => {
+                <CreateProductModal
+                  onSuccess={(product, continueToBuilder) => {
                     setProducts(prev => [...prev, product])
                     setShowCreateDialog(false)
+                    if (continueToBuilder && currentSite?.id) {
+                      router.push(`/admin/products/builder/${currentSite.id}?product=${product.slug}`)
+                    }
                   }}
                   onCancel={() => setShowCreateDialog(false)}
                 />
