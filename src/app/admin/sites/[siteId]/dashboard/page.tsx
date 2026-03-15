@@ -2,13 +2,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Users, Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
+import { ChartLineLabel } from '@/components/admin/dashboard/ChartLineLabel'
 import Link from 'next/link'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
-import { getAnalyticsOverview } from '@/lib/actions/analytics/analytics-actions'
+import { getAnalyticsOverview, getTrafficOverTime } from '@/lib/actions/analytics/analytics-actions'
+import { ChartBarVisitors } from '@/components/admin/dashboard/ChartBarVisitors'
 
 interface PageProps {
   params: Promise<{
@@ -27,9 +29,10 @@ export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
 
   // Get the site data and analytics in parallel
-  const [{ data: site }, analytics] = await Promise.all([
+  const [{ data: site }, analytics, traffic] = await Promise.all([
     getSiteByIdAction(siteId),
     getAnalyticsOverview(siteId, '30d'),
+    getTrafficOverTime(siteId, '7d'),
   ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
@@ -70,16 +73,7 @@ export default async function SiteDashboard({ params }: PageProps) {
 
       {/* Stats Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique Visitors</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.uniqueVisitors.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Last 30 days</p>
-          </CardContent>
-        </Card>
+        <ChartBarVisitors data={traffic} totalVisitors={analytics.uniqueVisitors} />
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -117,43 +111,8 @@ export default async function SiteDashboard({ params }: PageProps) {
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-2">
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates and changes to your site</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Homepage updated</p>
-                <p className="text-xs text-muted-foreground">2 hours ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">New blog post published</p>
-                <p className="text-xs text-muted-foreground">5 hours ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Theme settings changed</p>
-                <p className="text-xs text-muted-foreground">1 day ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="w-2 h-2 bg-purple-500 rounded-full" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">Contact form updated</p>
-                <p className="text-xs text-muted-foreground">2 days ago</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Line Chart */}
+        <ChartLineLabel />
 
         {/* Quick Actions */}
         <Card>
