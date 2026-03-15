@@ -40,9 +40,10 @@ interface EventContentBlockProps {
     [key: string]: any
   }
   onEventTitleChange?: (title: string) => void
+  onBack?: () => void
 }
 
-export function EventContentBlock({ content, onContentChange, siteId, blockId, eventData, onEventTitleChange }: EventContentBlockProps) {
+export function EventContentBlock({ content, onContentChange, siteId, blockId, eventData, onEventTitleChange, onBack }: EventContentBlockProps) {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(eventData?.title || eventData?.name || 'Untitled Event')
 
@@ -130,6 +131,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
   return (
     <>
       <BlockTabs
+        onBack={onBack}
         tabs={[
           {
             value: "content",

@@ -40,9 +40,10 @@ interface DirectoryContentBlockProps {
     [key: string]: any
   }
   onDirectoryTitleChange?: (title: string) => void
+  onBack?: () => void
 }
 
-export function DirectoryContentBlock({ content, onContentChange, siteId, blockId, directoryData, onDirectoryTitleChange }: DirectoryContentBlockProps) {
+export function DirectoryContentBlock({ content, onContentChange, siteId, blockId, directoryData, onDirectoryTitleChange, onBack }: DirectoryContentBlockProps) {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(directoryData?.title || directoryData?.name || 'Untitled Directory')
 
@@ -130,6 +131,7 @@ export function DirectoryContentBlock({ content, onContentChange, siteId, blockI
   return (
     <>
       <BlockTabs
+        onBack={onBack}
         tabs={[
           {
             value: "content",

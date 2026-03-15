@@ -242,6 +242,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
           onSelectBlock={builderState.setSelectedBlock}
+          onBack={() => builderState.setSelectedBlock(null)}
         />
 
         <BlockListPanel

@@ -40,9 +40,10 @@ interface CategoryContentBlockProps {
     [key: string]: any
   }
   onCategoryTitleChange?: (title: string) => void
+  onBack?: () => void
 }
 
-export function CategoryContentBlock({ content, onContentChange, siteId, blockId, categoryData, onCategoryTitleChange }: CategoryContentBlockProps) {
+export function CategoryContentBlock({ content, onContentChange, siteId, blockId, categoryData, onCategoryTitleChange, onBack }: CategoryContentBlockProps) {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(categoryData?.title || categoryData?.name || 'Untitled Category')
 
@@ -129,6 +130,7 @@ export function CategoryContentBlock({ content, onContentChange, siteId, blockId
   return (
     <>
       <BlockTabs
+        onBack={onBack}
         tabs={[
           {
             value: "content",

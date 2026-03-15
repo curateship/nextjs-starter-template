@@ -46,6 +46,7 @@ interface SharedFaqBlockProps {
   onSubtitleChange?: (value: string) => void
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFaqItemsChange?: (value: FaqItem[]) => void
+  onBack?: () => void
 }
 
 // Sortable FAQ item component
@@ -148,7 +149,8 @@ export function PageFaqBlock({
   onTitleChange,
   onSubtitleChange,
   onHeaderAlignChange,
-  onFaqItemsChange
+  onFaqItemsChange,
+  onBack
 }: SharedFaqBlockProps) {
   const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
 
@@ -203,6 +205,7 @@ export function PageFaqBlock({
 
   return (
     <BlockTabs
+      onBack={onBack}
       tabs={[
         {
           value: "content",

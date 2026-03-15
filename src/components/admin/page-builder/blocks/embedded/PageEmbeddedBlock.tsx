@@ -12,6 +12,7 @@ interface SharedEmbeddedBlockProps {
   onCodeChange: (value: string) => void
   onTypeChange: (value: 'html' | 'script') => void
   onVisibilityChange?: (value: Record<string, boolean>) => void
+  onBack?: () => void
 }
 
 export function PageEmbeddedBlock({
@@ -21,9 +22,11 @@ export function PageEmbeddedBlock({
   onCodeChange,
   onTypeChange,
   onVisibilityChange,
+  onBack,
 }: SharedEmbeddedBlockProps) {
   return (
     <BlockTabs
+      onBack={onBack}
       tabs={[
         {
           value: "content",

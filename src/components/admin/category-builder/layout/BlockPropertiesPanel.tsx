@@ -39,6 +39,7 @@ interface BlockPropertiesPanelProps {
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
+  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -51,6 +52,7 @@ export function BlockPropertiesPanel({
   blocksLoading = false,
   onTitleChange,
   onSelectBlock,
+  onBack,
 }: BlockPropertiesPanelProps) {
   const currentSiteBlocks = siteBlocks?.[currentCategory?.slug || ''] || []
   const navigation = currentSiteBlocks.find(b => b.type === 'navigation')?.content
@@ -71,6 +73,7 @@ export function BlockPropertiesPanel({
                   name: currentCategory?.name,
                 }}
                 onCategoryTitleChange={onTitleChange}
+                onBack={onBack}
               />
             )}
         </AdminLayout>

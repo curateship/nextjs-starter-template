@@ -38,6 +38,7 @@ interface BlockPropertiesPanelProps {
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
+  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
@@ -50,6 +51,7 @@ export function BlockPropertiesPanel({
   blocksLoading = false,
   onTitleChange,
   onSelectBlock,
+  onBack,
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current event
   const currentSiteBlocks = siteBlocks?.[currentEvent?.slug || ''] || []
@@ -71,6 +73,7 @@ export function BlockPropertiesPanel({
                   name: currentEvent?.name,
                 }}
                 onEventTitleChange={onTitleChange}
+                onBack={onBack}
               />
             )}
         </AdminLayout>

@@ -122,6 +122,7 @@ export function BlockPropertiesPanel({
                 onFaqItemsChange={(value) => updateBlockContent('faqItems', value)}
                 visibility={selectedBlock.content.visibility}
                 onVisibilityChange={(value) => updateBlockContent('visibility', value)}
+                onBack={onBack}
               />
             )}
             {selectedBlock.type === 'listing-views' && (
@@ -179,6 +180,7 @@ export function BlockPropertiesPanel({
                 {...(createCallbacks(updateBlockContent, [
                   'code', 'type', 'visibility'
                 ]) as any)}
+                onBack={onBack}
               />
             )}
         </AdminLayout>

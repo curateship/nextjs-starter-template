@@ -242,6 +242,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
           onSelectBlock={builderState.setSelectedBlock}
+          onBack={() => builderState.setSelectedBlock(null)}
         />
 
         <BlockListPanel
