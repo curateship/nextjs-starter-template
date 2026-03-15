@@ -40,13 +40,13 @@ import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function ContactsPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [contacts, setContacts] = useState<CrmContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 50
+  const pageSize = contextPageSize
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)

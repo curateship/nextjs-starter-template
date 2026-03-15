@@ -23,14 +23,14 @@ import {
   createSegment,
   updateSegment,
   deleteSegments,
-  getSegmentContactCount,
+  getSegmentContactCounts,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function SegmentsPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +39,7 @@ export default function SegmentsPage() {
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({})
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 50
+  const pageSize = contextPageSize
   const [total, setTotal] = useState(0)
 
   // Sort state
@@ -77,15 +77,9 @@ export default function SegmentsPage() {
       setSegments(data || [])
       setTotal(totalCount)
 
-      // Load contact counts for each segment
+      // Load contact counts in a single batched call
       if (data?.length) {
-        const counts: Record<string, number> = {}
-        await Promise.all(
-          data.map(async (seg) => {
-            const { count } = await getSegmentContactCount(seg.id)
-            counts[seg.id] = count
-          })
-        )
+        const { counts } = await getSegmentContactCounts(currentSite.id, data)
         setContactCounts(counts)
       }
       setLoading(false)

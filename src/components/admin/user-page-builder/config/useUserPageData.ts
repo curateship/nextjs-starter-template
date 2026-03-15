@@ -3,8 +3,9 @@ import {
   getUserPagesAction,
   type UserPage
 } from "@/lib/actions/user-pages/user-pages-actions"
-import { getSiteByIdAction, type Site } from "@/lib/actions/sites/site-actions"
+import { type Site } from "@/lib/actions/sites/site-actions"
 import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface UseUserPagesDataReturn {
   site: Site | null
@@ -58,9 +59,10 @@ function buildUserPagesConfigBlocks(siteData: Site | null): Array<{
 }
 
 export function useUserPageData(siteId: string): UseUserPagesDataReturn {
-  const [site, setSite] = useState<Site | null>(null)
+  const { currentSite } = useSiteContext()
+  const [site, setSite] = useState<Site | null>(currentSite)
   const [pages, setPages] = useState<UserPage[]>([])
-  const [configLoading, setConfigLoading] = useState(true)
+  const [configLoading, setConfigLoading] = useState(!currentSite)
   const [configError, setConfigError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, any[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
@@ -71,11 +73,9 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
     setConfigError("")
 
     try {
-      // Load site data and pages in parallel for speed
-      const [siteResult, pagesResult] = await Promise.all([
-        getSiteByIdAction(siteId),
-        getUserPagesAction(siteId)
-      ])
+      // Use site from context, only fetch pages
+      const pagesResult = await getUserPagesAction(siteId)
+      const siteResult = { data: currentSite, error: null }
 
       if (siteResult.data) {
         setSite(siteResult.data)
@@ -116,17 +116,14 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
   const reloadBlocks = async () => {
     setBlocksLoading(true)
 
-    // Need to reload both site and pages data to get updated navigation/footer
-    const [siteResult, pagesResult] = await Promise.all([
-      getSiteByIdAction(siteId),
-      getUserPagesAction(siteId)
-    ])
+    const pagesResult = await getUserPagesAction(siteId)
+    const siteData = currentSite
 
-    if (siteResult.data) {
-      setSite(siteResult.data)
+    if (siteData) {
+      setSite(siteData)
     }
 
-    if (pagesResult.data && siteResult.data) {
+    if (pagesResult.data && siteData) {
       setPages(pagesResult.data)
 
       // Convert JSON content_blocks to blocks format for each page
@@ -135,7 +132,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
         const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
 
         // Add navigation and footer from site.settings.user_pages to each page
-        const configBlocks = buildUserPagesConfigBlocks(siteResult.data)
+        const configBlocks = buildUserPagesConfigBlocks(siteData)
 
         // Combine and sort all blocks by display_order
         const allBlocks = [...configBlocks, ...pageBlocks]

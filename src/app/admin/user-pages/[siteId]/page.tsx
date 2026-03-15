@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, use } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -19,12 +18,20 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
-import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreateUserPageModal = dynamic(() =>
+  import("@/components/admin/user-page-builder/layout/CreateUserPageModal").then(m => ({ default: m.CreateUserPageModal })),
+  { ssr: false }
+)
+const UserPageSettingsModal = dynamic(() =>
+  import("@/components/admin/user-page-builder/layout/UserPageSettingsModal").then(m => ({ default: m.UserPageSettingsModal })),
+  { ssr: false }
+)
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
+import { useSiteContext } from "@/contexts/site-context"
 import { getUserPagesAction, deleteUserPageAction, deleteUserPagesAction, duplicateUserPageAction } from "@/lib/actions/user-pages/user-pages-actions"
 import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -37,7 +44,7 @@ interface PageProps {
 
 export default function UserUserPagesPage({ params }: PageProps) {
   const { siteId } = use(params)
-  const router = useRouter()
+  const { pageSize: contextPageSize } = useSiteContext()
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [pages, setPages] = useState<UserPage[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,7 +66,7 @@ export default function UserUserPagesPage({ params }: PageProps) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
 
   // Load site and pages data
@@ -78,13 +85,8 @@ export default function UserUserPagesPage({ params }: PageProps) {
         }
         setSite(siteResult.data)
 
-        // Load admin settings for page size
-        const settingsResult = await getAdminSettingsAction()
-        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-        setPageSize(ps)
-
         // Load user pages data
-        const { data: pagesData, total: pagesTotal, error: pagesError } = await getUserPagesAction(siteId, { page: currentPage, pageSize: ps })
+        const { data: pagesData, total: pagesTotal, error: pagesError } = await getUserPagesAction(siteId, { page: currentPage, pageSize })
         if (pagesError) {
           setError(pagesError)
           return

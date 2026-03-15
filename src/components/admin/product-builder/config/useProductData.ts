@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray, getProductBlockTitle } from "@/lib/utils/product-block-utils"
 import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface ProductBlock {
   id: string
@@ -23,8 +24,9 @@ interface UseProductDataReturn {
 }
 
 export function useProductData(siteId: string): UseProductDataReturn {
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
-  const [siteLoading, setSiteLoading] = useState(true)
+  const { currentSite } = useSiteContext()
+  const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
+  const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
   const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
@@ -34,14 +36,15 @@ export function useProductData(siteId: string): UseProductDataReturn {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
-    
+
     try {
-      // Load site, products, and pages in parallel for speed
-      const [siteResult, productsResult, pagesResult] = await Promise.all([
-        getSiteByIdAction(siteId),
+      // Use site from context, only fetch products and pages
+      const [productsResult, pagesResult] = await Promise.all([
         getSiteProductsAction(siteId),
         getSitePagesAction(siteId)
       ])
+
+      const siteResult = { data: currentSite, error: null }
       
       if (siteResult.data) {
         setSite(siteResult.data)

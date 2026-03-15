@@ -14,21 +14,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreateNewsletterModal } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreateNewsletterModal = dynamic(() =>
+  import("@/components/admin/newsletter-builder/layout/CreateNewsletterModal").then(m => ({ default: m.CreateNewsletterModal })),
+  { ssr: false }
+)
+const NewsletterSettingsModal = dynamic(() =>
+  import("@/components/admin/newsletter-builder/layout/NewsletterSettingsModal").then(m => ({ default: m.NewsletterSettingsModal })),
+  { ssr: false }
+)
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 export default function NewslettersPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const router = useRouter()
   const [newsletters, setNewsletters] = useState<Newsletter[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,7 +53,7 @@ export default function NewslettersPage() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
   const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -63,10 +70,7 @@ export default function NewslettersPage() {
 
     try {
       if (showSkeleton) setLoading(true)
-      const settingsResult = await getAdminSettingsAction()
-      const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-      setPageSize(ps)
-      const { data, total: t, error } = await getNewslettersBySite(currentSite.id, { page: currentPage, pageSize: ps })
+      const { data, total: t, error } = await getNewslettersBySite(currentSite.id, { page: currentPage, pageSize })
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)

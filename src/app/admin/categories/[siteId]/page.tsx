@@ -11,7 +11,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getCategoriesForSiteAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
 import { getCategoryAssignmentCountsAction } from "@/lib/actions/categories/category-relationship-actions"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
@@ -27,7 +26,7 @@ export default function CategoriesPage({
 }) {
   const { siteId } = use(params)
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [categories, setCategories] = useState<Category[]>([])
   const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -44,7 +43,7 @@ export default function CategoriesPage({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -60,12 +59,7 @@ export default function CategoriesPage({
         setLoading(true)
         setError(null)
 
-        // Load admin settings for page size
-        const settingsResult = await getAdminSettingsAction()
-        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-        setPageSize(ps)
-
-        const { data: categoriesData, total: categoriesTotal, error: categoriesError } = await getCategoriesForSiteAction(siteId, { page: currentPage, pageSize: ps })
+        const { data: categoriesData, total: categoriesTotal, error: categoriesError } = await getCategoriesForSiteAction(siteId, { page: currentPage, pageSize })
 
         if (categoriesError) {
           setError(categoriesError)

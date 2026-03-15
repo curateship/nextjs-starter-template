@@ -1,8 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import {
   Globe,
   Users,
@@ -38,57 +36,13 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  user: { name: string; email: string }
+}
+
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const { currentSite } = useSiteContext()
   const { state } = useSidebar()
-  const [user, setUser] = useState<{
-    name: string
-    email: string
-    avatar: string
-  } | null>(null)
-  const [loading, setLoading] = useState(true)
-  
-  useEffect(() => {
-    let mounted = true
-    const supabase = createClient()
-    
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return
-      
-      if (session?.user?.email) {
-        const userData = {
-          name: session.user.user_metadata?.display_name || session.user.email.split('@')[0] || 'User',
-          email: session.user.email,
-          avatar: ''
-        }
-        setUser(userData)
-      } else {
-        setUser(null)
-      }
-      setLoading(false)
-    })
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return
-      
-      if (session?.user?.email) {
-        const userData = {
-          name: session.user.user_metadata?.display_name || session.user.email.split('@')[0] || 'User',
-          email: session.user.email,
-          avatar: ''
-        }
-        setUser(userData)
-      } else {
-        setUser(null)
-      }
-      setLoading(false)
-    })
-    
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
 
   // Content creation items
   const contentNavItems = [
@@ -227,7 +181,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <AdminThemeToggle />
           </div>
         )}
-        {!loading && user && <SidebarUserAdmin user={user} />}
+        <SidebarUserAdmin user={{ name: user.name, email: user.email, avatar: '' }} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

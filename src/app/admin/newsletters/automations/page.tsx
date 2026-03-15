@@ -34,12 +34,11 @@ import {
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 
 export default function EmailAutomationsPage() {
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [automations, setAutomations] = useState<EmailAutomation[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -56,7 +55,7 @@ export default function EmailAutomationsPage() {
   const [creating, setCreating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
   const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'steps' | 'enrolled' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -65,10 +64,7 @@ export default function EmailAutomationsPage() {
   async function loadAutomations() {
     if (!currentSite?.id) { setLoading(true); setAutomations([]); return }
     setLoading(true)
-    const settingsResult = await getAdminSettingsAction()
-    const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-    setPageSize(ps)
-    const { data, total: t, error } = await getAutomationsBySite(currentSite.id, { page: currentPage, pageSize: ps })
+    const { data, total: t, error } = await getAutomationsBySite(currentSite.id, { page: currentPage, pageSize })
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
     setAutomations(data ?? [])
     setTotal(t)

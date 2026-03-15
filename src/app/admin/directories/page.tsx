@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -9,33 +8,36 @@ import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHe
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/directory-builder/layout/StickyHeader"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
-import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
+import dynamic from "next/dynamic"
+
+const CreateDirectoryModal = dynamic(() =>
+  import("@/components/admin/directory-builder/layout/CreateDirectoryModal").then(m => ({ default: m.CreateDirectoryModal })),
+  { ssr: false }
+)
+const DirectorySettingsModal = dynamic(() =>
+  import("@/components/admin/directory-builder/layout/DirectorySettingsModal").then(m => ({ default: m.DirectorySettingsModal })),
+  { ssr: false }
+)
 import { Eye, Copy, Trash2, Plus, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
-import { getSiteDirectoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
-import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 export default function DirectoriesPage() {
-  const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [directories, setDirectories] = useState<Directory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,14 +60,13 @@ export default function DirectoriesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
 
   // Load directories
   useEffect(() => {
     async function loadDirectories() {
       if (!currentSite?.id) {
-        // Keep loading true when no site is selected (during site switching)
         setLoading(true)
         setDirectories([])
         return
@@ -75,12 +76,7 @@ export default function DirectoriesPage() {
         setLoading(true)
         setError(null)
 
-        // Load admin settings for page size
-        const settingsResult = await getAdminSettingsAction()
-        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-        setPageSize(ps)
-
-        const { data: directoriesData, total: directoriesTotal, error: directoriesError } = await getSiteDirectoriesAction(currentSite.id, { page: currentPage, pageSize: ps })
+        const { data: directoriesData, categories, total: directoriesTotal, error: directoriesError } = await getSiteDirectoriesWithCategoriesAction(currentSite.id, { page: currentPage, pageSize })
         if (directoriesError) {
           setError(directoriesError)
           setLoading(false)
@@ -90,11 +86,7 @@ export default function DirectoriesPage() {
         if (directoriesData) {
           setDirectories(directoriesData)
           setTotal(directoriesTotal)
-          // Fetch categories for all directories in a single query
-          const { data: categoryMap } = await getBulkContentCategoriesAction(
-            directoriesData.map(d => d.id), 'directory'
-          )
-          if (categoryMap) setDirectoryCategories(categoryMap)
+          if (categories) setDirectoryCategories(categories)
         }
         setLoading(false)
       } catch (err) {

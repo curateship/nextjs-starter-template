@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -9,33 +8,35 @@ import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHe
 import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Dialog,
-  DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
-import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreatePostModal = dynamic(() =>
+  import("@/components/admin/post-builder/layout/CreatePostModal").then(m => ({ default: m.CreatePostModal })),
+  { ssr: false }
+)
+const PostSettingsModal = dynamic(() =>
+  import("@/components/admin/post-builder/layout/PostSettingsModal").then(m => ({ default: m.PostSettingsModal })),
+  { ssr: false }
+)
 import { Eye, Copy, Trash2, Plus, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSitePostsAction, deletePostAction, deletePostsAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
-import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostsPage() {
-  const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,13 +59,12 @@ export default function PostsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
   // Load posts
   useEffect(() => {
     async function loadPosts() {
       if (!currentSite?.id) {
-        // Keep loading true when no site is selected (during site switching)
         setLoading(true)
         setPosts([])
         return
@@ -74,12 +74,7 @@ export default function PostsPage() {
         setLoading(true)
         setError(null)
 
-        const settingsResult = await getAdminSettingsAction()
-        if (settingsResult.success && settingsResult.data?.settings?.dashboard_page_size) {
-          setPageSize(settingsResult.data.settings.dashboard_page_size)
-        }
-
-        const { data: postsData, total: postsTotal, error: postsError } = await getSitePostsAction(currentSite.id, { page: currentPage, pageSize })
+        const { data: postsData, categories, total: postsTotal, error: postsError } = await getSitePostsWithCategoriesAction(currentSite.id, { page: currentPage, pageSize })
         if (postsError) {
           setError(postsError)
           setLoading(false)
@@ -89,11 +84,7 @@ export default function PostsPage() {
         setTotal(postsTotal)
         if (postsData) {
           setPosts(postsData)
-          // Fetch categories for all posts in a single query
-          const { data: categoryMap } = await getBulkContentCategoriesAction(
-            postsData.map(p => p.id), 'post'
-          )
-          if (categoryMap) setPostCategories(categoryMap)
+          if (categories) setPostCategories(categories)
         }
         setLoading(false)
       } catch (err) {

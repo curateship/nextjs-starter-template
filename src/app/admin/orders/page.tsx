@@ -36,7 +36,6 @@ import {
   type OrderType,
 } from "@/lib/actions/email/order-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -85,7 +84,7 @@ export default function OrdersPage() {
 }
 
 function OrdersContent() {
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const searchParams = useSearchParams()
 
   const [orders, setOrders] = useState<ProductOrder[]>([])
@@ -105,22 +104,12 @@ function OrdersContent() {
 
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number | null>(null)
+  const pageSize = contextPageSize
   const [sortColumn, setSortColumn] = useState<SortColumn>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
-  // Load admin settings first to get page size
   useEffect(() => {
-    const loadSettings = async () => {
-      const adminSettings = await getAdminSettingsAction()
-      const settingsPageSize = adminSettings.data?.settings?.dashboard_page_size
-      setPageSize(settingsPageSize || 50)
-    }
-    loadSettings()
-  }, [])
-
-  useEffect(() => {
-    if (!currentSite?.id || pageSize === null) return
+    if (!currentSite?.id) return
 
     const fetchData = async () => {
       setLoading(true)
@@ -268,7 +257,7 @@ function OrdersContent() {
     )
   }
 
-  const totalPages = pageSize ? Math.ceil(total / pageSize) : 1
+  const totalPages = Math.ceil(total / pageSize)
 
   return (
     <>
@@ -515,7 +504,7 @@ function OrdersContent() {
             {/* Pagination */}
             {!loading && total > 0 && (
               <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize || 50} total={total} />
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}

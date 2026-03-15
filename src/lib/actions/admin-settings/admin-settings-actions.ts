@@ -1,7 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { unstable_cache } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 // Create admin client with service role key for admin operations
@@ -38,6 +39,27 @@ export interface UpdateAdminSettingsData {
   default_theme?: 'system' | 'light' | 'dark'
   dashboard_page_size?: number
 }
+
+/**
+ * Cached admin settings fetcher for server components.
+ * Uses service role key — only call from trusted server context (layout, etc.)
+ */
+export const getCachedAdminSettings = unstable_cache(
+  async () => {
+    const { data, error } = await supabaseAdmin
+      .from('admin_settings')
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('Error fetching cached admin settings:', error)
+      return null
+    }
+    return data as AdminSettings
+  },
+  ['admin-settings'],
+  { revalidate: false, tags: ['admin-settings'] }
+)
 
 /**
  * Get admin settings
@@ -157,6 +179,7 @@ export async function updateAdminSettingsAction(
     }
 
     // Revalidate admin layout to apply new fonts
+    revalidateTag('admin-settings')
     revalidatePath('/admin', 'layout')
 
     return {

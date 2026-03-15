@@ -1,40 +1,42 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/product-builder/layout/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
-import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreateProductModal = dynamic(() =>
+  import("@/components/admin/product-builder/layout/CreateProductModal").then(m => ({ default: m.CreateProductModal })),
+  { ssr: false }
+)
+const ProductSettingsModal = dynamic(() =>
+  import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
+  { ssr: false }
+)
 import { Eye, Copy, Trash2, Plus, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSiteProductsAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
-import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductsPage() {
-  const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,14 +59,13 @@ export default function ProductsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
 
   // Load products
   useEffect(() => {
     async function loadProducts() {
       if (!currentSite?.id) {
-        // Keep loading true when no site is selected (during site switching)
         setLoading(true)
         setProducts([])
         return
@@ -74,12 +75,7 @@ export default function ProductsPage() {
         setLoading(true)
         setError(null)
 
-        const settingsResult = await getAdminSettingsAction()
-        if (settingsResult.success && settingsResult.data?.settings?.dashboard_page_size) {
-          setPageSize(settingsResult.data.settings.dashboard_page_size)
-        }
-
-        const { data: productsData, total: productsTotal, error: productsError } = await getSiteProductsAction(currentSite.id, { page: currentPage, pageSize })
+        const { data: productsData, categories, total: productsTotal, error: productsError } = await getSiteProductsWithCategoriesAction(currentSite.id, { page: currentPage, pageSize })
         if (productsError) {
           setError(productsError)
           setLoading(false)
@@ -89,11 +85,7 @@ export default function ProductsPage() {
         setTotal(productsTotal)
         if (productsData) {
           setProducts(productsData)
-          // Fetch categories for all products in a single query
-          const { data: categoryMap } = await getBulkContentCategoriesAction(
-            productsData.map(p => p.id), 'product'
-          )
-          if (categoryMap) setProductCategories(categoryMap)
+          if (categories) setProductCategories(categories)
         }
         setLoading(false)
       } catch (err) {

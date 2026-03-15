@@ -102,6 +102,95 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
 }
 
 
+/**
+ * Get events with their categories in a single server action call.
+ */
+export async function getSiteEventsWithCategoriesAction(
+  siteId: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<{
+  data: Event[] | null
+  categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]>
+  total: number
+  error: string | null
+}> {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { data: null, categories: {}, total: 0, error: 'Authentication required' }
+    }
+
+    const { data: site, error: siteError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', siteId)
+      .single()
+
+    if (siteError || !site || site.user_id !== user.id) {
+      return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
+    }
+
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    const { data: events, error: eventsError, count } = await supabaseAdmin
+      .from('events')
+      .select('*', { count: 'exact' })
+      .eq('site_id', siteId)
+      .order('display_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (eventsError) {
+      return { data: null, categories: {}, total: 0, error: eventsError.message }
+    }
+
+    const evts = (events || []) as Event[]
+
+    let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
+    if (evts.length > 0) {
+      const { data: rels } = await supabaseAdmin
+        .from('category_relationships')
+        .select('content_id, category_id, categories!inner(id, title, slug, parent_id)')
+        .in('content_id', evts.map(e => e.id))
+        .eq('content_type', 'event')
+
+      if (rels) {
+        const parentIds = new Set<string>()
+        for (const rel of rels) {
+          const cat = (rel as any).categories
+          if (cat.parent_id) parentIds.add(cat.parent_id)
+        }
+        let parentTitles: Record<string, string> = {}
+        if (parentIds.size > 0) {
+          const { data: parents } = await supabaseAdmin
+            .from('categories')
+            .select('id, title')
+            .in('id', Array.from(parentIds))
+          if (parents) parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
+        }
+        for (const rel of rels) {
+          const cat = (rel as any).categories
+          const cid = rel.content_id
+          if (!categories[cid]) categories[cid] = []
+          categories[cid].push({
+            id: cat.id, title: cat.title, slug: cat.slug,
+            parent_id: cat.parent_id,
+            parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+          })
+        }
+      }
+    }
+
+    return { data: evts, categories, total: count ?? 0, error: null }
+  } catch (error) {
+    return { data: null, categories: {}, total: 0, error: 'Failed to fetch events' }
+  }
+}
+
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {
     // Validate event ID format

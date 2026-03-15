@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
 import { convertContentBlocksToArray, getEventBlockTitle } from "@/lib/utils/event-block-utils"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface EventBlock {
   id: string
@@ -21,8 +22,9 @@ interface UseEventDataReturn {
 }
 
 export function useEventData(siteId: string): UseEventDataReturn {
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
-  const [siteLoading, setSiteLoading] = useState(true)
+  const { currentSite } = useSiteContext()
+  const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
+  const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, EventBlock[]>>({})
   const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
@@ -34,11 +36,9 @@ export function useEventData(siteId: string): UseEventDataReturn {
     setSiteError("")
 
     try {
-      // Load site and events in parallel for speed
-      const [siteResult, eventsResult] = await Promise.all([
-        getSiteByIdAction(siteId),
-        getSiteEventsAction(siteId)
-      ])
+      // Use site from context, only fetch events
+      const eventsResult = await getSiteEventsAction(siteId)
+      const siteResult = { data: currentSite, error: null }
 
       if (siteResult.data) {
         setSite(siteResult.data)

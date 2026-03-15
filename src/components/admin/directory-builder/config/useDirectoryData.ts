@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
-import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
 import { convertContentBlocksToArray, getDirectoryBlockTitle } from "@/lib/utils/directory-block-utils"
+import { useSiteContext } from "@/contexts/site-context"
 
 interface DirectoryBlock {
   id: string
@@ -21,8 +22,9 @@ interface UseDirectoryDataReturn {
 }
 
 export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
-  const [siteLoading, setSiteLoading] = useState(true)
+  const { currentSite } = useSiteContext()
+  const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
+  const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, DirectoryBlock[]>>({})
   const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
@@ -34,11 +36,9 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
     setSiteError("")
 
     try {
-      // Load site and directories in parallel for speed
-      const [siteResult, directoriesResult] = await Promise.all([
-        getSiteByIdAction(siteId),
-        getSiteDirectoriesAction(siteId)
-      ])
+      // Use site from context, only fetch directories
+      const directoriesResult = await getSiteDirectoriesAction(siteId)
+      const siteResult = { data: currentSite, error: null }
 
       if (siteResult.data) {
         setSite(siteResult.data)

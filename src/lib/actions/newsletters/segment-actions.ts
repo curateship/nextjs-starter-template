@@ -284,6 +284,48 @@ export async function getSegmentContactCount(
   }
 }
 
+export async function getSegmentContactCounts(
+  siteId: string,
+  segments: { id: string; filter_rules: { tags?: string[] } }[]
+): Promise<{ counts: Record<string, number>; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { counts: {}, error: 'Invalid site ID' }
+
+    const user = await verifyAuth()
+    if (!user) return { counts: {}, error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { counts: {}, error: 'Access denied' }
+    }
+
+    const counts: Record<string, number> = {}
+    await Promise.all(
+      segments.map(async (seg) => {
+        let query = supabaseAdmin
+          .from('newsletter_contacts')
+          .select('id', { count: 'exact', head: true })
+          .eq('site_id', siteId)
+          .eq('status', 'active')
+
+        const rules = seg.filter_rules as { tags?: string[] }
+        if (rules.tags?.length) {
+          for (const tag of rules.tags) {
+            query = query.contains('metadata', { tags: [tag] })
+          }
+        }
+
+        const { count } = await query
+        counts[seg.id] = count ?? 0
+      })
+    )
+
+    return { counts, error: null }
+  } catch (err) {
+    console.error('getSegmentContactCounts error:', err)
+    return { counts: {}, error: 'Server error' }
+  }
+}
+
 export async function addContactsToSegment(
   contactIds: string[],
   segmentId: string

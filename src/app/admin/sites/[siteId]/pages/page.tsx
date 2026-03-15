@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, use } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -19,12 +18,20 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
-import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreatePageModal = dynamic(() =>
+  import("@/components/admin/page-builder/layout/CreatePageModal").then(m => ({ default: m.CreatePageModal })),
+  { ssr: false }
+)
+const PageSettingsModal = dynamic(() =>
+  import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
+  { ssr: false }
+)
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
+import { useSiteContext } from "@/contexts/site-context"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -37,7 +44,7 @@ interface PageProps {
 
 export default function SitePagesPage({ params }: PageProps) {
   const { siteId } = use(params)
-  const router = useRouter()
+  const { pageSize: contextPageSize } = useSiteContext()
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [pages, setPages] = useState<Page[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,7 +65,7 @@ export default function SitePagesPage({ params }: PageProps) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
   // Load site and pages data
   useEffect(() => {
@@ -66,11 +73,6 @@ export default function SitePagesPage({ params }: PageProps) {
       try {
         setLoading(true)
         setError(null)
-
-        // Load admin settings for page size
-        const settingsResult = await getAdminSettingsAction()
-        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-        setPageSize(ps)
 
         // Load site data
         const siteResponse = await fetch(`/api/sites/${siteId}`)
@@ -82,7 +84,7 @@ export default function SitePagesPage({ params }: PageProps) {
         setSite(siteResult.data)
 
         // Load pages data with pagination
-        const { data: pagesData, total: pagesTotal, error: pagesError } = await getSitePagesAction(siteId, { page: currentPage, pageSize: ps })
+        const { data: pagesData, total: pagesTotal, error: pagesError } = await getSitePagesAction(siteId, { page: currentPage, pageSize })
         if (pagesError) {
           setError(pagesError)
           return
@@ -100,7 +102,7 @@ export default function SitePagesPage({ params }: PageProps) {
     }
 
     loadData()
-  }, [siteId, currentPage])
+  }, [siteId, currentPage, pageSize])
 
   const handleDeletePage = async (pageId: string) => {
     const page = pages.find(p => p.id === pageId)

@@ -1,20 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/event-builder/layout/StickyHeader"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogPortal,
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,18 +20,23 @@ import { Eye, Copy, Trash2, Plus, Settings, Calendar, X, AlertCircle, ExternalLi
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteContext } from "@/contexts/site-context"
-import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
-import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
+import dynamic from "next/dynamic"
+
+const CreateEventModal = dynamic(() =>
+  import("@/components/admin/event-builder/layout/CreateEventModal").then(m => ({ default: m.CreateEventModal })),
+  { ssr: false }
+)
+const EventSettingsModal = dynamic(() =>
+  import("@/components/admin/event-builder/layout/EventSettingsModal").then(m => ({ default: m.EventSettingsModal })),
+  { ssr: false }
+)
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
-import { getSiteEventsAction, deleteEventAction, deleteEventsAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
-import { getBulkContentCategoriesAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getSiteEventsWithCategoriesAction, deleteEventAction, deleteEventsAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 
 export default function EventsPage() {
-  const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteContext()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,7 +62,7 @@ export default function EventsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [pageSize, setPageSize] = useState(50)
+  const pageSize = contextPageSize
 
   // Load events data
   useEffect(() => {
@@ -75,12 +77,7 @@ export default function EventsPage() {
         setLoading(true)
         setError(null)
 
-        // Load admin settings for page size
-        const settingsResult = await getAdminSettingsAction()
-        const ps = settingsResult.data?.settings?.dashboard_page_size ?? 50
-        setPageSize(ps)
-
-        const { data: eventsData, total: eventsTotal, error: eventsError } = await getSiteEventsAction(currentSite.id, { page: currentPage, pageSize: ps })
+        const { data: eventsData, categories, total: eventsTotal, error: eventsError } = await getSiteEventsWithCategoriesAction(currentSite.id, { page: currentPage, pageSize })
 
         if (eventsError) {
           setError(eventsError)
@@ -89,11 +86,7 @@ export default function EventsPage() {
           const loadedEvents = eventsData || []
           setEvents(loadedEvents)
           setTotal(eventsTotal)
-          // Fetch categories for all events in a single query
-          const { data: categoryMap } = await getBulkContentCategoriesAction(
-            loadedEvents.map(e => e.id), 'event'
-          )
-          if (categoryMap) setEventCategories(categoryMap)
+          if (categories) setEventCategories(categories)
         }
       } catch (err) {
         setError('An unexpected error occurred')
