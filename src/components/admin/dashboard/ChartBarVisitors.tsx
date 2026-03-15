@@ -56,7 +56,7 @@ export function ChartBarVisitors({ data, totalVisitors }: ChartBarVisitorsProps)
               axisLine={false}
             />
             <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-            <ChartLegend content={<ChartLegendContent />} />
+            <ChartLegend content={<ChartLegendContent payload={[]} />} />
             <Bar
               dataKey="visitors"
               stackId="a"
