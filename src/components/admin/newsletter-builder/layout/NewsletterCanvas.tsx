@@ -95,7 +95,7 @@ export function NewsletterCanvas({
   onSubjectClick,
 }: NewsletterCanvasProps) {
   return (
-    <div className="flex-1 overflow-y-auto bg-muted/30 p-8">
+    <div className="h-full overflow-y-auto bg-muted/30 p-8">
       <style>{`
         .canvas-block { position: relative; }
         .canvas-block::after {
@@ -119,7 +119,7 @@ export function NewsletterCanvas({
         {onSubjectChange ? (
           <div
             className="canvas-block"
-            style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb' }}
+            style={{ padding: '20px 20px', borderBottom: '1px solid #e5e7eb' }}
           >
             <input
               type="text"
@@ -140,7 +140,7 @@ export function NewsletterCanvas({
         ) : subject ? (
           <div
             className="cursor-pointer canvas-block"
-            style={{ padding: '12px 20px', borderBottom: '1px solid #e5e7eb' }}
+            style={{ padding: '20px 20px', borderBottom: '1px solid #e5e7eb' }}
             onClick={onSubjectClick}
           >
             <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#333' }} className="truncate">{subject}</p>

@@ -1,11 +1,9 @@
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { ArrowLeft } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 
 interface SharedDividerBlockProps {
   spacingTop?: number
@@ -54,8 +52,6 @@ export function PageDividerBlock({
   onCustomWidthChange,
   onBack,
 }: SharedDividerBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
-
   // Quick preset buttons
   const applyPreset = (preset: 'navigation' | 'section' | 'decorative') => {
     switch (preset) {
@@ -81,266 +77,258 @@ export function PageDividerBlock({
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-        </TabsList>
-      </div>
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <div className="space-y-4">
+              {/* Quick Presets */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Quick Presets</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyPreset('navigation')}
+                    >
+                      Navigation Spacer
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyPreset('section')}
+                    >
+                      Section Divider
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyPreset('decorative')}
+                    >
+                      Decorative Break
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Navigation Spacer: 120px top spacing for pages without hero blocks
+                  </p>
+                </CardContent>
+              </Card>
 
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        <div className="space-y-4">
-          {/* Quick Presets */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick Presets</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyPreset('navigation')}
-                >
-                  Navigation Spacer
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyPreset('section')}
-                >
-                  Section Divider
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyPreset('decorative')}
-                >
-                  Decorative Break
-                </Button>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Navigation Spacer: 120px top spacing for pages without hero blocks
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Spacing Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Spacing Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="spacingTop">Top Spacing (px)</Label>
-                  <input
-                    type="text"
-                    defaultValue={spacingTop.toString()}
-                    onBlur={(e) => {
-                      const val = e.target.value
-                      const num = val === '' ? 0 : parseInt(val)
-                      if (!isNaN(num)) {
-                        onSpacingTopChange(num)
-                      }
-                    }}
-                    className="border p-2 rounded-md"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="spacingBottom">Bottom Spacing (px)</Label>
-                  <input
-                    type="text"
-                    defaultValue={spacingBottom.toString()}
-                    onBlur={(e) => {
-                      const val = e.target.value
-                      const num = val === '' ? 0 : parseInt(val)
-                      if (!isNaN(num)) {
-                        onSpacingBottomChange(num)
-                      }
-                    }}
-                    className="border p-2 rounded-md"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
-
-      {/* Styling Tab */}
-      <TabsContent value="styling" className="mt-6">
-        <div className="space-y-4">
-          {/* Divider Style */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Divider Style</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {dividerStyle === 'line' ? (
-                  <div className="grid grid-cols-5 gap-3">
+              {/* Spacing Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Spacing Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="dividerStyle">Type</Label>
-                      <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                        <SelectTrigger id="dividerStyle">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Divider</SelectItem>
-                          <SelectItem value="line">Line</SelectItem>
-                          <SelectItem value="dots">Dots</SelectItem>
-                          <SelectItem value="icon">Icon</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="lineStyle">Style</Label>
-                      <Select value={lineStyle} onValueChange={onLineStyleChange}>
-                        <SelectTrigger id="lineStyle">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="solid">Solid</SelectItem>
-                          <SelectItem value="dashed">Dashed</SelectItem>
-                          <SelectItem value="dotted">Dotted</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="customWidth" className="text-sm">Width (px)</Label>
-                      <Input
-                        id="customWidth"
-                        type="number"
-                        max="2000"
-                        value={containerWidth === 'full' ? '' : customWidth || ''}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          if (value === '' || value === '0') {
-                            onContainerWidthChange('full')
-                            onCustomWidthChange(0)
-                          } else {
-                            const numValue = parseInt(value)
-                            if (!isNaN(numValue) && numValue > 0) {
-                              onContainerWidthChange('custom')
-                              onCustomWidthChange(numValue)
-                            }
+                      <Label htmlFor="spacingTop">Top Spacing (px)</Label>
+                      <input
+                        type="text"
+                        defaultValue={spacingTop.toString()}
+                        onBlur={(e) => {
+                          const val = e.target.value
+                          const num = val === '' ? 0 : parseInt(val)
+                          if (!isNaN(num)) {
+                            onSpacingTopChange(num)
                           }
                         }}
-                        placeholder="0 = full width"
+                        className="border p-2 rounded-md"
+                        style={{ width: '100%' }}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="lineThickness">Thickness</Label>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          id="lineThickness"
-                          type="range"
-                          min="1"
-                          max="5"
-                          value={lineThickness}
-                          onChange={(e) => onLineThicknessChange(parseInt(e.target.value))}
-                          className="flex-1"
-                        />
-                        <span className="text-xs text-muted-foreground w-6">{lineThickness}px</span>
-                      </div>
+                      <Label htmlFor="spacingBottom">Bottom Spacing (px)</Label>
+                      <input
+                        type="text"
+                        defaultValue={spacingBottom.toString()}
+                        onBlur={(e) => {
+                          const val = e.target.value
+                          const num = val === '' ? 0 : parseInt(val)
+                          if (!isNaN(num)) {
+                            onSpacingBottomChange(num)
+                          }
+                        }}
+                        className="border p-2 rounded-md"
+                        style={{ width: '100%' }}
+                      />
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ),
+        },
+        {
+          value: "styling",
+          label: "Styling",
+          content: (
+            <div className="space-y-4">
+              {/* Divider Style */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Divider Style</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dividerStyle === 'line' ? (
+                      <div className="grid grid-cols-5 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="dividerStyle">Type</Label>
+                          <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
+                            <SelectTrigger id="dividerStyle">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No Divider</SelectItem>
+                              <SelectItem value="line">Line</SelectItem>
+                              <SelectItem value="dots">Dots</SelectItem>
+                              <SelectItem value="icon">Icon</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="lineColor">Color</Label>
-                      <div className="flex gap-2">
-                        <input
-                          id="lineColor"
-                          type="color"
-                          value={lineColor || '#e5e7eb'}
-                          onChange={(e) => onLineColorChange(e.target.value)}
-                          className="w-12 h-9 flex-shrink-0 rounded cursor-pointer shadow-sm border-0 p-1"
-                        />
-                        <input
-                          type="text"
-                          value={lineColor}
-                          onChange={(e) => onLineColorChange(e.target.value)}
-                          className="flex-1 min-w-0 px-2 py-1 border rounded text-sm font-mono"
-                          placeholder="#e5e7eb"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : dividerStyle === 'icon' ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="dividerStyle">Type</Label>
-                      <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                        <SelectTrigger id="dividerStyle">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Divider</SelectItem>
-                          <SelectItem value="line">Line</SelectItem>
-                          <SelectItem value="dots">Dots</SelectItem>
-                          <SelectItem value="icon">Icon</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lineStyle">Style</Label>
+                          <Select value={lineStyle} onValueChange={onLineStyleChange}>
+                            <SelectTrigger id="lineStyle">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="solid">Solid</SelectItem>
+                              <SelectItem value="dashed">Dashed</SelectItem>
+                              <SelectItem value="dotted">Dotted</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="icon">Icon</Label>
-                      <Select value={icon} onValueChange={onIconChange}>
-                        <SelectTrigger id="icon">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dots">• • • (Dots)</SelectItem>
-                          <SelectItem value="stars">★ ★ ★ (Stars)</SelectItem>
-                          <SelectItem value="diamond">◆ (Diamond)</SelectItem>
-                          <SelectItem value="wave">～～～ (Wave)</SelectItem>
-                          <SelectItem value="plus">✚ (Plus)</SelectItem>
-                          <SelectItem value="arrow">↓ (Arrow)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="customWidth" className="text-sm">Width (px)</Label>
+                          <Input
+                            id="customWidth"
+                            type="number"
+                            max="2000"
+                            value={containerWidth === 'full' ? '' : customWidth || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '' || value === '0') {
+                                onContainerWidthChange('full')
+                                onCustomWidthChange(0)
+                              } else {
+                                const numValue = parseInt(value)
+                                if (!isNaN(numValue) && numValue > 0) {
+                                  onContainerWidthChange('custom')
+                                  onCustomWidthChange(numValue)
+                                }
+                              }
+                            }}
+                            placeholder="0 = full width"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="lineThickness">Thickness</Label>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              id="lineThickness"
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={lineThickness}
+                              onChange={(e) => onLineThicknessChange(parseInt(e.target.value))}
+                              className="flex-1"
+                            />
+                            <span className="text-xs text-muted-foreground w-6">{lineThickness}px</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="lineColor">Color</Label>
+                          <div className="flex gap-2">
+                            <input
+                              id="lineColor"
+                              type="color"
+                              value={lineColor || '#e5e7eb'}
+                              onChange={(e) => onLineColorChange(e.target.value)}
+                              className="w-12 h-9 flex-shrink-0 rounded cursor-pointer shadow-sm border-0 p-1"
+                            />
+                            <input
+                              type="text"
+                              value={lineColor}
+                              onChange={(e) => onLineColorChange(e.target.value)}
+                              className="flex-1 min-w-0 px-2 py-1 border rounded text-sm font-mono"
+                              placeholder="#e5e7eb"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : dividerStyle === 'icon' ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="dividerStyle">Type</Label>
+                          <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
+                            <SelectTrigger id="dividerStyle">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No Divider</SelectItem>
+                              <SelectItem value="line">Line</SelectItem>
+                              <SelectItem value="dots">Dots</SelectItem>
+                              <SelectItem value="icon">Icon</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="icon">Icon</Label>
+                          <Select value={icon} onValueChange={onIconChange}>
+                            <SelectTrigger id="icon">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dots">• • • (Dots)</SelectItem>
+                              <SelectItem value="stars">★ ★ ★ (Stars)</SelectItem>
+                              <SelectItem value="diamond">◆ (Diamond)</SelectItem>
+                              <SelectItem value="wave">～～～ (Wave)</SelectItem>
+                              <SelectItem value="plus">✚ (Plus)</SelectItem>
+                              <SelectItem value="arrow">↓ (Arrow)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="dividerStyle">Divider Type</Label>
+                        <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
+                          <SelectTrigger id="dividerStyle">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Divider</SelectItem>
+                            <SelectItem value="line">Line</SelectItem>
+                            <SelectItem value="dots">Dots</SelectItem>
+                            <SelectItem value="icon">Icon</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="dividerStyle">Divider Type</Label>
-                    <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                      <SelectTrigger id="dividerStyle">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Divider</SelectItem>
-                        <SelectItem value="line">Line</SelectItem>
-                        <SelectItem value="dots">Dots</SelectItem>
-                        <SelectItem value="icon">Icon</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
-    </Tabs>
+                </CardContent>
+              </Card>
+            </div>
+          ),
+        },
+      ]}
+    />
   )
 }

@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3, ArrowLeft } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3 } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useEffect, useRef, useState } from "react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
@@ -525,8 +525,6 @@ export function ProductCheckoutBlock({
   onVisibilityChange,
   onBack,
 }: ProductCheckoutBlockProps) {
-  const [activeTab, setActiveTab] = useState('checkout')
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -596,233 +594,226 @@ export function ProductCheckoutBlock({
   }
 
   return (
-    <>
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList>
-          <TabsTrigger value="checkout">Checkout</TabsTrigger>
-          <TabsTrigger value="success">Success Page</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
+    <BlockTabs
+      onBack={onBack}
+      defaultTab="checkout"
+      tabs={[
+        {
+          value: "checkout",
+          label: "Checkout",
+          content: (
+            <>
+              {/* Header Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Header Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pricing-title">Header</Label>
+                      <Input
+                        id="pricing-title"
+                        value={header}
+                        onChange={(e) => onHeaderChange(sanitizeAdminInput(e.target.value))}
+                        placeholder="Pricing Plans"
+                      />
+                    </div>
 
-      {/* Tab 1: Checkout */}
-      <TabsContent value="checkout" className="mt-6">
-        {/* Header Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pricing-title">Header</Label>
-                <Input
-                  id="pricing-title"
-                  value={header}
-                  onChange={(e) => onHeaderChange(sanitizeAdminInput(e.target.value))}
-                  placeholder="Pricing Plans"
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pricing-subtitle">Sub Header</Label>
+                      <Input
+                        id="pricing-subtitle"
+                        value={subheader}
+                        onChange={(e) => onSubheaderChange(sanitizeAdminInput(e.target.value))}
+                        placeholder="Choose the perfect plan for your needs"
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="pricing-subtitle">Sub Header</Label>
-                <Input
-                  id="pricing-subtitle"
-                  value={subheader}
-                  onChange={(e) => onSubheaderChange(sanitizeAdminInput(e.target.value))}
-                  placeholder="Choose the perfect plan for your needs"
-                />
-              </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pricing-align">Header Alignment</Label>
+                      <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                        <SelectTrigger id="pricing-align">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="pricing-align">Header Alignment</Label>
-                <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                  <SelectTrigger id="pricing-align">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="left">Left</SelectItem>
-                    <SelectItem value="center">Center</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              {/* Payment Checkout Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Payment Checkout</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-6">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="payment-stripe"
+                        checked={currentCheckoutSettings.enabled}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            onCheckoutSettingsChange?.({
+                              ...currentCheckoutSettings,
+                              enabled: true,
+                              gumroadEnabled: false,
+                            })
+                          } else {
+                            onCheckoutSettingsChange?.({
+                              ...currentCheckoutSettings,
+                              enabled: false,
+                            })
+                          }
+                        }}
+                      />
+                      <Label htmlFor="payment-stripe" className="font-medium cursor-pointer">
+                        Stripe
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="payment-gumroad"
+                        checked={currentCheckoutSettings.gumroadEnabled ?? false}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            onCheckoutSettingsChange?.({
+                              ...currentCheckoutSettings,
+                              enabled: false,
+                              gumroadEnabled: true,
+                            })
+                          } else {
+                            onCheckoutSettingsChange?.({
+                              ...currentCheckoutSettings,
+                              gumroadEnabled: false,
+                            })
+                          }
+                        }}
+                      />
+                      <Label htmlFor="payment-gumroad" className="font-medium cursor-pointer">
+                        Gumroad
+                      </Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* Payment Checkout Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Payment Checkout</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="payment-stripe"
-                  checked={currentCheckoutSettings.enabled}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      // If enabling Stripe, disable Gumroad
+              {/* Pricing Tiers Card */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">Pricing Tiers</CardTitle>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addTier}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Tier
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleTierDragEnd}
+                  >
+                    <SortableContext
+                      items={productPricingTiers?.map(t => t.id) || []}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-4">
+                        {productPricingTiers?.map((tier, index) => (
+                          <SortablePricingTierItem
+                            key={tier.id}
+                            tier={tier}
+                            tierIndex={index}
+                            updateTier={updateTier}
+                            removeTier={removeTier}
+                            updateFeatures={updateFeatures}
+                            showStripeFields={currentCheckoutSettings.enabled}
+                            showGumroadFields={currentCheckoutSettings.gumroadEnabled || false}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+
+                  {(productPricingTiers?.length === 0 || !productPricingTiers) && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No pricing tiers yet. Click "Add Tier" to create one.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ),
+        },
+        {
+          value: "success",
+          label: "Success Page",
+          content: (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Success Page Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="success-url">Success URL</Label>
+                  <Input
+                    id="success-url"
+                    value={currentCheckoutSettings.successUrl}
+                    onChange={(e) =>
                       onCheckoutSettingsChange?.({
                         ...currentCheckoutSettings,
-                        enabled: true,
-                        gumroadEnabled: false,
-                      })
-                    } else {
-                      onCheckoutSettingsChange?.({
-                        ...currentCheckoutSettings,
-                        enabled: false,
+                        successUrl: e.target.value,
                       })
                     }
-                  }}
-                />
-                <Label htmlFor="payment-stripe" className="font-medium cursor-pointer">
-                  Stripe
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="payment-gumroad"
-                  checked={currentCheckoutSettings.gumroadEnabled ?? false}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      // If enabling Gumroad, disable Stripe
-                      onCheckoutSettingsChange?.({
-                        ...currentCheckoutSettings,
-                        enabled: false,
-                        gumroadEnabled: true,
-                      })
-                    } else {
-                      onCheckoutSettingsChange?.({
-                        ...currentCheckoutSettings,
-                        gumroadEnabled: false,
-                      })
-                    }
-                  }}
-                />
-                <Label htmlFor="payment-gumroad" className="font-medium cursor-pointer">
-                  Gumroad
-                </Label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pricing Tiers Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Pricing Tiers</CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTier}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Add Tier
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleTierDragEnd}
-            >
-              <SortableContext
-                items={productPricingTiers?.map(t => t.id) || []}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-4">
-                  {productPricingTiers?.map((tier, index) => (
-                    <SortablePricingTierItem
-                      key={tier.id}
-                      tier={tier}
-                      tierIndex={index}
-                      updateTier={updateTier}
-                      removeTier={removeTier}
-                      updateFeatures={updateFeatures}
-                      showStripeFields={currentCheckoutSettings.enabled}
-                      showGumroadFields={currentCheckoutSettings.gumroadEnabled || false}
-                    />
-                  ))}
+                    placeholder="/products/[slug]/success"
+                    className="mt-1.5"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use [slug] as placeholder for product slug
+                  </p>
                 </div>
-              </SortableContext>
-            </DndContext>
-
-            {(productPricingTiers?.length === 0 || !productPricingTiers) && (
-              <div className="text-center py-8 text-muted-foreground">
-                No pricing tiers yet. Click "Add Tier" to create one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Tab 2: Success Page */}
-      <TabsContent value="success" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Success Page Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="success-url">Success URL</Label>
-              <Input
-                id="success-url"
-                value={currentCheckoutSettings.successUrl}
-                onChange={(e) =>
-                  onCheckoutSettingsChange?.({
-                    ...currentCheckoutSettings,
-                    successUrl: e.target.value,
-                  })
-                }
-                placeholder="/products/[slug]/success"
-                className="mt-1.5"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Use [slug] as placeholder for product slug
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-2">About Success Pages</p>
-              <p>
-                The success page is where customers are redirected after a successful payment.
-                You can customize the download content for each pricing tier in the Checkout tab
-                by enabling "Enable Download Page" on individual tiers.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Tab 3: Settings */}
-      <TabsContent value="settings" className="mt-6">
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
-      </TabsContent>
-
-    </Tabs>
-  </>
+                <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-2">About Success Pages</p>
+                  <p>
+                    The success page is where customers are redirected after a successful payment.
+                    You can customize the download content for each pricing tier in the Checkout tab
+                    by enabling "Enable Download Page" on individual tiers.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <>
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[
+                    { key: 'header', label: 'Header' },
+                    { key: 'subheader', label: 'Sub Header' },
+                  ]}
+                />
+              )}
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }

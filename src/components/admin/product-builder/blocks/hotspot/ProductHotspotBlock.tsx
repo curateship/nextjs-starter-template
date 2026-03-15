@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
@@ -53,7 +53,6 @@ export function ProductHotspotBlock({
   blockId,
   onBack,
 }: ProductHotspotBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [editingHotspot, setEditingHotspot] = useState<string | null>(null)
   const [hotspotForm, setHotspotForm] = useState({ text: "" })
@@ -149,26 +148,14 @@ export function ProductHotspotBlock({
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="px-6 pt-6 flex items-center gap-2">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-            >
-              <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-              Back
-            </button>
-          )}
-          <TabsList className="gap-1">
-            <TabsTrigger value="content">Content</TabsTrigger>
-            <TabsTrigger value="style">Style</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Content Tab */}
-        <TabsContent value="content" className="mt-6">
+      <BlockTabs
+        onBack={onBack}
+        tabs={[
+          {
+            value: "content",
+            label: "Content",
+            content: (
+              <>
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Header Content</CardTitle>
@@ -310,49 +297,58 @@ export function ProductHotspotBlock({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+              </>
+            ),
+          },
+          {
+            value: "style",
+            label: "Style",
+            content: (
+              <Card className="shadow-sm">
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Style options coming soon.
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            value: "settings",
+            label: "Settings",
+            content: (
+              <>
+                {onVisibilityChange && (
+                  <VisibilitySettings
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    fields={[
+                      { key: 'header', label: 'Header' },
+                      { key: 'subheader', label: 'Sub Header' },
+                    ]}
+                  />
+                )}
 
-        {/* Style Tab */}
-        <TabsContent value="style" className="mt-6">
-          <Card className="shadow-sm">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              Style options coming soon.
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="mt-6">
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
-
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Display Options</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="showTooltipsAlways"
-                  checked={showTooltipsAlways}
-                  onCheckedChange={(checked) => onShowTooltipsAlwaysChange(!!checked)}
-                />
-                <Label htmlFor="showTooltipsAlways" className="cursor-pointer">
-                  Always show tooltips
-                </Label>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Display Options</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="showTooltipsAlways"
+                        checked={showTooltipsAlways}
+                        onCheckedChange={(checked) => onShowTooltipsAlwaysChange(!!checked)}
+                      />
+                      <Label htmlFor="showTooltipsAlways" className="cursor-pointer">
+                        Always show tooltips
+                      </Label>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ),
+          },
+        ]}
+      />
 
       {/* Image Picker Modal */}
       <MediaPicker

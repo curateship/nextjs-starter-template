@@ -1,11 +1,9 @@
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { ArrowLeft } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductListingViewBlockProps {
@@ -83,28 +81,15 @@ export function ProductListingViewBlock({
   onVisibilityChange,
   onBack,
 }: ProductListingViewBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
-
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="style">Style</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
-
-      <TabsContent value="content" className="space-y-0">
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Header Settings</CardTitle>
@@ -315,28 +300,39 @@ export function ProductListingViewBlock({
             </div>
           </CardContent>
         </Card>
-      </TabsContent>
-
-      <TabsContent value="style">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Style options coming soon.</p>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="settings">
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
-      </TabsContent>
-    </Tabs>
+            </>
+          ),
+        },
+        {
+          value: "style",
+          label: "Style",
+          content: (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">Style options coming soon.</p>
+              </CardContent>
+            </Card>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <>
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[
+                    { key: 'header', label: 'Header' },
+                    { key: 'subheader', label: 'Sub Header' },
+                  ]}
+                />
+              )}
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }

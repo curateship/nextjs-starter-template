@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical, Globe, Check, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical, Globe, Check } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -222,7 +222,6 @@ function SortableLinkItem({
 }
 
 export function PageNavigationBlock({ content, onContentChange, siteId, blockId, siteFavicon, onBack }: PageNavigationBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState(false)
 
   const sensors = useSensors(
@@ -344,27 +343,15 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
   const ActivePanel = NAVIGATION_STYLES[navigationStyle]?.AdminPanel
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
-
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        {/* Logo Card */}
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <>
+              {/* Logo Card */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Logo</CardTitle>
@@ -545,130 +532,141 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
             )}
           </CardContent>
         </Card>
-      </TabsContent>
-
-      {/* Styling Tab */}
-      <TabsContent value="styling" className="mt-6">
-        {ActivePanel && (
-          <ActivePanel
-            config={currentStyleConfig}
-            onConfigChange={handleStyleConfigChange}
-            siteId={siteId}
-            blockId={blockId}
-          />
-        )}
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-        {/* Navigation Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Navigation Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(NAVIGATION_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('navigationStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  navigationStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  navigationStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {navigationStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'ctaButtons', label: 'CTA Buttons' },
-          ]}
-        />
-
-        {/* Navigation Width */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Navigation Width</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={currentStyleConfig.containerWidth === 'full'}
-                    onCheckedChange={(checked) => handleStyleConfigChange('containerWidth', checked ? 'full' : 'custom')}
-                  />
-                  <Label className="text-sm">Full Width</Label>
-                </div>
-                {currentStyleConfig.containerWidth !== 'full' && (
-                  <div className="w-32">
-                    <input
-                      type="number"
-                      min="320"
-                      max="2560"
-                      value={currentStyleConfig.customWidth || ''}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        if (value === '') {
-                          handleStyleConfigChange('customWidth', undefined)
-                        } else {
-                          const numValue = parseInt(value)
-                          handleStyleConfigChange('customWidth', isNaN(numValue) ? undefined : numValue)
-                        }
-                      }}
-                      placeholder="1152"
-                      className="w-full px-3 py-2 border rounded-md text-sm"
-                    />
-                  </div>
-                )}
-              </div>
-              {currentStyleConfig.containerWidth !== 'full' && (
-                <p className="text-xs text-muted-foreground">
-                  Default: 1152px · Range: 320-2560px
-                </p>
+            </>
+          ),
+        },
+        {
+          value: "styling",
+          label: "Styling",
+          content: (
+            <>
+              {ActivePanel && (
+                <ActivePanel
+                  config={currentStyleConfig}
+                  onConfigChange={handleStyleConfigChange}
+                  siteId={siteId}
+                  blockId={blockId}
+                />
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Dark Mode */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Dark Mode</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <Checkbox
-                checked={currentStyleConfig.showDarkModeToggle !== false}
-                onCheckedChange={(checked) => handleStyleConfigChange('showDarkModeToggle', checked)}
-              />
-              <div className="space-y-0.5">
-                <Label>Show Toggle</Label>
-                <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+            </>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <>
+              {/* Navigation Style Selector */}
+              <div className="space-y-2 my-12 mb-4 mx-4">
+                <Label className="text-sm font-medium px-1">Navigation Style</Label>
+                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  {Object.entries(NAVIGATION_STYLES).map(([key, style]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onContentChange('navigationStyle', key)}
+                      className={cn(
+                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                        navigationStyle === key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        navigationStyle === key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}>
+                        {navigationStyle === key && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{style.label}</div>
+                        {style.description && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+
+              <VisibilitySettings
+                visibility={content.visibility}
+                onChange={(v) => onContentChange('visibility', v)}
+                fields={[
+                  { key: 'ctaButtons', label: 'CTA Buttons' },
+                ]}
+              />
+
+              {/* Navigation Width */}
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Navigation Width</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          checked={currentStyleConfig.containerWidth === 'full'}
+                          onCheckedChange={(checked) => handleStyleConfigChange('containerWidth', checked ? 'full' : 'custom')}
+                        />
+                        <Label className="text-sm">Full Width</Label>
+                      </div>
+                      {currentStyleConfig.containerWidth !== 'full' && (
+                        <div className="w-32">
+                          <input
+                            type="number"
+                            min="320"
+                            max="2560"
+                            value={currentStyleConfig.customWidth || ''}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '') {
+                                handleStyleConfigChange('customWidth', undefined)
+                              } else {
+                                const numValue = parseInt(value)
+                                handleStyleConfigChange('customWidth', isNaN(numValue) ? undefined : numValue)
+                              }
+                            }}
+                            placeholder="1152"
+                            className="w-full px-3 py-2 border rounded-md text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {currentStyleConfig.containerWidth !== 'full' && (
+                      <p className="text-xs text-muted-foreground">
+                        Default: 1152px · Range: 320-2560px
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Dark Mode */}
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Dark Mode</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={currentStyleConfig.showDarkModeToggle !== false}
+                      onCheckedChange={(checked) => handleStyleConfigChange('showDarkModeToggle', checked)}
+                    />
+                    <div className="space-y-0.5">
+                      <Label>Show Toggle</Label>
+                      <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }

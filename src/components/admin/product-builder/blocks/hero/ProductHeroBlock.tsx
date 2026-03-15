@@ -3,9 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Check, ArrowLeft } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { Check } from "lucide-react"
+import { useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
@@ -53,8 +53,6 @@ const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (valu
 )
 
 export function ProductHeroBlock({ content, onContentChange, siteId, blockId, onBack }: ProductHeroBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
-
   // --- Lazy migration: move legacy root-level style fields into styleConfig.default ---
   useEffect(() => {
     const hasLegacyFields = LEGACY_STYLE_FIELDS.some(f => content[f] !== undefined && !content.styleConfig)
@@ -102,175 +100,172 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
   const ActivePanel = HERO_STYLES[heroStyle]?.AdminPanel
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
-
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Text Content</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Hero Title */}
-            <div className="space-y-2">
-              <Label htmlFor="heroTitle">Hero Title</Label>
-              <input
-                id="heroTitle"
-                type="text"
-                value={content.title || ''}
-                onChange={(e) => onContentChange('title', e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
-                placeholder="Build Exceptional Interfaces with Ease"
-                required
-              />
-            </div>
-
-            {/* Hero Subtitle */}
-            <div className="space-y-2">
-              <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
-              <textarea
-                id="heroSubtitle"
-                value={content.subtitle || ''}
-                onChange={(e) => onContentChange('subtitle', e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
-                placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
-                rows={2}
-                required
-              />
-            </div>
-
-            {/* Primary Button */}
-            <div className="space-y-2">
-              <Label>Primary Button</Label>
-              <div className="flex gap-2 w-fit">
-                <input
-                  type="text"
-                  value={content.primaryButton || ''}
-                  onChange={(e) => onContentChange('primaryButton', e.target.value)}
-                  className="w-40 px-3 py-2 border rounded-md text-sm"
-                  placeholder="Get Started"
-                  required
-                />
-                <input
-                  type="url"
-                  value={content.primaryButtonLink || ''}
-                  onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
-                  className="w-48 px-3 py-2 border rounded-md text-sm"
-                  placeholder="https://example.com or /page"
-                />
-                <ButtonStyleSelect
-                  value={content.primaryButtonStyle || 'primary'}
-                  onChange={(v) => onContentChange('primaryButtonStyle', v)}
-                />
-              </div>
-            </div>
-
-            {/* Secondary Button */}
-            <div className="space-y-2">
-              <Label>Secondary Button</Label>
-              <div className="flex gap-2 w-fit">
-                <input
-                  type="text"
-                  value={content.secondaryButton || ''}
-                  onChange={(e) => onContentChange('secondaryButton', e.target.value)}
-                  className="w-40 px-3 py-2 border rounded-md text-sm"
-                  placeholder="Browse Components"
-                  required
-                />
-                <input
-                  type="url"
-                  value={content.secondaryButtonLink || ''}
-                  onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
-                  className="w-48 px-3 py-2 border rounded-md text-sm"
-                  placeholder="https://example.com or /page"
-                />
-                <ButtonStyleSelect
-                  value={content.secondaryButtonStyle || 'outline'}
-                  onChange={(v) => onContentChange('secondaryButtonStyle', v)}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Styling Tab */}
-      <TabsContent value="styling" className="mt-6">
-        {ActivePanel && (
-          <ActivePanel
-            config={currentStyleConfig}
-            onConfigChange={handleStyleConfigChange}
-            siteId={siteId}
-            blockId={blockId}
-          />
-        )}
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-        {/* Hero Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Hero Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(HERO_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('heroStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  heroStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  heroStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {heroStyle === key && <Check className="h-3 w-3" />}
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">Text Content</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Hero Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="heroTitle">Hero Title</Label>
+                  <input
+                    id="heroTitle"
+                    type="text"
+                    value={content.title || ''}
+                    onChange={(e) => onContentChange('title', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="Build Exceptional Interfaces with Ease"
+                    required
+                  />
                 </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <VisibilitySettings
-          title="Element Visibility"
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'title', label: 'Title' },
-            { key: 'subtitle', label: 'Subtitle' },
-            { key: 'primaryButton', label: 'Primary Button' },
-            { key: 'secondaryButton', label: 'Secondary Button' },
-          ]}
-        />
-      </TabsContent>
-    </Tabs>
+                {/* Hero Subtitle */}
+                <div className="space-y-2">
+                  <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
+                  <textarea
+                    id="heroSubtitle"
+                    value={content.subtitle || ''}
+                    onChange={(e) => onContentChange('subtitle', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
+                    rows={2}
+                    required
+                  />
+                </div>
+
+                {/* Primary Button */}
+                <div className="space-y-2">
+                  <Label>Primary Button</Label>
+                  <div className="flex gap-2 w-fit">
+                    <input
+                      type="text"
+                      value={content.primaryButton || ''}
+                      onChange={(e) => onContentChange('primaryButton', e.target.value)}
+                      className="w-40 px-3 py-2 border rounded-md text-sm"
+                      placeholder="Get Started"
+                      required
+                    />
+                    <input
+                      type="url"
+                      value={content.primaryButtonLink || ''}
+                      onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
+                      className="w-48 px-3 py-2 border rounded-md text-sm"
+                      placeholder="https://example.com or /page"
+                    />
+                    <ButtonStyleSelect
+                      value={content.primaryButtonStyle || 'primary'}
+                      onChange={(v) => onContentChange('primaryButtonStyle', v)}
+                    />
+                  </div>
+                </div>
+
+                {/* Secondary Button */}
+                <div className="space-y-2">
+                  <Label>Secondary Button</Label>
+                  <div className="flex gap-2 w-fit">
+                    <input
+                      type="text"
+                      value={content.secondaryButton || ''}
+                      onChange={(e) => onContentChange('secondaryButton', e.target.value)}
+                      className="w-40 px-3 py-2 border rounded-md text-sm"
+                      placeholder="Browse Components"
+                      required
+                    />
+                    <input
+                      type="url"
+                      value={content.secondaryButtonLink || ''}
+                      onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
+                      className="w-48 px-3 py-2 border rounded-md text-sm"
+                      placeholder="https://example.com or /page"
+                    />
+                    <ButtonStyleSelect
+                      value={content.secondaryButtonStyle || 'outline'}
+                      onChange={(v) => onContentChange('secondaryButtonStyle', v)}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ),
+        },
+        {
+          value: "styling",
+          label: "Styling",
+          content: (
+            <>
+              {ActivePanel && (
+                <ActivePanel
+                  config={currentStyleConfig}
+                  onConfigChange={handleStyleConfigChange}
+                  siteId={siteId}
+                  blockId={blockId}
+                />
+              )}
+            </>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <>
+              {/* Hero Style Selector */}
+              <div className="space-y-2 mb-4 mx-4">
+                <Label className="text-sm font-medium px-1">Hero Style</Label>
+                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  {Object.entries(HERO_STYLES).map(([key, style]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onContentChange('heroStyle', key)}
+                      className={cn(
+                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                        heroStyle === key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        heroStyle === key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}>
+                        {heroStyle === key && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{style.label}</div>
+                        {style.description && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <VisibilitySettings
+                title="Element Visibility"
+                visibility={content.visibility}
+                onChange={(v) => onContentChange('visibility', v)}
+                fields={[
+                  { key: 'title', label: 'Title' },
+                  { key: 'subtitle', label: 'Subtitle' },
+                  { key: 'primaryButton', label: 'Primary Button' },
+                  { key: 'secondaryButton', label: 'Secondary Button' },
+                ]}
+              />
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }

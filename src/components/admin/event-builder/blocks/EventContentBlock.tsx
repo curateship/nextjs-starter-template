@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -43,7 +43,6 @@ interface EventContentBlockProps {
 }
 
 export function EventContentBlock({ content, onContentChange, siteId, blockId, eventData, onEventTitleChange }: EventContentBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(eventData?.title || eventData?.name || 'Untitled Event')
 
@@ -129,226 +128,232 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6">
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
-
-      <TabsContent value="content" className="mt-6">
-        {/* Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Block Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(EVENT_CONTENT_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('eventContentStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  eventContentStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  eventContentStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {eventContentStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Event Title */}
-        <div className="space-y-2 px-6 mb-4">
-          <Label htmlFor="event-title">Event Title</Label>
-          <Input
-            id="event-title"
-            value={localTitle}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            placeholder="Enter event title..."
-            className="text-lg font-medium"
-          />
-        </div>
-
-        {/* Rich Text Editor */}
-        <div className="space-y-2 px-6">
-          <Label>Content</Label>
-          <div className="border rounded-md overflow-hidden">
-                {/* TipTap Toolbar */}
-                <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    disabled={!editor.can().chain().focus().toggleBold().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Bold className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    disabled={!editor.can().chain().focus().toggleItalic().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Italic className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('code') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleCode().run()}
-                    disabled={!editor.can().chain().focus().toggleCode().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Code className="h-4 w-4" />
-                  </Button>
-
-                  <div className="w-px h-8 bg-border mx-1" />
-
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Heading2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Heading3 className="h-4 w-4" />
-                  </Button>
-
-                  <div className="w-px h-8 bg-border mx-1" />
-
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <ListOrdered className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
-                    onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Quote className="h-4 w-4" />
-                  </Button>
-
-                  <div className="w-px h-8 bg-border mx-1" />
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsImagePickerOpen(true)}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-
-                  <div className="w-px h-8 bg-border mx-1" />
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => editor.chain().focus().undo().run()}
-                    disabled={!editor.can().chain().focus().undo().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Undo className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => editor.chain().focus().redo().run()}
-                    disabled={!editor.can().chain().focus().redo().run()}
-                    className="h-8 w-8 p-0"
-                    type="button"
-                  >
-                    <Redo className="h-4 w-4" />
-                  </Button>
+    <>
+      <BlockTabs
+        tabs={[
+          {
+            value: "content",
+            label: "Content",
+            content: (
+              <>
+                {/* Style Selector */}
+                <div className="space-y-2 mb-4 mx-4">
+                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
+                    {Object.entries(EVENT_CONTENT_STYLES).map(([key, style]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => onContentChange('eventContentStyle', key)}
+                        className={cn(
+                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                          eventContentStyle === key
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          eventContentStyle === key
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {eventContentStyle === key && <Check className="h-3 w-3" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{style.label}</div>
+                          {style.description && (
+                            <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* TipTap Editor */}
-                <div className="bg-background">
-                  <EditorContent editor={editor} />
+                {/* Event Title */}
+                <div className="space-y-2 px-6 mb-4">
+                  <Label htmlFor="event-title">Event Title</Label>
+                  <Input
+                    id="event-title"
+                    value={localTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter event title..."
+                    className="text-lg font-medium"
+                  />
                 </div>
-          </div>
-        </div>
-      </TabsContent>
 
-      <TabsContent value="settings" className="mt-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Display Options</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                <p className="text-sm text-muted-foreground">Display the event featured image</p>
-              </div>
-              <Switch
-                id="show-featured-image"
-                checked={showFeaturedImage}
-                onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                {/* Rich Text Editor */}
+                <div className="space-y-2 px-6">
+                  <Label>Content</Label>
+                  <div className="border rounded-md overflow-hidden">
+                        {/* TipTap Toolbar */}
+                        <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleBold().run()}
+                            disabled={!editor.can().chain().focus().toggleBold().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Bold className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleItalic().run()}
+                            disabled={!editor.can().chain().focus().toggleItalic().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Italic className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('code') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleCode().run()}
+                            disabled={!editor.can().chain().focus().toggleCode().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Code className="h-4 w-4" />
+                          </Button>
+
+                          <div className="w-px h-8 bg-border mx-1" />
+
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Heading2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Heading3 className="h-4 w-4" />
+                          </Button>
+
+                          <div className="w-px h-8 bg-border mx-1" />
+
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleBulletList().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <List className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <ListOrdered className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
+                            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Quote className="h-4 w-4" />
+                          </Button>
+
+                          <div className="w-px h-8 bg-border mx-1" />
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setIsImagePickerOpen(true)}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                          </Button>
+
+                          <div className="w-px h-8 bg-border mx-1" />
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => editor.chain().focus().undo().run()}
+                            disabled={!editor.can().chain().focus().undo().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Undo className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => editor.chain().focus().redo().run()}
+                            disabled={!editor.can().chain().focus().redo().run()}
+                            className="h-8 w-8 p-0"
+                            type="button"
+                          >
+                            <Redo className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* TipTap Editor */}
+                        <div className="bg-background">
+                          <EditorContent editor={editor} />
+                        </div>
+                  </div>
+                </div>
+              </>
+            ),
+          },
+          {
+            value: "styling",
+            label: "Styling",
+            content: ActivePanel ? (
+              <ActivePanel
+                config={currentStyleConfig}
+                onConfigChange={handleStyleConfigChange}
+                siteId={siteId}
+                blockId={blockId}
               />
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="styling" className="mt-6">
-        {ActivePanel && (
-          <ActivePanel
-            config={currentStyleConfig}
-            onConfigChange={handleStyleConfigChange}
-            siteId={siteId}
-            blockId={blockId}
-          />
-        )}
-      </TabsContent>
+            ) : null,
+          },
+          {
+            value: "settings",
+            label: "Settings",
+            content: (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Display Options</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="show-featured-image">Show Featured Image</Label>
+                      <p className="text-sm text-muted-foreground">Display the event featured image</p>
+                    </div>
+                    <Switch
+                      id="show-featured-image"
+                      checked={showFeaturedImage}
+                      onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+        ]}
+      />
 
       {/* Image Picker Modal */}
       <MediaPicker
@@ -357,6 +362,6 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
         onSelectMedia={handleImageSelect}
         showVideos={false}
       />
-    </Tabs>
+    </>
   )
 }

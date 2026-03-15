@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Plus, Trash2, GripVertical, Check, ImageIcon, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, GripVertical, Check, ImageIcon } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
@@ -177,7 +177,6 @@ function SortableTestimonialItem({
 }
 
 export function PageTestimonialsBlock({ content, onContentChange, siteId, blockId, onBack }: PageTestimonialsBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [avatarPickerIndex, setAvatarPickerIndex] = useState<number | null>(null)
 
   const testimonialStyle = content.testimonialStyle || 'default'
@@ -238,175 +237,175 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
   const ActiveAdminPanel = TESTIMONIAL_STYLES[testimonialStyle]?.AdminPanel
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
+    <>
+      <BlockTabs
+        onBack={onBack}
+        tabs={[
+          {
+            value: "content",
+            label: "Content",
+            content: (
+              <>
+                {/* Header Settings */}
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Header Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Title</Label>
+                      <Input
+                        value={content.title ?? ''}
+                        onChange={(e) => onContentChange('title', e.target.value)}
+                        placeholder="Meet Our Happy Clients"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Subtitle</Label>
+                      <Input
+                        value={content.subtitle ?? ''}
+                        onChange={(e) => onContentChange('subtitle', e.target.value)}
+                        placeholder="Hear from the teams who have transformed their workflow."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Alignment</Label>
+                      <Select
+                        value={content.headerAlign ?? 'center'}
+                        onValueChange={(v) => onContentChange('headerAlign', v)}
+                      >
+                        <SelectTrigger className="w-fit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
 
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        {/* Header Settings */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                value={content.title ?? ''}
-                onChange={(e) => onContentChange('title', e.target.value)}
-                placeholder="Meet Our Happy Clients"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Subtitle</Label>
-              <Input
-                value={content.subtitle ?? ''}
-                onChange={(e) => onContentChange('subtitle', e.target.value)}
-                placeholder="Hear from the teams who have transformed their workflow."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Alignment</Label>
-              <Select
-                value={content.headerAlign ?? 'center'}
-                onValueChange={(v) => onContentChange('headerAlign', v)}
-              >
-                <SelectTrigger className="w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+                {/* Testimonial Items */}
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Testimonial Items</CardTitle>
+                      <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Item
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={localItems.map(item => item.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {localItems.map((item, index) => (
+                            <SortableTestimonialItem
+                              key={item.id}
+                              item={item}
+                              index={index}
+                              updateItem={updateItem}
+                              deleteItem={deleteItem}
+                              onPickAvatar={setAvatarPickerIndex}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
 
-        {/* Testimonial Items */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Testimonial Items</CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Item
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={localItems.map(item => item.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-3">
-                  {localItems.map((item, index) => (
-                    <SortableTestimonialItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      updateItem={updateItem}
-                      deleteItem={deleteItem}
-                      onPickAvatar={setAvatarPickerIndex}
+                    {localItems.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No testimonials yet. Click &quot;Add Item&quot; to create one.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ),
+          },
+          {
+            value: "styling",
+            label: "Styling",
+            content: (
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {ActiveAdminPanel ? (
+                    <ActiveAdminPanel
+                      config={currentStyleConfig}
+                      onConfigChange={handleStyleConfigChange}
                     />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {localItems.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No testimonials yet. Click &quot;Add Item&quot; to create one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="styling" className="mt-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {ActiveAdminPanel ? (
-              <ActiveAdminPanel
-                config={currentStyleConfig}
-                onConfigChange={handleStyleConfigChange}
-              />
-            ) : (
-              <p className="text-muted-foreground text-sm">No settings for this style.</p>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Testimonial Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('testimonialStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  testimonialStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  testimonialStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {testimonialStyle === key && <Check className="h-3 w-3" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No settings for this style.</p>
                   )}
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            value: "settings",
+            label: "Settings",
+            content: (
+              <>
+                <div className="space-y-2 mb-4 mx-4">
+                  <Label className="text-sm font-medium px-1">Testimonial Style</Label>
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
+                    {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => onContentChange('testimonialStyle', key)}
+                        className={cn(
+                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                          testimonialStyle === key
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          testimonialStyle === key
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {testimonialStyle === key && <Check className="h-3 w-3" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{style.label}</div>
+                          {style.description && (
+                            <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'title', label: 'Title' },
-            { key: 'subtitle', label: 'Subtitle' },
-          ]}
-        />
-      </TabsContent>
+                <VisibilitySettings
+                  visibility={content.visibility}
+                  onChange={(v) => onContentChange('visibility', v)}
+                  fields={[
+                    { key: 'title', label: 'Title' },
+                    { key: 'subtitle', label: 'Subtitle' },
+                  ]}
+                />
+              </>
+            ),
+          },
+        ]}
+      />
 
       <MediaPicker
         open={avatarPickerIndex !== null}
@@ -419,6 +418,6 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
         }}
         currentMediaUrl={avatarPickerIndex !== null ? localItems[avatarPickerIndex]?.avatar : undefined}
       />
-    </Tabs>
+    </>
   )
 }

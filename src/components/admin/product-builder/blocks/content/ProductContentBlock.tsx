@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check, ArrowLeft } from "lucide-react"
+import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -60,7 +60,6 @@ export function ProductContentBlock({
   onProductFeaturedImageChange,
   onBack,
 }: ProductContentBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(productData?.title || productData?.name || 'Untitled Product')
 
@@ -147,296 +146,300 @@ export function ProductContentBlock({
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
+    <>
+      <BlockTabs
+        onBack={onBack}
+        tabs={[
+          {
+            value: "content",
+            label: "Content",
+            content: (
+              <>
+                {/* Product Title */}
+                <div className="space-y-2 px-6 mb-4">
+                  <Label htmlFor="product-title">Product Title</Label>
+                  <Input
+                    id="product-title"
+                    value={localTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter product title..."
+                    className="text-lg font-medium"
+                  />
+                </div>
 
-      <TabsContent value="content" className="mt-6">
-        {/* Product Title */}
-        <div className="space-y-2 px-6 mb-4">
-          <Label htmlFor="product-title">Product Title</Label>
-          <Input
-            id="product-title"
-            value={localTitle}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            placeholder="Enter product title..."
-            className="text-lg font-medium"
-          />
-        </div>
+                {/* Rich Text Editor */}
+                <div className="space-y-2 px-6">
+                  <Label>Description</Label>
+                  <div className="border rounded-md overflow-hidden">
+                    {/* TipTap Toolbar */}
+                    <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleBold().run()}
+                        disabled={!editor.can().chain().focus().toggleBold().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Bold className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleItalic().run()}
+                        disabled={!editor.can().chain().focus().toggleItalic().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Italic className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('code') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleCode().run()}
+                        disabled={!editor.can().chain().focus().toggleCode().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Code className="h-4 w-4" />
+                      </Button>
 
-        {/* Rich Text Editor */}
-        <div className="space-y-2 px-6">
-          <Label>Description</Label>
-          <div className="border rounded-md overflow-hidden">
-            {/* TipTap Toolbar */}
-            <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
-              <Button
-                size="sm"
-                variant={editor.isActive('bold') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                disabled={!editor.can().chain().focus().toggleBold().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Bold className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={editor.isActive('italic') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                disabled={!editor.can().chain().focus().toggleItalic().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Italic className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={editor.isActive('code') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleCode().run()}
-                disabled={!editor.can().chain().focus().toggleCode().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Code className="h-4 w-4" />
-              </Button>
+                      <div className="w-px h-8 bg-border mx-1" />
 
-              <div className="w-px h-8 bg-border mx-1" />
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Heading2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Heading3 className="h-4 w-4" />
+                      </Button>
 
-              <Button
-                size="sm"
-                variant={editor.isActive('heading', { level: 2 }) ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Heading2 className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={editor.isActive('heading', { level: 3 }) ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Heading3 className="h-4 w-4" />
-              </Button>
+                      <div className="w-px h-8 bg-border mx-1" />
 
-              <div className="w-px h-8 bg-border mx-1" />
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleBulletList().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <ListOrdered className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
+                        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Quote className="h-4 w-4" />
+                      </Button>
 
-              <Button
-                size="sm"
-                variant={editor.isActive('bulletList') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={editor.isActive('orderedList') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <ListOrdered className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={editor.isActive('blockquote') ? 'secondary' : 'ghost'}
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Quote className="h-4 w-4" />
-              </Button>
+                      <div className="w-px h-8 bg-border mx-1" />
 
-              <div className="w-px h-8 bg-border mx-1" />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setIsImagePickerOpen(true)}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                      </Button>
 
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsImagePickerOpen(true)}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <ImageIcon className="h-4 w-4" />
-              </Button>
+                      <div className="w-px h-8 bg-border mx-1" />
 
-              <div className="w-px h-8 bg-border mx-1" />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => editor.chain().focus().undo().run()}
+                        disabled={!editor.can().chain().focus().undo().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Undo className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => editor.chain().focus().redo().run()}
+                        disabled={!editor.can().chain().focus().redo().run()}
+                        className="h-8 w-8 p-0"
+                        type="button"
+                      >
+                        <Redo className="h-4 w-4" />
+                      </Button>
+                    </div>
 
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => editor.chain().focus().undo().run()}
-                disabled={!editor.can().chain().focus().undo().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Undo className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => editor.chain().focus().redo().run()}
-                disabled={!editor.can().chain().focus().redo().run()}
-                className="h-8 w-8 p-0"
-                type="button"
-              >
-                <Redo className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* TipTap Editor */}
-            <div className="bg-background">
-              <EditorContent editor={editor} />
-            </div>
-          </div>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="settings" className="mt-6">
-        {/* Block Style Selector */}
-        <div className="space-y-2 mb-4 px-6">
-          <Label className="text-sm font-medium px-1">Block Style</Label>
-          <div className="grid grid-cols-2 gap-2 max-w-sm">
-            {Object.entries(PRODUCT_CONTENT_STYLES).map(([key, style]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onContentChange('productContentStyle', key)}
-                className={cn(
-                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                  productContentStyle === key
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                    {/* TipTap Editor */}
+                    <div className="bg-background">
+                      <EditorContent editor={editor} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ),
+          },
+          {
+            value: "styling",
+            label: "Styling",
+            content: (
+              <>
+                {ActivePanel && (
+                  <ActivePanel
+                    config={currentStyleConfig}
+                    onConfigChange={handleStyleConfigChange}
+                    siteId={siteId}
+                    blockId={blockId}
+                  />
                 )}
-              >
-                <div className={cn(
-                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  productContentStyle === key
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30"
-                )}>
-                  {productContentStyle === key && <Check className="h-3 w-3" />}
+              </>
+            ),
+          },
+          {
+            value: "settings",
+            label: "Settings",
+            content: (
+              <>
+                {/* Block Style Selector */}
+                <div className="space-y-2 mb-4 mx-4">
+                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
+                    {Object.entries(PRODUCT_CONTENT_STYLES).map(([key, style]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => onContentChange('productContentStyle', key)}
+                        className={cn(
+                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                          productContentStyle === key
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          productContentStyle === key
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {productContentStyle === key && <Check className="h-3 w-3" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{style.label}</div>
+                          {style.description && (
+                            <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{style.label}</div>
-                  {style.description && (
-                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={(v) => onContentChange('visibility', v)}
-          fields={[
-            { key: 'title', label: 'Title' },
-            { key: 'body', label: 'Description' },
-            { key: 'featuredImage', label: 'Featured Image' },
-            { key: 'downloadButton', label: 'Download Button' },
-          ]}
-        />
-
-        {/* Show Featured Image */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Display Options</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                <p className="text-sm text-muted-foreground">Display the product featured image</p>
-              </div>
-              <Switch
-                id="show-featured-image"
-                checked={showFeaturedImage}
-                onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Download Button */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Download Button</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm">Button Text</Label>
-                <Input
-                  value={content.downloadButtonText || ''}
-                  onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
-                  placeholder="e.g., Download Product"
-                  className="text-sm"
+                <VisibilitySettings
+                  visibility={content.visibility}
+                  onChange={(v) => onContentChange('visibility', v)}
+                  fields={[
+                    { key: 'title', label: 'Title' },
+                    { key: 'body', label: 'Description' },
+                    { key: 'featuredImage', label: 'Featured Image' },
+                    { key: 'downloadButton', label: 'Download Button' },
+                  ]}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm">Button Style</Label>
-                <Select
-                  value={content.downloadButtonStyle || 'black'}
-                  onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
-                >
-                  <SelectTrigger className="text-sm">
-                    <SelectValue placeholder="Select style" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="black">Black (Solid)</SelectItem>
-                    <SelectItem value="default">Default (Theme)</SelectItem>
-                    <SelectItem value="secondary">Secondary (Gray)</SelectItem>
-                    <SelectItem value="outline">Outline</SelectItem>
-                    <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
-                    <SelectItem value="destructive">Destructive (Red)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm">Download URL</Label>
-                <Input
-                  value={content.downloadButtonUrl || ''}
-                  onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
-                  placeholder="https://example.com/download"
-                  type="url"
-                  className="text-sm"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
 
-      <TabsContent value="styling" className="mt-6">
-        {ActivePanel && (
-          <ActivePanel
-            config={currentStyleConfig}
-            onConfigChange={handleStyleConfigChange}
-            siteId={siteId}
-            blockId={blockId}
-          />
-        )}
-      </TabsContent>
+                {/* Show Featured Image */}
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Display Options</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="show-featured-image">Show Featured Image</Label>
+                        <p className="text-sm text-muted-foreground">Display the product featured image</p>
+                      </div>
+                      <Switch
+                        id="show-featured-image"
+                        checked={showFeaturedImage}
+                        onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Download Button */}
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Download Button</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Button Text</Label>
+                        <Input
+                          value={content.downloadButtonText || ''}
+                          onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
+                          placeholder="e.g., Download Product"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Button Style</Label>
+                        <Select
+                          value={content.downloadButtonStyle || 'black'}
+                          onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue placeholder="Select style" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="black">Black (Solid)</SelectItem>
+                            <SelectItem value="default">Default (Theme)</SelectItem>
+                            <SelectItem value="secondary">Secondary (Gray)</SelectItem>
+                            <SelectItem value="outline">Outline</SelectItem>
+                            <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
+                            <SelectItem value="destructive">Destructive (Red)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm">Download URL</Label>
+                        <Input
+                          value={content.downloadButtonUrl || ''}
+                          onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
+                          placeholder="https://example.com/download"
+                          type="url"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ),
+          },
+        ]}
+      />
 
       {/* Image Picker Modal */}
       <MediaPicker
@@ -445,6 +448,6 @@ export function ProductContentBlock({
         onSelectMedia={handleImageSelect}
         showVideos={false}
       />
-    </Tabs>
+    </>
   )
 }

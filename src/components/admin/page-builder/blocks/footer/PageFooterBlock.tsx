@@ -7,8 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Plus, Trash2, ImageIcon, GripVertical, ArrowLeft } from "lucide-react"
+import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
@@ -239,7 +239,6 @@ export function PageFooterBlock({
   siteName = "Your Site",
   onBack,
 }: FooterBlockProps) {
-  const [activeTab, setActiveTab] = useState('content')
   const [showPicker, setShowPicker] = useState(false)
   
   const sensors = useSensors(
@@ -348,28 +347,15 @@ export function PageFooterBlock({
   const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="styling">Styling</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
-
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        <div className="space-y-4">
-        {/* Logo Card */}
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <div className="space-y-4">
+              {/* Logo Card */}
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Logo & Copyright</CardTitle>
@@ -555,106 +541,112 @@ export function PageFooterBlock({
           )}
         </CardContent>
       </Card>
-        </div>
-      </TabsContent>
-
-      {/* Styling Tab */}
-      <TabsContent value="styling" className="mt-6">
-        <div className="space-y-4">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Styling</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="footerCustomBgToggle"
-                      checked={style.backgroundColor !== '' && style.backgroundColor != null}
-                      onCheckedChange={(checked) => {
-                        updateStyle('backgroundColor', checked ? '#ffffff' : '')
-                      }}
-                    />
-                    <Label htmlFor="footerCustomBgToggle">Custom Background Color</Label>
-                  </div>
-                  {(!style.backgroundColor) && (
-                    <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
-                  )}
-                  {style.backgroundColor && (
-                    <div className="flex gap-2">
-                      <input
-                        id="footerBgColor"
-                        type="color"
-                        value={style.backgroundColor}
-                        onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                        className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                      />
-                      <input
-                        type="text"
-                        value={style.backgroundColor}
-                        onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                        className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                        placeholder="#ffffff"
-                      />
+            </div>
+          ),
+        },
+        {
+          value: "styling",
+          label: "Styling",
+          content: (
+            <div className="space-y-4">
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Styling</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="footerCustomBgToggle"
+                          checked={style.backgroundColor !== '' && style.backgroundColor != null}
+                          onCheckedChange={(checked) => {
+                            updateStyle('backgroundColor', checked ? '#ffffff' : '')
+                          }}
+                        />
+                        <Label htmlFor="footerCustomBgToggle">Custom Background Color</Label>
+                      </div>
+                      {(!style.backgroundColor) && (
+                        <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+                      )}
+                      {style.backgroundColor && (
+                        <div className="flex gap-2">
+                          <input
+                            id="footerBgColor"
+                            type="color"
+                            value={style.backgroundColor}
+                            onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                            className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                          />
+                          <input
+                            type="text"
+                            value={style.backgroundColor}
+                            onChange={(e) => updateStyle('backgroundColor', e.target.value)}
+                            className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                            placeholder="#ffffff"
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="footerCustomTextToggle"
-                      checked={style.textColor !== '' && style.textColor != null}
-                      onCheckedChange={(checked) => {
-                        updateStyle('textColor', checked ? '#000000' : '')
-                      }}
-                    />
-                    <Label htmlFor="footerCustomTextToggle">Custom Text Color</Label>
-                  </div>
-                  {(!style.textColor) && (
-                    <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
-                  )}
-                  {style.textColor && (
-                    <div className="flex gap-2">
-                      <input
-                        id="footerTextColor"
-                        type="color"
-                        value={style.textColor}
-                        onChange={(e) => updateStyle('textColor', e.target.value)}
-                        className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                      />
-                      <input
-                        type="text"
-                        value={style.textColor}
-                        onChange={(e) => updateStyle('textColor', e.target.value)}
-                        className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                        placeholder="#000000"
-                      />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="footerCustomTextToggle"
+                          checked={style.textColor !== '' && style.textColor != null}
+                          onCheckedChange={(checked) => {
+                            updateStyle('textColor', checked ? '#000000' : '')
+                          }}
+                        />
+                        <Label htmlFor="footerCustomTextToggle">Custom Text Color</Label>
+                      </div>
+                      {(!style.textColor) && (
+                        <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
+                      )}
+                      {style.textColor && (
+                        <div className="flex gap-2">
+                          <input
+                            id="footerTextColor"
+                            type="color"
+                            value={style.textColor}
+                            onChange={(e) => updateStyle('textColor', e.target.value)}
+                            className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
+                          />
+                          <input
+                            type="text"
+                            value={style.textColor}
+                            onChange={(e) => updateStyle('textColor', e.target.value)}
+                            className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+                            placeholder="#000000"
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-        <div className="space-y-4">
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'footerLinks', label: 'Footer Links' },
-                { key: 'socialLinks', label: 'Social Links' },
-              ]}
-            />
-          )}
-        </div>
-      </TabsContent>
-    </Tabs>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <div className="space-y-4">
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[
+                    { key: 'footerLinks', label: 'Footer Links' },
+                    { key: 'socialLinks', label: 'Social Links' },
+                  ]}
+                />
+              )}
+            </div>
+          ),
+        },
+      ]}
+    />
   )
 }

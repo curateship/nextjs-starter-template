@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DOMPurify from "dompurify"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import {
   Bold,
   Italic,
@@ -22,7 +22,6 @@ import {
   AlignRight,
   Eye,
   EyeOff,
-  ArrowLeft
 } from "lucide-react"
 import { useState, useCallback, useEffect } from 'react'
 import { cn } from "@/lib/utils/tailwind-class-merger"
@@ -46,7 +45,6 @@ interface RichTextBlockProps {
 
 export function ProductRichTextEditorBlock({ content, onContentChange, compact = false, visibility, onVisibilityChange, onBack }: RichTextBlockProps) {
   const [showPreview, setShowPreview] = useState(false)
-  const [activeTab, setActiveTab] = useState("content")
 
   const editor = useEditor({
     extensions: [
@@ -132,315 +130,312 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="px-6 pt-6 flex items-center gap-2">
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all text-muted-foreground hover:bg-background hover:text-foreground hover:shadow-sm h-10 bg-muted"
-          >
-            <ArrowLeft className="w-3.5 h-4 mr-1.5" />
-            Back
-          </button>
-        )}
-        <TabsList className="gap-1">
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="style">Style</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-      </div>
+    <BlockTabs
+      onBack={onBack}
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <>
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Section Header</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="header">Section Header</Label>
+                    <Input
+                      id="header"
+                      value={content.header || ''}
+                      onChange={(e) => handleHeaderChange(e.target.value)}
+                      placeholder="Enter section title..."
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="subheader">Section Sub Header</Label>
+                    <Input
+                      id="subheader"
+                      value={content.subheader || ''}
+                      onChange={(e) => handleSubheaderChange(e.target.value)}
+                      placeholder="Enter section subtitle..."
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="headerAlign">Header Alignment</Label>
+                    <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select alignment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Left</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
 
-      {/* Content Tab */}
-      <TabsContent value="content" className="mt-6">
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Section Header</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="header">Section Header</Label>
-              <Input
-                id="header"
-                value={content.header || ''}
-                onChange={(e) => handleHeaderChange(e.target.value)}
-                placeholder="Enter section title..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="subheader">Section Sub Header</Label>
-              <Input
-                id="subheader"
-                value={content.subheader || ''}
-                onChange={(e) => handleSubheaderChange(e.target.value)}
-                placeholder="Enter section subtitle..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="headerAlign">Header Alignment</Label>
-              <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select alignment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left">Left</SelectItem>
-                  <SelectItem value="center">Center</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          {!content.hideEditorHeader && (
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Rich Text Content</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPreview(!showPreview)}
-                  className="text-xs"
-                >
-                  {showPreview ? (
+              <Card className="shadow-sm">
+                {!content.hideEditorHeader && (
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Rich Text Content</CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowPreview(!showPreview)}
+                        className="text-xs"
+                      >
+                        {showPreview ? (
+                          <>
+                            <EyeOff className="w-4 h-4 mr-1" />
+                            Edit
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-4 h-4 mr-1" />
+                            Preview
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                )}
+                <CardContent className="space-y-4">
+                  {!showPreview ? (
                     <>
-                      <EyeOff className="w-4 h-4 mr-1" />
-                      Edit
+                      {/* Toolbar */}
+                      <div className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? '' : 'border rounded-md'}`}>
+                        {/* Text formatting */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive('bold') && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleBold().run()}
+                          title="Bold"
+                        >
+                          <Bold className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive('italic') && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleItalic().run()}
+                          title="Italic"
+                        >
+                          <Italic className="w-4 h-4" />
+                        </Button>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+                        {/* Headings */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 px-2 text-xs font-semibold",
+                            editor.isActive('heading', { level: 2 }) && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                          title="Heading 2"
+                        >
+                          H2
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 px-2 text-xs font-semibold",
+                            editor.isActive('heading', { level: 3 }) && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                          title="Heading 3"
+                        >
+                          H3
+                        </Button>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+                        {/* Lists */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive('bulletList') && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleBulletList().run()}
+                          title="Bullet List"
+                        >
+                          <List className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive('orderedList') && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                          title="Numbered List"
+                        >
+                          <ListOrdered className="w-4 h-4" />
+                        </Button>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+                        {/* Link */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive('link') && "bg-primary/20"
+                          )}
+                          onClick={addLink}
+                          title="Add Link"
+                        >
+                          <LinkIcon className="w-4 h-4" />
+                        </Button>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+                        {/* Alignment */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive({ textAlign: 'left' }) && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                          title="Align Left"
+                        >
+                          <AlignLeft className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive({ textAlign: 'center' }) && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                          title="Align Center"
+                        >
+                          <AlignCenter className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 w-8 p-0",
+                            editor.isActive({ textAlign: 'right' }) && "bg-primary/20"
+                          )}
+                          onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                          title="Align Right"
+                        >
+                          <AlignRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      {/* Editor */}
+                      <div
+                        className={`cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
+                        onClick={() => {
+                          if (editor && !editor.isFocused) {
+                            editor.commands.focus()
+                          }
+                        }}
+                      >
+                        <EditorContent
+                          editor={editor}
+                          className={`prose prose-sm max-w-none ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                        />
+                      </div>
                     </>
                   ) : (
-                    <>
-                      <Eye className="w-4 h-4 mr-1" />
-                      Preview
-                    </>
+                    /* Preview Mode */
+                    <div className="border rounded-md p-4 bg-muted/5">
+                      <div className={`min-h-[200px] ${content.headerAlign === 'center' ? 'text-center' : 'text-left'}`}>
+                        {content.header && (
+                          <h2 className={`text-3xl font-bold md:text-5xl mb-4 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
+                            {content.header}
+                          </h2>
+                        )}
+                        {content.subheader && (
+                          <p className={`text-lg text-muted-foreground mb-6 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
+                            {content.subheader}
+                          </p>
+                        )}
+                        <div
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(content.richtextContent, {
+                              ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
+                              ALLOWED_ATTR: ['href', 'target', 'rel'],
+                              ALLOW_DATA_ATTR: false
+                            })
+                          }}
+                        />
+                      </div>
+                    </div>
                   )}
-                </Button>
-              </div>
-            </CardHeader>
-          )}
-          <CardContent className="space-y-4">
-            {!showPreview ? (
-              <>
-                {/* Toolbar */}
-                <div className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? '' : 'border rounded-md'}`}>
-                  {/* Text formatting */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive('bold') && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    title="Bold"
-                  >
-                    <Bold className="w-4 h-4" />
-                  </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive('italic') && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    title="Italic"
-                  >
-                    <Italic className="w-4 h-4" />
-                  </Button>
-
-                  <div className="w-px h-6 bg-border mx-1" />
-
-                  {/* Headings */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 px-2 text-xs font-semibold",
-                      editor.isActive('heading', { level: 2 }) && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                    title="Heading 2"
-                  >
-                    H2
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 px-2 text-xs font-semibold",
-                      editor.isActive('heading', { level: 3 }) && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                    title="Heading 3"
-                  >
-                    H3
-                  </Button>
-
-                  <div className="w-px h-6 bg-border mx-1" />
-
-                  {/* Lists */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive('bulletList') && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    title="Bullet List"
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive('orderedList') && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    title="Numbered List"
-                  >
-                    <ListOrdered className="w-4 h-4" />
-                  </Button>
-
-                  <div className="w-px h-6 bg-border mx-1" />
-
-                  {/* Link */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive('link') && "bg-primary/20"
-                    )}
-                    onClick={addLink}
-                    title="Add Link"
-                  >
-                    <LinkIcon className="w-4 h-4" />
-                  </Button>
-
-                  <div className="w-px h-6 bg-border mx-1" />
-
-                  {/* Alignment */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive({ textAlign: 'left' }) && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                    title="Align Left"
-                  >
-                    <AlignLeft className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive({ textAlign: 'center' }) && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                    title="Align Center"
-                  >
-                    <AlignCenter className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "h-8 w-8 p-0",
-                      editor.isActive({ textAlign: 'right' }) && "bg-primary/20"
-                    )}
-                    onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                    title="Align Right"
-                  >
-                    <AlignRight className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Editor */}
-                <div
-                  className={`cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
-                  onClick={() => {
-                    if (editor && !editor.isFocused) {
-                      editor.commands.focus()
-                    }
-                  }}
-                >
-                  <EditorContent
-                    editor={editor}
-                    className={`prose prose-sm max-w-none ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
-                  />
-                </div>
-              </>
-            ) : (
-              /* Preview Mode */
-              <div className="border rounded-md p-4 bg-muted/5">
-                <div className={`min-h-[200px] ${content.headerAlign === 'center' ? 'text-center' : 'text-left'}`}>
-                  {content.header && (
-                    <h2 className={`text-3xl font-bold md:text-5xl mb-4 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
-                      {content.header}
-                    </h2>
+                  {showPreview && (
+                    <div className="text-xs text-muted-foreground">
+                      This is how your content will appear on the frontend.
+                    </div>
                   )}
-                  {content.subheader && (
-                    <p className={`text-lg text-muted-foreground mb-6 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
-                      {content.subheader}
-                    </p>
-                  )}
-                  <div
-                    className="prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{
-                      __html: DOMPurify.sanitize(content.richtextContent, {
-                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
-                        ALLOWED_ATTR: ['href', 'target', 'rel'],
-                        ALLOW_DATA_ATTR: false
-                      })
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {showPreview && (
-              <div className="text-xs text-muted-foreground">
-                This is how your content will appear on the frontend.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Style Tab */}
-      <TabsContent value="style" className="mt-6">
-        <Card className="shadow-sm">
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Style options coming soon.
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Settings Tab */}
-      <TabsContent value="settings" className="mt-6">
-          {onVisibilityChange && (
-            <VisibilitySettings
-              visibility={visibility}
-              onChange={onVisibilityChange}
-              fields={[
-                { key: 'header', label: 'Header' },
-                { key: 'subheader', label: 'Sub Header' },
-              ]}
-            />
-          )}
-      </TabsContent>
-    </Tabs>
+                </CardContent>
+              </Card>
+            </>
+          ),
+        },
+        {
+          value: "style",
+          label: "Style",
+          content: (
+            <Card className="shadow-sm">
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Style options coming soon.
+              </CardContent>
+            </Card>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <>
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[
+                    { key: 'header', label: 'Header' },
+                    { key: 'subheader', label: 'Sub Header' },
+                  ]}
+                />
+              )}
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }
