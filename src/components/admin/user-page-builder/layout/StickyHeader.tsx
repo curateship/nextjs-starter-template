@@ -4,7 +4,6 @@ import * as React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind-class-merger"
-import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -29,7 +28,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft, Home } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
 import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
@@ -120,96 +119,96 @@ export function StickyHeader({
               <PanelLeft className="h-3.5 w-3.5" />
             </button>
             {breadcrumbItems.length > 0 && (
-              <>
-                <Separator
-                  orientation="vertical"
-                  className="mr-2 h-4"
-                />
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    {breadcrumbItems.map((item, index) => {
-                      // Last item in page builder gets dropdown
-                      const isLastItem = index === breadcrumbItems.length - 1
-                      const shouldShowDropdown = isLastItem && isPageBuilder
+              <Breadcrumb className="w-fit rounded-lg bg-muted px-3 py-2">
+                <BreadcrumbList>
+                  {breadcrumbItems.map((item, index) => {
+                    // Last item in page builder gets dropdown
+                    const isLastItem = index === breadcrumbItems.length - 1
+                    const shouldShowDropdown = isLastItem && isPageBuilder
 
-                      return (
-                        <React.Fragment key={index}>
-                          <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
-                            {shouldShowDropdown ? (
-                              !item.label ? (
-                                <div className="h-5 w-32 bg-muted rounded animate-pulse" />
-                              ) : (
-                              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
-                                  >
-                                    <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                      {currentPage ? currentPage.title : item.label}
-                                    </BreadcrumbPage>
-                                    <ChevronDown className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-[240px]">
-                                  {pages?.map((page) => (
-                                    <DropdownMenuItem
-                                      key={page.id}
-                                      onSelect={(e) => e.preventDefault()}
-                                      className={page.slug === selectedPage ? "bg-accent" : ""}
-                                    >
-                                      <div className="flex items-center justify-between flex-1">
-                                        <span
-                                          onClick={() => {
-                                            if (onPageChange) {
-                                              onPageChange(page.slug)
-                                            }
-                                            setDropdownOpen(false)
-                                          }}
-                                          className="flex-1 cursor-pointer"
-                                        >
-                                          {page.is_default && "🏠 "}
-                                          {page.title}
-                                          {!page.is_published && " (Draft)"}
-                                        </span>
-                                        <Link
-                                          href={getPageUrl(page.slug)}
-                                          target="_blank"
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="ml-2"
-                                        >
-                                          <ExternalLink className="w-3 h-3" />
-                                        </Link>
-                                      </div>
-                                    </DropdownMenuItem>
-                                  ))}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={handleCreatePage}>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Create Page
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                              )
-                            ) : item.isPage ? (
-                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                    return (
+                      <React.Fragment key={index}>
+                        <BreadcrumbItem>
+                          {index === 0 ? (
+                            <BreadcrumbLink asChild>
+                              <Link href={item.href || "#"}>
+                                <Home className="size-4" />
+                              </Link>
+                            </BreadcrumbLink>
+                          ) : shouldShowDropdown ? (
+                            !item.label ? (
+                              <div className="h-5 w-32 bg-muted rounded animate-pulse" />
                             ) : (
-                              <BreadcrumbLink asChild>
-                                <Link href={item.href || "#"}>
-                                  {item.label}
-                                </Link>
-                              </BreadcrumbLink>
-                            )}
-                          </BreadcrumbItem>
-                          {index < breadcrumbItems.length - 1 && (
-                            <BreadcrumbSeparator className="hidden md:block" />
+                            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
+                                >
+                                  <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
+                                    {currentPage ? currentPage.title : item.label}
+                                  </BreadcrumbPage>
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-[240px]">
+                                {pages?.map((page) => (
+                                  <DropdownMenuItem
+                                    key={page.id}
+                                    onSelect={(e) => e.preventDefault()}
+                                    className={page.slug === selectedPage ? "bg-accent" : ""}
+                                  >
+                                    <div className="flex items-center justify-between flex-1">
+                                      <span
+                                        onClick={() => {
+                                          if (onPageChange) {
+                                            onPageChange(page.slug)
+                                          }
+                                          setDropdownOpen(false)
+                                        }}
+                                        className="flex-1 cursor-pointer"
+                                      >
+                                        {page.is_default && "🏠 "}
+                                        {page.title}
+                                        {!page.is_published && " (Draft)"}
+                                      </span>
+                                      <Link
+                                        href={getPageUrl(page.slug)}
+                                        target="_blank"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="ml-2"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </Link>
+                                    </div>
+                                  </DropdownMenuItem>
+                                ))}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleCreatePage}>
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Create Page
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            )
+                          ) : item.isPage ? (
+                            <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink asChild>
+                              <Link href={item.href || "#"}>
+                                {item.label}
+                              </Link>
+                            </BreadcrumbLink>
                           )}
-                        </React.Fragment>
-                      )
-                    })}
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </>
+                        </BreadcrumbItem>
+                        {index < breadcrumbItems.length - 1 && (
+                          <BreadcrumbSeparator />
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </BreadcrumbList>
+              </Breadcrumb>
             )}
           </div>
 
