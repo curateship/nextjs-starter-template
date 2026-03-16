@@ -233,7 +233,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -266,6 +265,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewPost={() => builderState.setSelectedBlock(null)}
           onCleanupCorrupted={builderState.handleCleanupCorrupted}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={null}
           blocksLoading={loading}
           postData={{

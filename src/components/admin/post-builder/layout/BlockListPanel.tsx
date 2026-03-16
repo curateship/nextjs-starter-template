@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, FileText, Eye, Image as ImageIcon, Code, Quote, Minus, Link2 } from "lucide-react"
+import { Trash2, GripVertical, FileText, Eye, Image as ImageIcon, Code, Quote, Minus, Link2, Plus } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -50,6 +50,7 @@ interface BlockListPanelProps {
   onReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
   onPreviewPost?: () => void
   onCleanupCorrupted?: () => void
+  onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
   postData?: PostData
@@ -157,6 +158,7 @@ export function BlockListPanel({
   onReorderBlocks,
   onPreviewPost,
   onCleanupCorrupted,
+  onAddBlock,
   deleting,
   blocksLoading = false,
   postData
@@ -340,6 +342,19 @@ export function BlockListPanel({
                 </div>
               </SortableContext>
             </DndContext>
+          )}
+
+          {onAddBlock && (
+            <div className="px-5 mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAddBlock}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Block
+              </Button>
+            </div>
           )}
       </div>
 

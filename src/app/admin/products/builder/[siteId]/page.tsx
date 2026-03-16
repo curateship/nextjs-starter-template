@@ -229,7 +229,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -267,6 +266,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onDeleteBlock={builderState.handleDeleteBlock}
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewProduct={() => builderState.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={null}
           blocksLoading={blocksLoading}
         />

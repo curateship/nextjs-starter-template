@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Trash2, GripVertical, FileText, Eye } from "lucide-react"
+import { Trash2, GripVertical, FileText, Eye, Plus } from "lucide-react"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useSortable } from '@dnd-kit/sortable'
@@ -23,6 +23,7 @@ interface BlockListPanelProps {
   onDeleteBlock: (block: CategoryBlock) => void
   onReorderBlocks: (blocks: CategoryBlock[]) => void
   onPreviewCategory?: () => void
+  onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
 }
@@ -116,6 +117,7 @@ export function BlockListPanel({
   onDeleteBlock,
   onReorderBlocks,
   onPreviewCategory,
+  onAddBlock,
   deleting,
   blocksLoading = false
 }: BlockListPanelProps) {
@@ -214,6 +216,19 @@ export function BlockListPanel({
             </div>
           </SortableContext>
         </DndContext>
+      )}
+
+      {onAddBlock && (
+        <div className="px-5 mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onAddBlock}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Block
+          </Button>
+        </div>
       )}
     </div>
   )

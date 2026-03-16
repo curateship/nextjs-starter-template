@@ -227,7 +227,6 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         onSave={builderState.handleSaveAllBlocks}
         onPreviewPage={() => builderState.setSelectedBlock(null)}
         site={undefined}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -251,6 +250,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
           onDeleteBlock={builderState.handleDeleteBlock}
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewPage={() => builderState.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={builderState.deleting}
           blocksLoading={blocksLoading}
         />

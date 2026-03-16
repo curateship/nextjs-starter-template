@@ -216,7 +216,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -252,6 +251,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onDeleteBlock={builderState.handleDeleteBlock}
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewDirectory={() => builderState.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={null}
           blocksLoading={blocksLoading}
         />

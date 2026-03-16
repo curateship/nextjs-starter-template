@@ -199,7 +199,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         onPublish={handlePublish}
         isPublishing={isPublishing}
         site={site}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -235,6 +234,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onDeleteBlock={builderState.handleDeleteBlock}
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewCategory={() => builderState.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={null}
           blocksLoading={blocksLoading}
         />

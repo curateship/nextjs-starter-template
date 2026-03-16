@@ -216,7 +216,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
-        onOpenBlockModal={() => setBlockModalOpen(true)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -252,6 +251,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onDeleteBlock={builderState.handleDeleteBlock}
           onReorderBlocks={builderState.handleReorderBlocks}
           onPreviewEvent={() => builderState.setSelectedBlock(null)}
+          onAddBlock={() => setBlockModalOpen(true)}
           deleting={null}
           blocksLoading={blocksLoading}
         />
