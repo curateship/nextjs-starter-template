@@ -41,6 +41,7 @@ import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/them
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
 import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { ContentTypesSettingsCard } from "@/components/admin/layout/dashboard/ContentTypesSettingsCard"
+import { FeatureTogglesCard } from "@/components/admin/layout/dashboard/FeatureTogglesCard"
 
 // --- IntegrationCard ---
 
@@ -307,7 +308,7 @@ type TabId = (typeof TABS)[number]['id']
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
-  const { sites, currentSite } = useSiteContext()
+  const { sites, currentSite, setCurrentSite } = useSiteContext()
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const contextSite = sites.find(s => s.id === siteId) || currentSite
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
@@ -325,6 +326,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
   const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>(contextSite?.settings?.default_blocks || {})
+  const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>(contextSite?.settings?.enabled_features || {})
+  const [featureOrder, setFeatureOrder] = useState<string[]>(contextSite?.settings?.feature_order || [])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -468,7 +471,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             site_width: siteWidth,
             custom_width: customWidth,
             default_theme: defaultTheme,
-            default_blocks: defaultBlocks
+            default_blocks: defaultBlocks,
+            enabled_features: enabledFeatures,
+            feature_order: featureOrder
           }
         })
 
@@ -479,6 +484,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
         if (data) {
           setSite(prev => prev ? { ...prev, ...data } : null)
+          if (currentSite?.id === siteId) {
+            setCurrentSite({ ...currentSite, ...data })
+          }
           showSuccess('Settings saved successfully')
         }
       } else if (activeTab !== 'themes') {
@@ -614,10 +622,18 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               )}
 
               {activeTab === 'content-types' && (
-                <ContentTypesSettingsCard
-                  defaultBlocks={defaultBlocks}
-                  onDefaultBlocksChange={setDefaultBlocks}
-                />
+                <div className="space-y-6">
+                  <FeatureTogglesCard
+                    enabledFeatures={enabledFeatures}
+                    onEnabledFeaturesChange={setEnabledFeatures}
+                    featureOrder={featureOrder}
+                    onFeatureOrderChange={setFeatureOrder}
+                  />
+                  <ContentTypesSettingsCard
+                    defaultBlocks={defaultBlocks}
+                    onDefaultBlocksChange={setDefaultBlocks}
+                  />
+                </div>
               )}
 
               {activeTab === 'payments' && (

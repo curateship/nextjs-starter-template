@@ -45,18 +45,22 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const { state } = useSidebar()
 
   // Content creation items
-  const contentNavItems = [
+  const enabledFeatures = currentSite?.settings?.enabled_features
+  const featureOrder: string[] = currentSite?.settings?.feature_order || []
+  const allContentNavItems = [
     {
       title: "Posts",
       url: "/admin/posts",
       icon: BookOpen,
       isActive: false,
+      featureKey: "posts",
     },
     {
       title: "Products",
       url: "/admin/products",
       icon: Package,
       isActive: false,
+      featureKey: "products",
       items: [
         { title: "Purchases", url: "/admin/orders" },
       ],
@@ -66,12 +70,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       url: "/admin/directories",
       icon: FolderOpen,
       isActive: false,
+      featureKey: "directory",
     },
     {
       title: "Newsletters",
       url: "/admin/newsletters",
       icon: Mail,
       isActive: false,
+      featureKey: "newsletters",
       items: [
         { title: "Contacts", url: "/admin/newsletters/contacts" },
         { title: "Segments", url: "/admin/newsletters/segments" },
@@ -85,8 +91,18 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       url: "/admin/events",
       icon: Calendar,
       isActive: false,
+      featureKey: "events",
     },
-  ]
+  ].filter(item => !enabledFeatures || enabledFeatures[item.featureKey] !== false)
+
+  // Sort by saved order if available
+  const contentNavItems = featureOrder.length > 0
+    ? allContentNavItems.sort((a, b) => {
+        const ai = featureOrder.indexOf(a.featureKey)
+        const bi = featureOrder.indexOf(b.featureKey)
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+      })
+    : allContentNavItems
 
   // Site management items
   const siteManagementProjects = [
