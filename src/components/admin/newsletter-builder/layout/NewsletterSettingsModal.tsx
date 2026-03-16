@@ -65,7 +65,7 @@ export function NewsletterSettingsModal({
 
   useEffect(() => {
     if (newsletter) {
-      setSubject(newsletter.subject || newsletter.name)
+      setSubject(newsletter.subject)
       setFilterTags(newsletter.audience_filter?.tags?.join(', ') || '')
       setMaxWidth(newsletter.metadata?.maxWidth || 600)
       const drip = newsletter.metadata?.drip_config
@@ -169,7 +169,6 @@ export function NewsletterSettingsModal({
     }
 
     const { data, error: updateError } = await updateNewsletter(newsletter.id, {
-      name: subject.trim(),
       subject: subject.trim(),
       status: 'draft',
       audience_filter: buildAudienceFilter(),

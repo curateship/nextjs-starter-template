@@ -134,7 +134,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/newsletters", label: "Newsletters" },
-          { label: builder.newsletter?.name || "Builder", isPage: true },
+          { label: builder.newsletter?.subject || "Builder", isPage: true },
         ]}
         rightActions={
           <div className="flex items-center gap-2">

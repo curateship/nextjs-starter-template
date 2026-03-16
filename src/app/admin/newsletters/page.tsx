@@ -200,7 +200,7 @@ export default function NewslettersPage() {
   const sortedNewsletters = [...filteredNewsletters].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
     if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
     if (sortColumn === 'recipients') return (a.total_sent - b.total_sent) * dir
     if (sortColumn === 'opens') {
@@ -412,7 +412,7 @@ export default function NewslettersPage() {
                           <Checkbox
                             checked={selectedIds.has(newsletter.id)}
                             onCheckedChange={() => toggleSelect(newsletter.id)}
-                            aria-label={`Select ${newsletter.name}`}
+                            aria-label={`Select ${newsletter.subject}`}
                           />
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center ml-2">
                             <Mail className="h-6 w-6 text-muted-foreground" />
@@ -421,10 +421,7 @@ export default function NewslettersPage() {
                             href={`/admin/newsletters/${newsletter.id}`}
                             className="hover:opacity-80 transition-opacity"
                           >
-                            <h4 className="font-medium hover:underline">{newsletter.name}</h4>
-                            {newsletter.subject && newsletter.subject !== newsletter.name && (
-                              <p className="text-sm text-muted-foreground">{newsletter.subject}</p>
-                            )}
+                            <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
                           </Link>
                         </div>
                       </div>

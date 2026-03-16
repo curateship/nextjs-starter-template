@@ -126,7 +126,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
     const { data, error: createError } = await createNewsletter({
       siteId: currentSite.id,
-      name: subject.trim(),
       subject: subject.trim(),
       audience_filter: buildAudienceFilter(),
       status,

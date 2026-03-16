@@ -147,7 +147,7 @@ export function PublishNewsletterModal({
           {/* Subject */}
           <div className="flex items-start justify-between py-3">
             <span className="text-sm text-muted-foreground">Subject</span>
-            <span className="text-sm font-medium text-right max-w-[300px]">{newsletter.subject || newsletter.name}</span>
+            <span className="text-sm font-medium text-right max-w-[300px]">{newsletter.subject}</span>
           </div>
 
           {/* Audience */}
