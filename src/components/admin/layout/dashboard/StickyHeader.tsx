@@ -4,12 +4,13 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, type LucideIcon } from "lucide-react"
 
 interface NavLink {
   label: string
   href: string
   active?: boolean
+  icon?: LucideIcon
 }
 
 interface StickyHeaderProps {
@@ -42,18 +43,19 @@ export function StickyHeader({
 
           {/* NavLinks as tab pills */}
           {navLinks && navLinks.length > 0 && (
-            <div className="inline-flex h-10 items-center rounded-md bg-muted p-1 gap-1">
+            <div className="inline-flex h-10 items-center rounded-md gap-1">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
+                    "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
                     link.active
-                      ? "bg-background text-foreground shadow-sm"
-                      : "hover:bg-background/50"
+                      ? "bg-muted text-foreground rounded-md"
+                      : "hover:bg-muted/50 rounded-md"
                   )}
                 >
+                  {link.icon && <link.icon className="h-3.5 w-3.5 mr-1.5" />}
                   {link.label}
                 </Link>
               ))}

@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getAutomationsBySite,
@@ -174,12 +174,12 @@ export default function EmailAutomationsPage() {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters" },
-          { label: "Contacts", href: "/admin/newsletters/contacts" },
-          { label: "Segments", href: "/admin/newsletters/segments" },
-          { label: "Automations", href: "/admin/newsletters/automations", active: true },
-          { label: "Templates", href: "/admin/newsletters/templates" },
-          { label: "Email Health", href: "/admin/newsletters/email-health" },
+          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
+          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
+          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
+          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap, active: true },
+          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
+          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
         ]}
       />
       <AdminLayout>

@@ -28,7 +28,7 @@ const UserPageSettingsModal = dynamic(() =>
   import("@/components/admin/user-page-builder/layout/UserPageSettingsModal").then(m => ({ default: m.UserPageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -323,8 +323,8 @@ export default function UserUserPagesPage({ params }: PageProps) {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Pages", href: `/admin/sites/${siteId}/pages` },
-          { label: "User Pages", href: `/admin/user-pages/${siteId}`, active: true },
+          { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText },
+          { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users, active: true },
         ]}
       />
       <AdminLayout>

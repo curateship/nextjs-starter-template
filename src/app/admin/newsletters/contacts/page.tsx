@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus, Mail, Filter, Zap, FileText, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -501,12 +501,12 @@ export default function ContactsPage() {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters" },
-          { label: "Contacts", href: "/admin/newsletters/contacts", active: true },
-          { label: "Segments", href: "/admin/newsletters/segments" },
-          { label: "Automations", href: "/admin/newsletters/automations" },
-          { label: "Templates", href: "/admin/newsletters/templates" },
-          { label: "Email Health", href: "/admin/newsletters/email-health" },
+          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
+          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users, active: true },
+          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
+          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
+          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
+          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
         ]}
       />
       <AdminLayout>

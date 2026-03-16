@@ -26,7 +26,7 @@ const PageSettingsModal = dynamic(() =>
   import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -308,8 +308,8 @@ export default function SitePagesPage({ params }: PageProps) {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Pages", href: `/admin/sites/${siteId}/pages`, active: true },
-          { label: "User Pages", href: `/admin/user-pages/${siteId}` },
+          { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText, active: true },
+          { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users },
         ]}
       />
       <AdminLayout>

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react"
+import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText } from "lucide-react"
 
 export default function EmailHealthPage() {
   const { currentSite } = useSiteContext()
@@ -51,12 +51,12 @@ export default function EmailHealthPage() {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters" },
-          { label: "Contacts", href: "/admin/newsletters/contacts" },
-          { label: "Segments", href: "/admin/newsletters/segments" },
-          { label: "Automations", href: "/admin/newsletters/automations" },
-          { label: "Templates", href: "/admin/newsletters/templates" },
-          { label: "Email Health", href: "/admin/newsletters/email-health", active: true },
+          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
+          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
+          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
+          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
+          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
+          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield, active: true },
         ]}
       />
       <AdminLayout>
