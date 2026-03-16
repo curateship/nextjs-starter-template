@@ -4,7 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/admin/layout/sidebar/Sidebar"
+import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
+import { PanelLeft } from "lucide-react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,6 +40,8 @@ export function StickyHeader({
   navLinks,
   rightActions,
 }: StickyHeaderProps) {
+  const { toggleSidebar } = useSidebar()
+
   return (
     <header className={cn(
       "sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b bg-sidebar z-50",
@@ -46,7 +49,12 @@ export function StickyHeader({
     )}>
       <div className="flex items-center justify-between flex-1 px-4 h-full">
         <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
+          <button
+            onClick={toggleSidebar}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+          >
+            <PanelLeft className="h-3.5 w-3.5" />
+          </button>
           {breadcrumbItems.length > 0 && (
             <>
               <Separator

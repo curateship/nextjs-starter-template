@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { SidebarTrigger } from "@/components/admin/layout/sidebar/Sidebar"
+import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +22,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
@@ -70,6 +70,7 @@ export function StickyHeader({
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { currentSite } = useSiteContext()
+  const { toggleSidebar } = useSidebar()
 
   const isCategoryBuilder = categories !== undefined
   const currentCategory = categories?.find(c => c.slug === selectedCategory)
@@ -95,7 +96,12 @@ export function StickyHeader({
       )}>
         <div className="flex items-center justify-between flex-1 px-4">
           <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
+            <button
+              onClick={toggleSidebar}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+            >
+              <PanelLeft className="h-3.5 w-3.5" />
+            </button>
             {breadcrumbItems.length > 0 && (
               <>
                 <Separator orientation="vertical" className="mr-2 h-4" />
