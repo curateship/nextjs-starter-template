@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { StickyHeader } from "@/components/admin/event-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -306,12 +306,7 @@ export default function EventsPage() {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Events", isPage: true }
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

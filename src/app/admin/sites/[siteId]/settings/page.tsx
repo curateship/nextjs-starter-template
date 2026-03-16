@@ -540,12 +540,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { label: "Settings", isPage: true },
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
           <AdminPageHeader

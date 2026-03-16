@@ -5,7 +5,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -307,10 +307,6 @@ export default function SitePagesPage({ params }: PageProps) {
   return (
     <>
       <StickyHeader
-        breadcrumbItems={[
-          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { label: "Pages", isPage: true }
-        ]}
         navLinks={[
           { label: "Pages", href: `/admin/sites/${siteId}/pages`, active: true },
           { label: "User Pages", href: `/admin/user-pages/${siteId}` },

@@ -6,7 +6,7 @@ import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
-import { StickyHeader } from "@/components/admin/category-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -219,12 +219,7 @@ export default function CategoriesPage({
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { label: "Categories", isPage: true }
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

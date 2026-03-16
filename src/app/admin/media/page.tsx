@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
@@ -342,12 +342,7 @@ export default function ImagesPage() {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Media Library", isPage: true }
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

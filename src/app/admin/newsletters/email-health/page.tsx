@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,10 +50,6 @@ export default function EmailHealthPage() {
   return (
     <>
       <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Email Health", isPage: true },
-        ]}
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters" },
           { label: "Contacts", href: "/admin/newsletters/contacts" },

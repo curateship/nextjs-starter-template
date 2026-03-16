@@ -39,10 +39,6 @@ export default async function SiteDashboard({ params }: PageProps) {
   return (
     <>
       <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: siteName },
-          { label: "Dashboard", isPage: true }
-        ]}
         rightActions={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">

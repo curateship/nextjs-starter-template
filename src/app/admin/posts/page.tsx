@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
-import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -278,12 +278,7 @@ export default function PostsPage() {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Posts", isPage: true }
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

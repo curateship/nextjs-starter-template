@@ -253,12 +253,7 @@ function OrdersContent() {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Orders", isPage: true },
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

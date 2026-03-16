@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -173,10 +173,6 @@ export default function EmailAutomationsPage() {
   return (
     <>
       <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Automations", isPage: true },
-        ]}
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters" },
           { label: "Contacts", href: "/admin/newsletters/contacts" },

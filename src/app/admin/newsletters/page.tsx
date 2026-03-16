@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -226,10 +226,6 @@ export default function NewslettersPage() {
   return (
     <>
       <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Newsletters", isPage: true },
-        ]}
         navLinks={[
           { label: "Newsletters", href: "/admin/newsletters", active: true },
           { label: "Contacts", href: "/admin/newsletters/contacts" },

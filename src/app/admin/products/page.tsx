@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/product-builder/layout/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -320,12 +320,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { label: "Products", isPage: true }
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader

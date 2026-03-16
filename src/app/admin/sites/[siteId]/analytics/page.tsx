@@ -80,12 +80,7 @@ export default function AnalyticsPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        breadcrumbItems={[
-          { href: `/admin/sites/${siteId}/dashboard`, label: 'Dashboard' },
-          { label: 'Analytics', isPage: true },
-        ]}
-      />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader
