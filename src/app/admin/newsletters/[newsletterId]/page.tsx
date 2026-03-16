@@ -32,6 +32,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
 
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [publishModalOpen, setPublishModalOpen] = useState(false)
   const [saveAsTemplateOpen, setSaveAsTemplateOpen] = useState(false)
@@ -224,6 +225,8 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
 
           </div>
         }
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
 
       {/* Drip progress / paused alert bar */}
@@ -278,15 +281,17 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           onSubjectChange={builder.setSubject}
         />
 
-        <BlockListPanel
-          blocks={builder.blocks}
-          selectedBlock={builder.selectedBlock}
-          onSelectBlock={builder.setSelectedBlock}
-          onDeleteBlock={builder.handleDeleteBlock}
-          onReorderBlocks={builder.handleReorderBlocks}
-          onPreview={() => builder.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            blocks={builder.blocks}
+            selectedBlock={builder.selectedBlock}
+            onSelectBlock={builder.setSelectedBlock}
+            onDeleteBlock={builder.handleDeleteBlock}
+            onReorderBlocks={builder.handleReorderBlocks}
+            onPreview={() => builder.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+          />
+        )}
       </div>
 
       <BlockSelectionModal

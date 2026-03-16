@@ -28,6 +28,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const initialProduct = searchParams.get('product') || ''
   const [selectedProduct, setSelectedProduct] = useState(initialProduct)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
   
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -229,6 +230,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -259,17 +262,19 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onBack={() => builderState.setSelectedBlock(null)}
         />
 
-        <BlockListPanel
-          currentProduct={currentProduct}
-          selectedBlock={builderState.selectedBlock}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewProduct={() => builderState.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={null}
-          blocksLoading={blocksLoading}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentProduct={currentProduct}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewProduct={() => builderState.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={blocksLoading}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

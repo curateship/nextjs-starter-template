@@ -28,6 +28,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const initialEvent = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(initialEvent)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -216,6 +217,8 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -244,17 +247,19 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onBack={() => builderState.setSelectedBlock(null)}
         />
 
-        <BlockListPanel
-          currentEvent={currentEvent}
-          selectedBlock={builderState.selectedBlock}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewEvent={() => builderState.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={null}
-          blocksLoading={blocksLoading}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentEvent={currentEvent}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewEvent={() => builderState.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={blocksLoading}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

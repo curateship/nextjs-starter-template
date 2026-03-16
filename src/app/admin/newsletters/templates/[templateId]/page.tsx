@@ -36,6 +36,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [saveMessage, setSaveMessage] = useState("")
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
 
@@ -251,6 +252,8 @@ export default function TemplateEditorPage({ params }: PageProps) {
             </Button>
           </div>
         }
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -263,15 +266,17 @@ export default function TemplateEditorPage({ params }: PageProps) {
           siteId={currentSite?.id || ''}
         />
 
-        <BlockListPanel
-          blocks={blockEditor.blocks}
-          selectedBlock={blockEditor.selectedBlock}
-          onSelectBlock={blockEditor.setSelectedBlock}
-          onDeleteBlock={blockEditor.handleDeleteBlock}
-          onReorderBlocks={blockEditor.handleReorderBlocks}
-          onPreview={() => blockEditor.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            blocks={blockEditor.blocks}
+            selectedBlock={blockEditor.selectedBlock}
+            onSelectBlock={blockEditor.setSelectedBlock}
+            onDeleteBlock={blockEditor.handleDeleteBlock}
+            onReorderBlocks={blockEditor.handleReorderBlocks}
+            onPreview={() => blockEditor.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+          />
+        )}
       </div>
 
       <BlockSelectionModal

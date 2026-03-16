@@ -32,7 +32,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const initialPost = searchParams.get('post') || ''
   const [selectedPost, setSelectedPost] = useState(initialPost)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  
+  const [blockListOpen, setBlockListOpen] = useState(true)
+
   // Redirect when site changes in sidebar
   useEffect(() => {
     if (currentSite && currentSite.id !== siteId) {
@@ -233,6 +234,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -257,23 +260,25 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onBack={() => builderState.setSelectedBlock(null)}
         />
 
-        <BlockListPanel
-          currentPost={currentPost}
-          selectedBlock={builderState.selectedBlock as any}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewPost={() => builderState.setSelectedBlock(null)}
-          onCleanupCorrupted={builderState.handleCleanupCorrupted}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={null}
-          blocksLoading={loading}
-          postData={{
-            title: currentPostData?.title,
-            meta_description: currentPostData?.meta_description || undefined,
-            excerpt: currentPostData?.excerpt || undefined
-          }}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentPost={currentPost}
+            selectedBlock={builderState.selectedBlock as any}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewPost={() => builderState.setSelectedBlock(null)}
+            onCleanupCorrupted={builderState.handleCleanupCorrupted}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={loading}
+            postData={{
+              title: currentPostData?.title,
+              meta_description: currentPostData?.meta_description || undefined,
+              excerpt: currentPostData?.excerpt || undefined
+            }}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

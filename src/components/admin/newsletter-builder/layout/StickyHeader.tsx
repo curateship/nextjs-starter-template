@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
-import { PanelLeft, Home } from "lucide-react"
+import { PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -31,6 +31,8 @@ interface StickyHeaderProps {
   breadcrumbItems?: BreadcrumbItem[]
   navLinks?: NavLink[]
   rightActions?: React.ReactNode
+  blockListOpen?: boolean
+  onToggleBlockList?: () => void
 }
 
 export function StickyHeader({
@@ -38,6 +40,8 @@ export function StickyHeader({
   breadcrumbItems = [],
   navLinks,
   rightActions,
+  blockListOpen,
+  onToggleBlockList,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
 
@@ -106,9 +110,17 @@ export function StickyHeader({
           </div>
         )}
 
-        {rightActions && (
+        {(rightActions || onToggleBlockList) && (
           <div className="flex items-center gap-2">
             {rightActions}
+            {onToggleBlockList && (
+              <button
+                onClick={onToggleBlockList}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+              >
+                {blockListOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5" />}
+              </button>
+            )}
           </div>
         )}
       </div>

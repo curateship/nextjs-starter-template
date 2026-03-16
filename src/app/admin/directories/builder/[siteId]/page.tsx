@@ -28,6 +28,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const initialDirectory = searchParams.get('directory') || ''
   const [selectedDirectory, setSelectedDirectory] = useState(initialDirectory)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -216,6 +217,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -244,17 +247,19 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onBack={() => builderState.setSelectedBlock(null)}
         />
 
-        <BlockListPanel
-          currentDirectory={currentDirectory}
-          selectedBlock={builderState.selectedBlock}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewDirectory={() => builderState.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={null}
-          blocksLoading={blocksLoading}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentDirectory={currentDirectory}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewDirectory={() => builderState.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={blocksLoading}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

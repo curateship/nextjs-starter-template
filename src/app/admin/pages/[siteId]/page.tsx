@@ -29,6 +29,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const initialPage = searchParams.get('page') || 'home'
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
 
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
@@ -200,6 +201,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
         onPreviewPage={() => builderState.setSelectedBlock(null)}
         site={site}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -218,17 +221,19 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           onSelectBlock={builderState.setSelectedBlock}
         />
 
-        <BlockListPanel
-          currentPage={currentPage}
-          selectedBlock={builderState.selectedBlock}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewPage={() => builderState.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={builderState.deleting}
-          blocksLoading={blocksLoading}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentPage={currentPage}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewPage={() => builderState.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={builderState.deleting}
+            blocksLoading={blocksLoading}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

@@ -28,6 +28,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
 
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
 
   const builder = useAutomationEmailBuilder({ stepId, automationId })
 
@@ -175,6 +176,8 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
             </Button>
           </div>
         }
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -189,14 +192,16 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
           onSubjectChange={builder.setSubject}
         />
 
-        <BlockListPanel
-          blocks={builder.blocks}
-          selectedBlock={builder.selectedBlock}
-          onSelectBlock={builder.setSelectedBlock}
-          onDeleteBlock={builder.handleDeleteBlock}
-          onReorderBlocks={builder.handleReorderBlocks}
-          onPreview={() => builder.setSelectedBlock(null)}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            blocks={builder.blocks}
+            selectedBlock={builder.selectedBlock}
+            onSelectBlock={builder.setSelectedBlock}
+            onDeleteBlock={builder.handleDeleteBlock}
+            onReorderBlocks={builder.handleReorderBlocks}
+            onPreview={() => builder.setSelectedBlock(null)}
+          />
+        )}
       </div>
 
       <BlockSelectionModal

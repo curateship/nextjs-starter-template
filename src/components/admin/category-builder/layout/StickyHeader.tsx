@@ -21,7 +21,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft, Home } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
@@ -48,6 +48,8 @@ interface StickyHeaderProps {
   onPublish?: () => void
   isPublishing?: boolean
   site?: SiteWithTheme | null
+  blockListOpen?: boolean
+  onToggleBlockList?: () => void
 }
 
 export function StickyHeader({
@@ -64,6 +66,8 @@ export function StickyHeader({
   onPublish,
   isPublishing = false,
   site,
+  blockListOpen,
+  onToggleBlockList,
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -246,6 +250,14 @@ export function StickyHeader({
                 >
                   {isPublishing ? 'Publishing...' : currentCategory?.is_published ? 'Published' : 'Publish'}
                 </Button>
+              )}
+              {onToggleBlockList && (
+                <button
+                  onClick={onToggleBlockList}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+                >
+                  {blockListOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5" />}
+                </button>
               )}
             </div>
           )}

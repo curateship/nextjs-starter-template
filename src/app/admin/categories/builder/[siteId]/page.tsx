@@ -28,6 +28,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
 
   // Sync state with URL params whenever they change
   useEffect(() => {
@@ -199,6 +200,8 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         onPublish={handlePublish}
         isPublishing={isPublishing}
         site={site}
+        blockListOpen={blockListOpen}
+        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -227,17 +230,19 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onBack={() => builderState.setSelectedBlock(null)}
         />
 
-        <BlockListPanel
-          currentCategory={currentCategory}
-          selectedBlock={builderState.selectedBlock}
-          onSelectBlock={builderState.setSelectedBlock}
-          onDeleteBlock={builderState.handleDeleteBlock}
-          onReorderBlocks={builderState.handleReorderBlocks}
-          onPreviewCategory={() => builderState.setSelectedBlock(null)}
-          onAddBlock={() => setBlockModalOpen(true)}
-          deleting={null}
-          blocksLoading={blocksLoading}
-        />
+        {blockListOpen && (
+          <BlockListPanel
+            currentCategory={currentCategory}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onDeleteBlock={builderState.handleDeleteBlock}
+            onReorderBlocks={builderState.handleReorderBlocks}
+            onPreviewCategory={() => builderState.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={blocksLoading}
+          />
+        )}
 
         <BlockSelectionModal
           open={blockModalOpen}

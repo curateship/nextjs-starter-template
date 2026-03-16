@@ -28,7 +28,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, Eye, ExternalLink, PanelLeft, Home } from "lucide-react"
+import { Save, Plus, Settings, CheckCircle, ChevronDown, Eye, ExternalLink, PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
@@ -62,6 +62,8 @@ interface StickyHeaderProps {
   onSave?: () => void
   onPreviewPage?: () => void
   site?: SiteWithTheme | null
+  blockListOpen?: boolean
+  onToggleBlockList?: () => void
 }
 
 export function StickyHeader({
@@ -77,7 +79,9 @@ export function StickyHeader({
   isSaving = false,
   onSave,
   onPreviewPage,
-  site
+  site,
+  blockListOpen,
+  onToggleBlockList,
 }: StickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -274,6 +278,14 @@ export function StickyHeader({
                 <Save className="w-4 h-4 mr-2" />
                 {isSaving ? 'Saving...' : 'Save'}
               </Button>
+              {onToggleBlockList && (
+                <button
+                  onClick={onToggleBlockList}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+                >
+                  {blockListOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5" />}
+                </button>
+              )}
             </div>
           )}
         </div>
