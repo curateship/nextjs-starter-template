@@ -104,19 +104,21 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
       onClick={isInteractive ? handleClick : undefined}
       onClickCapture={isInteractive ? handleClickCapture : undefined}
     >
+      <style>{`
+        .preview-container [data-block-type="navigation"] {
+          position: relative !important;
+          width: 100% !important;
+        }
+        .preview-container .pt-16 {
+          padding-top: 0 !important;
+        }
+      `}</style>
       {isInteractive && (
         <style>{`
           .preview-container [data-block-id],
           .preview-container [data-block-type] {
             cursor: pointer;
             position: relative;
-          }
-          .preview-container [data-block-type="navigation"] {
-            position: relative !important;
-            width: 100% !important;
-          }
-          .preview-container .pt-16 {
-            padding-top: 0 !important;
           }
           .preview-container .block-hovered::after {
             content: '';
@@ -141,7 +143,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
           {blocksLoading ? (
             <div>
               {/* Navigation skeleton */}
-              <div className="flex items-center gap-6 px-8 py-4 border-b">
+              <div className="flex items-center gap-6 px-8 py-4">
                 <div className="h-7 w-7 bg-muted rounded animate-pulse" />
                 <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
                 <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
@@ -180,7 +182,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
               </div>
 
               {/* Divider */}
-              <div className="max-w-[1152px] mx-auto px-10"><div className="border-t" /></div>
+              <div className="max-w-[1152px] mx-auto px-10"><div className="h-px bg-muted" /></div>
 
               {/* Listing section skeleton — title + subtitle + 3 product cards */}
               <div className="max-w-[1152px] mx-auto px-10 py-14 space-y-6">
@@ -206,7 +208,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
               </div>
 
               {/* Footer skeleton */}
-              <div className="border-t px-8 py-8">
+              <div className="px-8 py-8">
                 <div className="flex items-center justify-between">
                   <div className="h-4 bg-muted/60 rounded animate-pulse w-40" />
                   <div className="flex gap-4">

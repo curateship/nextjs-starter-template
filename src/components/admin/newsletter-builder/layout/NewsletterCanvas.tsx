@@ -112,7 +112,7 @@ export function NewsletterCanvas({
         }
       `}</style>
       <div
-        className="mx-auto bg-white shadow-sm rounded-sm transition-all duration-300"
+        className="mx-auto bg-white shadow-sm rounded-sm overflow-hidden transition-all duration-300"
         style={{ maxWidth: previewWidth }}
       >
         {/* Email subject */}

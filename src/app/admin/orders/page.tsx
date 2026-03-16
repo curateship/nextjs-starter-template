@@ -11,6 +11,7 @@ import {
   List,
   Magnet,
   CreditCard,
+  Package,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -253,7 +254,12 @@ function OrdersContent() {
 
   return (
     <>
-      <StickyHeader />
+      <StickyHeader
+        navLinks={[
+          { label: "Products", href: "/admin/products", icon: Package },
+          { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: true },
+        ]}
+      />
       <AdminLayout>
         <div className="w-full">
           <AdminPageHeader
