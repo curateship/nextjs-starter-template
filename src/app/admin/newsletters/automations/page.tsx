@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getAutomationsBySite,
@@ -190,7 +190,7 @@ export default function EmailAutomationsPage() {
         <div className="w-full">
           <AdminPageHeader
             title="Email Automations"
-            primaryAction={{ label: "Create Automation", onClick: () => setCreateOpen(true) }}
+            primaryAction={{ label: "Create Automation", icon: <Plus className="h-4 w-4 mr-2" />, onClick: () => setCreateOpen(true) }}
             extraContent={
               <div className="flex items-center gap-3">
                 {selectedIds.size > 0 && (
@@ -201,10 +201,10 @@ export default function EmailAutomationsPage() {
                 )}
                 <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
-                    <TabsTrigger value="paused">Paused ({statusCounts.paused})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="active"><Play className="h-3.5 w-3.5 mr-1.5" />Active ({statusCounts.active})</TabsTrigger>
+                    <TabsTrigger value="paused"><Pause className="h-3.5 w-3.5 mr-1.5" />Paused ({statusCounts.paused})</TabsTrigger>
+                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft ({statusCounts.draft})</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

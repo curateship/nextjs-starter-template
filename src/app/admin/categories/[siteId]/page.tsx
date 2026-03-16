@@ -15,7 +15,7 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getCategoriesWithCountsAction, deleteCategoriesAction, type Category } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const CreateCategoryModal = dynamic(() =>
@@ -232,6 +232,7 @@ export default function CategoriesPage({
             subtitle="Organize your content with hierarchical categories"
             primaryAction={{
               label: "Create Category",
+              icon: <Plus className="h-4 w-4 mr-2" />,
               onClick: () => setShowCreateModal(true)
             }}
             extraContent={
@@ -273,9 +274,9 @@ export default function CategoriesPage({
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published"><Globe className="h-3.5 w-3.5 mr-1.5" />Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft ({statusCounts.draft})</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

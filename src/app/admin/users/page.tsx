@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
+import { Plus, List, Shield, Pencil, User, UserX } from "lucide-react"
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserListItem[]>([])
@@ -86,16 +87,17 @@ export default function UsersPage() {
           title="Users"
           primaryAction={{
             label: "Add User",
+            icon: <Plus className="h-4 w-4 mr-2" />,
             href: "/admin/users/new"
           }}
           extraContent={
             <Tabs defaultValue="all">
               <TabsList className="gap-1">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="admin">Admin</TabsTrigger>
-                <TabsTrigger value="editor">Editor</TabsTrigger>
-                <TabsTrigger value="user">User</TabsTrigger>
-                <TabsTrigger value="guest">Guest</TabsTrigger>
+                <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All</TabsTrigger>
+                <TabsTrigger value="admin"><Shield className="h-3.5 w-3.5 mr-1.5" />Admin</TabsTrigger>
+                <TabsTrigger value="editor"><Pencil className="h-3.5 w-3.5 mr-1.5" />Editor</TabsTrigger>
+                <TabsTrigger value="user"><User className="h-3.5 w-3.5 mr-1.5" />User</TabsTrigger>
+                <TabsTrigger value="guest"><UserX className="h-3.5 w-3.5 mr-1.5" />Guest</TabsTrigger>
               </TabsList>
             </Tabs>
           }

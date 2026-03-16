@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -571,14 +571,14 @@ export default function ContactsPage() {
                 )}
                 <Tabs value={filterSource} onValueChange={(v) => { setFilterSource(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({sourceCounts.all})</TabsTrigger>
-                    <TabsTrigger value="lead_magnet">Lead Magnets ({sourceCounts.lead_magnet})</TabsTrigger>
-                    <TabsTrigger value="paid_purchase">Purchases ({sourceCounts.paid_purchase})</TabsTrigger>
-                    <TabsTrigger value="import">Imported ({sourceCounts.import})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({sourceCounts.all})</TabsTrigger>
+                    <TabsTrigger value="lead_magnet"><Magnet className="h-3.5 w-3.5 mr-1.5" />Lead Magnets ({sourceCounts.lead_magnet})</TabsTrigger>
+                    <TabsTrigger value="paid_purchase"><ShoppingCart className="h-3.5 w-3.5 mr-1.5" />Purchases ({sourceCounts.paid_purchase})</TabsTrigger>
+                    <TabsTrigger value="import"><FileDown className="h-3.5 w-3.5 mr-1.5" />Imported ({sourceCounts.import})</TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <Button onClick={() => fileInputRef.current?.click()}>Import CSV</Button>
-                <Button onClick={() => setAddModalOpen(true)}>Add Contact</Button>
+                <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Contact</Button>
               </div>
             }
           />

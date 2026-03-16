@@ -6,7 +6,7 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-la
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -143,16 +143,17 @@ export default function SitesPage() {
           title="Sites"
           primaryAction={{
             label: "Create Site",
+            icon: <Plus className="h-4 w-4 mr-2" />,
             href: "/admin/sites/new"
           }}
           extraContent={
             <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
               <TabsList className="gap-1">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="inactive">Inactive</TabsTrigger>
-                <TabsTrigger value="draft">Draft</TabsTrigger>
-                <TabsTrigger value="suspended">Suspended</TabsTrigger>
+                <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All</TabsTrigger>
+                <TabsTrigger value="active"><CircleCheck className="h-3.5 w-3.5 mr-1.5" />Active</TabsTrigger>
+                <TabsTrigger value="inactive"><CircleX className="h-3.5 w-3.5 mr-1.5" />Inactive</TabsTrigger>
+                <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft</TabsTrigger>
+                <TabsTrigger value="suspended"><Ban className="h-3.5 w-3.5 mr-1.5" />Suspended</TabsTrigger>
               </TabsList>
             </Tabs>
           }

@@ -27,7 +27,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -245,6 +245,7 @@ export default function NewslettersPage() {
             title="Newsletters"
             primaryAction={{
               label: "Create Newsletter",
+              icon: <Plus className="h-4 w-4 mr-2" />,
               onClick: () => setShowCreateDialog(true),
             }}
             extraContent={
@@ -271,9 +272,9 @@ export default function NewslettersPage() {
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="draft">Drafts ({statusCounts.draft})</TabsTrigger>
-                    <TabsTrigger value="sent">Sent ({statusCounts.sent})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Drafts ({statusCounts.draft})</TabsTrigger>
+                    <TabsTrigger value="sent"><Send className="h-3.5 w-3.5 mr-1.5" />Sent ({statusCounts.sent})</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

@@ -35,7 +35,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CheckCircle, Eye, EyeOff, Loader2, Trash2, MoreHorizontal, Edit, Paintbrush, Pencil } from "lucide-react"
+import { CheckCircle, Eye, EyeOff, Trash2, MoreHorizontal, Edit, Paintbrush, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
@@ -262,8 +262,19 @@ const IntegrationTab = forwardRef<IntegrationTabHandle, IntegrationTabProps>(
 
     if (loading) {
       return (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="space-y-3">
+          {entries.map((entry) => (
+            <Card key={entry.type}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 bg-muted rounded animate-pulse w-32" />
+                    <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
       )
     }

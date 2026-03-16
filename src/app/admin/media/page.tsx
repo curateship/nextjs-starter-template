@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/media-library/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
@@ -354,6 +354,7 @@ export default function ImagesPage() {
             title="Media Library"
             primaryAction={{
               label: isUploading ? "Uploading..." : "Upload Media",
+              icon: <Upload className="h-4 w-4 mr-2" />,
               onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
             }}
             extraContent={
@@ -376,9 +377,9 @@ export default function ImagesPage() {
                 {/* Filter Tabs */}
                 <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({typeCounts.all})</TabsTrigger>
-                    <TabsTrigger value="image">Images ({typeCounts.image})</TabsTrigger>
-                    <TabsTrigger value="video">Videos ({typeCounts.video})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({typeCounts.all})</TabsTrigger>
+                    <TabsTrigger value="image"><ImageIcon className="h-3.5 w-3.5 mr-1.5" />Images ({typeCounts.image})</TabsTrigger>
+                    <TabsTrigger value="video"><VideoIcon className="h-3.5 w-3.5 mr-1.5" />Videos ({typeCounts.video})</TabsTrigger>
                   </TabsList>
                 </Tabs>
 

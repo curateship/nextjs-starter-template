@@ -27,7 +27,7 @@ const ProductSettingsModal = dynamic(() =>
   import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
@@ -332,6 +332,7 @@ export default function ProductsPage() {
             title="Products"
             primaryAction={{
               label: "Create Product",
+              icon: <Plus className="h-4 w-4 mr-2" />,
               onClick: () => setShowCreateDialog(true)
             }}
             extraContent={
@@ -358,9 +359,9 @@ export default function ProductsPage() {
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published"><Globe className="h-3.5 w-3.5 mr-1.5" />Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft ({statusCounts.draft})</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

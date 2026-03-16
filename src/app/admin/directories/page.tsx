@@ -28,7 +28,7 @@ const DirectorySettingsModal = dynamic(() =>
   import("@/components/admin/directory-builder/layout/DirectorySettingsModal").then(m => ({ default: m.DirectorySettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -310,6 +310,7 @@ export default function DirectoriesPage() {
             title="Directory"
             primaryAction={{
               label: "Create Item",
+              icon: <Plus className="h-4 w-4 mr-2" />,
               onClick: () => setShowCreateDialog(true)
             }}
             extraContent={
@@ -336,9 +337,9 @@ export default function DirectoriesPage() {
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()); setCurrentPage(1) }}>
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
+                    <TabsTrigger value="published"><Globe className="h-3.5 w-3.5 mr-1.5" />Published ({statusCounts.published})</TabsTrigger>
+                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft ({statusCounts.draft})</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

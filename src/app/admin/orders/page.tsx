@@ -8,6 +8,9 @@ import {
   ChevronsUpDown,
   Trash2,
   ShoppingCart,
+  List,
+  Magnet,
+  CreditCard,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -291,12 +294,12 @@ function OrdersContent() {
                   }}
                 >
                   <TabsList className="gap-1">
-                    <TabsTrigger value="all">All ({tabCounts.all})</TabsTrigger>
+                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({tabCounts.all})</TabsTrigger>
                     <TabsTrigger value="lead_magnet">
-                      Lead Magnets ({tabCounts.lead_magnet})
+                      <Magnet className="h-3.5 w-3.5 mr-1.5" />Lead Magnets ({tabCounts.lead_magnet})
                     </TabsTrigger>
                     <TabsTrigger value="paid_purchase">
-                      Paid ({tabCounts.paid_purchase})
+                      <CreditCard className="h-3.5 w-3.5 mr-1.5" />Paid ({tabCounts.paid_purchase})
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
