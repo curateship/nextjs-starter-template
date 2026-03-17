@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow, ArrowUp, ArrowDown, ChevronsUpDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type WorkflowTrigger = 'manual' | 'schedule' | 'webhook' | 'event'
@@ -126,11 +126,13 @@ export default function AutomationsPage() {
             title="Automations"
             primaryAction={{
               label: "New Workflow",
+              icon: <Plus className="h-4 w-4 sm:mr-2" />,
+              mobileIconOnly: true,
               onClick: () => {},
             }}
             extraContent={
               <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | WorkflowStatus)}>
-                <TabsList className="gap-1">
+                <TabsList className="h-auto p-1 gap-1">
                   <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
                   <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
                   <TabsTrigger value="paused">Paused ({statusCounts.paused})</TabsTrigger>

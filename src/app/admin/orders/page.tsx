@@ -275,13 +275,13 @@ function OrdersContent() {
                   >
                     {deleting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Deleting...
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
+                        <span className="hidden sm:inline">Deleting...</span>
                       </>
                     ) : (
                       <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedIds.size})
+                        <Trash2 className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                       </>
                     )}
                   </Button>
@@ -294,13 +294,13 @@ function OrdersContent() {
                     setSelectedIds(new Set())
                   }}
                 >
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({tabCounts.all})</TabsTrigger>
-                    <TabsTrigger value="lead_magnet">
-                      <Magnet className="h-3.5 w-3.5 mr-1.5" />Lead Magnets ({tabCounts.lead_magnet})
+                  <TabsList className="h-auto p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({tabCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="lead_magnet" className="px-2 sm:px-3">
+                      <Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({tabCounts.lead_magnet})</span>
                     </TabsTrigger>
-                    <TabsTrigger value="paid_purchase">
-                      <CreditCard className="h-3.5 w-3.5 mr-1.5" />Paid ({tabCounts.paid_purchase})
+                    <TabsTrigger value="paid_purchase" className="px-2 sm:px-3">
+                      <CreditCard className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paid ({tabCounts.paid_purchase})</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>

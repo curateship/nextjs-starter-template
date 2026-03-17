@@ -285,7 +285,8 @@ export default function PostsPage() {
             title="Posts"
             primaryAction={{
               label: "Create Post",
-              icon: <Plus className="h-4 w-4 mr-2" />,
+              icon: <Plus className="h-4 w-4 sm:mr-2" />,
+              mobileIconOnly: true,
               onClick: () => setShowCreateDialog(true)
             }}
             extraContent={
@@ -299,22 +300,22 @@ export default function PostsPage() {
                   >
                     {massDeleting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Deleting...
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2"></div>
+                        <span className="hidden sm:inline">Deleting...</span>
                       </>
                     ) : (
                       <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedPostIds.size})
+                        <Trash2 className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Delete ({selectedPostIds.size})</span>
                       </>
                     )}
                   </Button>
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setCurrentPage(1) }}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="published"><Globe className="h-3.5 w-3.5 mr-1.5" />Published ({statusCounts.published})</TabsTrigger>
-                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Draft ({statusCounts.draft})</TabsTrigger>
+                  <TabsList className="h-auto p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
+                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

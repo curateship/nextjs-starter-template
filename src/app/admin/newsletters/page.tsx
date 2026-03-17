@@ -241,7 +241,8 @@ export default function NewslettersPage() {
             title="Newsletters"
             primaryAction={{
               label: "Create Newsletter",
-              icon: <Plus className="h-4 w-4 mr-2" />,
+              icon: <Plus className="h-4 w-4 sm:mr-2" />,
+              mobileIconOnly: true,
               onClick: () => setShowCreateDialog(true),
             }}
             extraContent={
@@ -255,22 +256,22 @@ export default function NewslettersPage() {
                   >
                     {massDeleting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Deleting...
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
+                        <span className="hidden sm:inline">Deleting...</span>
                       </>
                     ) : (
                       <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedIds.size})
+                        <Trash2 className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                       </>
                     )}
                   </Button>
                 )}
                 <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setCurrentPage(1) }}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="draft"><FileEdit className="h-3.5 w-3.5 mr-1.5" />Drafts ({statusCounts.draft})</TabsTrigger>
-                    <TabsTrigger value="sent"><Send className="h-3.5 w-3.5 mr-1.5" />Sent ({statusCounts.sent})</TabsTrigger>
+                  <TabsList className="h-auto p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Drafts ({statusCounts.draft})</span></TabsTrigger>
+                    <TabsTrigger value="sent" className="px-2 sm:px-3"><Send className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sent ({statusCounts.sent})</span></TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>

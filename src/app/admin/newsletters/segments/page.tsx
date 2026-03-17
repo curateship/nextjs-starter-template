@@ -236,13 +236,13 @@ export default function SegmentsPage() {
                   >
                     {massDeleting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Deleting...
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
+                        <span className="hidden sm:inline">Deleting...</span>
                       </>
                     ) : (
                       <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete ({selectedIds.size})
+                        <Trash2 className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                       </>
                     )}
                   </Button>

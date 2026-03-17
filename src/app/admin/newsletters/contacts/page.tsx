@@ -514,7 +514,7 @@ export default function ContactsPage() {
           <AdminPageHeader
             title="Contacts"
             extraContent={
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
                   <>
                     {segments.length > 0 && (
@@ -548,13 +548,13 @@ export default function ContactsPage() {
                     >
                       {massDeleting ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                          Deleting...
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
+                          <span className="hidden sm:inline">Deleting...</span>
                         </>
                       ) : (
                         <>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete ({selectedIds.size})
+                          <Trash2 className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                         </>
                       )}
                     </Button>
@@ -566,15 +566,16 @@ export default function ContactsPage() {
                   </div>
                 )}
                 <Tabs value={filterSource} onValueChange={(v) => { setFilterSource(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({sourceCounts.all})</TabsTrigger>
-                    <TabsTrigger value="lead_magnet"><Magnet className="h-3.5 w-3.5 mr-1.5" />Lead Magnets ({sourceCounts.lead_magnet})</TabsTrigger>
-                    <TabsTrigger value="paid_purchase"><ShoppingCart className="h-3.5 w-3.5 mr-1.5" />Purchases ({sourceCounts.paid_purchase})</TabsTrigger>
-                    <TabsTrigger value="import"><FileDown className="h-3.5 w-3.5 mr-1.5" />Imported ({sourceCounts.import})</TabsTrigger>
+                  <TabsList className="h-auto p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({sourceCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="lead_magnet" className="px-2 sm:px-3"><Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({sourceCounts.lead_magnet})</span></TabsTrigger>
+                    <TabsTrigger value="paid_purchase" className="px-2 sm:px-3"><ShoppingCart className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Purchases ({sourceCounts.paid_purchase})</span></TabsTrigger>
+                    <TabsTrigger value="import" className="px-2 sm:px-3"><FileDown className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Imported ({sourceCounts.import})</span></TabsTrigger>
                   </TabsList>
                 </Tabs>
-                <Button onClick={() => fileInputRef.current?.click()}>Import CSV</Button>
-                <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4 mr-2" />Add Contact</Button>
+                <div className="w-1 sm:w-0" />
+                <Button className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2" onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Import CSV</span></Button>
+                <Button className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2" onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Add Contact</span></Button>
               </div>
             }
           />

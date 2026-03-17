@@ -87,17 +87,18 @@ export default function UsersPage() {
           title="Users"
           primaryAction={{
             label: "Add User",
-            icon: <Plus className="h-4 w-4 mr-2" />,
+            icon: <Plus className="h-4 w-4 sm:mr-2" />,
+            mobileIconOnly: true,
             href: "/admin/users/new"
           }}
           extraContent={
             <Tabs defaultValue="all">
-              <TabsList className="gap-1">
-                <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All</TabsTrigger>
-                <TabsTrigger value="admin"><Shield className="h-3.5 w-3.5 mr-1.5" />Admin</TabsTrigger>
-                <TabsTrigger value="editor"><Pencil className="h-3.5 w-3.5 mr-1.5" />Editor</TabsTrigger>
-                <TabsTrigger value="user"><User className="h-3.5 w-3.5 mr-1.5" />User</TabsTrigger>
-                <TabsTrigger value="guest"><UserX className="h-3.5 w-3.5 mr-1.5" />Guest</TabsTrigger>
+              <TabsList className="h-auto p-1 gap-1">
+                <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
+                <TabsTrigger value="admin" className="px-2 sm:px-3"><Shield className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Admin</span></TabsTrigger>
+                <TabsTrigger value="editor" className="px-2 sm:px-3"><Pencil className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Editor</span></TabsTrigger>
+                <TabsTrigger value="user" className="px-2 sm:px-3"><User className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">User</span></TabsTrigger>
+                <TabsTrigger value="guest" className="px-2 sm:px-3"><UserX className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Guest</span></TabsTrigger>
               </TabsList>
             </Tabs>
           }

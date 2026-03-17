@@ -95,7 +95,7 @@ export default function AnalyticsPage({ params }: PageProps) {
                   {period === '30d' && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                 </span>
                 <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-                  <TabsList>
+                  <TabsList className="h-auto p-1">
                     {PERIODS.map(p => (
                       <TabsTrigger key={p.id} value={p.id}>{p.label}</TabsTrigger>
                     ))}

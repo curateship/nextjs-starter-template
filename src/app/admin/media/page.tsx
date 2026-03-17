@@ -349,7 +349,8 @@ export default function ImagesPage() {
             title="Media Library"
             primaryAction={{
               label: isUploading ? "Uploading..." : "Upload Media",
-              icon: <Upload className="h-4 w-4 mr-2" />,
+              icon: <Upload className="h-4 w-4 sm:mr-2" />,
+              mobileIconOnly: true,
               onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
             }}
             extraContent={
@@ -363,18 +364,18 @@ export default function ImagesPage() {
                       onClick={handleBulkDelete}
                       disabled={isDeleting}
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      {isDeleting ? 'Deleting...' : `Delete ${selectedIds.size}`}
+                      <Trash2 className="w-4 h-4 sm:mr-2" />
+                      {isDeleting ? <span className="hidden sm:inline">Deleting...</span> : <span className="hidden sm:inline">Delete {selectedIds.size}</span>}
                     </Button>
                   </>
                 )}
 
                 {/* Filter Tabs */}
                 <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
-                  <TabsList className="gap-1">
-                    <TabsTrigger value="all"><List className="h-3.5 w-3.5 mr-1.5" />All ({typeCounts.all})</TabsTrigger>
-                    <TabsTrigger value="image"><ImageIcon className="h-3.5 w-3.5 mr-1.5" />Images ({typeCounts.image})</TabsTrigger>
-                    <TabsTrigger value="video"><VideoIcon className="h-3.5 w-3.5 mr-1.5" />Videos ({typeCounts.video})</TabsTrigger>
+                  <TabsList className="h-auto p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({typeCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="image" className="px-2 sm:px-3"><ImageIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Images ({typeCounts.image})</span></TabsTrigger>
+                    <TabsTrigger value="video" className="px-2 sm:px-3"><VideoIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Videos ({typeCounts.video})</span></TabsTrigger>
                   </TabsList>
                 </Tabs>
 

@@ -15,6 +15,7 @@ interface AdminPageHeaderProps {
     variant?: "default" | "outline" | "destructive"
     disabled?: boolean
     icon?: React.ReactNode
+    mobileIconOnly?: boolean
   }
   secondaryAction?: {
     label: string
@@ -23,6 +24,7 @@ interface AdminPageHeaderProps {
     variant?: "default" | "outline" | "destructive"
     disabled?: boolean
     icon?: React.ReactNode
+    mobileIconOnly?: boolean
   }
   extraContent?: React.ReactNode
 }
@@ -36,7 +38,7 @@ export function AdminPageHeader({
   extraContent,
 }: AdminPageHeaderProps) {
   return (
-    <div className="flex items-center justify-between my-6 mx-6">
+    <div className="flex items-center justify-between my-6 mx-4">
       <div className="flex items-center space-x-4">
         {backUrl && (
           <Button variant="ghost" size="sm" className="p-2" asChild>
@@ -66,17 +68,21 @@ export function AdminPageHeader({
             >
               {secondaryAction.href ? (
                 <Link href={secondaryAction.href}>
-                  {secondaryAction.icon}{secondaryAction.label}
+                  {secondaryAction.icon}
+                  {secondaryAction.mobileIconOnly ? <span className="hidden sm:inline">{secondaryAction.label}</span> : secondaryAction.label}
                 </Link>
               ) : (
-                <>{secondaryAction.icon}{secondaryAction.label}</>
+                <>
+                  {secondaryAction.icon}
+                  {secondaryAction.mobileIconOnly ? <span className="hidden sm:inline">{secondaryAction.label}</span> : secondaryAction.label}
+                </>
               )}
             </Button>
           )}
-          
+
           {primaryAction && (
             <Button
-              className="ml-2"
+              className={primaryAction.mobileIconOnly ? "ml-2 h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2" : "ml-2"}
               variant={primaryAction.variant || "default"}
               onClick={primaryAction.onClick}
               asChild={!!primaryAction.href}
@@ -84,10 +90,14 @@ export function AdminPageHeader({
             >
               {primaryAction.href ? (
                 <Link href={primaryAction.href}>
-                  {primaryAction.icon}{primaryAction.label}
+                  {primaryAction.icon}
+                  {primaryAction.mobileIconOnly ? <span className="hidden sm:inline">{primaryAction.label}</span> : primaryAction.label}
                 </Link>
               ) : (
-                <>{primaryAction.icon}{primaryAction.label}</>
+                <>
+                  {primaryAction.icon}
+                  {primaryAction.mobileIconOnly ? <span className="hidden sm:inline">{primaryAction.label}</span> : primaryAction.label}
+                </>
               )}
             </Button>
           )}
