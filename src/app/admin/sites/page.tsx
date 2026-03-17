@@ -11,16 +11,18 @@ import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { useSiteContext } from "@/contexts/site-context"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 
 export default function SitesPage() {
-
+  const { refreshSites } = useSiteContext()
   const [sites, setSites] = useState<SiteWithTheme[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [sortColumn, setSortColumn] = useState<'name' | 'created' | 'status' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -53,29 +55,26 @@ export default function SitesPage() {
   }
 
   const handleDelete = async (siteId: string) => {
-    if (!confirm('Are you sure you want to delete this site? This action cannot be undone.')) {
-      return
-    }
-
     try {
       setDeleting(siteId)
       const { success, error } = await deleteSiteAction(siteId)
-      
+
       if (error) {
         console.error('Error deleting site:', error)
-        alert(`Failed to delete site: ${error}`)
+        setError(`Failed to delete site: ${error}`)
         return
       }
-      
+
       if (success) {
-        // Remove from local state
         setSites(prev => prev.filter(site => site.id !== siteId))
+        await refreshSites()
       }
     } catch (err) {
       console.error('Error deleting site:', err)
-      alert('Failed to delete site')
+      setError('Failed to delete site')
     } finally {
       setDeleting(null)
+      setDeleteConfirm(null)
     }
   }
 
@@ -305,7 +304,7 @@ export default function SitesPage() {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => handleDelete(site.id)}
+                          onClick={() => setDeleteConfirm({ id: site.id, name: site.name })}
                           disabled={deleting === site.id}
                           title="Delete"
                         >
@@ -321,6 +320,37 @@ export default function SitesPage() {
           </div>
         </Card>
       </div>
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => !deleting && setDeleteConfirm(null)}
+          />
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+            <h2 className="text-lg font-semibold mb-2">Delete Site</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This will permanently remove the site and all its pages. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={() => setDeleteConfirm(null)}
+                variant="outline"
+                disabled={!!deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleDelete(deleteConfirm.id)}
+                variant="destructive"
+                disabled={!!deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }

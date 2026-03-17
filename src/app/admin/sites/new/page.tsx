@@ -1,15 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
+import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { createSiteAction } from "@/lib/actions/sites/site-actions"
+import { getTemplateSitesAction, applyThemeToSiteAction } from "@/lib/actions/themes/user-theme-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import type { Site } from "@/lib/actions/sites/site-actions"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Palette } from "lucide-react"
 
 export default function NewSitePage() {
   const router = useRouter()
-  const { refreshSites, setCurrentSite } = useSiteContext()
+  const { refreshSites } = useSiteContext()
   const [siteName, setSiteName] = useState("")
   const [subdomain, setSubdomain] = useState("")
   const [customDomain, setCustomDomain] = useState("")
@@ -17,8 +23,19 @@ export default function NewSitePage() {
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
+  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
+  const [templates, setTemplates] = useState<Site[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const hasTemplate = selectedTemplateId && selectedTemplateId !== 'none'
+
+  useEffect(() => {
+    getTemplateSitesAction().then(({ data }) => {
+      if (data) setTemplates(data)
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,6 +65,7 @@ export default function NewSitePage() {
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
         favicon: favicon || undefined,
+        default_theme: defaultTheme,
         settings: {
           site_title: siteName.trim(),
           analytics_enabled: false,
@@ -61,12 +79,17 @@ export default function NewSitePage() {
       }
 
       if (data) {
-        // Refresh the site context to get the new site with theme data
-        await refreshSites()
-        // Update localStorage to set the new site as selected
+        // Apply template if one was selected
+        if (hasTemplate) {
+          const { error: themeError } = await applyThemeToSiteAction(data.id, selectedTemplateId)
+          if (themeError) {
+            setError(`Site created but failed to apply template: ${themeError}`)
+            return
+          }
+        }
+
         localStorage.setItem('selectedSiteId', data.id)
-        // The refreshSites will automatically set the current site from localStorage
-        // Redirect to site builder for the new site
+        await refreshSites()
         router.push(`/admin/pages/${data.id}`)
       }
     } catch (err) {
@@ -84,12 +107,8 @@ export default function NewSitePage() {
           title="Create Site"
           subtitle="Add a new site to your multi-site collection"
           primaryAction={{
-            label: isSubmitting ? "Creating Site..." : "Save Site",
+            label: isSubmitting ? "Creating..." : "Create Site",
             onClick: isSubmitting ? undefined : handleSaveClick
-          }}
-          secondaryAction={{
-            label: "Cancel",
-            href: "/admin/sites"
           }}
         />
 
@@ -99,7 +118,7 @@ export default function NewSitePage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-6">
           <SiteDashboard
             siteName={siteName}
             subdomain={subdomain}
@@ -110,10 +129,52 @@ export default function NewSitePage() {
             onCustomDomainChange={setCustomDomain}
             onStatusChange={setStatus}
           />
+
+          {/* Template Picker */}
+          {templates.length > 0 && (
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette className="h-5 w-5" />
+                  Start from Template
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No template (blank site)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No template (blank site)</SelectItem>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Apply a saved template to copy its pages, navigation, footer, and styling.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Styling Settings - only show when no template selected */}
+          {!hasTemplate && (
+            <StylingSettingsCard
+              fontFamily={fontFamily}
+              secondaryFontFamily={secondaryFontFamily}
+              favicon={favicon}
+              defaultTheme={defaultTheme}
+              onFontFamilyChange={setFontFamily}
+              onSecondaryFontFamilyChange={setSecondaryFontFamily}
+              onFaviconChange={setFavicon}
+              onDefaultThemeChange={setDefaultTheme}
+            />
+          )}
         </form>
       </div>
     </AdminLayout>
   )
 }
-
-// claude.md followed
