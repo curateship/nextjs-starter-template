@@ -125,7 +125,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
             )}
 
             {/* Responsive toggle */}
-            <div className="flex items-center border rounded-md">
+            <div className="flex items-center border rounded-md h-8 overflow-hidden">
               <Button
                 variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
                 size="sm"
@@ -133,7 +133,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
                 onClick={() => setPreviewWidth('desktop')}
                 title="Desktop (600px)"
               >
-                <Monitor className="w-4 h-4" />
+                <Monitor className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
@@ -142,7 +142,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
                 onClick={() => setPreviewWidth('tablet')}
                 title="Tablet (480px)"
               >
-                <Tablet className="w-4 h-4" />
+                <Tablet className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
@@ -151,7 +151,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
                 onClick={() => setPreviewWidth('mobile')}
                 title="Mobile (320px)"
               >
-                <Smartphone className="w-4 h-4" />
+                <Smartphone className="h-3.5 w-3.5" />
               </Button>
             </div>
 
