@@ -151,36 +151,6 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       secondary_font_weights: siteData.secondary_font_weights || ['300', '400', '500', '600', '700'],
       favicon: siteData.favicon || null,
       default_theme: siteData.default_theme || 'system',
-      public_pages: {
-        navigation: {
-          logo: '',
-          logoUrl: '/',
-          links: [
-            { id: `link-${Date.now()}-0`, text: 'Home', url: '/' },
-          ],
-          buttons: [],
-          navigationStyle: 'default',
-          styleConfig: {
-            default: {
-              textColor: '',
-              blurEffect: 'light',
-              containerWidth: 'custom',
-              backgroundColor: '',
-              showDarkModeToggle: true,
-            },
-          },
-        },
-        footer: {
-          logo: '',
-          logoUrl: '/',
-          links: [
-            { id: `footer-link-${Date.now()}-0`, text: 'Home', url: '/' },
-          ],
-          socialLinks: [],
-          copyright: `© ${new Date().getFullYear()} ${siteData.name}. All rights reserved.`,
-          style: { backgroundColor: '', textColor: '#6c757d' },
-        },
-      },
     }
 
     // Create the site
@@ -468,12 +438,15 @@ async function updateSitePublicPagesField(
     }
 
     // Update field in settings under public_pages
+    const publicPages = { ...(currentSite.settings?.public_pages || {}) }
+    if (data === null || data === undefined) {
+      delete publicPages[fieldName]
+    } else {
+      publicPages[fieldName] = data
+    }
     const updatedSettings = {
       ...currentSite.settings,
-      public_pages: {
-        ...(currentSite.settings?.public_pages || {}),
-        [fieldName]: data
-      }
+      public_pages: publicPages
     }
 
     const { error } = await supabaseAdmin

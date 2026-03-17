@@ -420,11 +420,11 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // Prevent deleting the home page - it's essential and cannot be deleted
+    // Prevent deleting the home page - every site needs one
     if (page.slug === 'home') {
-      return { 
-        success: false, 
-        error: 'Cannot delete this page because it contains essential site elements (Navigation and Footer blocks). These blocks are required for your site\'s structure and cannot be removed.' 
+      return {
+        success: false,
+        error: 'The home page cannot be deleted. Every site requires a home page.'
       }
     }
 

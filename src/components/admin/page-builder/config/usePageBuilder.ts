@@ -71,33 +71,38 @@ export function usePageBuilder({
 
   // Delete block immediately from database (no staging)
   const handleDeleteBlock = async (block: any) => {
-    // Prevent deletion of protected blocks
-    if (isBlockTypeProtected(block.type)) {
-      setSaveMessage(`${block.type === 'navigation' ? 'Navigation' : 'Footer'} blocks cannot be deleted`)
-      setTimeout(() => setSaveMessage(""), 3000)
-      return
-    }
-
     setDeleting(block.id)
-    
+
     try {
       // Remove from UI immediately
       const updatedBlocks = { ...blocks }
       updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
       setBlocks(updatedBlocks)
-      
+
       // Clear selection if deleted block was selected
       if (selectedBlock?.id === block.id) {
         setSelectedBlock(null)
       }
-      
+
+      // Clear nav/footer from site settings if deleting those block types
+      if (block.type === 'navigation') {
+        await updateSiteNavigationAction(siteId, null as any)
+      } else if (block.type === 'footer') {
+        await updateSiteFooterAction(siteId, null as any)
+      }
+
       // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
-        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
         await updatePageBlocksAction(currentPage.id, jsonBlocks)
       }
       
+      // Reload blocks from database to get clean state
+      if (reloadBlocks) {
+        await reloadBlocks()
+      }
+
       setSaveMessage("Block deleted!")
       setTimeout(() => setSaveMessage(""), 3000)
     } catch (err) {
@@ -267,9 +272,24 @@ export function usePageBuilder({
       insertIndex = navIndex + 1
     }
 
-    // Insert new blocks at the proper position
+    // Separate nav/footer from regular blocks
+    const navBlocks = newBlocksToAdd.filter(b => b.type === 'navigation')
+    const footerBlocks = newBlocksToAdd.filter(b => b.type === 'footer')
+    const regularBlocks = newBlocksToAdd.filter(b => b.type !== 'navigation' && b.type !== 'footer')
+
+    // Insert regular blocks at the proper position
     const newBlocks = [...currentBlocks]
-    newBlocks.splice(insertIndex, 0, ...newBlocksToAdd)
+    newBlocks.splice(insertIndex, 0, ...regularBlocks)
+
+    // Add navigation at the beginning if added
+    if (navBlocks.length > 0) {
+      newBlocks.unshift(...navBlocks)
+    }
+
+    // Add footer at the end if added
+    if (footerBlocks.length > 0) {
+      newBlocks.push(...footerBlocks)
+    }
 
     // Update display orders
     newBlocks.forEach((b, idx) => {
@@ -284,11 +304,25 @@ export function usePageBuilder({
       setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }
 
-    // Save to database
+    // Save nav/footer to site settings
+    for (const nav of navBlocks) {
+      await updateSiteNavigationAction(siteId, nav.content)
+    }
+    for (const footer of footerBlocks) {
+      await updateSiteFooterAction(siteId, footer.content)
+    }
+
+    // Save regular page blocks to database
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
-      const jsonBlocks = convertPageBlocksToJson(newBlocks)
+      const pageOnlyBlocks = newBlocks.filter(b => b.type !== 'navigation' && b.type !== 'footer')
+      const jsonBlocks = convertPageBlocksToJson(pageOnlyBlocks)
       await updatePageBlocksAction(currentPage.id, jsonBlocks)
+    }
+
+    // Reload to get clean state
+    if (reloadBlocks) {
+      await reloadBlocks()
     }
   }
 

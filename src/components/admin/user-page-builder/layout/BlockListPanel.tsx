@@ -27,7 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { isBlockTypeProtected, getBlockProtectionReason } from "@/lib/utils/lock-blocks-protector"
+import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
 
 interface Block {
   id: string
@@ -126,32 +126,23 @@ function SortableBlockItem({
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {isBlockTypeProtected(block.type) ? (
-            <div
-              className="p-1 text-gray-400 cursor-not-allowed"
-              title={getBlockProtectionReason(block.type)}
-            >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeleteClick(block)
+            }}
+            disabled={deleting === block.id}
+            title="Delete block"
+          >
+            {deleting === block.id ? (
+              <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
+            ) : (
               <Trash2 className="w-3.5 h-3.5" />
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDeleteClick(block)
-              }}
-              disabled={deleting === block.id}
-              title="Delete block"
-            >
-              {deleting === block.id ? (
-                <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-red-600"></div>
-              ) : (
-                <Trash2 className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          )}
+            )}
+          </Button>
         </div>
       </div>
     </div>

@@ -74,13 +74,6 @@ export function useUserPageBuilder({
 
   // Delete block immediately from database
   const handleDeleteBlock = async (block: any) => {
-    // Prevent deletion of protected blocks
-    if (isBlockTypeProtected(block.type)) {
-      setSaveMessage(`${block.type === 'navigation' ? 'Navigation' : 'Footer'} blocks cannot be deleted`)
-      setTimeout(() => setSaveMessage(""), 3000)
-      return
-    }
-
     setDeleting(block.id)
 
     try {
@@ -94,11 +87,24 @@ export function useUserPageBuilder({
         setSelectedBlock(null)
       }
 
+      // Clear nav/footer from user pages settings if deleting those block types
+      if (block.type === 'navigation' || block.type === 'footer') {
+        const settings: { navigation?: any; footer?: any } = {}
+        if (block.type === 'navigation') settings.navigation = null
+        if (block.type === 'footer') settings.footer = null
+        await updateUserPagesSettingsAction(siteId, settings)
+      }
+
       // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
-        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage])
+        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
         await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
+      }
+
+      // Reload blocks from database to get clean state
+      if (reloadBlocks) {
+        await reloadBlocks()
       }
 
       setSaveMessage("Block deleted!")
