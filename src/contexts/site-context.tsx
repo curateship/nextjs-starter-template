@@ -23,25 +23,26 @@ interface SiteProviderProps {
 }
 
 export function SiteProvider({ children, initialSites, pageSize: initialPageSize }: SiteProviderProps) {
-  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() => {
-    if (!initialSites || initialSites.length === 0) return null
-    if (typeof window === 'undefined') return initialSites[0]
-    const savedId = localStorage.getItem('selectedSiteId')
-    if (savedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedId)) {
-      const found = initialSites.find(s => s.id === savedId)
-      if (found) return found
-    }
-    return initialSites[0]
-  })
+  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(
+    initialSites && initialSites.length > 0 ? initialSites[0] : null
+  )
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
   const [loading, setLoading] = useState(!initialSites)
   const [error, setError] = useState<string | null>(null)
   const [pageSize] = useState(initialPageSize ?? 50)
 
-  // Sync localStorage when initialSites are provided and currentSite is set synchronously
+  // Restore saved site from localStorage on mount (client-only, after hydration)
   useEffect(() => {
-    if (initialSites && initialSites.length > 0 && currentSite) {
-      localStorage.setItem('selectedSiteId', currentSite.id)
+    if (initialSites && initialSites.length > 0) {
+      const savedId = localStorage.getItem('selectedSiteId')
+      if (savedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedId)) {
+        const found = initialSites.find(s => s.id === savedId)
+        if (found) {
+          setCurrentSite(found)
+          return
+        }
+      }
+      localStorage.setItem('selectedSiteId', initialSites[0].id)
     } else if (initialSites && initialSites.length === 0) {
       localStorage.removeItem('selectedSiteId')
     }

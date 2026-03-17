@@ -36,14 +36,14 @@ export function StickyHeader({
           {/* Sidebar trigger as tab pill */}
           <button
             onClick={toggleSidebar}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
           >
             <PanelLeft className="h-3.5 w-3.5" />
           </button>
 
           {/* NavLinks as tab pills */}
           {navLinks && navLinks.length > 0 && (
-            <div className="inline-flex h-10 items-center rounded-md gap-1">
+            <div className="inline-flex h-8 items-center rounded-md gap-1">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}

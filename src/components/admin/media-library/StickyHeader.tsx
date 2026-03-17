@@ -39,12 +39,12 @@ export function StickyHeader({
         <div className="flex items-center gap-2">
           <button
             onClick={toggleSidebar}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
           >
             <PanelLeft className="h-3.5 w-3.5" />
           </button>
           {breadcrumbItems.length > 0 && (
-            <Breadcrumb className="w-fit rounded-lg bg-muted px-3 py-2">
+            <Breadcrumb className="w-fit rounded-md bg-muted px-3 py-1.5">
               <BreadcrumbList>
                 {breadcrumbItems.map((item, index) => (
                   <React.Fragment key={index}>
