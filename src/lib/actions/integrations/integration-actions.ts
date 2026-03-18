@@ -26,12 +26,12 @@ async function verifyOwnership(siteId: string): Promise<string> {
 
 export interface SiteIntegration {
   id: string
-  site_id: string
-  integration_type: string
+  siteId: string
+  integrationType: string
   config: Record<string, any>
-  is_enabled: boolean
-  created_at: string
-  updated_at: string
+  isEnabled: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
 /**
@@ -92,7 +92,7 @@ export async function getSiteIntegration(
     return {
       ...result,
       config: decryptConfig(result.integrationType, result.config as Record<string, any>),
-    } as unknown as SiteIntegration
+    } as SiteIntegration
   } catch (error) {
     console.error('Error in getSiteIntegration:', error)
     return null
@@ -161,7 +161,7 @@ export async function createOrUpdateIntegration(
     return {
       ...result,
       config: decryptConfig(result.integrationType, result.config as Record<string, any>),
-    } as unknown as SiteIntegration
+    } as SiteIntegration
   } catch (error) {
     console.error('Error in createOrUpdateIntegration:', error)
     throw error

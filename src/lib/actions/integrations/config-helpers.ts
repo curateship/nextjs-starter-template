@@ -12,7 +12,7 @@ export async function getStripeConfig(siteId: string): Promise<{
 } | null> {
   const integration = await getSiteIntegration(siteId, 'stripe')
 
-  if (integration && integration.is_enabled) {
+  if (integration && integration.isEnabled) {
     const { secret_key, publishable_key, webhook_secret } = integration.config
     if (secret_key && publishable_key) {
       return {
@@ -35,7 +35,7 @@ export async function getFlodeskConfig(siteId: string): Promise<{
 } | null> {
   const integration = await getSiteIntegration(siteId, 'flodesk')
 
-  if (integration && integration.is_enabled) {
+  if (integration && integration.isEnabled) {
     const { api_key, segment_id } = integration.config
     if (api_key) {
       return {
@@ -58,7 +58,7 @@ export async function getResendConfig(siteId: string): Promise<{
 } | null> {
   const integration = await getSiteIntegration(siteId, 'resend')
 
-  if (integration && integration.is_enabled) {
+  if (integration && integration.isEnabled) {
     const { api_key, from_email, from_name } = integration.config
     return {
       apiKey: api_key,

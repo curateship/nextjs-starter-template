@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef, use } from "react"
+import { useState, useEffect, useCallback, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
@@ -45,255 +45,252 @@ import { FeatureTogglesCard } from "@/components/admin/layout/dashboard/FeatureT
 
 // --- IntegrationCard ---
 
-interface IntegrationCardHandle {
-  getConfig: () => { type: string; config: Record<string, any>; hasValues: boolean }
-}
-
 interface IntegrationCardProps {
   entry: IntegrationRegistryEntry
   integration: SiteIntegration | null
+  formValues: Record<string, string>
+  onFormChange: (type: string, key: string, value: string) => void
   onToggle: (integrationId: string, isEnabled: boolean) => Promise<void>
 }
 
-const IntegrationCard = forwardRef<IntegrationCardHandle, IntegrationCardProps>(
-  function IntegrationCard({ entry, integration, onToggle }, ref) {
-    const [isExpanded, setIsExpanded] = useState(false)
-    const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
-    const [formValues, setFormValues] = useState<Record<string, string>>(() => {
-      const values: Record<string, string> = {}
-      entry.fields.forEach((field) => {
-        values[field.key] = integration?.config?.[field.key] || ''
-      })
-      return values
-    })
+function IntegrationCard({ entry, integration, formValues, onFormChange, onToggle }: IntegrationCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
 
-    const isConfigured = integration !== null
-    const isEnabled = integration?.is_enabled ?? false
+  const isConfigured = integration !== null
+  const isEnabled = integration?.isEnabled ?? false
 
-    useImperativeHandle(ref, () => ({
-      getConfig: () => {
-        const config: Record<string, any> = {}
-        let hasValues = false
-        entry.fields.forEach((field) => {
-          if (formValues[field.key]) {
-            config[field.key] = formValues[field.key]
-            hasValues = true
-          }
-        })
-        return { type: entry.type, config, hasValues }
-      },
-    }), [entry.type, entry.fields, formValues])
-
-    const handleToggle = async (checked: boolean) => {
-      if (!integration) return
-      await onToggle(integration.id, checked)
-    }
-
-    const toggleReveal = (key: string) => {
-      setRevealedFields((prev) => {
-        const next = new Set(prev)
-        if (next.has(key)) {
-          next.delete(key)
-        } else {
-          next.add(key)
-        }
-        return next
-      })
-    }
-
-    return (
-      <Card>
-        <CardHeader
-          className="cursor-pointer select-none"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-base flex items-center gap-2">
-                {entry.label}
-                {isConfigured && (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    isEnabled
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                  }`}>
-                    {isEnabled ? 'Connected' : 'Disabled'}
-                  </span>
-                )}
-                {!isConfigured && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                    Not configured
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription className="mt-1">{entry.description}</CardDescription>
-            </div>
-            {isConfigured && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={isEnabled}
-                  onCheckedChange={handleToggle}
-                />
-              </div>
-            )}
-          </div>
-        </CardHeader>
-
-        {isExpanded && (
-          <CardContent className="pt-0 space-y-4">
-            {entry.fields.map((field) => (
-              <div key={field.key} className="space-y-2">
-                <Label htmlFor={`${entry.type}-${field.key}`}>
-                  {field.label}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id={`${entry.type}-${field.key}`}
-                    type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : 'text'}
-                    placeholder={field.placeholder}
-                    value={formValues[field.key] || ''}
-                    onChange={(e) =>
-                      setFormValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                    }
-                    className={field.type === 'password' ? 'pr-10' : ''}
-                  />
-                  {field.type === 'password' && (
-                    <button
-                      type="button"
-                      onClick={() => toggleReveal(field.key)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {revealedFields.has(field.key) ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        )}
-      </Card>
-    )
+  const handleToggle = async (checked: boolean) => {
+    if (!integration) return
+    await onToggle(integration.id, checked)
   }
-)
+
+  const toggleReveal = (key: string) => {
+    setRevealedFields((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              {entry.label}
+              {isConfigured && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  isEnabled
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                }`}>
+                  {isEnabled ? 'Connected' : 'Disabled'}
+                </span>
+              )}
+              {!isConfigured && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                  Not configured
+                </span>
+              )}
+            </CardTitle>
+            <CardDescription className="mt-1">{entry.description}</CardDescription>
+          </div>
+          {isConfigured && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Switch
+                checked={isEnabled}
+                onCheckedChange={handleToggle}
+              />
+            </div>
+          )}
+        </div>
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent className="pt-0 space-y-4">
+          {entry.fields.map((field) => (
+            <div key={field.key} className="space-y-2">
+              <Label htmlFor={`${entry.type}-${field.key}`}>
+                {field.label}
+                {field.required && <span className="text-destructive ml-1">*</span>}
+              </Label>
+              <div className="relative">
+                <Input
+                  id={`${entry.type}-${field.key}`}
+                  type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : 'text'}
+                  placeholder={field.placeholder}
+                  value={formValues[field.key] || ''}
+                  onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
+                  className={field.type === 'password' ? 'pr-10' : ''}
+                />
+                {field.type === 'password' && (
+                  <button
+                    type="button"
+                    onClick={() => toggleReveal(field.key)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {revealedFields.has(field.key) ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      )}
+    </Card>
+  )
+}
 
 // --- IntegrationTab ---
-
-interface IntegrationTabHandle {
-  save: () => Promise<void>
-}
 
 interface IntegrationTabProps {
   siteId: string
   category: IntegrationCategory
+  saveTrigger: number
   onSuccess?: (message: string) => void
   onError?: (message: string) => void
 }
 
-const IntegrationTab = forwardRef<IntegrationTabHandle, IntegrationTabProps>(
-  function IntegrationTab({ siteId, category, onSuccess, onError }, ref) {
-    const [integrations, setIntegrations] = useState<SiteIntegration[]>([])
-    const [loading, setLoading] = useState(true)
+function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: IntegrationTabProps) {
+  const [integrations, setIntegrations] = useState<SiteIntegration[]>([])
+  const [loading, setLoading] = useState(true)
+  // Form state lives here — keyed by integration type, then field key
+  const [allFormValues, setAllFormValues] = useState<Record<string, Record<string, string>>>({})
 
-    const entries = INTEGRATION_REGISTRY.filter((e) => e.category === category)
-    const cardRefs = useRef<Map<string, IntegrationCardHandle>>(new Map())
+  const entries = INTEGRATION_REGISTRY.filter((e) => e.category === category)
 
-    const loadIntegrations = useCallback(async () => {
-      try {
-        setLoading(true)
-        const data = await getSiteIntegrations(siteId)
-        setIntegrations(data)
-      } catch (err) {
-        console.error('Error loading integrations:', err)
-        onError?.('Failed to load integrations')
-      } finally {
-        setLoading(false)
+  const loadIntegrations = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await getSiteIntegrations(siteId)
+      setIntegrations(data)
+      // Initialize form values from loaded integrations
+      const values: Record<string, Record<string, string>> = {}
+      for (const entry of INTEGRATION_REGISTRY.filter((e) => e.category === category)) {
+        const integration = data.find((i) => i.integrationType ===entry.type)
+        values[entry.type] = {}
+        for (const field of entry.fields) {
+          values[entry.type][field.key] = integration?.config?.[field.key] || ''
+        }
       }
-    }, [siteId, onError])
+      setAllFormValues(values)
+    } catch (err) {
+      console.error('Error loading integrations:', err)
+      onError?.('Failed to load integrations')
+    } finally {
+      setLoading(false)
+    }
+  }, [siteId, category, onError])
 
-    useEffect(() => {
-      loadIntegrations()
-    }, [loadIntegrations])
+  useEffect(() => {
+    loadIntegrations()
+  }, [loadIntegrations])
 
-    useImperativeHandle(ref, () => ({
-      save: async () => {
-        let saved = 0
-        for (const [, cardRef] of cardRefs.current) {
-          const { type, config, hasValues } = cardRef.getConfig()
-          if (hasValues) {
-            await createOrUpdateIntegration(siteId, type, config, true)
-            saved++
+  // Keep a ref to always-current form values (effects can't rely on state closures)
+  const allFormValuesRef = useRef(allFormValues)
+  allFormValuesRef.current = allFormValues
+
+  // Save when saveTrigger increments
+  useEffect(() => {
+    if (saveTrigger === 0) return
+
+    const doSave = async () => {
+      let saved = 0
+      const currentValues = allFormValuesRef.current
+      for (const entry of entries) {
+        const formValues = currentValues[entry.type] || {}
+        const config: Record<string, any> = {}
+        let hasValues = false
+        for (const field of entry.fields) {
+          if (formValues[field.key]) {
+            config[field.key] = formValues[field.key]
+            hasValues = true
           }
         }
-        await loadIntegrations()
-        if (saved > 0) {
-          onSuccess?.('Integration settings saved')
-        } else {
-          onSuccess?.('No changes to save')
+        if (hasValues) {
+          await createOrUpdateIntegration(siteId, entry.type, config, true)
+          saved++
         }
-      },
-    }))
-
-    const handleToggle = async (integrationId: string, isEnabled: boolean) => {
-      try {
-        await toggleIntegration(integrationId, isEnabled)
-        await loadIntegrations()
-      } catch (err) {
-        console.error('Error toggling integration:', err)
-        onError?.('Failed to toggle integration')
       }
-    }
-
-    const getIntegration = (type: string): SiteIntegration | null => {
-      return integrations.find((i) => i.integration_type === type) ?? null
-    }
-
-    const setCardRef = (type: string) => (handle: IntegrationCardHandle | null) => {
-      if (handle) {
-        cardRefs.current.set(type, handle)
+      await loadIntegrations()
+      if (saved > 0) {
+        onSuccess?.('Integration settings saved')
       } else {
-        cardRefs.current.delete(type)
+        onSuccess?.('No changes to save')
       }
     }
 
-    if (loading) {
-      return (
-        <div className="space-y-3">
-          {entries.map((entry) => (
-            <Card key={entry.type}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 space-y-2">
-                    <div className="h-5 bg-muted rounded animate-pulse w-32" />
-                    <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      )
-    }
+    doSave()
+  }, [saveTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleFormChange = useCallback((type: string, key: string, value: string) => {
+    setAllFormValues((prev) => ({
+      ...prev,
+      [type]: { ...prev[type], [key]: value },
+    }))
+  }, [])
+
+  const handleToggle = async (integrationId: string, isEnabled: boolean) => {
+    try {
+      await toggleIntegration(integrationId, isEnabled)
+      await loadIntegrations()
+    } catch (err) {
+      console.error('Error toggling integration:', err)
+      onError?.('Failed to toggle integration')
+    }
+  }
+
+  const getIntegration = (type: string): SiteIntegration | null => {
+    return integrations.find((i) => i.integrationType ===type) ?? null
+  }
+
+  if (loading) {
     return (
       <div className="space-y-3">
         {entries.map((entry) => (
-          <IntegrationCard
-            key={entry.type}
-            ref={setCardRef(entry.type)}
-            entry={entry}
-            integration={getIntegration(entry.type)}
-            onToggle={handleToggle}
-          />
+          <Card key={entry.type}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 space-y-2">
+                  <div className="h-5 bg-muted rounded animate-pulse w-32" />
+                  <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
         ))}
       </div>
     )
   }
-)
+
+  return (
+    <div className="space-y-3">
+      {entries.map((entry) => (
+        <IntegrationCard
+          key={entry.type}
+          entry={entry}
+          integration={getIntegration(entry.type)}
+          formValues={allFormValues[entry.type] || {}}
+          onFormChange={handleFormChange}
+          onToggle={handleToggle}
+        />
+      ))}
+    </div>
+  )
+}
 
 // --- Settings Page ---
 
@@ -364,10 +361,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     open: false, templateId: "", templateName: "",
   })
 
-  const paymentsRef = useRef<IntegrationTabHandle>(null)
-  const emailRef = useRef<IntegrationTabHandle>(null)
-  const aiRef = useRef<IntegrationTabHandle>(null)
-  const seoRef = useRef<IntegrationTabHandle>(null)
+  const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
 
   // Theme handlers
   const loadTemplates = useCallback(async () => {
@@ -501,16 +495,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           showSuccess('Settings saved successfully')
         }
       } else if (activeTab !== 'themes') {
-        const refMap: Record<string, React.RefObject<IntegrationTabHandle | null>> = {
-          payments: paymentsRef,
-          email: emailRef,
-          ai: aiRef,
-          seo: seoRef,
-        }
-        const tabRef = refMap[activeTab]
-        if (tabRef?.current) {
-          await tabRef.current.save()
-        }
+        setIntegrationSaveTrigger((prev) => prev + 1)
       }
     } catch (err) {
       console.error('Error saving:', err)
@@ -643,19 +628,19 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               )}
 
               {activeTab === 'payments' && (
-                <IntegrationTab ref={paymentsRef} siteId={siteId} category="payments" onSuccess={showSuccess} onError={showError} />
+                <IntegrationTab siteId={siteId} category="payments" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
               {activeTab === 'email' && (
-                <IntegrationTab ref={emailRef} siteId={siteId} category="email" onSuccess={showSuccess} onError={showError} />
+                <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
               {activeTab === 'ai' && (
-                <IntegrationTab ref={aiRef} siteId={siteId} category="ai" onSuccess={showSuccess} onError={showError} />
+                <IntegrationTab siteId={siteId} category="ai" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
               {activeTab === 'seo' && (
-                <IntegrationTab ref={seoRef} siteId={siteId} category="seo" onSuccess={showSuccess} onError={showError} />
+                <IntegrationTab siteId={siteId} category="seo" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
               {activeTab === 'themes' && (
