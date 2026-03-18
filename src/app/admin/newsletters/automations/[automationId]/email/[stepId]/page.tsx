@@ -9,7 +9,7 @@ import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/Blo
 import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
 import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/config/useAutomationEmailBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Plus, Save, ArrowLeft } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Save, ArrowLeft } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string; stepId: string }>
@@ -165,15 +165,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
               <Save className="w-4 h-4 mr-1" />
               Save
             </Button>
-
-            {/* Add Block */}
-            <Button
-              size="sm"
-              onClick={() => setBlockModalOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Block
-            </Button>
           </div>
         }
         blockListOpen={blockListOpen}
@@ -200,6 +191,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
             onDeleteBlock={builder.handleDeleteBlock}
             onReorderBlocks={builder.handleReorderBlocks}
             onPreview={() => builder.setSelectedBlock(null)}
+            onAddBlock={() => setBlockModalOpen(true)}
           />
         )}
       </div>
