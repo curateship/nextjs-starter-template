@@ -153,8 +153,15 @@ export function AuthBlock({
     setResetLoading(true)
     setResetError(null)
 
-    // Password reset requires email sending configuration
-    // Show success regardless to not leak email existence
+    try {
+      await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail, redirectTo: '/auth/reset-password' }),
+      })
+    } catch {
+      // Ignore errors to not leak email existence
+    }
     setResetSuccess(true)
     setResetLoading(false)
   }
