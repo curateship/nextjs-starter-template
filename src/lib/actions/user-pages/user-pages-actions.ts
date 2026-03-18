@@ -135,22 +135,12 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    // Get count
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(siteDashboardPages)
-      .where(eq(siteDashboardPages.siteId, siteId))
+    const [countResult, result] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(siteDashboardPages).where(eq(siteDashboardPages.siteId, siteId)),
+      db.select().from(siteDashboardPages).where(eq(siteDashboardPages.siteId, siteId)).orderBy(desc(siteDashboardPages.displayOrder)).limit(pageSize).offset(from),
+    ])
 
-    // Get pages
-    const result = await db
-      .select()
-      .from(siteDashboardPages)
-      .where(eq(siteDashboardPages.siteId, siteId))
-      .orderBy(desc(siteDashboardPages.displayOrder))
-      .limit(pageSize)
-      .offset(from)
-
-    return { data: (result as unknown as UserPage[]) || [], total: countResult?.count ?? 0, error: null }
+    return { data: (result as unknown as UserPage[]) || [], total: countResult[0]?.count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getUserPagesAction:', error)
     return { data: null, total: 0, error: error.message || 'Failed to fetch user pages' }

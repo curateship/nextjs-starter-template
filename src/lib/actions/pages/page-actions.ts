@@ -75,18 +75,10 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(pages)
-      .where(eq(pages.siteId, siteId))
-
-    const data = await db
-      .select()
-      .from(pages)
-      .where(eq(pages.siteId, siteId))
-      .orderBy(desc(pages.displayOrder))
-      .limit(pageSize)
-      .offset(from)
+    const [countResult, data] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(pages).where(eq(pages.siteId, siteId)),
+      db.select().from(pages).where(eq(pages.siteId, siteId)).orderBy(desc(pages.displayOrder)).limit(pageSize).offset(from),
+    ])
 
     const serialized: Page[] = data.map(p => ({
       id: p.id,
@@ -102,7 +94,7 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
       updated_at: new Date(p.updatedAt).toISOString(),
     }))
 
-    return { data: serialized, total: countResult?.count ?? 0, error: null }
+    return { data: serialized, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,

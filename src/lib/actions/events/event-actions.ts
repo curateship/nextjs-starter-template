@@ -67,22 +67,12 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    // Get count
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(events)
-      .where(eq(events.siteId, siteId))
+    const [countResult, result] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.siteId, siteId)),
+      db.select().from(events).where(eq(events.siteId, siteId)).orderBy(asc(events.displayOrder), desc(events.createdAt)).limit(pageSize).offset(from),
+    ])
 
-    // Get events
-    const result = await db
-      .select()
-      .from(events)
-      .where(eq(events.siteId, siteId))
-      .orderBy(asc(events.displayOrder), desc(events.createdAt))
-      .limit(pageSize)
-      .offset(from)
-
-    return { data: result as unknown as Event[], total: countResult?.count ?? 0, error: null }
+    return { data: result as unknown as Event[], total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching events:', error)
     return { data: null, total: 0, error: 'Failed to fetch events' }
@@ -122,18 +112,10 @@ export async function getSiteEventsWithCategoriesAction(
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(events)
-      .where(eq(events.siteId, siteId))
-
-    const result = await db
-      .select()
-      .from(events)
-      .where(eq(events.siteId, siteId))
-      .orderBy(desc(events.displayOrder))
-      .limit(pageSize)
-      .offset(from)
+    const [countResult, result] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.siteId, siteId)),
+      db.select().from(events).where(eq(events.siteId, siteId)).orderBy(desc(events.displayOrder)).limit(pageSize).offset(from),
+    ])
 
     const evts = result as unknown as Event[]
 
@@ -190,7 +172,7 @@ export async function getSiteEventsWithCategoriesAction(
       }
     }
 
-    return { data: evts, categories, total: countResult?.count ?? 0, error: null }
+    return { data: evts, categories, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch events' }
   }

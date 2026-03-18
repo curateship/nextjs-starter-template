@@ -94,31 +94,14 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(products)
-      .where(eq(products.siteId, siteId))
-
-    // Use raw SQL to include featured_image and description columns not in Drizzle schema
-    const data = await db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_homepage: boolean
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-      featured_image: string | null
-      description: string | null
-      created_at: string
-      updated_at: string
-    }>(sql`
-      SELECT * FROM products
-      WHERE site_id = ${siteId}
-      ORDER BY display_order ASC
-      LIMIT ${pageSize} OFFSET ${from}
-    `)
+    const [countResult, data] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
+      db.execute<{
+        id: string; site_id: string; title: string; slug: string; is_homepage: boolean;
+        is_published: boolean; display_order: number; content_blocks: Record<string, any>;
+        featured_image: string | null; description: string | null; created_at: string; updated_at: string;
+      }>(sql`SELECT * FROM products WHERE site_id = ${siteId} ORDER BY display_order ASC LIMIT ${pageSize} OFFSET ${from}`),
+    ])
 
     const mapped: Product[] = (data.rows || []).map(row => ({
       id: row.id,
@@ -135,7 +118,7 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
       updated_at: new Date(row.updated_at).toISOString(),
     }))
 
-    return { data: mapped, total: countResult?.count ?? 0, error: null }
+    return { data: mapped, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,

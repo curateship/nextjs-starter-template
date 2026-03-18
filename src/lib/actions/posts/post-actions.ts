@@ -104,20 +104,12 @@ export async function getSitePostsAction(siteId: string, options?: { page?: numb
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(posts)
-      .where(eq(posts.siteId, siteId))
+    const [countResult, data] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(posts).where(eq(posts.siteId, siteId)),
+      db.select().from(posts).where(eq(posts.siteId, siteId)).orderBy(asc(posts.displayOrder)).limit(pageSize).offset(from),
+    ])
 
-    const data = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.siteId, siteId))
-      .orderBy(asc(posts.displayOrder))
-      .limit(pageSize)
-      .offset(from)
-
-    return { data: data.map(rowToPost), total: countResult?.count ?? 0, error: null }
+    return { data: data.map(rowToPost), total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,

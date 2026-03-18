@@ -92,20 +92,12 @@ export async function getSiteDirectoriesAction(siteId: string, options?: { page?
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    // Get count
-    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
-      .from(directories)
-      .where(eq(directories.siteId, siteId))
+    const [countResult, rows] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(directories).where(eq(directories.siteId, siteId)),
+      db.select().from(directories).where(eq(directories.siteId, siteId)).orderBy(asc(directories.displayOrder), desc(directories.createdAt)).limit(pageSize).offset(from),
+    ])
 
-    // Get directories for the site
-    const rows = await db.select()
-      .from(directories)
-      .where(eq(directories.siteId, siteId))
-      .orderBy(asc(directories.displayOrder), desc(directories.createdAt))
-      .limit(pageSize)
-      .offset(from)
-
-    return { data: rows.map(toDirectory), total: count ?? 0, error: null }
+    return { data: rows.map(toDirectory), total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching directory:', error)
     return { data: null, total: 0, error: 'Failed to fetch directory' }

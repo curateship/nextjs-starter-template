@@ -165,22 +165,15 @@ export async function getPaginatedMediaAction(
 
     const whereClause = and(...conditions)
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(media)
-      .where(whereClause)
-
-    const totalCount = countResult?.count || 0
-    const totalPages = Math.ceil(totalCount / pageSize)
     const offset = (page - 1) * pageSize
 
-    const result = await db
-      .select()
-      .from(media)
-      .where(whereClause)
-      .orderBy(desc(media.createdAt))
-      .limit(pageSize)
-      .offset(offset)
+    const [countResult, result] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(media).where(whereClause),
+      db.select().from(media).where(whereClause).orderBy(desc(media.createdAt)).limit(pageSize).offset(offset),
+    ])
+
+    const totalCount = countResult[0]?.count || 0
+    const totalPages = Math.ceil(totalCount / pageSize)
 
     return {
       data: {
