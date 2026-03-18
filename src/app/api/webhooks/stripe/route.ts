@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { siteIntegrations, newsletterContacts, emailAutomationEnrollments, emailAutomations } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 /**
  * Stripe Webhook Handler
@@ -29,13 +25,15 @@ export async function POST(req: NextRequest) {
 
     // We need to find which site this webhook belongs to.
     // Try all sites with Stripe integrations and verify signature against each.
-    const { data: integrations } = await supabaseAdmin
-      .from('site_integrations')
-      .select('site_id, config')
-      .eq('integration_type', 'stripe')
-      .eq('is_enabled', true)
+    const integrations = await db
+      .select({ siteId: siteIntegrations.siteId, config: siteIntegrations.config })
+      .from(siteIntegrations)
+      .where(and(
+        eq(siteIntegrations.integrationType, 'stripe'),
+        eq(siteIntegrations.isEnabled, true),
+      ))
 
-    if (!integrations || integrations.length === 0) {
+    if (!integrations.length) {
       return NextResponse.json(
         { error: 'No Stripe integrations configured' },
         { status: 400 }
@@ -45,11 +43,12 @@ export async function POST(req: NextRequest) {
     let event: Stripe.Event | null = null
 
     for (const integration of integrations) {
-      const webhookSecret = integration.config?.webhook_secret
+      const config = integration.config as Record<string, any>
+      const webhookSecret = config?.webhook_secret
       if (!webhookSecret) continue
 
       try {
-        const stripe = new Stripe(integration.config.secret_key, {
+        const stripe = new Stripe(config.secret_key, {
           apiVersion: '2025-09-30.clover',
         })
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
@@ -88,18 +87,26 @@ export async function POST(req: NextRequest) {
         // Add to newsletter contacts + enroll in automations
         if (customerEmail && sessionSiteId) {
           try {
-            const { data: contact } = await supabaseAdmin
-              .from('newsletter_contacts')
-              .upsert({
-                site_id: sessionSiteId,
+            const [contact] = await db
+              .insert(newsletterContacts)
+              .values({
+                siteId: sessionSiteId,
                 email: customerEmail.toLowerCase(),
                 metadata: {
                   source: 'paid_purchase',
                   source_product_id: sessionProductId || null,
                 },
-              }, { onConflict: 'site_id,email' })
-              .select('id')
-              .single()
+              })
+              .onConflictDoUpdate({
+                target: [newsletterContacts.siteId, newsletterContacts.email],
+                set: {
+                  metadata: {
+                    source: 'paid_purchase',
+                    source_product_id: sessionProductId || null,
+                  },
+                },
+              })
+              .returning({ id: newsletterContacts.id })
 
             if (contact) {
               // Enroll in purchase-triggered automations
@@ -109,26 +116,28 @@ export async function POST(req: NextRequest) {
               }
 
               // Check if this purchase fulfills any automation goals
-              const { data: enrollments } = await supabaseAdmin
-                .from('email_automation_enrollments')
-                .select('id, automation_id')
-                .eq('contact_id', contact.id)
-                .eq('status', 'active')
+              const activeEnrollments = await db
+                .select({ id: emailAutomationEnrollments.id, automationId: emailAutomationEnrollments.automationId })
+                .from(emailAutomationEnrollments)
+                .where(and(
+                  eq(emailAutomationEnrollments.contactId, contact.id),
+                  eq(emailAutomationEnrollments.status, 'active'),
+                ))
 
-              for (const enrollment of enrollments || []) {
-                const { data: automation } = await supabaseAdmin
-                  .from('email_automations')
-                  .select('goal_type, goal_config')
-                  .eq('id', enrollment.automation_id)
-                  .single()
+              for (const enrollment of activeEnrollments) {
+                const [automation] = await db
+                  .select({ goalType: emailAutomations.goalType, goalConfig: emailAutomations.goalConfig })
+                  .from(emailAutomations)
+                  .where(eq(emailAutomations.id, enrollment.automationId))
 
-                if (automation?.goal_type === 'purchase') {
-                  const goalProductId = automation.goal_config?.product_id
+                if (automation?.goalType === 'purchase') {
+                  const goalConfig = automation.goalConfig as Record<string, any> | null
+                  const goalProductId = goalConfig?.product_id
                   if (!goalProductId || goalProductId === sessionProductId) {
-                    await supabaseAdmin
-                      .from('email_automation_enrollments')
-                      .update({ status: 'goal_met', goal_met_at: new Date().toISOString() })
-                      .eq('id', enrollment.id)
+                    await db
+                      .update(emailAutomationEnrollments)
+                      .set({ status: 'goal_met', goalMetAt: new Date() })
+                      .where(eq(emailAutomationEnrollments.id, enrollment.id))
                   }
                 }
               }

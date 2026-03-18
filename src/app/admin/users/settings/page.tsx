@@ -5,32 +5,27 @@ import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layo
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { User, Mail, Lock, Save, AlertTriangle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { User, Lock, Mail, AlertTriangle } from "lucide-react"
+import { updateProfile, updatePassword, getCurrentUser } from "@/lib/actions/auth/auth-actions"
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ id: string; email: string; name?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  
-  // Form states
+
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
-  const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
   useEffect(() => {
-    const supabase = createClient()
-    
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        setEmail(session.user.email || "")
-        setDisplayName(session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || "")
+    getCurrentUser().then((u) => {
+      if (u) {
+        setUser(u)
+        setEmail(u.email || "")
+        setDisplayName(u.name || u.email?.split('@')[0] || "")
       }
       setLoading(false)
     })
@@ -42,43 +37,18 @@ export default function SettingsPage() {
     setMessage(null)
 
     try {
-      const supabase = createClient()
-      
-      const updates: any = {}
-      
-      // Update display name
-      if (displayName !== (user?.user_metadata?.display_name || user?.email?.split('@')[0] || "")) {
-        updates.display_name = displayName
+      const formData = new FormData()
+      formData.set('display_name', displayName)
+      formData.set('email', email)
+
+      const result = await updateProfile(formData)
+      if (result.error) {
+        setMessage({ type: 'error', text: result.error })
+      } else {
+        setMessage({ type: 'success', text: 'Profile updated successfully!' })
       }
-      
-      // Update email if changed
-      if (email !== user?.email) {
-        const { error: emailError } = await supabase.auth.updateUser({ email })
-        if (emailError) throw emailError
-      }
-      
-      // Update display name if changed
-      if (Object.keys(updates).length > 0) {
-        const { error: metadataError } = await supabase.auth.updateUser({
-          data: updates
-        })
-        if (metadataError) throw metadataError
-      }
-      
-      setMessage({ type: 'success', text: 'Profile updated successfully!' })
-      
-      // Refresh user data
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        setUser(session.user)
-      }
-      
-    } catch (error: any) {
-      // Sanitize error message to prevent information leakage
-      const sanitizedError = error.message?.includes('duplicate') ? 'Email already in use' :
-                           error.message?.includes('invalid') ? 'Invalid input provided' :
-                           'Failed to update profile'
-      setMessage({ type: 'error', text: sanitizedError })
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to update profile' })
     } finally {
       setSaving(false)
     }
@@ -101,41 +71,35 @@ export default function SettingsPage() {
       return
     }
 
-    // Additional password strength validation
     const hasUpperCase = /[A-Z]/.test(newPassword)
     const hasLowerCase = /[a-z]/.test(newPassword)
     const hasNumbers = /\d/.test(newPassword)
     const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
 
     if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
-      setMessage({ 
-        type: 'error', 
-        text: 'Password must contain uppercase, lowercase, numbers, and special characters' 
+      setMessage({
+        type: 'error',
+        text: 'Password must contain uppercase, lowercase, numbers, and special characters'
       })
       setSaving(false)
       return
     }
 
     try {
-      const supabase = createClient()
-      
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      })
-      
-      if (error) throw error
-      
-      setMessage({ type: 'success', text: 'Password updated successfully!' })
-      setCurrentPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
-      
-    } catch (error: any) {
-      // Sanitize error message to prevent information leakage
-      const sanitizedError = error.message?.includes('weak') ? 'Password does not meet security requirements' :
-                           error.message?.includes('invalid') ? 'Invalid password provided' :
-                           'Failed to update password'
-      setMessage({ type: 'error', text: sanitizedError })
+      const formData = new FormData()
+      formData.set('new_password', newPassword)
+      formData.set('confirm_password', confirmPassword)
+
+      const result = await updatePassword(formData)
+      if (result.error) {
+        setMessage({ type: 'error', text: result.error })
+      } else {
+        setMessage({ type: 'success', text: 'Password updated successfully!' })
+        setNewPassword("")
+        setConfirmPassword("")
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to update password' })
     } finally {
       setSaving(false)
     }
@@ -164,7 +128,6 @@ export default function SettingsPage() {
             label: saving ? 'Saving...' : 'Save Profile',
             onClick: () => {
               if (!saving) {
-                // Secure form reference using React ref instead of DOM query
                 const form = document.getElementById('profile-form') as HTMLFormElement;
                 if (form) form.requestSubmit();
               }
@@ -182,7 +145,6 @@ export default function SettingsPage() {
         )}
 
         <div className="space-y-6">
-          {/* Profile Information */}
           <AdminCard>
             <div className="p-6">
               <form onSubmit={handleProfileUpdate} id="profile-form">
@@ -190,7 +152,7 @@ export default function SettingsPage() {
                   <User className="h-5 w-5 text-primary" />
                   <h3 className="text-lg font-semibold">Profile Information</h3>
                 </div>
-                
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="displayName">Display Name</Label>
@@ -206,7 +168,7 @@ export default function SettingsPage() {
                       This name will be displayed in the admin interface
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
                     <Input
@@ -217,23 +179,19 @@ export default function SettingsPage() {
                       placeholder="your@email.com"
                       disabled={saving}
                     />
-                    <p className="text-sm text-muted-foreground">
-                      You&apos;ll receive a confirmation email for email changes
-                    </p>
                   </div>
                 </div>
               </form>
             </div>
           </AdminCard>
 
-          {/* Password Settings */}
           <AdminCard>
             <div className="p-6">
               <div className="flex items-center gap-3 mb-6">
                 <Lock className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold">Security Settings</h3>
               </div>
-              
+
               <form onSubmit={handlePasswordUpdate} className="space-y-4">
                 <div className="space-y-4 max-w-md">
                   <div className="space-y-2">
@@ -247,7 +205,7 @@ export default function SettingsPage() {
                       disabled={saving}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm New Password</Label>
                     <Input
@@ -274,14 +232,13 @@ export default function SettingsPage() {
             </div>
           </AdminCard>
 
-          {/* Account Information */}
           <AdminCard>
             <div className="p-6">
               <div className="flex items-center gap-3 mb-6">
                 <Mail className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold">Account Information</h3>
               </div>
-              
+
               <div className="space-y-4 text-sm">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
@@ -290,22 +247,6 @@ export default function SettingsPage() {
                       {user?.id ? `***${user.id.slice(-8)}` : 'Unknown'}
                     </p>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Account Created</Label>
-                    <p className="mt-1">
-                      {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Email Confirmed</Label>
-                  <p className="mt-1">
-                    {user?.email_confirmed_at ? (
-                      <span className="text-green-600">✓ Confirmed on {new Date(user.email_confirmed_at).toLocaleDateString()}</span>
-                    ) : (
-                      <span className="text-amber-600">⚠ Not confirmed</span>
-                    )}
-                  </p>
                 </div>
               </div>
             </div>

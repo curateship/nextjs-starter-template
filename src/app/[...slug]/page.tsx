@@ -1,20 +1,10 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { createClient } from '@supabase/supabase-js'
+import { db } from "@/lib/db"
+import { pages } from "@/lib/db/schema"
+import { eq, and } from "drizzle-orm"
 import { notFound, redirect } from "next/navigation"
 import { cookies } from "next/headers"
-
-// Create admin client for direct database queries
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
 
 async function checkAuth() {
   // Check for Supabase auth cookie without hitting the database
@@ -27,7 +17,7 @@ async function checkAuth() {
 }
 
 interface CatchAllPageProps {
-  params: Promise<{ 
+  params: Promise<{
     slug: string[]
   }>
 }
@@ -52,17 +42,21 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
   }
 
   // First check if this is a page
-  const { data: page } = await supabaseAdmin
-    .from('pages')
-    .select('*')
-    .eq('site_id', site.id)
-    .eq('slug', fullSlug)
-    .eq('is_published', true)
-    .single()
+  const [page] = await db
+    .select()
+    .from(pages)
+    .where(
+      and(
+        eq(pages.siteId, site.id),
+        eq(pages.slug, fullSlug),
+        eq(pages.isPublished, true)
+      )
+    )
+    .limit(1)
 
   if (page) {
     // Page exists, render it at root level
     return <BlockRenderer site={site} />
   }
-  
+
 }

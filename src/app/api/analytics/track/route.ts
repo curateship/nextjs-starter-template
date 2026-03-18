@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { analyticsEvents, analyticsSessions, sites } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 interface TrackEvent {
   type: string
@@ -40,7 +37,6 @@ function extractDomain(url: string): string | null {
 
 function extractUtmParams(pagePath: string): { utm_source?: string; utm_medium?: string; utm_campaign?: string } {
   try {
-    // page_path might just be a path, but could include query params
     const url = new URL(pagePath, 'http://localhost')
     return {
       utm_source: url.searchParams.get('utm_source') || undefined,
@@ -66,13 +62,12 @@ export async function POST(request: NextRequest) {
     let site = await resolveSiteByHost(host)
     // Fallback for localhost: grab first active site
     if (!site) {
-      const { data } = await supabaseAdmin
-        .from('sites')
-        .select('id, subdomain, custom_domain')
-        .eq('status', 'active')
+      const [firstSite] = await db
+        .select({ id: sites.id, subdomain: sites.subdomain, customDomain: sites.customDomain })
+        .from(sites)
+        .where(eq(sites.status, 'active'))
         .limit(1)
-        .single()
-      if (data) site = data
+      if (firstSite) site = { id: firstSite.id, subdomain: firstSite.subdomain, custom_domain: firstSite.customDomain }
     }
     if (!site) return new NextResponse(null, { status: 204 })
 
@@ -93,77 +88,82 @@ export async function POST(request: NextRequest) {
     const rows = events.map(event => {
       const utmParams = event.page_path ? extractUtmParams(event.page_path) : {}
       const referrerDomain = event.referrer ? extractDomain(event.referrer) : null
-      // Strip query params from page_path for storage
       let cleanPath = event.page_path
       try {
         if (cleanPath) cleanPath = new URL(cleanPath, 'http://localhost').pathname
       } catch { /* keep as-is */ }
 
       return {
-        site_id: site.id,
-        session_id: event.session_id,
-        visitor_hash: visitorHash,
-        event_type: event.type,
-        page_path: cleanPath,
+        siteId: site!.id,
+        sessionId: event.session_id,
+        visitorHash,
+        eventType: event.type,
+        pagePath: cleanPath,
         referrer: event.referrer || null,
-        referrer_domain: referrerDomain,
-        utm_source: utmParams.utm_source || null,
-        utm_medium: utmParams.utm_medium || null,
-        utm_campaign: utmParams.utm_campaign || null,
-        device_type: deviceType,
+        referrerDomain,
+        utmSource: utmParams.utm_source || null,
+        utmMedium: utmParams.utm_medium || null,
+        utmCampaign: utmParams.utm_campaign || null,
+        deviceType,
         browser,
-        event_data: event.event_data || {},
-        created_at: event.timestamp || new Date().toISOString(),
+        eventData: event.event_data || {},
+        createdAt: event.timestamp ? new Date(event.timestamp) : new Date(),
       }
     })
 
     // Batch insert events
-    await supabaseAdmin.from('analytics_events').insert(rows)
+    await db.insert(analyticsEvents).values(rows)
 
-    // Upsert session — find existing or create
+    // Upsert session
     const sessionId = events[0].session_id
     const pageviewEvents = events.filter(e => e.type === 'pageview')
 
     if (pageviewEvents.length > 0) {
       const firstEvent = rows[0]
-      const lastPageview = rows.filter(r => r.event_type === 'pageview').pop()
+      const lastPageview = rows.filter(r => r.eventType === 'pageview').pop()
 
-      const { data: existingSession } = await supabaseAdmin
-        .from('analytics_sessions')
-        .select('id, page_count, entry_page, started_at')
-        .eq('site_id', site.id)
-        .eq('session_id', sessionId)
-        .single()
+      const [existingSession] = await db
+        .select({
+          id: analyticsSessions.id,
+          pageCount: analyticsSessions.pageCount,
+          entryPage: analyticsSessions.entryPage,
+          startedAt: analyticsSessions.startedAt,
+        })
+        .from(analyticsSessions)
+        .where(and(
+          eq(analyticsSessions.siteId, site.id),
+          eq(analyticsSessions.sessionId, sessionId),
+        ))
 
       if (existingSession) {
-        const newPageCount = existingSession.page_count + pageviewEvents.length
+        const newPageCount = (existingSession.pageCount ?? 0) + pageviewEvents.length
         const durationSeconds = Math.floor(
-          (new Date().getTime() - new Date(existingSession.started_at).getTime()) / 1000
+          (new Date().getTime() - new Date(existingSession.startedAt).getTime()) / 1000
         )
-        await supabaseAdmin
-          .from('analytics_sessions')
-          .update({
-            exit_page: lastPageview?.page_path || null,
-            page_count: newPageCount,
-            duration_seconds: durationSeconds,
-            is_bounce: newPageCount <= 1,
-            ended_at: new Date().toISOString(),
+        await db
+          .update(analyticsSessions)
+          .set({
+            exitPage: lastPageview?.pagePath || null,
+            pageCount: newPageCount,
+            durationSeconds,
+            isBounce: newPageCount <= 1,
+            endedAt: new Date(),
           })
-          .eq('id', existingSession.id)
+          .where(eq(analyticsSessions.id, existingSession.id))
       } else {
-        await supabaseAdmin.from('analytics_sessions').insert({
-          site_id: site.id,
-          session_id: sessionId,
-          visitor_hash: visitorHash,
-          entry_page: firstEvent.page_path,
-          exit_page: lastPageview?.page_path || firstEvent.page_path,
-          page_count: pageviewEvents.length,
-          referrer_domain: firstEvent.referrer_domain,
-          utm_source: firstEvent.utm_source,
-          device_type: deviceType,
-          is_bounce: pageviewEvents.length <= 1,
-          started_at: firstEvent.created_at,
-          ended_at: new Date().toISOString(),
+        await db.insert(analyticsSessions).values({
+          siteId: site.id,
+          sessionId,
+          visitorHash,
+          entryPage: firstEvent.pagePath,
+          exitPage: lastPageview?.pagePath || firstEvent.pagePath,
+          pageCount: pageviewEvents.length,
+          referrerDomain: firstEvent.referrerDomain,
+          utmSource: firstEvent.utmSource,
+          deviceType,
+          isBounce: pageviewEvents.length <= 1,
+          startedAt: firstEvent.createdAt,
+          endedAt: new Date(),
         })
       }
     }

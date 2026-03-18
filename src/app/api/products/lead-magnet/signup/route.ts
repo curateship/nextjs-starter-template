@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { products, newsletterContacts } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
 import { getFlodeskConfig, getResendConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
-
-// Server-side only: bypasses RLS since visitors aren't authenticated.
-// Safe because this route only reads specific products/sites by ID.
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
 
 /**
  * POST /api/products/lead-magnet/signup
@@ -49,14 +44,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get product details (using admin client — visitors are not authenticated)
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .single()
+    // Get product details
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, productId))
 
-    if (productError || !product) {
+    if (!product) {
       return NextResponse.json(
         { success: false, error: 'Product not found' },
         { status: 404 }
@@ -64,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify product has product-lead-magnet block
-    const contentBlocks = product.content_blocks || {}
+    const contentBlocks = (product.contentBlocks as Record<string, any>) || {}
     const leadMagnetBlock = contentBlocks['product-lead-magnet']
 
     if (!leadMagnetBlock) {
@@ -108,15 +102,20 @@ export async function POST(request: NextRequest) {
 
     // Add to newsletter contacts + enroll in automations
     try {
-      const { data: contact } = await supabaseAdmin
-        .from('newsletter_contacts')
-        .upsert({
-          site_id: siteId,
+      const [contact] = await db
+        .insert(newsletterContacts)
+        .values({
+          siteId,
           email: email.toLowerCase(),
           metadata: { source: 'lead_magnet', source_product_id: productId },
-        }, { onConflict: 'site_id,email' })
-        .select('id')
-        .single()
+        })
+        .onConflictDoUpdate({
+          target: [newsletterContacts.siteId, newsletterContacts.email],
+          set: {
+            metadata: { source: 'lead_magnet', source_product_id: productId },
+          },
+        })
+        .returning({ id: newsletterContacts.id })
 
       if (contact) {
         const automations = await findActiveAutomations(siteId, 'lead_magnet_signup', productId)

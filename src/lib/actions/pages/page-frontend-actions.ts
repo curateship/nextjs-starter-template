@@ -1,29 +1,21 @@
 "use server"
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
+import { db } from '@/lib/db'
+import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // Cached site lookup functions (include parameter in cache key)
 export async function getCachedSiteByDomain(domain: string) {
   return unstable_cache(
     async () => {
-      const { data: site, error: siteError } = await supabaseAdmin
-        .from('sites')
-        .select('*')
-        .eq('custom_domain', domain)
-        .single()
+      const [site] = await db
+        .select()
+        .from(sites)
+        .where(eq(sites.customDomain, domain))
 
-      if (siteError || !site) {
-        return null
-      }
-
-      return site
+      return site || null
     },
     ['site-by-domain', domain],
     { revalidate: false, tags: ['site-lookup', 'all'] }
@@ -33,17 +25,12 @@ export async function getCachedSiteByDomain(domain: string) {
 export async function getCachedSiteBySubdomain(subdomain: string) {
   return unstable_cache(
     async () => {
-      const { data: site, error: siteError } = await supabaseAdmin
-        .from('sites')
-        .select('*')
-        .eq('subdomain', subdomain)
-        .single()
+      const [site] = await db
+        .select()
+        .from(sites)
+        .where(eq(sites.subdomain, subdomain))
 
-      if (siteError || !site) {
-        return null
-      }
-
-      return site
+      return site || null
     },
     ['site-by-subdomain', subdomain],
     { revalidate: false, tags: ['site-lookup', 'all'] }
@@ -55,7 +42,7 @@ export async function resolveSiteByHost(hostname: string) {
   // Try custom domain
   const byDomain = await getCachedSiteByDomain(host)
   if (byDomain && (byDomain.status === 'active' || byDomain.status === 'draft')) {
-    return { id: byDomain.id, subdomain: byDomain.subdomain, custom_domain: byDomain.custom_domain }
+    return { id: byDomain.id, subdomain: byDomain.subdomain, custom_domain: byDomain.customDomain }
   }
   // Try subdomain (skip common system subdomains)
   if (host.includes('.')) {
@@ -63,7 +50,7 @@ export async function resolveSiteByHost(hostname: string) {
     if (!['www', 'api', 'admin', 'app'].includes(sub)) {
       const bySub = await getCachedSiteBySubdomain(sub)
       if (bySub && (bySub.status === 'active' || bySub.status === 'draft')) {
-        return { id: bySub.id, subdomain: bySub.subdomain, custom_domain: bySub.custom_domain }
+        return { id: bySub.id, subdomain: bySub.subdomain, custom_domain: bySub.customDomain }
       }
     }
   }
@@ -74,15 +61,14 @@ export async function resolveSiteByHost(hostname: string) {
 async function getCachedPage(siteId: string, pageSlug: string) {
   return unstable_cache(
     async () => {
-      const { data: page, error: pageError } = await supabaseAdmin
-        .from('pages')
-        .select('*')
-        .eq('site_id', siteId)
-        .eq('slug', pageSlug)
-        .eq('is_published', true)
-        .single()
+      // Use raw SQL to get content_blocks which is not in the Drizzle schema
+      const result = await db.execute(
+        sql`SELECT * FROM pages WHERE site_id = ${siteId} AND slug = ${pageSlug} AND is_published = true LIMIT 1`
+      )
 
-      if (pageError || !page) {
+      const page = result.rows?.[0] as any | undefined
+
+      if (!page) {
         return null
       }
 
@@ -168,6 +154,50 @@ function buildPublicPageBlocks(
 }
 
 /**
+ * Helper to pre-fetch listing data for listing-views blocks
+ */
+async function prefetchListingData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any>; display_order: number }>,
+  siteId: string
+): Promise<Record<string, any>> {
+  let listingData: Record<string, any> = {}
+
+  for (const block of blocks) {
+    if (block.type === 'listing-views') {
+      try {
+        const {
+          contentType = 'products',
+          sortBy = 'date',
+          sortOrder = 'desc',
+          itemsToShow = 6,
+          itemsPerPage = 12,
+          isPaginated = false
+        } = block.content
+
+        const limit = isPaginated ? itemsPerPage : itemsToShow
+
+        const result = await getListingViewsData({
+          site_id: siteId,
+          contentType,
+          sortBy,
+          sortOrder,
+          limit,
+          offset: 0
+        })
+
+        if (result.success && result.data) {
+          listingData[block.id] = result.data
+        }
+      } catch (error) {
+        // Silently continue - block will fall back to client loading
+      }
+    }
+  }
+
+  return listingData
+}
+
+/**
  * Get site data by subdomain for frontend rendering
  */
 export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
@@ -211,46 +241,14 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     const blocks = buildPublicPageBlocks(site, page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
-    let listingData: Record<string, any> = {}
-    
-    for (const block of blocks) {
-      if (block.type === 'listing-views') {
-        try {
-          const {
-            contentType = 'products',
-            sortBy = 'date',
-            sortOrder = 'desc',
-            itemsToShow = 6,
-            itemsPerPage = 12,
-            isPaginated = false
-          } = block.content
-          
-          const limit = isPaginated ? itemsPerPage : itemsToShow
-          
-          const result = await getListingViewsData({
-            site_id: site.id,
-            contentType,
-            sortBy,
-            sortOrder,
-            limit,
-            offset: 0
-          })
-          
-          if (result.success && result.data) {
-            listingData[block.id] = result.data
-          }
-        } catch (error) {
-          // Silently continue - block will fall back to client loading
-        }
-      }
-    }
+    const listingData = await prefetchListingData(blocks, site.id)
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
       name: site.name,
       subdomain: site.subdomain,
-      custom_domain: site.custom_domain,
-      settings: site.settings,
+      custom_domain: site.customDomain,
+      settings: site.settings as Record<string, any>,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined
     }
@@ -281,13 +279,12 @@ export async function getSitePages(subdomain: string): Promise<{
     }
 
     // Get site by subdomain
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, status')
-      .eq('subdomain', subdomain)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id, status: sites.status })
+      .from(sites)
+      .where(eq(sites.subdomain, subdomain))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found' }
     }
 
@@ -297,18 +294,18 @@ export async function getSitePages(subdomain: string): Promise<{
     }
 
     // Get published pages
-    const { data: pages, error: pagesError } = await supabaseAdmin
-      .from('pages')
-      .select('id, title, slug, is_homepage')
-      .eq('site_id', site.id)
-      .eq('is_published', true)
-      .order('display_order', { ascending: true })
+    const result = await db
+      .select({
+        id: pages.id,
+        title: pages.title,
+        slug: pages.slug,
+        is_homepage: pages.isHomepage,
+      })
+      .from(pages)
+      .where(and(eq(pages.siteId, site.id), eq(pages.isPublished, true)))
+      .orderBy(asc(pages.displayOrder))
 
-    if (pagesError) {
-      return { success: false, error: `Failed to load pages: ${pagesError.message}` }
-    }
-
-    return { success: true, pages: pages || [] }
+    return { success: true, pages: result || [] }
 
   } catch (error) {
     return { success: false, error: 'Failed to load pages' }
@@ -359,46 +356,14 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
     const blocks = buildPublicPageBlocks(site, page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
-    let listingData: Record<string, any> = {}
-    
-    for (const block of blocks) {
-      if (block.type === 'listing-views') {
-        try {
-          const {
-            contentType = 'products',
-            sortBy = 'date',
-            sortOrder = 'desc',
-            itemsToShow = 6,
-            itemsPerPage = 12,
-            isPaginated = false
-          } = block.content
-          
-          const limit = isPaginated ? itemsPerPage : itemsToShow
-          
-          const result = await getListingViewsData({
-            site_id: site.id,
-            contentType,
-            sortBy,
-            sortOrder,
-            limit,
-            offset: 0
-          })
-          
-          if (result.success && result.data) {
-            listingData[block.id] = result.data
-          }
-        } catch (error) {
-          // Silently continue - block will fall back to client loading
-        }
-      }
-    }
+    const listingData = await prefetchListingData(blocks, site.id)
 
     const siteWithBlocks: SiteWithBlocks = {
       id: site.id,
       name: site.name,
       subdomain: site.subdomain,
-      custom_domain: site.custom_domain,
-      settings: site.settings,
+      custom_domain: site.customDomain,
+      settings: site.settings as Record<string, any>,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined
     }

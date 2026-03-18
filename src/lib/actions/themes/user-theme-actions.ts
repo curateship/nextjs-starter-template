@@ -1,27 +1,11 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, desc, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import type { Site } from '@/lib/actions/sites/site-actions'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
-
-async function getAuthenticatedUser() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
-}
+import { db } from '@/lib/db'
+import { sites, pages } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 /**
  * Save a site as a reusable theme template.
@@ -37,14 +21,11 @@ export async function saveAsThemeAction(
     if (!user) return { data: null, error: 'Authentication required' }
 
     // Verify user owns the source site
-    const { data: sourceSite, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const sourceSite = await db.query.sites.findFirst({
+      where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
+    })
 
-    if (siteError || !sourceSite) {
+    if (!sourceSite) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -52,66 +33,52 @@ export async function saveAsThemeAction(
     const templateSubdomain = `template-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`
 
     // Navigation and footer live inside settings.public_pages — copying settings copies them too
-    const { data: templateSite, error: createError } = await supabaseAdmin
-      .from('sites')
-      .insert([{
+    const settings = sourceSite.settings as Record<string, any>
+    const [templateSite] = await db
+      .insert(sites)
+      .values({
         name,
-        user_id: user.id,
+        userId: user.id,
         subdomain: templateSubdomain,
         status: 'draft',
-        is_template: true,
-        custom_domain: null,
+        isTemplate: true,
+        customDomain: null,
         settings: {
-          ...sourceSite.settings,
+          ...settings,
           description: description || null,
         },
-      }])
-      .select()
-      .single()
+      })
+      .returning()
 
-    if (createError || !templateSite) {
-      return { data: null, error: `Failed to create template: ${createError?.message}` }
+    if (!templateSite) {
+      return { data: null, error: 'Failed to create template' }
     }
 
     // Delete trigger-created default pages before cloning source pages
-    await supabaseAdmin.from('pages').delete().eq('site_id', templateSite.id)
+    await db.delete(pages).where(eq(pages.siteId, templateSite.id))
 
-    // Clone all pages from source site
-    const { data: sourcePages, error: pagesError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
+    // Clone all pages from source site (use raw SQL to include content_blocks which isn't in Drizzle schema)
+    const sourcePages = await db.execute<{
+      title: string
+      slug: string
+      meta_description: string | null
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+    }>(sql`SELECT title, slug, meta_description, is_homepage, is_published, display_order, content_blocks FROM pages WHERE site_id = ${siteId} ORDER BY display_order ASC`)
 
-    if (pagesError) {
-      return { data: null, error: `Failed to read source pages: ${pagesError.message}` }
-    }
-
-    if (sourcePages && sourcePages.length > 0) {
-      const clonedPages = sourcePages.map(page => ({
-        site_id: templateSite.id,
-        title: page.title,
-        slug: page.slug,
-        meta_description: page.meta_description,
-        is_homepage: page.is_homepage,
-        is_published: page.is_published,
-        display_order: page.display_order,
-        content_blocks: page.content_blocks,
-      }))
-
-      const { error: insertError } = await supabaseAdmin
-        .from('pages')
-        .insert(clonedPages)
-
-      if (insertError) {
-        // Clean up the template site if page cloning fails
-        await supabaseAdmin.from('sites').delete().eq('id', templateSite.id)
-        return { data: null, error: `Failed to clone pages: ${insertError.message}` }
+    if (sourcePages.rows && sourcePages.rows.length > 0) {
+      for (const page of sourcePages.rows) {
+        await db.execute(
+          sql`INSERT INTO pages (site_id, title, slug, meta_description, is_homepage, is_published, display_order, content_blocks)
+              VALUES (${templateSite.id}, ${page.title}, ${page.slug}, ${page.meta_description}, ${page.is_homepage}, ${page.is_published}, ${page.display_order}, ${JSON.stringify(page.content_blocks || {})}::jsonb)`
+        )
       }
     }
 
     revalidatePath('/admin/themes')
-    return { data: templateSite as Site, error: null }
+    return { data: templateSite as unknown as Site, error: null }
   } catch (error) {
     return {
       data: null,
@@ -128,18 +95,13 @@ export async function getTemplateSitesAction(): Promise<{ data: Site[] | null; e
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
-    const { data, error } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_template', true)
-      .order('created_at', { ascending: false })
+    const result = await db
+      .select()
+      .from(sites)
+      .where(and(eq(sites.userId, user.id), eq(sites.isTemplate, true)))
+      .orderBy(desc(sites.createdAt))
 
-    if (error) {
-      return { data: null, error: `Database error: ${error.message}` }
-    }
-
-    return { data: data as Site[], error: null }
+    return { data: result as unknown as Site[], error: null }
   } catch (error) {
     return {
       data: null,
@@ -161,70 +123,57 @@ export async function applyThemeToSiteAction(
     if (!user) return { success: false, error: 'Authentication required' }
 
     // Verify user owns both sites
-    const [{ data: targetSite }, { data: templateSite }] = await Promise.all([
-      supabaseAdmin.from('sites').select('*').eq('id', siteId).eq('user_id', user.id).single(),
-      supabaseAdmin.from('sites').select('*').eq('id', templateId).eq('user_id', user.id).eq('is_template', true).single(),
+    const [targetSite, templateSite] = await Promise.all([
+      db.query.sites.findFirst({
+        where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
+      }),
+      db.query.sites.findFirst({
+        where: and(eq(sites.id, templateId), eq(sites.userId, user.id), eq(sites.isTemplate, true)),
+      }),
     ])
 
     if (!targetSite) return { success: false, error: 'Target site not found or access denied' }
     if (!templateSite) return { success: false, error: 'Template not found or access denied' }
 
     // Merge settings — preserve site-specific fields
+    const templateSettings = templateSite.settings as Record<string, any>
+    const targetSettings = targetSite.settings as Record<string, any>
     const mergedSettings = {
-      ...templateSite.settings,
-      tracking_scripts: targetSite.settings?.tracking_scripts,
-      maintenance: targetSite.settings?.maintenance,
-      site_title: targetSite.settings?.site_title || targetSite.name,
+      ...templateSettings,
+      tracking_scripts: targetSettings?.tracking_scripts,
+      maintenance: targetSettings?.maintenance,
+      site_title: targetSettings?.site_title || targetSite.name,
     }
 
     // Update target site settings (nav/footer live inside settings.public_pages)
-    const { error: updateError } = await supabaseAdmin
-      .from('sites')
-      .update({
+    await db
+      .update(sites)
+      .set({
         settings: mergedSettings,
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date(),
       })
-      .eq('id', siteId)
-
-    if (updateError) {
-      return { success: false, error: `Failed to update site settings: ${updateError.message}` }
-    }
+      .where(eq(sites.id, siteId))
 
     // Delete existing pages on target site
-    const { error: deleteError } = await supabaseAdmin
-      .from('pages')
-      .delete()
-      .eq('site_id', siteId)
+    await db.delete(pages).where(eq(pages.siteId, siteId))
 
-    if (deleteError) {
-      return { success: false, error: `Failed to clear existing pages: ${deleteError.message}` }
-    }
+    // Clone template pages to target site (use raw SQL to include content_blocks)
+    const templatePages = await db.execute<{
+      title: string
+      slug: string
+      meta_description: string | null
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+    }>(sql`SELECT title, slug, meta_description, is_homepage, is_published, display_order, content_blocks FROM pages WHERE site_id = ${templateId} ORDER BY display_order ASC`)
 
-    // Clone template pages to target site
-    const { data: templatePages } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('site_id', templateId)
-      .order('display_order', { ascending: true })
-
-    if (templatePages && templatePages.length > 0) {
-      const clonedPages = templatePages.map(page => ({
-        site_id: siteId,
-        title: page.title,
-        slug: page.slug,
-        meta_description: page.meta_description,
-        is_homepage: page.is_homepage,
-        is_published: page.is_published,
-        display_order: page.display_order,
-        content_blocks: page.content_blocks,
-      }))
-
-      const { error: insertError } = await supabaseAdmin
-        .from('pages')
-        .insert(clonedPages)
-
-      if (insertError) {
-        return { success: false, error: `Failed to clone template pages: ${insertError.message}` }
+    if (templatePages.rows && templatePages.rows.length > 0) {
+      for (const page of templatePages.rows) {
+        await db.execute(
+          sql`INSERT INTO pages (site_id, title, slug, meta_description, is_homepage, is_published, display_order, content_blocks)
+              VALUES (${siteId}, ${page.title}, ${page.slug}, ${page.meta_description}, ${page.is_homepage}, ${page.is_published}, ${page.display_order}, ${JSON.stringify(page.content_blocks || {})}::jsonb)`
+        )
       }
     }
 
@@ -249,21 +198,21 @@ export async function updateTemplateAction(
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
-    const { data, error } = await supabaseAdmin
-      .from('sites')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', templateId)
-      .eq('user_id', user.id)
-      .eq('is_template', true)
-      .select()
-      .single()
+    const [updated] = await db
+      .update(sites)
+      .set({
+        ...(updates.name ? { name: updates.name } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(sites.id, templateId), eq(sites.userId, user.id), eq(sites.isTemplate, true)))
+      .returning()
 
-    if (error) {
-      return { data: null, error: `Failed to update template: ${error.message}` }
+    if (!updated) {
+      return { data: null, error: 'Failed to update template: not found or access denied' }
     }
 
     revalidatePath('/admin/themes')
-    return { data: data as Site, error: null }
+    return { data: updated as unknown as Site, error: null }
   } catch (error) {
     return {
       data: null,
@@ -282,15 +231,13 @@ export async function deleteTemplateAction(
     const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Authentication required' }
 
-    const { error } = await supabaseAdmin
-      .from('sites')
-      .delete()
-      .eq('id', templateId)
-      .eq('user_id', user.id)
-      .eq('is_template', true)
+    const result = await db
+      .delete(sites)
+      .where(and(eq(sites.id, templateId), eq(sites.userId, user.id), eq(sites.isTemplate, true)))
+      .returning({ id: sites.id })
 
-    if (error) {
-      return { success: false, error: `Failed to delete template: ${error.message}` }
+    if (result.length === 0) {
+      return { success: false, error: 'Failed to delete template: not found or access denied' }
     }
 
     revalidatePath('/admin/themes')

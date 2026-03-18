@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth'
 import { writeFile, readFile } from 'fs/promises'
 import { join } from 'path'
 
@@ -7,14 +7,13 @@ const ENV_PATH = join(process.cwd(), '.env.local')
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth.api.getSession({ headers: request.headers })
 
-    if (!user) {
+    if (!session?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (user.app_metadata?.role !== 'super_admin') {
+    if ((session.user as { role?: string }).role !== 'super_admin') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

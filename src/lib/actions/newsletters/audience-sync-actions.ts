@@ -1,32 +1,20 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { eq, and, sql, gte } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { newsletterContacts, siteIntegrations, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { Resend } from 'resend'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
-
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
-}
-
 async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
   return !!site
 }
 
@@ -37,7 +25,7 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 export async function getOrCreateResendAudience(siteId: string): Promise<{ audienceId: string | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { audienceId: null, error: 'Invalid site ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { audienceId: null, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { audienceId: null, error: 'Access denied' }
 
@@ -45,26 +33,26 @@ export async function getOrCreateResendAudience(siteId: string): Promise<{ audie
     if (!config?.apiKey) return { audienceId: null, error: 'Resend not configured' }
 
     // Check if audience ID already stored
-    const { data: integration } = await supabaseAdmin
-      .from('site_integrations')
-      .select('id, config')
-      .eq('site_id', siteId)
-      .eq('integration_type', 'resend')
-      .single()
+    const [integration] = await db
+      .select({ id: siteIntegrations.id, config: siteIntegrations.config })
+      .from(siteIntegrations)
+      .where(and(eq(siteIntegrations.siteId, siteId), eq(siteIntegrations.integrationType, 'resend')))
+      .limit(1)
 
-    if (integration?.config?.audience_id) {
-      return { audienceId: integration.config.audience_id, error: null }
+    const integrationConfig = integration?.config as Record<string, any> | null
+    if (integrationConfig?.audience_id) {
+      return { audienceId: integrationConfig.audience_id, error: null }
     }
 
     // Create audience in Resend
     const resend = new Resend(config.apiKey)
 
     // Get site name for audience
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('name')
-      .eq('id', siteId)
-      .single()
+    const [site] = await db
+      .select({ name: sites.name })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
 
     const { data: audience, error: audienceError } = await resend.audiences.create({
       name: site?.name || 'Newsletter',
@@ -77,12 +65,12 @@ export async function getOrCreateResendAudience(siteId: string): Promise<{ audie
 
     // Store audience ID in integration config
     if (integration) {
-      await supabaseAdmin
-        .from('site_integrations')
-        .update({
-          config: { ...integration.config, audience_id: audience.id },
+      await db
+        .update(siteIntegrations)
+        .set({
+          config: { ...integrationConfig, audience_id: audience.id },
         })
-        .eq('id', integration.id)
+        .where(eq(siteIntegrations.id, integration.id))
     }
 
     return { audienceId: audience.id, error: null }
@@ -97,7 +85,7 @@ export async function getOrCreateResendAudience(siteId: string): Promise<{ audie
  */
 export async function syncContactsToResend(siteId: string): Promise<{ synced: number; error: string | null }> {
   try {
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { synced: 0, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { synced: 0, error: 'Access denied' }
     if (!UUID_REGEX.test(siteId)) return { synced: 0, error: 'Invalid site ID' }
@@ -111,28 +99,23 @@ export async function syncContactsToResend(siteId: string): Promise<{ synced: nu
     const resend = new Resend(config.apiKey)
 
     // Get all active contacts
-    const { data: contacts, error: dbError } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .select('email, metadata')
-      .eq('site_id', siteId)
-      .eq('status', 'active')
+    const contacts = await db
+      .select({ email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+      .from(newsletterContacts)
+      .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.status, 'active')))
 
-    if (dbError) {
-      console.error('syncContactsToResend db error:', dbError.message)
-      return { synced: 0, error: 'Failed to load contacts' }
-    }
-
-    if (!contacts?.length) return { synced: 0, error: null }
+    if (!contacts.length) return { synced: 0, error: null }
 
     // Sync contacts to Resend audience in batches
     let synced = 0
     for (const contact of contacts) {
       try {
+        const meta = contact.metadata as Record<string, any> | null
         await resend.contacts.create({
           audienceId,
           email: contact.email,
-          firstName: contact.metadata?.first_name || undefined,
-          lastName: contact.metadata?.last_name || undefined,
+          firstName: meta?.first_name || undefined,
+          lastName: meta?.last_name || undefined,
           unsubscribed: false,
         })
         synced++
@@ -158,39 +141,36 @@ export async function getAudienceCount(
 ): Promise<{ count: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { count: 0, error: 'Invalid site ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { count: 0, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { count: 0, error: 'Access denied' }
 
-    let query = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('site_id', siteId)
-      .eq('status', 'active')
+    const conditions = [
+      eq(newsletterContacts.siteId, siteId),
+      eq(newsletterContacts.status, 'active'),
+    ]
 
     if (audienceFilter.tags?.length) {
       // Filter contacts whose metadata tags overlap with filter tags
       for (const tag of audienceFilter.tags) {
-        query = query.contains('metadata', { tags: [tag] })
+        conditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
       }
     }
 
     if (audienceFilter.sources?.length) {
-      query = query.in('metadata->>source', audienceFilter.sources)
+      conditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(audienceFilter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
     }
 
     if (audienceFilter.min_engagement_score) {
-      query = query.gte('engagement_score', audienceFilter.min_engagement_score)
+      conditions.push(gte(newsletterContacts.engagementScore, audienceFilter.min_engagement_score))
     }
 
-    const { count, error } = await query
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(newsletterContacts)
+      .where(and(...conditions))
 
-    if (error) {
-      console.error('getAudienceCount error:', error.message)
-      return { count: 0, error: 'Failed to count audience' }
-    }
-
-    return { count: count ?? 0, error: null }
+    return { count: result?.count ?? 0, error: null }
   } catch (err) {
     console.error('getAudienceCount error:', err)
     return { count: 0, error: 'Server error' }

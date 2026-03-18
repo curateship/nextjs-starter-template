@@ -1,37 +1,25 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
+import { db } from '@/lib/db'
+import { productOrders, products, sites } from '@/lib/db/schema'
+import { eq, desc, inArray, and, sql } from 'drizzle-orm'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 /**
  * Verify the authenticated user owns the given site.
  */
 async function verifySiteOwnership(siteId: string): Promise<void> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) throw new Error('Authentication required')
+  const user = await getAuthenticatedUser()
+  if (!user) throw new Error('Authentication required')
 
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', user.id)
-    .single()
+  const result = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+    .limit(1)
 
-  if (!site) throw new Error('Site not found or access denied')
+  if (result.length === 0) throw new Error('Site not found or access denied')
 }
 
 /**
@@ -76,6 +64,32 @@ function generateAccessToken(): string {
 }
 
 /**
+ * Map a Drizzle row to the ProductOrder interface (snake_case keys)
+ */
+function toProductOrder(row: typeof productOrders.$inferSelect): ProductOrder {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    product_id: row.productId,
+    customer_email: row.customerEmail,
+    order_type: row.orderType as OrderType,
+    stripe_session_id: row.stripeSessionId,
+    stripe_payment_intent_id: row.stripePaymentIntentId,
+    amount_total: row.amountTotal,
+    currency: row.currency,
+    payment_status: row.paymentStatus as PaymentStatus | null,
+    access_token: row.accessToken,
+    clicked_at: row.clickedAt?.toISOString() ?? null,
+    click_count: row.clickCount ?? 0,
+    email_sent_at: row.emailSentAt?.toISOString() ?? null,
+    flodesk_added_at: row.flodeskAddedAt?.toISOString() ?? null,
+    metadata: row.metadata as Record<string, any> | null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  }
+}
+
+/**
  * Create a free product signup record
  */
 export async function createFreeSignup(params: {
@@ -85,28 +99,21 @@ export async function createFreeSignup(params: {
   metadata?: Record<string, any>
 }): Promise<ProductOrder> {
   try {
-
     const accessToken = generateAccessToken()
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .insert({
-        site_id: params.siteId,
-        product_id: params.productId,
-        customer_email: params.email.toLowerCase().trim(),
-        order_type: 'lead_magnet',
-        access_token: accessToken,
+    const [row] = await db
+      .insert(productOrders)
+      .values({
+        siteId: params.siteId,
+        productId: params.productId,
+        customerEmail: params.email.toLowerCase().trim(),
+        orderType: 'lead_magnet' as any,
+        accessToken,
         metadata: params.metadata || null,
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('Error creating free signup:', error)
-      throw new Error(`Failed to create signup: ${error.message}`)
-    }
-
-    return data
+    return toProductOrder(row)
   } catch (error) {
     console.error('Error in createFreeSignup:', error)
     throw error
@@ -128,33 +135,26 @@ export async function createPaidOrder(params: {
   metadata?: Record<string, any>
 }): Promise<ProductOrder> {
   try {
-
     const accessToken = generateAccessToken()
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .insert({
-        site_id: params.siteId,
-        product_id: params.productId,
-        customer_email: params.email.toLowerCase().trim(),
-        order_type: 'paid_purchase',
-        stripe_session_id: params.stripeSessionId,
-        stripe_payment_intent_id: params.stripePaymentIntentId,
-        amount_total: params.amountTotal,
+    const [row] = await db
+      .insert(productOrders)
+      .values({
+        siteId: params.siteId,
+        productId: params.productId,
+        customerEmail: params.email.toLowerCase().trim(),
+        orderType: 'paid_purchase' as any,
+        stripeSessionId: params.stripeSessionId,
+        stripePaymentIntentId: params.stripePaymentIntentId,
+        amountTotal: params.amountTotal,
         currency: params.currency,
-        payment_status: params.paymentStatus || 'succeeded',
-        access_token: accessToken,
+        paymentStatus: (params.paymentStatus || 'succeeded') as any,
+        accessToken,
         metadata: params.metadata || null,
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('Error creating paid order:', error)
-      throw new Error(`Failed to create order: ${error.message}`)
-    }
-
-    return data
+    return toProductOrder(row)
   } catch (error) {
     console.error('Error in createPaidOrder:', error)
     throw error
@@ -168,23 +168,14 @@ export async function getOrderByToken(
   token: string
 ): Promise<ProductOrder | null> {
   try {
+    const rows = await db
+      .select()
+      .from(productOrders)
+      .where(eq(productOrders.accessToken, token))
+      .limit(1)
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('access_token', token)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No rows returned
-        return null
-      }
-      console.error('Error fetching order by token:', error)
-      throw new Error(`Failed to fetch order: ${error.message}`)
-    }
-
-    return data
+    if (rows.length === 0) return null
+    return toProductOrder(rows[0])
   } catch (error) {
     console.error('Error in getOrderByToken:', error)
     return null
@@ -198,22 +189,14 @@ export async function getOrderByStripeSession(
   stripeSessionId: string
 ): Promise<ProductOrder | null> {
   try {
+    const rows = await db
+      .select()
+      .from(productOrders)
+      .where(eq(productOrders.stripeSessionId, stripeSessionId))
+      .limit(1)
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('stripe_session_id', stripeSessionId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null
-      }
-      console.error('Error fetching order by Stripe session:', error)
-      throw new Error(`Failed to fetch order: ${error.message}`)
-    }
-
-    return data
+    if (rows.length === 0) return null
+    return toProductOrder(rows[0])
   } catch (error) {
     console.error('Error in getOrderByStripeSession:', error)
     return null
@@ -227,19 +210,13 @@ export async function getOrdersByEmail(
   email: string
 ): Promise<ProductOrder[]> {
   try {
+    const rows = await db
+      .select()
+      .from(productOrders)
+      .where(eq(productOrders.customerEmail, email.toLowerCase().trim()))
+      .orderBy(desc(productOrders.createdAt))
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('customer_email', email.toLowerCase().trim())
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching orders by email:', error)
-      throw new Error(`Failed to fetch orders: ${error.message}`)
-    }
-
-    return data || []
+    return rows.map(toProductOrder)
   } catch (error) {
     console.error('Error in getOrdersByEmail:', error)
     return []
@@ -258,35 +235,36 @@ export async function getOrdersWithProducts(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const [ordersResult, productsResult] = await Promise.all([
-      supabaseAdmin
-        .from('product_orders')
-        .select('*', { count: 'exact' })
-        .eq('site_id', siteId)
-        .order('created_at', { ascending: false })
-        .range(from, to),
-      supabaseAdmin
-        .from('products')
-        .select('id, title')
-        .eq('site_id', siteId),
+    const [ordersResult, countResult, productsResult] = await Promise.all([
+      db
+        .select()
+        .from(productOrders)
+        .where(eq(productOrders.siteId, siteId))
+        .orderBy(desc(productOrders.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(productOrders)
+        .where(eq(productOrders.siteId, siteId)),
+      db
+        .select({ id: products.id, title: products.title })
+        .from(products)
+        .where(eq(products.siteId, siteId)),
     ])
 
-    if (ordersResult.error) {
-      console.error('Error fetching orders:', ordersResult.error)
-      return { data: [], total: 0, productMap: {} }
-    }
-
     const productMap: Record<string, string> = {}
-    if (productsResult.data) {
-      for (const p of productsResult.data) {
-        productMap[p.id] = p.title
-      }
+    for (const p of productsResult) {
+      productMap[p.id] = p.title
     }
 
-    return { data: ordersResult.data || [], total: ordersResult.count ?? 0, productMap }
+    return {
+      data: ordersResult.map(toProductOrder),
+      total: countResult[0]?.count ?? 0,
+      productMap,
+    }
   } catch (error) {
     console.error('Error in getOrdersWithProducts:', error)
     return { data: [], total: 0, productMap: {} }
@@ -301,27 +279,22 @@ export async function getOrdersByProduct(
 ): Promise<ProductOrder[]> {
   try {
     // Verify the caller owns the site this product belongs to
-    const { data: product } = await supabaseAdmin
-      .from('products')
-      .select('site_id')
-      .eq('id', productId)
-      .single()
+    const productRows = await db
+      .select({ siteId: products.siteId })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1)
 
-    if (!product) throw new Error('Product not found')
-    await verifySiteOwnership(product.site_id)
+    if (productRows.length === 0) throw new Error('Product not found')
+    await verifySiteOwnership(productRows[0].siteId)
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('product_id', productId)
-      .order('created_at', { ascending: false })
+    const rows = await db
+      .select()
+      .from(productOrders)
+      .where(eq(productOrders.productId, productId))
+      .orderBy(desc(productOrders.createdAt))
 
-    if (error) {
-      console.error('Error fetching orders by product:', error)
-      throw new Error(`Failed to fetch orders: ${error.message}`)
-    }
-
-    return data || []
+    return rows.map(toProductOrder)
   } catch (error) {
     console.error('Error in getOrdersByProduct:', error)
     return []
@@ -333,19 +306,13 @@ export async function getOrdersByProduct(
  */
 export async function markEmailSent(orderId: string): Promise<void> {
   try {
-
-    const { error } = await supabaseAdmin
-      .from('product_orders')
-      .update({
-        email_sent_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    await db
+      .update(productOrders)
+      .set({
+        emailSentAt: new Date(),
+        updatedAt: new Date(),
       })
-      .eq('id', orderId)
-
-    if (error) {
-      console.error('Error marking email sent:', error)
-      throw new Error(`Failed to mark email sent: ${error.message}`)
-    }
+      .where(eq(productOrders.id, orderId))
   } catch (error) {
     console.error('Error in markEmailSent:', error)
     throw error
@@ -357,35 +324,32 @@ export async function markEmailSent(orderId: string): Promise<void> {
  */
 export async function markLinkClicked(token: string): Promise<ProductOrder> {
   try {
-
-    // Atomic increment to avoid race condition with concurrent clicks
     const now = new Date().toISOString()
-    const { data, error } = await supabaseAdmin.rpc('increment_click_count', {
-      p_token: token,
-      p_now: now,
-    })
 
-    if (error) {
-      // Fallback if RPC doesn't exist yet: use regular update
-      const order = await getOrderByToken(token)
-      if (!order) throw new Error('Order not found')
-
-      const { data: updated, error: updateError } = await supabaseAdmin
-        .from('product_orders')
-        .update({
-          click_count: order.click_count + 1,
-          clicked_at: order.clicked_at || now,
-          updated_at: now,
-        })
-        .eq('id', order.id)
-        .select()
-        .single()
-
-      if (updateError) throw new Error(`Failed to mark link clicked: ${updateError.message}`)
-      return updated
+    // Try RPC first for atomic increment
+    try {
+      const result = await db.execute(sql`SELECT * FROM increment_click_count(${token}, ${now}::timestamptz)`)
+      if (result.rows && result.rows.length > 0) {
+        return result.rows[0] as unknown as ProductOrder
+      }
+    } catch {
+      // Fallback if RPC doesn't exist: use regular update
     }
 
-    return data
+    const order = await getOrderByToken(token)
+    if (!order) throw new Error('Order not found')
+
+    const [updated] = await db
+      .update(productOrders)
+      .set({
+        clickCount: order.click_count + 1,
+        clickedAt: order.clicked_at ? new Date(order.clicked_at) : new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(productOrders.id, order.id))
+      .returning()
+
+    return toProductOrder(updated)
   } catch (error) {
     console.error('Error in markLinkClicked:', error)
     throw error
@@ -397,19 +361,13 @@ export async function markLinkClicked(token: string): Promise<ProductOrder> {
  */
 export async function markFlodeskAdded(orderId: string): Promise<void> {
   try {
-
-    const { error } = await supabaseAdmin
-      .from('product_orders')
-      .update({
-        flodesk_added_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    await db
+      .update(productOrders)
+      .set({
+        flodeskAddedAt: new Date(),
+        updatedAt: new Date(),
       })
-      .eq('id', orderId)
-
-    if (error) {
-      console.error('Error marking Flodesk added:', error)
-      throw new Error(`Failed to mark Flodesk added: ${error.message}`)
-    }
+      .where(eq(productOrders.id, orderId))
   } catch (error) {
     console.error('Error in markFlodeskAdded:', error)
     throw error
@@ -421,30 +379,24 @@ export async function markFlodeskAdded(orderId: string): Promise<void> {
  */
 export async function deleteOrders(orderIds: string[]): Promise<void> {
   try {
-    // Verify ownership: check that all orders belong to a site the user owns
     if (orderIds.length === 0) return
 
-    const { data: orders } = await supabaseAdmin
-      .from('product_orders')
-      .select('site_id')
-      .in('id', orderIds)
+    // Verify ownership: check that all orders belong to a site the user owns
+    const orders = await db
+      .select({ siteId: productOrders.siteId })
+      .from(productOrders)
+      .where(inArray(productOrders.id, orderIds))
 
     if (!orders || orders.length === 0) throw new Error('Orders not found')
 
-    const siteIds = [...new Set(orders.map(o => o.site_id))]
+    const siteIds = [...new Set(orders.map(o => o.siteId))]
     for (const siteId of siteIds) {
       await verifySiteOwnership(siteId)
     }
 
-    const { error } = await supabaseAdmin
-      .from('product_orders')
-      .delete()
-      .in('id', orderIds)
-
-    if (error) {
-      console.error('Error deleting orders:', error)
-      throw new Error(`Failed to delete orders: ${error.message}`)
-    }
+    await db
+      .delete(productOrders)
+      .where(inArray(productOrders.id, orderIds))
   } catch (error) {
     console.error('Error in deleteOrders:', error)
     throw error
@@ -459,19 +411,13 @@ export async function updatePaymentStatus(
   status: PaymentStatus
 ): Promise<void> {
   try {
-
-    const { error } = await supabaseAdmin
-      .from('product_orders')
-      .update({
-        payment_status: status,
-        updated_at: new Date().toISOString(),
+    await db
+      .update(productOrders)
+      .set({
+        paymentStatus: status as any,
+        updatedAt: new Date(),
       })
-      .eq('id', orderId)
-
-    if (error) {
-      console.error('Error updating payment status:', error)
-      throw new Error(`Failed to update payment status: ${error.message}`)
-    }
+      .where(eq(productOrders.id, orderId))
   } catch (error) {
     console.error('Error in updatePaymentStatus:', error)
     throw error
@@ -491,20 +437,16 @@ export async function getOrderAnalytics(siteId: string): Promise<{
   try {
     await verifySiteOwnership(siteId)
 
-    const { data, error } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('site_id', siteId)
+    const orders = await db
+      .select()
+      .from(productOrders)
+      .where(eq(productOrders.siteId, siteId))
 
-    if (error) {
-      throw new Error(`Failed to fetch analytics: ${error.message}`)
-    }
+    const mapped = orders.map(toProductOrder)
 
-    const orders = data || []
-
-    const freeSignups = orders.filter((o) => o.order_type === 'lead_magnet')
-    const paidPurchases = orders.filter((o) => o.order_type === 'paid_purchase')
-    const clickedOrders = orders.filter((o) => o.clicked_at !== null)
+    const freeSignups = mapped.filter((o) => o.order_type === 'lead_magnet')
+    const paidPurchases = mapped.filter((o) => o.order_type === 'paid_purchase')
+    const clickedOrders = mapped.filter((o) => o.clicked_at !== null)
 
     const totalRevenue = paidPurchases.reduce(
       (sum, order) => sum + (order.amount_total || 0),
@@ -512,12 +454,12 @@ export async function getOrderAnalytics(siteId: string): Promise<{
     )
 
     return {
-      totalOrders: orders.length,
+      totalOrders: mapped.length,
       freeSignups: freeSignups.length,
       paidPurchases: paidPurchases.length,
       totalRevenue: totalRevenue / 100, // Convert cents to dollars
       clickedRate:
-        orders.length > 0 ? (clickedOrders.length / orders.length) * 100 : 0,
+        mapped.length > 0 ? (clickedOrders.length / mapped.length) * 100 : 0,
     }
   } catch (error) {
     console.error('Error in getOrderAnalytics:', error)

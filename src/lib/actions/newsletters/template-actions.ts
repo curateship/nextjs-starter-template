@@ -1,13 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { newsletterTemplates, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface NewsletterTemplate {
   id: string
@@ -20,21 +16,24 @@ export interface NewsletterTemplate {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
+  return !!site
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
-  return !!site
+function rowToTemplate(row: any): NewsletterTemplate {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    name: row.name,
+    content_blocks: row.contentBlocks ?? {},
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
 }
 
 export async function getTemplatesBySite(
@@ -44,7 +43,7 @@ export async function getTemplatesBySite(
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
@@ -53,22 +52,23 @@ export async function getTemplatesBySite(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data, error, count } = await supabaseAdmin
-      .from('newsletter_templates')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('updated_at', { ascending: false })
-      .range(from, to)
+    const [rows, countResult] = await Promise.all([
+      db
+        .select()
+        .from(newsletterTemplates)
+        .where(eq(newsletterTemplates.siteId, siteId))
+        .orderBy(desc(newsletterTemplates.updatedAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterTemplates)
+        .where(eq(newsletterTemplates.siteId, siteId)),
+    ])
 
-    if (error) {
-      console.error('getTemplatesBySite error:', error.message)
-      return { data: null, total: 0, error: 'Failed to load templates' }
-    }
-
-    return { data: data as NewsletterTemplate[], total: count ?? 0, error: null }
+    return { data: rows.map(rowToTemplate), total: countResult[0]?.count ?? 0, error: null }
   } catch (err) {
     console.error('getTemplatesBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -81,22 +81,22 @@ export async function getTemplateById(
   try {
     if (!UUID_REGEX.test(templateId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: template, error } = await supabaseAdmin
-      .from('newsletter_templates')
-      .select('*')
-      .eq('id', templateId)
-      .single()
+    const [row] = await db
+      .select()
+      .from(newsletterTemplates)
+      .where(eq(newsletterTemplates.id, templateId))
+      .limit(1)
 
-    if (error || !template) return { data: null, error: 'Template not found' }
+    if (!row) return { data: null, error: 'Template not found' }
 
-    if (!await verifySiteOwnership(template.site_id, user.id)) {
+    if (!await verifySiteOwnership(row.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: template as NewsletterTemplate, error: null }
+    return { data: rowToTemplate(row), error: null }
   } catch (err) {
     console.error('getTemplateById error:', err)
     return { data: null, error: 'Server error' }
@@ -111,7 +111,7 @@ export async function createTemplate(input: {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(input.siteId, user.id)) {
@@ -120,22 +120,20 @@ export async function createTemplate(input: {
 
     if (!input.name?.trim()) return { data: null, error: 'Template name is required' }
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_templates')
-      .insert({
-        site_id: input.siteId,
+    const [data] = await db
+      .insert(newsletterTemplates)
+      .values({
+        siteId: input.siteId,
         name: input.name.trim(),
-        content_blocks: input.contentBlocks || {},
+        contentBlocks: input.contentBlocks || {},
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('createTemplate error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to create template' }
     }
 
-    return { data: data as NewsletterTemplate, error: null }
+    return { data: rowToTemplate(data), error: null }
   } catch (err) {
     console.error('createTemplate error:', err)
     return { data: null, error: 'Server error' }
@@ -149,38 +147,36 @@ export async function updateTemplate(
   try {
     if (!UUID_REGEX.test(templateId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: template } = await supabaseAdmin
-      .from('newsletter_templates')
-      .select('site_id')
-      .eq('id', templateId)
-      .single()
+    const [template] = await db
+      .select({ siteId: newsletterTemplates.siteId })
+      .from(newsletterTemplates)
+      .where(eq(newsletterTemplates.id, templateId))
+      .limit(1)
 
     if (!template) return { data: null, error: 'Template not found' }
 
-    if (!await verifySiteOwnership(template.site_id, user.id)) {
+    if (!await verifySiteOwnership(template.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
-    const allowedFields: Record<string, any> = { updated_at: new Date().toISOString() }
+    const allowedFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) allowedFields.name = updates.name
-    if (updates.content_blocks !== undefined) allowedFields.content_blocks = updates.content_blocks
+    if (updates.content_blocks !== undefined) allowedFields.contentBlocks = updates.content_blocks
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_templates')
-      .update(allowedFields)
-      .eq('id', templateId)
-      .select()
-      .single()
+    const [data] = await db
+      .update(newsletterTemplates)
+      .set(allowedFields)
+      .where(eq(newsletterTemplates.id, templateId))
+      .returning()
 
-    if (error) {
-      console.error('updateTemplate error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update template' }
     }
 
-    return { data: data as NewsletterTemplate, error: null }
+    return { data: rowToTemplate(data), error: null }
   } catch (err) {
     console.error('updateTemplate error:', err)
     return { data: null, error: 'Server error' }
@@ -194,36 +190,27 @@ export async function deleteTemplates(ids: string[]): Promise<{ success: boolean
       if (!UUID_REGEX.test(id)) return { success: false, error: 'Invalid ID' }
     }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: templates } = await supabaseAdmin
-      .from('newsletter_templates')
-      .select('id, site_id')
-      .in('id', ids)
+    const templates = await db
+      .select({ id: newsletterTemplates.id, siteId: newsletterTemplates.siteId })
+      .from(newsletterTemplates)
+      .where(inArray(newsletterTemplates.id, ids))
 
-    if (!templates?.length) return { success: false, error: 'Not found' }
+    if (!templates.length) return { success: false, error: 'Not found' }
 
-    const siteIds = [...new Set(templates.map(t => t.site_id))]
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(templates.map(t => t.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (!sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('newsletter_templates')
-      .delete()
-      .in('id', ids)
-
-    if (error) {
-      console.error('deleteTemplates error:', error.message)
-      return { success: false, error: 'Failed to delete' }
-    }
+    await db.delete(newsletterTemplates).where(inArray(newsletterTemplates.id, ids))
 
     return { success: true, error: null }
   } catch (err) {

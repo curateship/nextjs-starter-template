@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { newsletters, newsletterContacts, newsletterEvents, sites, users } from '@/lib/db/schema'
+import { eq, and, lte, inArray, sql } from 'drizzle-orm'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { Resend } from 'resend'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 const BATCH_SIZE = 50
 
@@ -31,39 +27,34 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const now = new Date().toISOString()
+    const now = new Date()
 
     // Move scheduled newsletters to sending
-    await supabaseAdmin
-      .from('newsletters')
-      .update({ status: 'sending' })
-      .eq('status', 'scheduled')
-      .lte('scheduled_at', now)
+    await db
+      .update(newsletters)
+      .set({ status: 'sending' })
+      .where(and(eq(newsletters.status, 'scheduled'), lte(newsletters.scheduledAt, now)))
 
     // Get newsletters that are currently sending
-    const { data: newsletters, error } = await supabaseAdmin
-      .from('newsletters')
-      .select('*')
-      .eq('status', 'sending')
+    const sendingNewsletters = await db
+      .select()
+      .from(newsletters)
+      .where(eq(newsletters.status, 'sending'))
 
-    if (error) {
-      console.error('Cron newsletters query error:', error.message)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
-
-    if (!newsletters?.length) {
+    if (!sendingNewsletters.length) {
       return NextResponse.json({ message: 'No newsletters to process', processed: 0 })
     }
 
     let totalProcessed = 0
 
-    for (const newsletter of newsletters) {
+    for (const newsletter of sendingNewsletters) {
       try {
-        const config = await getResendConfig(newsletter.site_id)
+        const config = await getResendConfig(newsletter.siteId)
         if (!config?.apiKey || !config?.fromEmail) continue
         if (!newsletter.content?.trim()) continue
 
-        const dripConfig = newsletter.metadata?.drip_config
+        const meta = newsletter.metadata as Record<string, any> | null
+        const dripConfig = meta?.drip_config
         const isDrip = dripConfig?.enabled === true
 
         // For drip mode, skip if next_batch_at is in the future
@@ -71,56 +62,70 @@ export async function GET(request: NextRequest) {
           if (new Date(dripConfig.next_batch_at) > new Date()) continue
         }
 
-        // Get contacts that haven't been sent to yet (no 'sent' event for this newsletter)
-        const { data: sentEvents } = await supabaseAdmin
-          .from('newsletter_events')
-          .select('contact_id')
-          .eq('source_id', newsletter.id)
-          .eq('event_type', 'sent')
+        // Get contacts that have already been sent to
+        const sentEvents = await db
+          .select({ contactId: newsletterEvents.contactId })
+          .from(newsletterEvents)
+          .where(and(eq(newsletterEvents.sourceId, newsletter.id), eq(newsletterEvents.eventType, 'sent')))
 
-        const sentContactIds = new Set((sentEvents || []).map((e: any) => e.contact_id))
+        const sentContactIds = new Set(sentEvents.map(e => e.contactId))
 
         // Get matching active contacts
-        let query = supabaseAdmin
-          .from('newsletter_contacts')
-          .select('id, email, metadata')
-          .eq('site_id', newsletter.site_id)
-          .eq('status', 'active')
+        const audienceFilter = newsletter.audienceFilter as Record<string, any> | null
+        const filter = audienceFilter || {}
 
-        const filter = newsletter.audience_filter || {}
+        // Base query: active contacts for this site
+        // Note: advanced tag/source filtering via jsonb is handled in SQL
+        let conditions = and(
+          eq(newsletterContacts.siteId, newsletter.siteId),
+          eq(newsletterContacts.status, 'active'),
+        )
+
+        // Add tag filter if present
         if (filter.tags?.length) {
           for (const tag of filter.tags) {
-            query = query.contains('metadata', { tags: [tag] })
+            conditions = and(
+              conditions,
+              sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`,
+            )
           }
         }
+
+        // Add source filter if present
         if (filter.sources?.length) {
-          query = query.in('metadata->>source', filter.sources)
+          conditions = and(
+            conditions,
+            inArray(sql`${newsletterContacts.metadata}->>'source'`, filter.sources),
+          )
         }
 
-        const { data: allContacts } = await query
+        const allContacts = await db
+          .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+          .from(newsletterContacts)
+          .where(conditions!)
 
-        if (!allContacts?.length) {
-          await supabaseAdmin
-            .from('newsletters')
-            .update({ status: 'sent', sent_at: now, total_recipients: 0, total_sent: 0 })
-            .eq('id', newsletter.id)
+        if (!allContacts.length) {
+          await db
+            .update(newsletters)
+            .set({ status: 'sent', sentAt: now, totalRecipients: 0, totalSent: 0 })
+            .where(eq(newsletters.id, newsletter.id))
           totalProcessed++
           continue
         }
 
         // Filter out already-sent contacts
-        const unsent = allContacts.filter((c: any) => !sentContactIds.has(c.id))
+        const unsent = allContacts.filter(c => !sentContactIds.has(c.id))
 
         if (unsent.length === 0) {
-          await supabaseAdmin
-            .from('newsletters')
-            .update({
+          await db
+            .update(newsletters)
+            .set({
               status: 'sent',
-              sent_at: new Date().toISOString(),
-              total_recipients: allContacts.length,
-              total_sent: sentContactIds.size,
+              sentAt: new Date(),
+              totalRecipients: allContacts.length,
+              totalSent: sentContactIds.size,
             })
-            .eq('id', newsletter.id)
+            .where(eq(newsletters.id, newsletter.id))
           totalProcessed++
           continue
         }
@@ -139,8 +144,8 @@ export async function GET(request: NextRequest) {
 
         for (const contact of batch) {
           try {
-            const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
-            const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
+            const unsubToken = generateUnsubscribeToken(newsletter.siteId, contact.email)
+            const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
 
             const htmlWithUnsub = newsletter.content + `
               <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
@@ -160,13 +165,13 @@ export async function GET(request: NextRequest) {
 
             if (result.data?.id) {
               batchSent++
-              await supabaseAdmin.from('newsletter_events').insert({
-                site_id: newsletter.site_id,
-                contact_id: contact.id,
-                event_type: 'sent',
-                source_type: 'broadcast',
-                source_id: newsletter.id,
-                resend_message_id: result.data.id,
+              await db.insert(newsletterEvents).values({
+                siteId: newsletter.siteId,
+                contactId: contact.id,
+                eventType: 'sent',
+                sourceType: 'broadcast',
+                sourceId: newsletter.id,
+                resendMessageId: result.data.id,
               })
             }
           } catch (err) {
@@ -179,26 +184,25 @@ export async function GET(request: NextRequest) {
 
         if (isDrip && !allDone) {
           // Bounce check
-          const { count: bounceCount } = await supabaseAdmin
-            .from('newsletter_events')
-            .select('id', { count: 'exact', head: true })
-            .eq('source_id', newsletter.id)
-            .eq('event_type', 'bounced')
+          const [bounceResult] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(newsletterEvents)
+            .where(and(eq(newsletterEvents.sourceId, newsletter.id), eq(newsletterEvents.eventType, 'bounced')))
 
-          const totalBounced = bounceCount || 0
+          const totalBounced = bounceResult?.count || 0
           const bounceRate = newTotalSent > 0 ? (totalBounced / newTotalSent) * 100 : 0
           const threshold = dripConfig.bounce_threshold_percent || 5
 
           if (bounceRate >= threshold) {
             // Auto-pause due to bounce threshold
-            await supabaseAdmin
-              .from('newsletters')
-              .update({
+            await db
+              .update(newsletters)
+              .set({
                 status: 'paused',
-                total_recipients: allContacts.length,
-                total_sent: newTotalSent,
+                totalRecipients: allContacts.length,
+                totalSent: newTotalSent,
                 metadata: {
-                  ...newsletter.metadata,
+                  ...meta,
                   drip_config: {
                     ...dripConfig,
                     batches_sent: (dripConfig.batches_sent || 0) + 1,
@@ -207,7 +211,7 @@ export async function GET(request: NextRequest) {
                   },
                 },
               })
-              .eq('id', newsletter.id)
+              .where(eq(newsletters.id, newsletter.id))
 
             // Send admin email notification
             await sendBounceAlertEmail(newsletter, config, resend, bounceRate, threshold, totalBounced, newTotalSent)
@@ -218,13 +222,13 @@ export async function GET(request: NextRequest) {
             const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
             const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
 
-            await supabaseAdmin
-              .from('newsletters')
-              .update({
-                total_recipients: allContacts.length,
-                total_sent: newTotalSent,
+            await db
+              .update(newsletters)
+              .set({
+                totalRecipients: allContacts.length,
+                totalSent: newTotalSent,
                 metadata: {
-                  ...newsletter.metadata,
+                  ...meta,
                   drip_config: {
                     ...dripConfig,
                     next_batch_at: nextBatchAt,
@@ -234,18 +238,18 @@ export async function GET(request: NextRequest) {
                   },
                 },
               })
-              .eq('id', newsletter.id)
+              .where(eq(newsletters.id, newsletter.id))
           }
         } else {
           // Non-drip or all done
-          await supabaseAdmin
-            .from('newsletters')
-            .update({
-              ...(allDone ? { status: 'sent', sent_at: new Date().toISOString() } : {}),
-              total_recipients: allContacts.length,
-              total_sent: newTotalSent,
+          await db
+            .update(newsletters)
+            .set({
+              ...(allDone ? { status: 'sent', sentAt: new Date() } : {}),
+              totalRecipients: allContacts.length,
+              totalSent: newTotalSent,
             })
-            .eq('id', newsletter.id)
+            .where(eq(newsletters.id, newsletter.id))
         }
 
         totalProcessed += batchSent
@@ -272,16 +276,19 @@ async function sendBounceAlertEmail(
 ) {
   try {
     // Look up site owner email
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('user_id')
-      .eq('id', newsletter.site_id)
-      .single()
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, newsletter.siteId))
 
-    if (!site?.user_id) return
+    if (!site?.userId) return
 
-    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(site.user_id)
-    const adminEmail = userData?.user?.email
+    const [user] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, site.userId))
+
+    const adminEmail = user?.email
     if (!adminEmail) return
 
     const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail

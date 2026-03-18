@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq, and } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { events, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
     const { eventId } = await params
-    
+
     // Validate event ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(eventId)) {
@@ -25,35 +21,19 @@ export async function GET(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the event
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single()
-
-    if (eventError) {
-      if (eventError.code === 'PGRST116') {
-        return NextResponse.json(
-          { data: null, error: 'Event not found' },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json(
-        { data: null, error: `Failed to fetch event: ${eventError.message}` },
-        { status: 500 }
-      )
-    }
+    const event = await db.query.events.findFirst({
+      where: eq(events.id, eventId),
+    })
 
     if (!event) {
       return NextResponse.json(
@@ -63,14 +43,12 @@ export async function GET(
     }
 
     // Verify user owns the site this event belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', event.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, event.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -81,9 +59,9 @@ export async function GET(
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )
@@ -97,7 +75,7 @@ export async function PUT(
   try {
     const { eventId } = await params
     const updates = await request.json()
-    
+
     // Validate event ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(eventId)) {
@@ -108,24 +86,21 @@ export async function PUT(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the event first
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single()
+    const event = await db.query.events.findFirst({
+      where: eq(events.id, eventId),
+    })
 
-    if (eventError || !event) {
+    if (!event) {
       return NextResponse.json(
         { data: null, error: 'Event not found' },
         { status: 404 }
@@ -133,14 +108,12 @@ export async function PUT(
     }
 
     // Verify user owns the site this event belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', event.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, event.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -158,7 +131,7 @@ export async function PUT(
     // Validate and process slug if being updated
     if (updates.slug !== undefined) {
       const slug = updates.slug.trim()
-      
+
       // Validate slug format
       if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
         return NextResponse.json(
@@ -177,13 +150,11 @@ export async function PUT(
       }
 
       // Check if slug conflicts with other events (excluding current event)
-      const { data: existingEvent } = await supabaseAdmin
-        .from('events')
-        .select('id')
-        .eq('site_id', event.site_id)
-        .eq('slug', slug)
-        .single()
-      
+      const existingEvent = await db.query.events.findFirst({
+        where: and(eq(events.siteId, event.siteId), eq(events.slug, slug)),
+        columns: { id: true },
+      })
+
       if (existingEvent && existingEvent.id !== eventId) {
         return NextResponse.json(
           { data: null, error: `An event with the slug "${slug}" already exists. Please choose a different slug.` },
@@ -192,31 +163,30 @@ export async function PUT(
       }
     }
 
-    // Update the event
-    const { data: updatedEvent, error: updateError } = await supabaseAdmin
-      .from('events')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', eventId)
-      .select()
-      .single()
+    // Build update object with camelCase keys
+    const updateValues: Record<string, unknown> = { updatedAt: new Date() }
+    if (updates.title !== undefined) updateValues.title = updates.title
+    if (updates.slug !== undefined) updateValues.slug = updates.slug
+    if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
+    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
+    if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
+    if (updates.content_blocks !== undefined) updateValues.contentBlocks = updates.content_blocks
+    if (updates.featured_image !== undefined) updateValues.featuredImage = updates.featured_image
+    if (updates.description !== undefined) updateValues.description = updates.description
 
-    if (updateError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to update event: ${updateError.message}` },
-        { status: 500 }
-      )
-    }
+    // Update the event
+    const [updatedEvent] = await db.update(events)
+      .set(updateValues)
+      .where(eq(events.id, eventId))
+      .returning()
 
     return NextResponse.json({ data: updatedEvent, error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

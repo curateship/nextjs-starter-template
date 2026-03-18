@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { pages, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
     const pageData = await request.json()
-    
+
     // Validate required fields
     if (!pageData.title?.trim()) {
       return NextResponse.json(
@@ -29,25 +24,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Verify user owns the site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id, settings')
-      .eq('id', pageData.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, pageData.site_id), eq(sites.userId, userId)),
+      columns: { id: true, userId: true, settings: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -83,13 +75,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slug conflicts with existing pages in this site
-    const { data: existingPage } = await supabaseAdmin
-      .from('pages')
-      .select('title')
-      .eq('site_id', pageData.site_id)
-      .eq('slug', slug)
-      .single()
-    
+    const existingPage = await db.query.pages.findFirst({
+      where: and(eq(pages.siteId, pageData.site_id), eq(pages.slug, slug)),
+      columns: { title: true },
+    })
+
     if (existingPage) {
       return NextResponse.json(
         { data: null, error: `This slug is already used by another page titled "${existingPage.title}". Please choose a different slug.` },
@@ -99,53 +89,40 @@ export async function POST(request: NextRequest) {
 
     // If setting as homepage, unset any existing homepage
     if (pageData.is_homepage === true) {
-      await supabaseAdmin
-        .from('pages')
-        .update({ is_homepage: false })
-        .eq('site_id', pageData.site_id)
-        .eq('is_homepage', true)
+      await db.update(pages)
+        .set({ isHomepage: false })
+        .where(and(eq(pages.siteId, pageData.site_id), eq(pages.isHomepage, true)))
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('pages')
-      .select('display_order')
-      .eq('site_id', pageData.site_id)
-      .order('display_order', { ascending: false })
-      .limit(1)
+    const orderData = await db.query.pages.findFirst({
+      where: eq(pages.siteId, pageData.site_id),
+      orderBy: [desc(pages.displayOrder)],
+      columns: { displayOrder: true },
+    })
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the page
-    const { data: newPage, error: createError } = await supabaseAdmin
-      .from('pages')
-      .insert([{
-        site_id: pageData.site_id,
+    const [newPage] = await db.insert(pages)
+      .values({
+        siteId: pageData.site_id,
         title: pageData.title.trim(),
         slug,
-        is_homepage: pageData.is_homepage || false,
-        is_published: pageData.is_published !== false,
-        display_order: nextOrder,
-        meta_description: pageData.meta_description || null,
-        content_blocks: applyDefaultBlocks(pageData.content_blocks, 'pages', site.settings?.default_blocks?.pages)
-      }])
-      .select()
-      .single()
-
-    if (createError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to create page: ${createError.message}` },
-        { status: 500 }
-      )
-    }
+        isHomepage: pageData.is_homepage || false,
+        isPublished: pageData.is_published !== false,
+        displayOrder: nextOrder,
+        metaDescription: pageData.meta_description || null,
+      })
+      .returning()
 
     return NextResponse.json({ data: newPage, error: null }, { status: 201 })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

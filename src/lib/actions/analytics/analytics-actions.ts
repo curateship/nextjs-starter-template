@@ -1,11 +1,8 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { db } from '@/lib/db'
+import { sites } from '@/lib/db/schema'
+import { eq, sql } from 'drizzle-orm'
 
 interface DateRange {
   from: string  // ISO date string
@@ -45,91 +42,77 @@ function getDateRange(period: string): DateRange {
 export async function getAnalyticsOverview(siteId: string, period: string) {
   const { from, to } = getDateRange(period)
 
-  const { data, error } = await supabaseAdmin.rpc('get_analytics_overview', {
-    p_site_id: siteId,
-    p_from: from,
-    p_to: to,
-  })
+  try {
+    const result = await db.execute(sql`SELECT * FROM get_analytics_overview(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz)`)
 
-  if (error) {
+    if (!result.rows || result.rows.length === 0) {
+      return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+    }
+
+    const row = result.rows[0] as Record<string, unknown>
+    return {
+      pageViews: Number(row.page_views ?? row.pageviews ?? 0),
+      uniqueVisitors: Number(row.unique_visitors ?? row.uniquevisitors ?? 0),
+      bounceRate: Number(row.bounce_rate ?? row.bouncerate ?? 0),
+      avgDuration: Number(row.avg_duration ?? row.avgduration ?? 0),
+    } as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
+  } catch (error) {
     console.error('Failed to get analytics overview:', error)
     return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
   }
-
-  return data as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
 }
 
 export async function getTopPages(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data, error } = await supabaseAdmin.rpc('get_top_pages', {
-    p_site_id: siteId,
-    p_from: from,
-    p_to: to,
-    p_limit: limit,
-  })
+  try {
+    const result = await db.execute(sql`SELECT * FROM get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
 
-  if (error) {
+    return (result.rows as { path: string; views: number }[]) || []
+  } catch (error) {
     console.error('Failed to get top pages:', error)
     return []
   }
-
-  return (data as { path: string; views: number }[]) || []
 }
 
 export async function getTopReferrers(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data, error } = await supabaseAdmin.rpc('get_top_referrers', {
-    p_site_id: siteId,
-    p_from: from,
-    p_to: to,
-    p_limit: limit,
-  })
+  try {
+    const result = await db.execute(sql`SELECT * FROM get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
 
-  if (error) {
+    return (result.rows as { domain: string; visits: number }[]) || []
+  } catch (error) {
     console.error('Failed to get top referrers:', error)
     return []
   }
-
-  return (data as { domain: string; visits: number }[]) || []
 }
 
 export async function getTrafficOverTime(siteId: string, period: string) {
   const { from, to } = getDateRange(period)
   const useHourly = period === 'today' || period === 'yesterday'
 
-  const { data, error } = await supabaseAdmin.rpc('get_traffic_over_time', {
-    p_site_id: siteId,
-    p_from: from,
-    p_to: to,
-    p_hourly: useHourly,
-  })
+  try {
+    const result = await db.execute(sql`SELECT * FROM get_traffic_over_time(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${useHourly}::bool)`)
 
-  if (error) {
+    return (result.rows as { date: string; views: number; visitors: number }[]) || []
+  } catch (error) {
     console.error('Failed to get traffic over time:', error)
     return []
   }
-
-  return (data as { date: string; views: number; visitors: number }[]) || []
 }
 
 export async function getUserJourneys(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
-  const { data, error } = await supabaseAdmin.rpc('get_user_journeys', {
-    p_site_id: siteId,
-    p_from: from,
-    p_to: to,
-    p_limit: limit,
-  })
+  try {
+    const result = await db.execute(sql`SELECT * FROM get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
 
-  if (error) {
+    return (result.rows as { path: string; count: number }[]) || []
+  } catch (error) {
     console.error('Failed to get user journeys:', error)
     return []
   }
-
-  return (data as { path: string; count: number }[]) || []
 }
 
 /**
@@ -137,11 +120,11 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
  * Only fetches fields needed for display.
  */
 export async function getSiteForDashboard(siteId: string) {
-  const { data } = await supabaseAdmin
-    .from('sites')
-    .select('id, name, subdomain')
-    .eq('id', siteId)
-    .single()
+  const result = await db
+    .select({ id: sites.id, name: sites.name, subdomain: sites.subdomain })
+    .from(sites)
+    .where(eq(sites.id, siteId))
+    .limit(1)
 
-  return data as { id: string; name: string; subdomain: string } | null
+  return (result[0] as { id: string; name: string; subdomain: string } | undefined) ?? null
 }

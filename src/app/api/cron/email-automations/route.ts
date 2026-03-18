@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { Resend } from 'resend'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -20,20 +16,27 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // Get active enrollments — batch of 50 to avoid timeouts
-    const { data: enrollments, error: enrollError } = await supabaseAdmin
-      .from('email_automation_enrollments')
-      .select('*, email_automations!inner(site_id, status)')
-      .eq('status', 'active')
-      .eq('email_automations.status', 'active')
+    // Get active enrollments with their automation's site_id and status — batch of 50
+    const enrollments = await db
+      .select({
+        id: emailAutomationEnrollments.id,
+        automationId: emailAutomationEnrollments.automationId,
+        contactId: emailAutomationEnrollments.contactId,
+        currentStepOrder: emailAutomationEnrollments.currentStepOrder,
+        status: emailAutomationEnrollments.status,
+        enrolledAt: emailAutomationEnrollments.enrolledAt,
+        lastStepSentAt: emailAutomationEnrollments.lastStepSentAt,
+        automationSiteId: emailAutomations.siteId,
+      })
+      .from(emailAutomationEnrollments)
+      .innerJoin(emailAutomations, eq(emailAutomationEnrollments.automationId, emailAutomations.id))
+      .where(and(
+        eq(emailAutomationEnrollments.status, 'active'),
+        eq(emailAutomations.status, 'active'),
+      ))
       .limit(50)
 
-    if (enrollError) {
-      console.error('Cron automations error:', enrollError.message)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
-
-    if (!enrollments?.length) {
+    if (!enrollments.length) {
       return NextResponse.json({ message: 'No active enrollments', processed: 0 })
     }
 
@@ -41,44 +44,44 @@ export async function GET(request: NextRequest) {
 
     for (const enrollment of enrollments) {
       try {
-        const siteId = (enrollment as any).email_automations.site_id
-        const nextStepOrder = enrollment.current_step_order + 1
+        const siteId = enrollment.automationSiteId
+        const nextStepOrder = (enrollment.currentStepOrder ?? 0) + 1
 
         // Get next step
-        const { data: step } = await supabaseAdmin
-          .from('email_automation_steps')
-          .select('*')
-          .eq('automation_id', enrollment.automation_id)
-          .eq('step_order', nextStepOrder)
-          .single()
+        const [step] = await db
+          .select()
+          .from(emailAutomationSteps)
+          .where(and(
+            eq(emailAutomationSteps.automationId, enrollment.automationId),
+            eq(emailAutomationSteps.stepOrder, nextStepOrder),
+          ))
 
         if (!step) {
           // No more steps — mark completed
-          await supabaseAdmin
-            .from('email_automation_enrollments')
-            .update({ status: 'completed', completed_at: now.toISOString() })
-            .eq('id', enrollment.id)
+          await db
+            .update(emailAutomationEnrollments)
+            .set({ status: 'completed', completedAt: now })
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
           processed++
           continue
         }
 
         // Check if delay has passed
-        const referenceTime = enrollment.last_step_sent_at || enrollment.enrolled_at
-        const dueAt = new Date(new Date(referenceTime).getTime() + step.delay_minutes * 60 * 1000)
+        const referenceTime = enrollment.lastStepSentAt || enrollment.enrolledAt
+        const dueAt = new Date(new Date(referenceTime).getTime() + step.delayMinutes * 60 * 1000)
         if (now < dueAt) continue
 
         // Get contact
-        const { data: contact } = await supabaseAdmin
-          .from('newsletter_contacts')
-          .select('id, email, status')
-          .eq('id', enrollment.contact_id)
-          .single()
+        const [contact] = await db
+          .select({ id: newsletterContacts.id, email: newsletterContacts.email, status: newsletterContacts.status })
+          .from(newsletterContacts)
+          .where(eq(newsletterContacts.id, enrollment.contactId))
 
         if (!contact || contact.status !== 'active') {
-          await supabaseAdmin
-            .from('email_automation_enrollments')
-            .update({ status: 'cancelled' })
-            .eq('id', enrollment.id)
+          await db
+            .update(emailAutomationEnrollments)
+            .set({ status: 'cancelled' })
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
           continue
         }
 
@@ -101,7 +104,7 @@ export async function GET(request: NextRequest) {
         const result = await resend.emails.send({
           from,
           to: contact.email,
-          subject: step.subject,
+          subject: step.subject!,
           html,
           headers: {
             'List-Unsubscribe': `<${unsubUrl}>`,
@@ -111,22 +114,22 @@ export async function GET(request: NextRequest) {
 
         if (result.data?.id) {
           // Update enrollment
-          await supabaseAdmin
-            .from('email_automation_enrollments')
-            .update({
-              current_step_order: nextStepOrder,
-              last_step_sent_at: now.toISOString(),
+          await db
+            .update(emailAutomationEnrollments)
+            .set({
+              currentStepOrder: nextStepOrder,
+              lastStepSentAt: now,
             })
-            .eq('id', enrollment.id)
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
 
           // Record event
-          await supabaseAdmin.from('newsletter_events').insert({
-            site_id: siteId,
-            contact_id: contact.id,
-            event_type: 'sent',
-            source_type: 'automation',
-            source_id: enrollment.automation_id,
-            resend_message_id: result.data.id,
+          await db.insert(newsletterEvents).values({
+            siteId,
+            contactId: contact.id,
+            eventType: 'sent',
+            sourceType: 'automation',
+            sourceId: enrollment.automationId,
+            resendMessageId: result.data.id,
             metadata: { step_order: nextStepOrder },
           })
 

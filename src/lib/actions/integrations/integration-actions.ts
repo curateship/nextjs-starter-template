@@ -1,39 +1,26 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, asc } from 'drizzle-orm'
 import { encrypt, safeDecrypt } from '@/lib/utils/encryption'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { db } from '@/lib/db'
+import { siteIntegrations, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { SENSITIVE_FIELDS, type IntegrationType } from './types'
-
-// Create admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
 
 /**
  * Verify the authenticated user owns the given site.
  * Returns user ID on success, throws on failure.
  */
 async function verifyOwnership(siteId: string): Promise<string> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Authentication required')
+  const user = await getAuthenticatedUser()
+  if (!user) throw new Error('Authentication required')
 
-  const { data: site, error } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', user.id)
-    .single()
+  const site = await db.query.sites.findFirst({
+    where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
+    columns: { id: true },
+  })
 
-  if (error || !site) throw new Error('Site not found or access denied')
+  if (!site) throw new Error('Site not found or access denied')
   return user.id
 }
 
@@ -91,25 +78,21 @@ export async function getSiteIntegration(
   integrationType: string
 ): Promise<SiteIntegration | null> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('site_integrations')
-      .select('*')
-      .eq('site_id', siteId)
-      .eq('integration_type', integrationType)
-      .single()
+    const result = await db.query.siteIntegrations.findFirst({
+      where: and(
+        eq(siteIntegrations.siteId, siteId),
+        eq(siteIntegrations.integrationType, integrationType)
+      ),
+    })
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null
-      }
-      console.error('Error fetching site integration:', error)
-      throw new Error(`Failed to fetch integration: ${error.message}`)
+    if (!result) {
+      return null
     }
 
     return {
-      ...data,
-      config: decryptConfig(data.integration_type, data.config),
-    }
+      ...result,
+      config: decryptConfig(result.integrationType, result.config as Record<string, any>),
+    } as unknown as SiteIntegration
   } catch (error) {
     console.error('Error in getSiteIntegration:', error)
     return null
@@ -123,21 +106,16 @@ export async function getSiteIntegrations(
   siteId: string
 ): Promise<SiteIntegration[]> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('site_integrations')
-      .select('*')
-      .eq('site_id', siteId)
-      .order('integration_type', { ascending: true })
+    const results = await db
+      .select()
+      .from(siteIntegrations)
+      .where(eq(siteIntegrations.siteId, siteId))
+      .orderBy(asc(siteIntegrations.integrationType))
 
-    if (error) {
-      console.error('Error fetching site integrations:', error)
-      throw new Error(`Failed to fetch integrations: ${error.message}`)
-    }
-
-    return (data || []).map((row) => ({
+    return results.map((row) => ({
       ...row,
-      config: decryptConfig(row.integration_type, row.config),
-    }))
+      config: decryptConfig(row.integrationType, row.config as Record<string, any>),
+    })) as unknown as SiteIntegration[]
   } catch (error) {
     console.error('Error in getSiteIntegrations:', error)
     return []
@@ -157,32 +135,33 @@ export async function createOrUpdateIntegration(
     await verifyOwnership(siteId)
     const encryptedConfig = encryptConfig(integrationType, config)
 
-    const { data, error } = await supabaseAdmin
-      .from('site_integrations')
-      .upsert(
-        {
-          site_id: siteId,
-          integration_type: integrationType,
+    const [result] = await db
+      .insert(siteIntegrations)
+      .values({
+        siteId,
+        integrationType,
+        config: encryptedConfig,
+        isEnabled,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [siteIntegrations.siteId, siteIntegrations.integrationType],
+        set: {
           config: encryptedConfig,
-          is_enabled: isEnabled,
-          updated_at: new Date().toISOString(),
+          isEnabled,
+          updatedAt: new Date(),
         },
-        {
-          onConflict: 'site_id,integration_type',
-        }
-      )
-      .select()
-      .single()
+      })
+      .returning()
 
-    if (error) {
-      console.error('Error creating/updating integration:', error)
-      throw new Error(`Failed to save integration: ${error.message}`)
+    if (!result) {
+      throw new Error('Failed to save integration')
     }
 
     return {
-      ...data,
-      config: decryptConfig(data.integration_type, data.config),
-    }
+      ...result,
+      config: decryptConfig(result.integrationType, result.config as Record<string, any>),
+    } as unknown as SiteIntegration
   } catch (error) {
     console.error('Error in createOrUpdateIntegration:', error)
     throw error
@@ -198,30 +177,23 @@ export async function toggleIntegration(
 ): Promise<void> {
   try {
     // Look up integration to get site_id, then verify ownership
-    const { data: integration } = await supabaseAdmin
-      .from('site_integrations')
-      .select('site_id')
-      .eq('id', integrationId)
-      .single()
+    const integration = await db.query.siteIntegrations.findFirst({
+      where: eq(siteIntegrations.id, integrationId),
+      columns: { siteId: true },
+    })
 
     if (!integration) throw new Error('Integration not found')
-    await verifyOwnership(integration.site_id)
+    await verifyOwnership(integration.siteId)
 
-    const { error } = await supabaseAdmin
-      .from('site_integrations')
-      .update({
-        is_enabled: isEnabled,
-        updated_at: new Date().toISOString(),
+    await db
+      .update(siteIntegrations)
+      .set({
+        isEnabled,
+        updatedAt: new Date(),
       })
-      .eq('id', integrationId)
-
-    if (error) {
-      console.error('Error toggling integration:', error)
-      throw new Error(`Failed to toggle integration: ${error.message}`)
-    }
+      .where(eq(siteIntegrations.id, integrationId))
   } catch (error) {
     console.error('Error in toggleIntegration:', error)
     throw error
   }
 }
-

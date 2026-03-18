@@ -1,14 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { newsletterContacts, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { verifyUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export interface CrmContact {
   id: string
@@ -34,21 +30,28 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const VALID_STATUSES = ['active', 'unsubscribed', 'bounced', 'complained'] as const
 const MAX_IMPORT_SIZE = 50000
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
+  return !!site
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
-  return !!site
+function rowToContact(row: any): CrmContact {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    email: row.email,
+    status: row.status,
+    engagement_score: row.engagementScore ?? 0,
+    last_engaged_at: row.lastEngagedAt?.toISOString() ?? null,
+    bounce_count: row.bounceCount ?? 0,
+    metadata: row.metadata ?? {},
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
 }
 
 export async function createOrUpsertContact(input: {
@@ -63,7 +66,7 @@ export async function createOrUpsertContact(input: {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(input.siteId, user.id)) {
@@ -82,21 +85,23 @@ export async function createOrUpsertContact(input: {
     if (input.sourceProductId) metadata.source_product_id = input.sourceProductId
     if (input.tags?.length) metadata.tags = input.tags
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .upsert({
-        site_id: input.siteId,
+    const [data] = await db
+      .insert(newsletterContacts)
+      .values({
+        siteId: input.siteId,
         email,
         metadata,
-      }, { onConflict: 'site_id,email' })
-      .select()
-      .single()
+      })
+      .onConflictDoUpdate({
+        target: [newsletterContacts.siteId, newsletterContacts.email],
+        set: { metadata, updatedAt: new Date() },
+      })
+      .returning()
 
-    if (error) {
-      console.error('createOrUpsertContact error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to save contact' }
     }
-    return { data: data as CrmContact, error: null }
+    return { data: rowToContact(data), error: null }
   } catch (err) {
     console.error('createOrUpsertContact error:', err)
     return { data: null, error: 'Server error' }
@@ -110,7 +115,7 @@ export async function bulkImportContacts(input: {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { imported: 0, skipped: 0, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { imported: 0, skipped: 0, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(input.siteId, user.id)) {
@@ -138,7 +143,7 @@ export async function bulkImportContacts(input: {
 
     if (!valid.length) return { imported: 0, skipped, error: 'No valid emails found' }
 
-    // Dedupe by email — last occurrence wins
+    // Dedupe by email -- last occurrence wins
     const deduped = new Map<string, typeof valid[0]>()
     for (const c of valid) {
       deduped.set(c.email, c)
@@ -158,22 +163,30 @@ export async function bulkImportContacts(input: {
         if (c.last_name) metadata.last_name = c.last_name
         if (c.tags?.length) metadata.tags = c.tags
         return {
-          site_id: input.siteId,
+          siteId: input.siteId,
           email: c.email,
           metadata,
         }
       })
 
-      const { data, error } = await supabaseAdmin
-        .from('newsletter_contacts')
-        .upsert(rows, { onConflict: 'site_id,email', ignoreDuplicates: false })
-        .select('id')
+      try {
+        const result = await db
+          .insert(newsletterContacts)
+          .values(rows)
+          .onConflictDoUpdate({
+            target: [newsletterContacts.siteId, newsletterContacts.email],
+            set: {
+              metadata: sql`excluded.metadata`,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ id: newsletterContacts.id })
 
-      if (error) {
-        console.error('bulkImportContacts batch error:', error.message)
+        imported += result.length
+      } catch (err) {
+        console.error('bulkImportContacts batch error:', err)
         return { imported, skipped, error: 'Failed to import batch' }
       }
-      imported += data?.length ?? 0
     }
 
     return { imported, skipped, error: null }
@@ -190,18 +203,18 @@ export async function updateContact(
   try {
     if (!UUID_REGEX.test(contactId)) return { data: null, error: 'Invalid contact ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: contact } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .select('site_id, metadata')
-      .eq('id', contactId)
-      .single()
+    const [contact] = await db
+      .select({ siteId: newsletterContacts.siteId, metadata: newsletterContacts.metadata })
+      .from(newsletterContacts)
+      .where(eq(newsletterContacts.id, contactId))
+      .limit(1)
 
     if (!contact) return { data: null, error: 'Contact not found' }
 
-    if (!await verifySiteOwnership(contact.site_id, user.id)) {
+    if (!await verifySiteOwnership(contact.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
@@ -209,24 +222,22 @@ export async function updateContact(
       return { data: null, error: 'Invalid status' }
     }
 
-    const updateFields: Record<string, any> = {}
+    const updateFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.status !== undefined) updateFields.status = updates.status
     if (updates.metadata !== undefined) {
-      updateFields.metadata = { ...contact.metadata, ...updates.metadata }
+      updateFields.metadata = { ...(contact.metadata as Record<string, any>), ...updates.metadata }
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .update(updateFields)
-      .eq('id', contactId)
-      .select()
-      .single()
+    const [data] = await db
+      .update(newsletterContacts)
+      .set(updateFields)
+      .where(eq(newsletterContacts.id, contactId))
+      .returning()
 
-    if (error) {
-      console.error('updateContact error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update contact' }
     }
-    return { data: data as CrmContact, error: null }
+    return { data: rowToContact(data), error: null }
   } catch (err) {
     console.error('updateContact error:', err)
     return { data: null, error: 'Server error' }
@@ -240,36 +251,30 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
       if (!UUID_REGEX.test(id)) return { success: false, error: 'Invalid contact ID' }
     }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: contacts } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id, site_id')
-      .in('id', contactIds)
+    const contacts = await db
+      .select({ id: newsletterContacts.id, siteId: newsletterContacts.siteId })
+      .from(newsletterContacts)
+      .where(inArray(newsletterContacts.id, contactIds))
 
-    if (!contacts?.length) return { success: false, error: 'Contacts not found' }
+    if (!contacts.length) return { success: false, error: 'Contacts not found' }
 
-    const siteIds = [...new Set(contacts.map(c => c.site_id))]
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(contacts.map(c => c.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (!sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .delete()
-      .in('id', contactIds)
+    await db
+      .delete(newsletterContacts)
+      .where(inArray(newsletterContacts.id, contactIds))
 
-    if (error) {
-      console.error('deleteContacts error:', error.message)
-      return { success: false, error: 'Failed to delete contacts' }
-    }
     return { success: true, error: null }
   } catch (err) {
     console.error('deleteContacts error:', err)
@@ -289,7 +294,7 @@ export async function getContactsWithStats(
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, stats: null, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, stats: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
@@ -298,61 +303,66 @@ export async function getContactsWithStats(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    let contactsQuery = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-
+    // Build where conditions for contacts query
+    const conditions = [eq(newsletterContacts.siteId, siteId)]
     if (options?.source && options.source !== 'all') {
-      contactsQuery = contactsQuery.eq('metadata->>source', options.source)
+      conditions.push(sql`${newsletterContacts.metadata}->>'source' = ${options.source}`)
     }
     if (options?.status && options.status !== 'all') {
-      contactsQuery = contactsQuery.eq('status', options.status)
+      conditions.push(eq(newsletterContacts.status, options.status))
     }
 
-    contactsQuery = contactsQuery.order('created_at', { ascending: false }).range(from, to)
+    const whereClause = and(...conditions)
 
-    const statsQuery = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('status, metadata')
-      .eq('site_id', siteId)
+    const [contactsResult, countResult, statsResult] = await Promise.all([
+      db
+        .select()
+        .from(newsletterContacts)
+        .where(whereClause)
+        .orderBy(desc(newsletterContacts.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterContacts)
+        .where(whereClause),
+      db
+        .select({ status: newsletterContacts.status, metadata: newsletterContacts.metadata })
+        .from(newsletterContacts)
+        .where(eq(newsletterContacts.siteId, siteId)),
+    ])
 
-    const [contactsResult, statsResult] = await Promise.all([contactsQuery, statsQuery])
-
-    if (contactsResult.error) {
-      console.error('getContactsWithStats contacts error:', contactsResult.error.message)
-      return { data: null, total: 0, stats: null, error: 'Failed to load contacts' }
-    }
+    const total = countResult[0]?.count ?? 0
 
     let stats = null
-    if (!statsResult.error && statsResult.data) {
+    if (statsResult) {
       stats = {
-        total: statsResult.data.length,
+        total: statsResult.length,
         active: 0,
         unsubscribed: 0,
         bounced: 0,
         bySource: {} as Record<string, number>,
       }
-      for (const c of statsResult.data) {
+      for (const c of statsResult) {
         if (c.status === 'active') stats.active++
         else if (c.status === 'unsubscribed') stats.unsubscribed++
         else if (c.status === 'bounced' || c.status === 'complained') stats.bounced++
-        const source = c.metadata?.source || 'manual'
+        const meta = c.metadata as Record<string, any> | null
+        const source = meta?.source || 'manual'
         stats.bySource[source] = (stats.bySource[source] || 0) + 1
       }
     }
 
-    return { data: contactsResult.data as CrmContact[], total: contactsResult.count ?? 0, stats, error: null }
+    return { data: contactsResult.map(rowToContact), total, stats, error: null }
   } catch (err) {
     console.error('getContactsWithStats error:', err)
     return { data: null, total: 0, stats: null, error: 'Server error' }
   }
 }
 
-/** Public unsubscribe — requires signed HMAC token to prevent abuse */
+/** Public unsubscribe -- requires signed HMAC token to prevent abuse */
 export async function unsubscribeContact(
   siteId: string,
   email: string,
@@ -369,16 +379,11 @@ export async function unsubscribeContact(
     }
 
     // Intentionally returns success even if no row matched, to prevent email enumeration
-    const { error } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .update({ status: 'unsubscribed' })
-      .eq('site_id', siteId)
-      .eq('email', emailLower)
+    await db
+      .update(newsletterContacts)
+      .set({ status: 'unsubscribed', updatedAt: new Date() })
+      .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.email, emailLower)))
 
-    if (error) {
-      console.error('unsubscribeContact error:', error.message)
-      return { success: false, error: 'Something went wrong' }
-    }
     return { success: true, error: null }
   } catch (err) {
     console.error('unsubscribeContact error:', err)

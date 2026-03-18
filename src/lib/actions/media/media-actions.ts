@@ -1,45 +1,12 @@
 "use server"
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { media } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { uploadToR2, deleteFromR2 } from '@/lib/utils/r2'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-// Create authenticated Supabase client for server actions
-async function createSupabaseServerClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
-        },
-      },
-    }
-  )
-}
-
-// Media file metadata interface
 export interface MediaData {
   id: string
   filename: string
@@ -54,64 +21,48 @@ export interface MediaData {
   updated_at: string
 }
 
-// Media upload data interface
 export interface MediaUploadData {
   file: File
   alt_text?: string
 }
 
-// Legacy export names for backward compatibility
 export type ImageData = MediaData
 export type ImageUploadData = MediaUploadData
 
-/**
- * Upload media file (image or video) to Supabase Storage and save metadata
- */
 export async function uploadMediaAction(
   file: File,
   alt_text?: string,
   site_id?: string
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
-    // Validate file type
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
-    
+
     if (!allowedTypes.includes(file.type)) {
       return { data: null, error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' }
     }
-    
+
     const fileType: 'image' | 'video' = imageTypes.includes(file.type) ? 'image' : 'video'
 
-    // Validate file size (10MB for images, 100MB for videos)
     const maxSize = fileType === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024
     const maxSizeLabel = fileType === 'image' ? '10MB' : '100MB'
     if (file.size > maxSize) {
       return { data: null, error: `File size too large. Maximum size is ${maxSizeLabel}.` }
     }
 
-    // Get current user using authenticated client
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    // Generate storage path
     const timestamp = Date.now()
     const fileExtension = file.name.split('.').pop() || ''
     const cleanFilename = file.name
-      .replace(/\.[^/.]+$/, '') // Remove extension
-      .replace(/[^a-zA-Z0-9.-]/g, '-') // Replace special chars
-    
-    const storagePath = `${user.id}/${timestamp}_${cleanFilename}.${fileExtension}`
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9.-]/g, '-')
 
-    // Convert File to ArrayBuffer for upload
     const arrayBuffer = await file.arrayBuffer()
     const fileBuffer = Buffer.from(arrayBuffer)
 
-    // Upload file to R2 Storage
     const r2FileName = `${user.id}/${timestamp}_${cleanFilename}.${fileExtension}`
     let publicUrl: string
 
@@ -121,51 +72,35 @@ export async function uploadMediaAction(
       return { data: null, error: `Upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}` }
     }
 
-
-    // Save metadata to database
-    const { data: mediaData, error: dbError } = await supabaseAdmin
-      .from('media')
-      .insert({
-        user_id: user.id,
-        site_id: site_id || null,
+    const [mediaData] = await db
+      .insert(media)
+      .values({
+        userId: user.id,
+        siteId: site_id || null,
         filename: `${timestamp}_${cleanFilename}.${fileExtension}`,
-        original_name: file.name,
-        alt_text: alt_text || null,
-        file_size: file.size,
-        file_type: fileType,
-        storage_path: r2FileName,
-        public_url: publicUrl
+        originalName: file.name,
+        altText: alt_text || null,
+        fileSize: file.size,
+        mimeType: file.type,
+        fileType,
+        storagePath: r2FileName,
+        publicUrl,
       })
-      .select('*')
-      .single()
+      .returning()
 
-    if (dbError) {
-      // Clean up uploaded file if database save fails
-      try {
-        await deleteFromR2(r2FileName)
-      } catch (cleanupError) {
-        console.error('Failed to cleanup R2 file:', cleanupError)
-      }
-
-      return { data: null, error: `Database error: ${dbError.message}` }
+    if (!mediaData) {
+      try { await deleteFromR2(r2FileName) } catch {}
+      return { data: null, error: 'Database error: failed to insert media record' }
     }
-
-    // Return the media data
-    const transformedData: MediaData = mediaData
 
     revalidatePath('/admin/media')
-    revalidatePath('/admin/images') // Legacy path
-    return { data: transformedData, error: null }
-
+    revalidatePath('/admin/images')
+    return { data: mediaData as unknown as MediaData, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-// Pagination response interface
 export interface PaginatedMediaResponse {
   data: MediaData[]
   total: number
@@ -174,54 +109,30 @@ export interface PaginatedMediaResponse {
   totalPages: number
 }
 
-/**
- * Get all media files for the current user, optionally filtered by site
- */
 export async function getMediaAction(
   fileType?: 'image' | 'video',
   site_id?: string
 ): Promise<{ data: MediaData[] | null; error: string | null }> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    let query = supabaseAdmin
-      .from('media')
-      .select('*')
-      .eq('user_id', user.id)
+    const conditions = [eq(media.userId, user.id)]
+    if (site_id) conditions.push(eq(media.siteId, site_id))
+    if (fileType) conditions.push(eq(media.fileType, fileType))
 
-    // Filter by site_id if provided
-    if (site_id) {
-      query = query.eq('site_id', site_id)
-    }
+    const result = await db
+      .select()
+      .from(media)
+      .where(and(...conditions))
+      .orderBy(desc(media.createdAt))
 
-    if (fileType) {
-      query = query.eq('file_type', fileType)
-    }
-
-    const { data: media, error } = await query
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      return { data: null, error: `Failed to fetch media: ${error.message}` }
-    }
-
-    return { data: media as MediaData[], error: null }
-
+    return { data: result as unknown as MediaData[], error: null }
   } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-/**
- * Get paginated media files for the current user, optionally filtered by site
- */
 export async function getPaginatedMediaAction(
   page: number = 1,
   pageSize: number = 20,
@@ -229,254 +140,131 @@ export async function getPaginatedMediaAction(
   site_id?: string
 ): Promise<{ data: PaginatedMediaResponse | null; error: string | null }> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    // Build base query for count
-    let countQuery = supabaseAdmin
-      .from('media')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+    const conditions = [eq(media.userId, user.id)]
+    if (site_id) conditions.push(eq(media.siteId, site_id))
+    if (fileType) conditions.push(eq(media.fileType, fileType))
 
-    // Filter by site_id if provided
-    if (site_id) {
-      countQuery = countQuery.eq('site_id', site_id)
-    }
+    const whereClause = and(...conditions)
 
-    if (fileType) {
-      countQuery = countQuery.eq('file_type', fileType)
-    }
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(media)
+      .where(whereClause)
 
-    // Get total count
-    const { count: total, error: countError } = await countQuery
-
-    if (countError) {
-      return { data: null, error: `Failed to count media: ${countError.message}` }
-    }
-
-    // Calculate pagination
-    const totalCount = total || 0
+    const totalCount = countResult?.count || 0
     const totalPages = Math.ceil(totalCount / pageSize)
     const offset = (page - 1) * pageSize
 
-    // Build data query
-    let dataQuery = supabaseAdmin
-      .from('media')
-      .select('*')
-      .eq('user_id', user.id)
+    const result = await db
+      .select()
+      .from(media)
+      .where(whereClause)
+      .orderBy(desc(media.createdAt))
+      .limit(pageSize)
+      .offset(offset)
 
-    // Filter by site_id if provided
-    if (site_id) {
-      dataQuery = dataQuery.eq('site_id', site_id)
-    }
-
-    if (fileType) {
-      dataQuery = dataQuery.eq('file_type', fileType)
-    }
-
-    const { data: media, error } = await dataQuery
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1)
-
-    if (error) {
-      return { data: null, error: `Failed to fetch media: ${error.message}` }
-    }
-
-    const response: PaginatedMediaResponse = {
-      data: media as MediaData[],
-      total: totalCount,
-      page,
-      pageSize,
-      totalPages
-    }
-
-    return { data: response, error: null }
-
-  } catch (error) {
     return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      data: {
+        data: result as unknown as MediaData[],
+        total: totalCount,
+        page,
+        pageSize,
+        totalPages,
+      },
+      error: null,
     }
+  } catch (error) {
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-/**
- * Update media file metadata
- */
 export async function updateMediaAction(
   mediaId: string,
   updates: { alt_text?: string }
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    const { data: mediaData, error } = await supabaseAdmin
-      .from('media')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', mediaId)
-      .eq('user_id', user.id) // Ensure user owns the file
-      .select()
-      .single()
+    const [updated] = await db
+      .update(media)
+      .set({ altText: updates.alt_text, updatedAt: new Date() })
+      .where(and(eq(media.id, mediaId), eq(media.userId, user.id)))
+      .returning()
 
-    if (error) {
-      return { data: null, error: `Failed to update media: ${error.message}` }
-    }
-
-    // Return the updated media data
-    const transformedData: MediaData = mediaData
+    if (!updated) return { data: null, error: 'Media not found or access denied' }
 
     revalidatePath('/admin/media')
-    revalidatePath('/admin/images') // Legacy path
-    return { data: transformedData, error: null }
-
+    revalidatePath('/admin/images')
+    return { data: updated as unknown as MediaData, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-/**
- * Delete media file and remove from storage
- */
 export async function deleteMediaAction(mediaId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, error: 'Authentication required' }
 
-    // Get media data first
-    const { data: media, error: fetchError } = await supabaseAdmin
-      .from('media')
-      .select('storage_path')
-      .eq('id', mediaId)
-      .eq('user_id', user.id)
-      .single()
+    const existing = await db.query.media.findFirst({
+      where: and(eq(media.id, mediaId), eq(media.userId, user.id)),
+      columns: { storagePath: true },
+    })
 
-    if (fetchError || !media) {
-      return { success: false, error: 'Media file not found or access denied' }
-    }
+    if (!existing) return { success: false, error: 'Media file not found or access denied' }
 
-    // Delete from database
-    const { error: dbError } = await supabaseAdmin
-      .from('media')
-      .delete()
-      .eq('id', mediaId)
-      .eq('user_id', user.id)
+    await db.delete(media).where(and(eq(media.id, mediaId), eq(media.userId, user.id)))
 
-    if (dbError) {
-      return { success: false, error: `Database error: ${dbError.message}` }
-    }
-
-    // Delete from R2 storage
-    try {
-      await deleteFromR2(media.storage_path)
-    } catch (storageError) {
-      console.error('R2 deletion failed:', storageError)
-      // Don't fail the entire operation if storage deletion fails
-    }
+    try { await deleteFromR2(existing.storagePath) } catch (e) { console.error('R2 deletion failed:', e) }
 
     revalidatePath('/admin/media')
-    revalidatePath('/admin/images') // Legacy path
+    revalidatePath('/admin/images')
     return { success: true, error: null }
-
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
+    return { success: false, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-
-/**
- * Get media file ID by public URL
- */
 export async function getMediaByUrlAction(publicUrl: string): Promise<{ data: string | null; error: string | null }> {
   try {
-    if (!publicUrl) {
-      return { data: null, error: 'No URL provided' }
-    }
+    if (!publicUrl) return { data: null, error: 'No URL provided' }
 
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    const { data: media, error } = await supabaseAdmin
-      .from('media')
-      .select('id')
-      .eq('public_url', publicUrl)
-      .eq('user_id', user.id)
-      .single()
+    const result = await db.query.media.findFirst({
+      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id)),
+      columns: { id: true },
+    })
 
-    if (error) {
-      return { data: null, error: `Media file not found: ${error.message}` }
-    }
-
-    return { data: media.id, error: null }
-
+    if (!result) return { data: null, error: 'Media file not found' }
+    return { data: result.id, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-/**
- * Get full media data by public URL (optimized for single lookups)
- */
 export async function getMediaDataByUrlAction(publicUrl: string): Promise<{ data: MediaData | null; error: string | null }> {
   try {
-    if (!publicUrl) {
-      return { data: null, error: 'No URL provided' }
-    }
+    if (!publicUrl) return { data: null, error: 'No URL provided' }
 
-    const supabase = await createSupabaseServerClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return { data: null, error: 'Authentication required' }
-    }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
 
-    // Use a more efficient query with minimal auth overhead
-    const { data: media, error } = await supabaseAdmin
-      .from('media')
-      .select('*')
-      .eq('public_url', publicUrl)
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle() // Returns null if not found instead of error
+    const result = await db.query.media.findFirst({
+      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id)),
+    })
 
-    if (error) {
-      return { data: null, error: `Database error: ${error.message}` }
-    }
-
-    return { data: media as MediaData | null, error: null }
-
+    return { data: (result as unknown as MediaData) || null, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
-    }
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-// Legacy function exports for backward compatibility
 export const uploadImageAction = uploadMediaAction
 export const getImagesAction = async () => await getMediaAction('image')
 export const updateImageAction = updateMediaAction

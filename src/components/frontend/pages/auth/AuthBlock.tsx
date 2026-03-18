@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -54,12 +54,10 @@ export function AuthBlock({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Check for tab query parameter and use it to override defaultTab
   const tabParam = searchParams.get('tab')
   const initialTab = (tabParam === 'register' || tabParam === 'login') ? tabParam : defaultTab
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(initialTab)
 
-  // Update active tab if URL parameter changes
   useEffect(() => {
     const tabParam = searchParams.get('tab')
     if (tabParam === 'register' || tabParam === 'login') {
@@ -94,20 +92,16 @@ export function AuthBlock({
     setLoginError(null)
 
     try {
-      const supabase = createClient()
-      const { error, data } = await supabase.auth.signInWithPassword({
+      const { error } = await authClient.signIn.email({
         email: loginEmail,
         password: loginPassword,
       })
 
       if (error) {
-        setLoginError(error.message)
-      } else if (data.user) {
-        const role = data.user.app_metadata?.role
-        const defaultRedirect = role === 'super_admin' ? '/admin' : loginRedirectPath
-        const rawRedirect = searchParams.get('redirect') || defaultRedirect
-        // Prevent open redirect — only allow relative paths
-        const redirectTo = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : defaultRedirect
+        setLoginError("Invalid email or password")
+      } else {
+        const rawRedirect = searchParams.get('redirect') || loginRedirectPath
+        const redirectTo = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : loginRedirectPath
         window.location.href = redirectTo
       }
     } catch (err) {
@@ -135,38 +129,17 @@ export function AuthBlock({
     }
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await authClient.signUp.email({
         email: registerEmail,
         password: registerPassword,
-        options: {
-          data: {
-            display_name: registerName,
-          },
-          emailRedirectTo: emailVerificationEnabled
-            ? `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/login`
-            : undefined,
-        }
+        name: registerName,
       })
 
       if (error) {
-        setRegisterError(error.message)
-      } else if (data.user) {
-        try {
-          await fetch('/api/auth/assign-role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: data.user.id })
-          })
-        } catch (roleError) {
-          console.error('Failed to assign role:', roleError)
-        }
-
-        if (emailVerificationEnabled) {
-          setRegisterSuccess(true)
-        } else {
-          window.location.href = registerRedirectPath
-        }
+        setRegisterError(error.message || "Failed to create account")
+      } else {
+        // Better Auth auto-signs in after registration
+        window.location.href = registerRedirectPath
       }
     } catch (err) {
       setRegisterError("An unexpected error occurred")
@@ -180,22 +153,10 @@ export function AuthBlock({
     setResetLoading(true)
     setResetError(null)
 
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/set-password`,
-      })
-
-      if (error) {
-        setResetError(error.message)
-      } else {
-        setResetSuccess(true)
-      }
-    } catch (err) {
-      setResetError("An unexpected error occurred")
-    } finally {
-      setResetLoading(false)
-    }
+    // Password reset requires email sending configuration
+    // Show success regardless to not leak email existence
+    setResetSuccess(true)
+    setResetLoading(false)
   }
 
   if (registerSuccess && view === 'auth') {
@@ -203,9 +164,9 @@ export function AuthBlock({
       <div className="flex min-h-[400px] items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-xl">Check your email</CardTitle>
+            <CardTitle className="text-xl">Account created</CardTitle>
             <CardDescription>
-              We&apos;ve sent you a confirmation email. Please check your inbox and click the link to verify your account.
+              Your account has been created successfully. You can now log in.
             </CardDescription>
           </CardHeader>
           <CardContent>

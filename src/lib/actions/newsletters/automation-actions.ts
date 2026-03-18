@@ -1,14 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateEmailHtml } from './email-html'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export interface EmailAutomation {
   id: string
@@ -65,21 +61,46 @@ export interface AutomationEnrollment {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
+  return !!site
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
-  return !!site
+function rowToAutomation(row: any): EmailAutomation {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    name: row.name,
+    description: row.description ?? null,
+    status: row.status,
+    trigger_type: row.triggerType,
+    trigger_config: row.triggerConfig ?? {},
+    goal_type: row.goalType ?? null,
+    goal_config: row.goalConfig ?? {},
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
+}
+
+function rowToStep(row: any): AutomationStep {
+  return {
+    id: row.id,
+    automation_id: row.automationId,
+    step_order: row.stepOrder,
+    node_type: row.nodeType,
+    node_config: row.nodeConfig ?? {},
+    delay_minutes: row.delayMinutes ?? 0,
+    subject: row.subject ?? null,
+    content: row.content ?? '',
+    content_blocks: row.contentBlocks ?? {},
+    from_name: row.fromName ?? null,
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
 }
 
 // --- Automations ---
@@ -87,49 +108,51 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 export async function getAutomationsBySite(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: EmailAutomation[] | null; total: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { data: null, total: 0, error: 'Access denied' }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data, error, count } = await supabaseAdmin
-      .from('email_automations')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
-
-    if (error) {
-      console.error('getAutomationsBySite error:', error.message)
-      return { data: null, total: 0, error: 'Failed to load automations' }
-    }
+    const [rows, countResult] = await Promise.all([
+      db
+        .select()
+        .from(emailAutomations)
+        .where(eq(emailAutomations.siteId, siteId))
+        .orderBy(desc(emailAutomations.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(emailAutomations)
+        .where(eq(emailAutomations.siteId, siteId)),
+    ])
 
     // Get counts
-    const automations = data as EmailAutomation[]
+    const automations = rows.map(rowToAutomation)
     if (automations.length) {
       const ids = automations.map(a => a.id)
 
-      const { data: steps } = await supabaseAdmin
-        .from('email_automation_steps')
-        .select('automation_id')
-        .in('automation_id', ids)
-
-      const { data: enrollments } = await supabaseAdmin
-        .from('email_automation_enrollments')
-        .select('automation_id')
-        .in('automation_id', ids)
+      const [stepsRows, enrollmentRows] = await Promise.all([
+        db
+          .select({ automationId: emailAutomationSteps.automationId })
+          .from(emailAutomationSteps)
+          .where(inArray(emailAutomationSteps.automationId, ids)),
+        db
+          .select({ automationId: emailAutomationEnrollments.automationId })
+          .from(emailAutomationEnrollments)
+          .where(inArray(emailAutomationEnrollments.automationId, ids)),
+      ])
 
       const stepCounts: Record<string, number> = {}
-      for (const s of steps ?? []) {
-        stepCounts[s.automation_id] = (stepCounts[s.automation_id] || 0) + 1
+      for (const s of stepsRows) {
+        stepCounts[s.automationId] = (stepCounts[s.automationId] || 0) + 1
       }
       const enrollmentCounts: Record<string, number> = {}
-      for (const e of enrollments ?? []) {
-        enrollmentCounts[e.automation_id] = (enrollmentCounts[e.automation_id] || 0) + 1
+      for (const e of enrollmentRows) {
+        enrollmentCounts[e.automationId] = (enrollmentCounts[e.automationId] || 0) + 1
       }
 
       for (const a of automations) {
@@ -138,7 +161,7 @@ export async function getAutomationsBySite(siteId: string, options?: { page?: nu
       }
     }
 
-    return { data: automations, total: count ?? 0, error: null }
+    return { data: automations, total: countResult[0]?.count ?? 0, error: null }
   } catch (err) {
     console.error('getAutomationsBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -148,25 +171,25 @@ export async function getAutomationsBySite(siteId: string, options?: { page?: nu
 export async function getAutomationById(automationId: string): Promise<{ data: EmailAutomation | null; steps: AutomationStep[] | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { data: null, steps: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, steps: null, error: 'Not authenticated' }
 
-    const { data: automation, error } = await supabaseAdmin
-      .from('email_automations')
-      .select('*')
-      .eq('id', automationId)
-      .single()
+    const [row] = await db
+      .select()
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
 
-    if (error || !automation) return { data: null, steps: null, error: 'Automation not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, steps: null, error: 'Access denied' }
+    if (!row) return { data: null, steps: null, error: 'Automation not found' }
+    if (!await verifySiteOwnership(row.siteId, user.id)) return { data: null, steps: null, error: 'Access denied' }
 
-    const { data: steps } = await supabaseAdmin
-      .from('email_automation_steps')
-      .select('*')
-      .eq('automation_id', automationId)
-      .order('step_order', { ascending: true })
+    const stepsRows = await db
+      .select()
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.automationId, automationId))
+      .orderBy(asc(emailAutomationSteps.stepOrder))
 
-    return { data: automation as EmailAutomation, steps: (steps as AutomationStep[]) || [], error: null }
+    return { data: rowToAutomation(row), steps: stepsRows.map(rowToStep), error: null }
   } catch (err) {
     console.error('getAutomationById error:', err)
     return { data: null, steps: null, error: 'Server error' }
@@ -182,28 +205,26 @@ export async function createAutomation(input: {
 }): Promise<{ data: EmailAutomation | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
     if (!await verifySiteOwnership(input.siteId, user.id)) return { data: null, error: 'Access denied' }
     if (!input.name?.trim()) return { data: null, error: 'Name is required' }
 
-    const { data, error } = await supabaseAdmin
-      .from('email_automations')
-      .insert({
-        site_id: input.siteId,
+    const [data] = await db
+      .insert(emailAutomations)
+      .values({
+        siteId: input.siteId,
         name: input.name.trim(),
         description: input.description || null,
-        trigger_type: input.triggerType,
-        trigger_config: input.triggerConfig || {},
+        triggerType: input.triggerType,
+        triggerConfig: input.triggerConfig || {},
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('createAutomation error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to create automation' }
     }
-    return { data: data as EmailAutomation, error: null }
+    return { data: rowToAutomation(data), error: null }
   } catch (err) {
     console.error('createAutomation error:', err)
     return { data: null, error: 'Server error' }
@@ -216,34 +237,40 @@ export async function updateAutomation(
 ): Promise<{ data: EmailAutomation | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { data: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', automationId).single()
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
     if (!automation) return { data: null, error: 'Not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
 
     if (updates.status !== undefined && !['draft', 'active', 'paused'].includes(updates.status)) {
       return { data: null, error: 'Invalid status' }
     }
 
-    const fields: Record<string, any> = {}
+    const fields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) fields.name = updates.name
     if (updates.description !== undefined) fields.description = updates.description
     if (updates.status !== undefined) fields.status = updates.status
-    if (updates.trigger_config !== undefined) fields.trigger_config = updates.trigger_config
-    if (updates.goal_type !== undefined) fields.goal_type = updates.goal_type
-    if (updates.goal_config !== undefined) fields.goal_config = updates.goal_config
+    if (updates.trigger_config !== undefined) fields.triggerConfig = updates.trigger_config
+    if (updates.goal_type !== undefined) fields.goalType = updates.goal_type
+    if (updates.goal_config !== undefined) fields.goalConfig = updates.goal_config
 
-    const { data, error } = await supabaseAdmin
-      .from('email_automations').update(fields).eq('id', automationId).select().single()
+    const [data] = await db
+      .update(emailAutomations)
+      .set(fields)
+      .where(eq(emailAutomations.id, automationId))
+      .returning()
 
-    if (error) {
-      console.error('updateAutomation error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update' }
     }
-    return { data: data as EmailAutomation, error: null }
+    return { data: rowToAutomation(data), error: null }
   } catch (err) {
     console.error('updateAutomation error:', err)
     return { data: null, error: 'Server error' }
@@ -254,23 +281,26 @@ export async function deleteAutomations(ids: string[]): Promise<{ success: boole
   try {
     if (!ids.length) return { success: false, error: 'No items selected' }
     for (const id of ids) { if (!UUID_REGEX.test(id)) return { success: false, error: 'Invalid ID' } }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: automations } = await supabaseAdmin
-      .from('email_automations').select('id, site_id').in('id', ids)
-    if (!automations?.length) return { success: false, error: 'Not found' }
+    const automations = await db
+      .select({ id: emailAutomations.id, siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(inArray(emailAutomations.id, ids))
 
-    const siteIds = [...new Set(automations.map(a => a.site_id))]
-    const { data: sites } = await supabaseAdmin
-      .from('sites').select('id').in('id', siteIds).eq('user_id', user.id)
-    if (!sites?.length || sites.length !== siteIds.length) return { success: false, error: 'Access denied' }
+    if (!automations.length) return { success: false, error: 'Not found' }
 
-    const { error } = await supabaseAdmin.from('email_automations').delete().in('id', ids)
-    if (error) {
-      console.error('deleteAutomations error:', error.message)
-      return { success: false, error: 'Failed to delete' }
-    }
+    const siteIds = [...new Set(automations.map(a => a.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
+
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) return { success: false, error: 'Access denied' }
+
+    await db.delete(emailAutomations).where(inArray(emailAutomations.id, ids))
+
     return { success: true, error: null }
   } catch (err) {
     console.error('deleteAutomations error:', err)
@@ -278,24 +308,27 @@ export async function deleteAutomations(ids: string[]): Promise<{ success: boole
   }
 }
 
-/** Internal — called from API routes only. Returns just IDs for enrollment. */
+/** Internal -- called from API routes only. Returns just IDs for enrollment. */
 export async function findActiveAutomations(
   siteId: string, triggerType: string, productId?: string
 ): Promise<{ id: string }[]> {
   if (!UUID_REGEX.test(siteId)) return []
 
-  const { data } = await supabaseAdmin
-    .from('email_automations')
-    .select('id, trigger_config')
-    .eq('site_id', siteId)
-    .eq('status', 'active')
-    .eq('trigger_type', triggerType)
-
-  if (!data) return []
+  const rows = await db
+    .select({ id: emailAutomations.id, triggerConfig: emailAutomations.triggerConfig })
+    .from(emailAutomations)
+    .where(and(
+      eq(emailAutomations.siteId, siteId),
+      eq(emailAutomations.status, 'active'),
+      eq(emailAutomations.triggerType, triggerType),
+    ))
 
   const filtered = productId
-    ? data.filter(a => !a.trigger_config?.product_id || a.trigger_config.product_id === productId)
-    : data
+    ? rows.filter(a => {
+        const cfg = a.triggerConfig as Record<string, any> | null
+        return !cfg?.product_id || cfg.product_id === productId
+      })
+    : rows
 
   return filtered.map(a => ({ id: a.id }))
 }
@@ -313,55 +346,62 @@ export async function createStep(input: {
 }): Promise<{ data: AutomationStep | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.automationId)) return { data: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', input.automationId).single()
-    if (!automation) return { data: null, error: 'Automation not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, input.automationId))
+      .limit(1)
 
-    const { data, error } = await supabaseAdmin
-      .from('email_automation_steps')
-      .insert({
-        automation_id: input.automationId,
-        step_order: input.stepOrder,
-        node_type: input.nodeType,
-        node_config: input.nodeConfig || {},
-        delay_minutes: input.delayMinutes || 0,
+    if (!automation) return { data: null, error: 'Automation not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
+
+    const [data] = await db
+      .insert(emailAutomationSteps)
+      .values({
+        automationId: input.automationId,
+        stepOrder: input.stepOrder,
+        nodeType: input.nodeType,
+        nodeConfig: input.nodeConfig || {},
+        delayMinutes: input.delayMinutes || 0,
         subject: input.subject || null,
         content: input.content || '',
       })
-      .select().single()
+      .returning()
 
-    if (error) {
-      console.error('createStep error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to create node' }
     }
-    return { data: data as AutomationStep, error: null }
+    return { data: rowToStep(data), error: null }
   } catch (err) {
     console.error('createStep error:', err)
     return { data: null, error: 'Server error' }
   }
 }
 
-/** Reorder steps — shift existing steps to make room for inserts */
+/** Reorder steps -- shift existing steps to make room for inserts */
 export async function reorderSteps(automationId: string, stepIds: string[]): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { success: false, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', automationId).single()
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
     if (!automation) return { success: false, error: 'Not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { success: false, error: 'Access denied' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { success: false, error: 'Access denied' }
 
     for (let i = 0; i < stepIds.length; i++) {
-      await supabaseAdmin
-        .from('email_automation_steps')
-        .update({ step_order: i + 1 })
-        .eq('id', stepIds[i])
+      await db
+        .update(emailAutomationSteps)
+        .set({ stepOrder: i + 1 })
+        .where(eq(emailAutomationSteps.id, stepIds[i]))
     }
 
     return { success: true, error: null }
@@ -374,19 +414,27 @@ export async function reorderSteps(automationId: string, stepIds: string[]): Pro
 export async function getStepById(stepId: string): Promise<{ data: AutomationStep | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(stepId)) return { data: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: step } = await supabaseAdmin
-      .from('email_automation_steps').select('*').eq('id', stepId).single()
+    const [step] = await db
+      .select()
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.id, stepId))
+      .limit(1)
+
     if (!step) return { data: null, error: 'Step not found' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', step.automation_id).single()
-    if (!automation) return { data: null, error: 'Automation not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, step.automationId))
+      .limit(1)
 
-    return { data: step as AutomationStep, error: null }
+    if (!automation) return { data: null, error: 'Automation not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
+
+    return { data: rowToStep(step), error: null }
   } catch (err) {
     console.error('getStepById error:', err)
     return { data: null, error: 'Server error' }
@@ -399,25 +447,33 @@ export async function updateStep(
 ): Promise<{ data: AutomationStep | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(stepId)) return { data: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: step } = await supabaseAdmin
-      .from('email_automation_steps').select('automation_id').eq('id', stepId).single()
+    const [step] = await db
+      .select({ automationId: emailAutomationSteps.automationId })
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.id, stepId))
+      .limit(1)
+
     if (!step) return { data: null, error: 'Step not found' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', step.automation_id).single()
-    if (!automation) return { data: null, error: 'Automation not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, step.automationId))
+      .limit(1)
 
-    const fields: Record<string, any> = {}
+    if (!automation) return { data: null, error: 'Automation not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
+
+    const fields: Record<string, any> = { updatedAt: new Date() }
     if (updates.subject !== undefined) fields.subject = updates.subject
     if (updates.content !== undefined) fields.content = updates.content
-    if (updates.delay_minutes !== undefined) fields.delay_minutes = updates.delay_minutes
-    if (updates.node_config !== undefined) fields.node_config = updates.node_config
+    if (updates.delay_minutes !== undefined) fields.delayMinutes = updates.delay_minutes
+    if (updates.node_config !== undefined) fields.nodeConfig = updates.node_config
     if (updates.content_blocks !== undefined) {
-      fields.content_blocks = updates.content_blocks
+      fields.contentBlocks = updates.content_blocks
       // Regenerate email HTML from blocks
       const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
       const sortedBlocks = (blockEntries as { id: string; type: string; title: string; content: Record<string, any> }[])
@@ -427,14 +483,16 @@ export async function updateStep(
       }
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('email_automation_steps').update(fields).eq('id', stepId).select().single()
+    const [data] = await db
+      .update(emailAutomationSteps)
+      .set(fields)
+      .where(eq(emailAutomationSteps.id, stepId))
+      .returning()
 
-    if (error) {
-      console.error('updateStep error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update step' }
     }
-    return { data: data as AutomationStep, error: null }
+    return { data: rowToStep(data), error: null }
   } catch (err) {
     console.error('updateStep error:', err)
     return { data: null, error: 'Server error' }
@@ -444,23 +502,28 @@ export async function updateStep(
 export async function deleteStep(stepId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(stepId)) return { success: false, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: step } = await supabaseAdmin
-      .from('email_automation_steps').select('automation_id').eq('id', stepId).single()
+    const [step] = await db
+      .select({ automationId: emailAutomationSteps.automationId })
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.id, stepId))
+      .limit(1)
+
     if (!step) return { success: false, error: 'Step not found' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', step.automation_id).single()
-    if (!automation) return { success: false, error: 'Automation not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { success: false, error: 'Access denied' }
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, step.automationId))
+      .limit(1)
 
-    const { error } = await supabaseAdmin.from('email_automation_steps').delete().eq('id', stepId)
-    if (error) {
-      console.error('deleteStep error:', error.message)
-      return { success: false, error: 'Failed to delete step' }
-    }
+    if (!automation) return { success: false, error: 'Automation not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { success: false, error: 'Access denied' }
+
+    await db.delete(emailAutomationSteps).where(eq(emailAutomationSteps.id, stepId))
+
     return { success: true, error: null }
   } catch (err) {
     console.error('deleteStep error:', err)
@@ -476,28 +539,40 @@ export async function enrollContact(automationId: string, contactId: string): Pr
     if (!UUID_REGEX.test(automationId) || !UUID_REGEX.test(contactId)) return { success: false, error: 'Invalid ID' }
 
     // Verify automation and contact belong to same site
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', automationId).single()
-    const { data: contact } = await supabaseAdmin
-      .from('newsletter_contacts').select('site_id').eq('id', contactId).single()
-    if (!automation || !contact || automation.site_id !== contact.site_id) {
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
+    const [contact] = await db
+      .select({ siteId: newsletterContacts.siteId })
+      .from(newsletterContacts)
+      .where(eq(newsletterContacts.id, contactId))
+      .limit(1)
+
+    if (!automation || !contact || automation.siteId !== contact.siteId) {
       return { success: false, error: 'Invalid enrollment' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('email_automation_enrollments')
-      .upsert({
-        automation_id: automationId,
-        contact_id: contactId,
+    await db
+      .insert(emailAutomationEnrollments)
+      .values({
+        automationId,
+        contactId,
         status: 'active',
-        current_step_order: 0,
-        enrolled_at: new Date().toISOString(),
-      }, { onConflict: 'automation_id,contact_id' })
+        currentStepOrder: 0,
+        enrolledAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [emailAutomationEnrollments.automationId, emailAutomationEnrollments.contactId],
+        set: {
+          status: 'active',
+          currentStepOrder: 0,
+          enrolledAt: new Date(),
+        },
+      })
 
-    if (error) {
-      console.error('enrollContact error:', error.message)
-      return { success: false, error: 'Failed to enroll' }
-    }
     return { success: true, error: null }
   } catch (err) {
     console.error('enrollContact error:', err)
@@ -508,34 +583,32 @@ export async function enrollContact(automationId: string, contactId: string): Pr
 export async function cancelEnrollment(enrollmentId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(enrollmentId)) return { success: false, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    // Verify ownership: enrollment → automation → site
-    const { data: enrollment } = await supabaseAdmin
-      .from('email_automation_enrollments')
-      .select('automation_id')
-      .eq('id', enrollmentId)
-      .single()
+    // Verify ownership: enrollment -> automation -> site
+    const [enrollment] = await db
+      .select({ automationId: emailAutomationEnrollments.automationId })
+      .from(emailAutomationEnrollments)
+      .where(eq(emailAutomationEnrollments.id, enrollmentId))
+      .limit(1)
+
     if (!enrollment) return { success: false, error: 'Not found' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations')
-      .select('site_id')
-      .eq('id', enrollment.automation_id)
-      .single()
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, enrollment.automationId))
+      .limit(1)
+
     if (!automation) return { success: false, error: 'Not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { success: false, error: 'Access denied' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { success: false, error: 'Access denied' }
 
-    const { error } = await supabaseAdmin
-      .from('email_automation_enrollments')
-      .update({ status: 'cancelled' })
-      .eq('id', enrollmentId)
+    await db
+      .update(emailAutomationEnrollments)
+      .set({ status: 'cancelled' })
+      .where(eq(emailAutomationEnrollments.id, enrollmentId))
 
-    if (error) {
-      console.error('cancelEnrollment error:', error.message)
-      return { success: false, error: 'Failed to cancel' }
-    }
     return { success: true, error: null }
   } catch (err) {
     console.error('cancelEnrollment error:', err)
@@ -549,22 +622,26 @@ export async function getAutomationReport(automationId: string): Promise<{
 }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { data: null, error: 'Invalid ID' }
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: automation } = await supabaseAdmin
-      .from('email_automations').select('site_id').eq('id', automationId).single()
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
     if (!automation) return { data: null, error: 'Not found' }
-    if (!await verifySiteOwnership(automation.site_id, user.id)) return { data: null, error: 'Access denied' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
 
     // Enrollment counts
-    const { data: enrollments } = await supabaseAdmin
-      .from('email_automation_enrollments')
-      .select('status')
-      .eq('automation_id', automationId)
+    const enrollments = await db
+      .select({ status: emailAutomationEnrollments.status })
+      .from(emailAutomationEnrollments)
+      .where(eq(emailAutomationEnrollments.automationId, automationId))
 
     const counts = { totalEnrolled: 0, completed: 0, goalMet: 0, cancelled: 0 }
-    for (const e of enrollments ?? []) {
+    for (const e of enrollments) {
       counts.totalEnrolled++
       if (e.status === 'completed') counts.completed++
       else if (e.status === 'goal_met') counts.goalMet++
@@ -572,26 +649,32 @@ export async function getAutomationReport(automationId: string): Promise<{
     }
 
     // Step stats from events
-    const { data: steps } = await supabaseAdmin
-      .from('email_automation_steps')
-      .select('step_order, subject')
-      .eq('automation_id', automationId)
-      .order('step_order', { ascending: true })
+    const [steps, events] = await Promise.all([
+      db
+        .select({ stepOrder: emailAutomationSteps.stepOrder, subject: emailAutomationSteps.subject })
+        .from(emailAutomationSteps)
+        .where(eq(emailAutomationSteps.automationId, automationId))
+        .orderBy(asc(emailAutomationSteps.stepOrder)),
+      db
+        .select({ eventType: newsletterEvents.eventType, metadata: newsletterEvents.metadata })
+        .from(newsletterEvents)
+        .where(and(
+          eq(newsletterEvents.sourceType, 'automation'),
+          eq(newsletterEvents.sourceId, automationId),
+        )),
+    ])
 
-    const { data: events } = await supabaseAdmin
-      .from('newsletter_events')
-      .select('event_type, metadata')
-      .eq('source_type', 'automation')
-      .eq('source_id', automationId)
-
-    const stepStats = (steps ?? []).map(s => {
-      const stepEvents = (events ?? []).filter(e => e.metadata?.step_order === s.step_order)
+    const stepStats = steps.map(s => {
+      const stepEvents = events.filter(e => {
+        const meta = e.metadata as Record<string, any> | null
+        return meta?.step_order === s.stepOrder
+      })
       return {
-        step_order: s.step_order,
-        subject: s.subject,
-        sent: stepEvents.filter(e => e.event_type === 'sent').length,
-        opened: stepEvents.filter(e => e.event_type === 'opened').length,
-        clicked: stepEvents.filter(e => e.event_type === 'clicked').length,
+        step_order: s.stepOrder,
+        subject: s.subject ?? '',
+        sent: stepEvents.filter(e => e.eventType === 'sent').length,
+        opened: stepEvents.filter(e => e.eventType === 'opened').length,
+        clicked: stepEvents.filter(e => e.eventType === 'clicked').length,
       }
     })
 

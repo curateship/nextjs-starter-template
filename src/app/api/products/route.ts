@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { products, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(request: NextRequest) {
   try {
     const productData = await request.json()
-    
+
     // Validate required fields
     if (!productData.title?.trim()) {
       return NextResponse.json(
@@ -29,25 +25,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Verify user owns the site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id, settings')
-      .eq('id', productData.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, productData.site_id), eq(sites.userId, userId)),
+      columns: { id: true, userId: true, settings: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -83,13 +76,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slug conflicts with existing products in this site
-    const { data: existingProduct } = await supabaseAdmin
-      .from('products')
-      .select('title')
-      .eq('site_id', productData.site_id)
-      .eq('slug', slug)
-      .single()
-    
+    const existingProduct = await db.query.products.findFirst({
+      where: and(eq(products.siteId, productData.site_id), eq(products.slug, slug)),
+      columns: { title: true },
+    })
+
     if (existingProduct) {
       return NextResponse.json(
         { data: null, error: `This slug is already used by another product titled "${existingProduct.title}". Please choose a different slug.` },
@@ -98,46 +89,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('products')
-      .select('display_order')
-      .eq('site_id', productData.site_id)
-      .order('display_order', { ascending: false })
-      .limit(1)
+    const orderData = await db.query.products.findFirst({
+      where: eq(products.siteId, productData.site_id),
+      orderBy: [desc(products.displayOrder)],
+      columns: { displayOrder: true },
+    })
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the product
-    const { data: newProduct, error: createError } = await supabaseAdmin
-      .from('products')
-      .insert([{
-        site_id: productData.site_id,
+    const siteSettings = site.settings as Record<string, unknown> | null
+    const defaultBlocks = (siteSettings?.default_blocks as Record<string, unknown> | undefined)?.products
+
+    const [newProduct] = await db.insert(products)
+      .values({
+        siteId: productData.site_id,
         title: productData.title.trim(),
         slug,
-        is_homepage: false, // Products never have homepage functionality
-        is_published: productData.is_published !== false,
-        display_order: nextOrder,
-        featured_image: productData.featured_image || null,
-        description: productData.description || null,
-        content_blocks: applyDefaultBlocks(productData.content_blocks, 'products', site.settings?.default_blocks?.products)
-      }])
-      .select()
-      .single()
-
-    if (createError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to create product: ${createError.message}` },
-        { status: 500 }
-      )
-    }
+        isHomepage: false,
+        isPublished: productData.is_published !== false,
+        displayOrder: nextOrder,
+        contentBlocks: applyDefaultBlocks(productData.content_blocks, 'products', defaultBlocks as string[] | undefined),
+      })
+      .returning()
 
     return NextResponse.json({ data: newProduct, error: null }, { status: 201 })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

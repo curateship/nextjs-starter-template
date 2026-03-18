@@ -1,13 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { newsletterSegments, newsletterContacts, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Segment {
   id: string
@@ -21,21 +17,25 @@ export interface Segment {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
+  return !!site
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
-  return !!site
+function rowToSegment(row: any): Segment {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    name: row.name,
+    description: (row.description as string) ?? '',
+    filter_rules: (row.filterRules as { tags?: string[] }) ?? {},
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
 }
 
 export async function getSegmentsBySite(
@@ -45,7 +45,7 @@ export async function getSegmentsBySite(
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
@@ -54,22 +54,23 @@ export async function getSegmentsBySite(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data, error, count } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    const [rows, countResult] = await Promise.all([
+      db
+        .select()
+        .from(newsletterSegments)
+        .where(eq(newsletterSegments.siteId, siteId))
+        .orderBy(desc(newsletterSegments.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterSegments)
+        .where(eq(newsletterSegments.siteId, siteId)),
+    ])
 
-    if (error) {
-      console.error('getSegmentsBySite error:', error.message)
-      return { data: null, total: 0, error: 'Failed to load segments' }
-    }
-
-    return { data: data as Segment[], total: count ?? 0, error: null }
+    return { data: rows.map(rowToSegment), total: countResult[0]?.count ?? 0, error: null }
   } catch (err) {
     console.error('getSegmentsBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -82,22 +83,22 @@ export async function getSegmentById(
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: segment, error } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('*')
-      .eq('id', segmentId)
-      .single()
+    const [row] = await db
+      .select()
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
 
-    if (error || !segment) return { data: null, error: 'Segment not found' }
+    if (!row) return { data: null, error: 'Segment not found' }
 
-    if (!await verifySiteOwnership(segment.site_id, user.id)) {
+    if (!await verifySiteOwnership(row.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: segment as Segment, error: null }
+    return { data: rowToSegment(row), error: null }
   } catch (err) {
     console.error('getSegmentById error:', err)
     return { data: null, error: 'Server error' }
@@ -113,7 +114,7 @@ export async function createSegment(input: {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(input.siteId, user.id)) {
@@ -122,23 +123,21 @@ export async function createSegment(input: {
 
     if (!input.name?.trim()) return { data: null, error: 'Segment name is required' }
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_segments')
-      .insert({
-        site_id: input.siteId,
+    const [data] = await db
+      .insert(newsletterSegments)
+      .values({
+        siteId: input.siteId,
         name: input.name.trim(),
         description: input.description || '',
-        filter_rules: input.filterRules || {},
+        filterRules: input.filterRules || {},
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('createSegment error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to create segment' }
     }
 
-    return { data: data as Segment, error: null }
+    return { data: rowToSegment(data), error: null }
   } catch (err) {
     console.error('createSegment error:', err)
     return { data: null, error: 'Server error' }
@@ -152,39 +151,37 @@ export async function updateSegment(
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: segment } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('site_id')
-      .eq('id', segmentId)
-      .single()
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
 
     if (!segment) return { data: null, error: 'Segment not found' }
 
-    if (!await verifySiteOwnership(segment.site_id, user.id)) {
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
-    const allowedFields: Record<string, any> = { updated_at: new Date().toISOString() }
+    const allowedFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) allowedFields.name = updates.name
     if (updates.description !== undefined) allowedFields.description = updates.description
-    if (updates.filterRules !== undefined) allowedFields.filter_rules = updates.filterRules
+    if (updates.filterRules !== undefined) allowedFields.filterRules = updates.filterRules
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletter_segments')
-      .update(allowedFields)
-      .eq('id', segmentId)
-      .select()
-      .single()
+    const [data] = await db
+      .update(newsletterSegments)
+      .set(allowedFields)
+      .where(eq(newsletterSegments.id, segmentId))
+      .returning()
 
-    if (error) {
-      console.error('updateSegment error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update segment' }
     }
 
-    return { data: data as Segment, error: null }
+    return { data: rowToSegment(data), error: null }
   } catch (err) {
     console.error('updateSegment error:', err)
     return { data: null, error: 'Server error' }
@@ -198,36 +195,27 @@ export async function deleteSegments(ids: string[]): Promise<{ success: boolean;
       if (!UUID_REGEX.test(id)) return { success: false, error: 'Invalid ID' }
     }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: segments } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('id, site_id')
-      .in('id', ids)
+    const segments = await db
+      .select({ id: newsletterSegments.id, siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(inArray(newsletterSegments.id, ids))
 
-    if (!segments?.length) return { success: false, error: 'Not found' }
+    if (!segments.length) return { success: false, error: 'Not found' }
 
-    const siteIds = [...new Set(segments.map(s => s.site_id))]
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(segments.map(s => s.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (!sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('newsletter_segments')
-      .delete()
-      .in('id', ids)
-
-    if (error) {
-      console.error('deleteSegments error:', error.message)
-      return { success: false, error: 'Failed to delete' }
-    }
+    await db.delete(newsletterSegments).where(inArray(newsletterSegments.id, ids))
 
     return { success: true, error: null }
   } catch (err) {
@@ -243,7 +231,7 @@ export async function getSegmentsWithCounts(
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, counts: {}, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, counts: {}, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
@@ -252,47 +240,51 @@ export async function getSegmentsWithCounts(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data, error, count } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    const [rows, countResult] = await Promise.all([
+      db
+        .select()
+        .from(newsletterSegments)
+        .where(eq(newsletterSegments.siteId, siteId))
+        .orderBy(desc(newsletterSegments.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterSegments)
+        .where(eq(newsletterSegments.siteId, siteId)),
+    ])
 
-    if (error) {
-      console.error('getSegmentsWithCounts error:', error.message)
-      return { data: null, total: 0, counts: {}, error: 'Failed to load segments' }
-    }
-
-    const segments = (data as Segment[]) || []
+    const segments = rows.map(rowToSegment)
     const counts: Record<string, number> = {}
 
     if (segments.length) {
       await Promise.all(
         segments.map(async (seg) => {
-          let query = supabaseAdmin
-            .from('newsletter_contacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('site_id', siteId)
-            .eq('status', 'active')
+          const conditions = [
+            eq(newsletterContacts.siteId, siteId),
+            eq(newsletterContacts.status, 'active'),
+          ]
 
           const rules = seg.filter_rules as { tags?: string[] }
           if (rules.tags?.length) {
             for (const tag of rules.tags) {
-              query = query.contains('metadata', { tags: [tag] })
+              conditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
             }
           }
 
-          const { count: contactCount } = await query
-          counts[seg.id] = contactCount ?? 0
+          const [result] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(newsletterContacts)
+            .where(and(...conditions))
+
+          counts[seg.id] = result?.count ?? 0
         })
       )
     }
 
-    return { data: segments, total: count ?? 0, counts, error: null }
+    return { data: segments, total: countResult[0]?.count ?? 0, counts, error: null }
   } catch (err) {
     console.error('getSegmentsWithCounts error:', err)
     return { data: null, total: 0, counts: {}, error: 'Server error' }
@@ -310,45 +302,49 @@ export async function addContactsToSegment(
       if (!UUID_REGEX.test(id)) return { updated: 0, error: 'Invalid contact ID' }
     }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { updated: 0, error: 'Not authenticated' }
 
-    const { data: segment } = await supabaseAdmin
-      .from('newsletter_segments')
-      .select('site_id, filter_rules')
-      .eq('id', segmentId)
-      .single()
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId, filterRules: newsletterSegments.filterRules })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
 
     if (!segment) return { updated: 0, error: 'Segment not found' }
 
-    if (!await verifySiteOwnership(segment.site_id, user.id)) {
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
       return { updated: 0, error: 'Access denied' }
     }
 
-    const segmentTags: string[] = segment.filter_rules?.tags || []
+    const rules = segment.filterRules as { tags?: string[] } | null
+    const segmentTags: string[] = rules?.tags || []
     if (!segmentTags.length) return { updated: 0, error: 'Segment has no tags to add' }
 
     // Fetch contacts and merge tags
-    const { data: contacts } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id, metadata')
-      .in('id', contactIds)
-      .eq('site_id', segment.site_id)
+    const contacts = await db
+      .select({ id: newsletterContacts.id, metadata: newsletterContacts.metadata })
+      .from(newsletterContacts)
+      .where(and(inArray(newsletterContacts.id, contactIds), eq(newsletterContacts.siteId, segment.siteId)))
 
-    if (!contacts?.length) return { updated: 0, error: 'No matching contacts found' }
+    if (!contacts.length) return { updated: 0, error: 'No matching contacts found' }
 
     let updated = 0
     for (const contact of contacts) {
-      const existingTags: string[] = contact.metadata?.tags || []
+      const meta = contact.metadata as Record<string, any> | null
+      const existingTags: string[] = meta?.tags || []
       const mergedTags = [...new Set([...existingTags, ...segmentTags])]
       if (mergedTags.length === existingTags.length) continue // no new tags
 
-      const { error } = await supabaseAdmin
-        .from('newsletter_contacts')
-        .update({ metadata: { ...contact.metadata, tags: mergedTags } })
-        .eq('id', contact.id)
-
-      if (!error) updated++
+      try {
+        await db
+          .update(newsletterContacts)
+          .set({ metadata: { ...meta, tags: mergedTags }, updatedAt: new Date() })
+          .where(eq(newsletterContacts.id, contact.id))
+        updated++
+      } catch {
+        // skip failed updates
+      }
     }
 
     return { updated, error: null }

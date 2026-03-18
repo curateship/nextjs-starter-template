@@ -1,19 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { posts, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface PostBlock {
   id: string
@@ -66,6 +56,23 @@ export interface UpdatePostData {
   is_published?: boolean
 }
 
+function rowToPost(row: typeof posts.$inferSelect): Post {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    title: row.title,
+    slug: row.slug,
+    meta_description: row.metaDescription,
+    featured_image: row.featuredImage,
+    excerpt: row.excerpt,
+    content_blocks: (row.contentBlocks || {}) as Record<string, PostBlock>,
+    is_published: row.isPublished,
+    display_order: row.displayOrder,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  }
+}
+
 /**
  * Get all posts for a site
  */
@@ -77,51 +84,40 @@ export async function getSitePostsAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
     }
 
     // Verify user owns this site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('posts')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(posts)
+      .where(eq(posts.siteId, siteId))
 
-    if (error) {
-      // Check if it's a table not found error
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        // Posts table doesn't exist yet - return empty array
-        return { data: [], total: 0, error: null }
-      }
-      return { data: null, total: 0, error: `Failed to fetch posts: ${error.message}` }
-    }
+    const data = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.siteId, siteId))
+      .orderBy(asc(posts.displayOrder))
+      .limit(pageSize)
+      .offset(from)
 
-    // Data already includes content_blocks column - no transformation needed
-    const transformedData = data || []
-
-    return { data: transformedData as Post[], total: count ?? 0, error: null }
+    return { data: data.map(rowToPost), total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,
@@ -150,83 +146,87 @@ export async function getSitePostsWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, categories: {}, total: 0, error: 'User not authenticated' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('posts')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(posts)
+      .where(eq(posts.siteId, siteId))
 
-    if (error) {
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        return { data: [], categories: {}, total: 0, error: null }
-      }
-      return { data: null, categories: {}, total: 0, error: `Failed to fetch posts: ${error.message}` }
-    }
+    const data = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.siteId, siteId))
+      .orderBy(desc(posts.displayOrder))
+      .limit(pageSize)
+      .offset(from)
 
-    const posts = (data || []) as Post[]
+    const postRows = data.map(rowToPost)
 
-    // Fetch categories in parallel (no extra auth check needed)
+    // Fetch categories in parallel using raw SQL (category_relationships table not in Drizzle schema)
     let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
-    if (posts.length > 0) {
-      const { data: rels } = await supabaseAdmin
-        .from('category_relationships')
-        .select('content_id, category_id, categories!inner(id, title, slug, parent_id)')
-        .in('content_id', posts.map(p => p.id))
-        .eq('content_type', 'post')
+    if (postRows.length > 0) {
+      const postIds = postRows.map(p => p.id)
+      const rels = await db.execute<{
+        content_id: string
+        category_id: string
+        cat_id: string
+        cat_title: string
+        cat_slug: string
+        cat_parent_id: string | null
+      }>(sql`
+        SELECT cr.content_id, cr.category_id,
+               c.id as cat_id, c.title as cat_title, c.slug as cat_slug, c.parent_id as cat_parent_id
+        FROM category_relationships cr
+        INNER JOIN categories c ON c.id = cr.category_id
+        WHERE cr.content_id = ANY(${postIds}) AND cr.content_type = 'post'
+      `)
 
-      if (rels) {
+      if (rels.rows && rels.rows.length > 0) {
         const parentIds = new Set<string>()
-        for (const rel of rels) {
-          const cat = (rel as any).categories
-          if (cat.parent_id) parentIds.add(cat.parent_id)
+        for (const rel of rels.rows) {
+          if (rel.cat_parent_id) parentIds.add(rel.cat_parent_id)
         }
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
-          const { data: parents } = await supabaseAdmin
-            .from('categories')
-            .select('id, title')
-            .in('id', Array.from(parentIds))
-          if (parents) parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
+          const parents = await db.execute<{ id: string; title: string }>(
+            sql`SELECT id, title FROM categories WHERE id = ANY(${Array.from(parentIds)})`
+          )
+          if (parents.rows) {
+            parentTitles = Object.fromEntries(parents.rows.map(p => [p.id, p.title]))
+          }
         }
-        for (const rel of rels) {
-          const cat = (rel as any).categories
+        for (const rel of rels.rows) {
           const cid = rel.content_id
           if (!categories[cid]) categories[cid] = []
           categories[cid].push({
-            id: cat.id,
-            title: cat.title,
-            slug: cat.slug,
-            parent_id: cat.parent_id,
-            parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+            id: rel.cat_id,
+            title: rel.cat_title,
+            slug: rel.cat_slug,
+            parent_id: rel.cat_parent_id,
+            parent_title: rel.cat_parent_id ? parentTitles[rel.cat_parent_id] : undefined
           })
         }
       }
     }
 
-    return { data: posts, categories, total: count ?? 0, error: null }
+    return { data: postRows, categories, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -243,64 +243,37 @@ export async function getPostByIdAction(postId: string): Promise<{ data: Post | 
       return { data: null, error: 'Invalid post ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
-    // Get the post to check which site it belongs to
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
-
-    if (postError) {
-      // Check if it's a table not found error
-      if (postError.message.includes('relation') && postError.message.includes('does not exist')) {
-        return { data: null, error: 'Posts system not yet initialized' }
-      }
-      
-      // Post not found
-      if (postError.code === 'PGRST116') {
-        return { data: null, error: 'Post not found' }
-      }
-      
-      return { data: null, error: `Failed to fetch post: ${postError.message}` }
-    }
+    // Get the post
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, postId))
 
     if (!post) {
       return { data: null, error: 'Post not found' }
     }
 
     // Now verify the user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
-    // Data already includes content_blocks column - just normalize dates
-    const transformedPost = {
-      ...post,
-      content_blocks: post.content_blocks || {},
-      created_at: post.created_at ? new Date(post.created_at).toISOString() : new Date().toISOString(),
-      updated_at: post.updated_at ? new Date(post.updated_at).toISOString() : new Date().toISOString()
-    }
-    
-    return { data: transformedPost as Post, error: null }
+    return { data: rowToPost(post), error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -318,34 +291,29 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: 'Invalid post ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the post
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, postId))
 
-    if (postError || !post) {
+    if (!post) {
       return { data: null, error: 'Post not found' }
     }
 
     // Verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -358,7 +326,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     let processedUpdates = { ...updates }
     if (updates.slug !== undefined) {
       const slug = updates.slug.trim()
-      
+
       // Validate slug format
       if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
         return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
@@ -371,17 +339,15 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       }
 
       // Check if slug conflicts with other posts (excluding current post)
-      const { data: existingPost } = await supabaseAdmin
-        .from('posts')
-        .select('id')
-        .eq('site_id', post.site_id)
-        .eq('slug', slug)
-        .single()
-      
+      const [existingPost] = await db
+        .select({ id: posts.id })
+        .from(posts)
+        .where(and(eq(posts.siteId, post.siteId), eq(posts.slug, slug)))
+
       if (existingPost && existingPost.id !== postId) {
-        return { 
-          data: null, 
-          error: `A post with the slug "${slug}" already exists. Please choose a different slug.` 
+        return {
+          data: null,
+          error: `A post with the slug "${slug}" already exists. Please choose a different slug.`
         }
       }
 
@@ -403,29 +369,36 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       }
     }
 
-    // Update the post
-    const { data, error } = await supabaseAdmin
-      .from('posts')
-      .update({
-        ...finalPostUpdates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', postId)
-      .select()
-      .single()
+    // Map snake_case field names to Drizzle camelCase columns
+    const drizzleUpdates: Partial<typeof posts.$inferInsert> = {
+      updatedAt: new Date(),
+    }
+    if (finalPostUpdates.title !== undefined) drizzleUpdates.title = finalPostUpdates.title
+    if (finalPostUpdates.slug !== undefined) drizzleUpdates.slug = finalPostUpdates.slug
+    if (finalPostUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalPostUpdates.meta_description
+    if (finalPostUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalPostUpdates.featured_image
+    if (finalPostUpdates.excerpt !== undefined) drizzleUpdates.excerpt = finalPostUpdates.excerpt
+    if (finalPostUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalPostUpdates.is_published
 
-    if (error) {
-      return { data: null, error: `Failed to update post: ${error.message}` }
+    // Update the post
+    const [updated] = await db
+      .update(posts)
+      .set(drizzleUpdates)
+      .where(eq(posts.id, postId))
+      .returning()
+
+    if (!updated) {
+      return { data: null, error: 'Failed to update post' }
     }
 
     return {
-      data: data as Post,
+      data: rowToPost(updated),
       error: null
     }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -441,46 +414,34 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
       return { success: false, error: 'Invalid post ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the post
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
+    const [post] = await db
+      .select({ id: posts.id, siteId: posts.siteId })
+      .from(posts)
+      .where(eq(posts.id, postId))
 
-    if (postError || !post) {
+    if (!post) {
       return { success: false, error: 'Post not found' }
     }
 
     // Verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
     // Delete the post
-    const { error } = await supabaseAdmin
-      .from('posts')
-      .delete()
-      .eq('id', postId)
-
-    if (error) {
-      return { success: false, error: `Failed to delete post: ${error.message}` }
-    }
+    await db.delete(posts).where(eq(posts.id, postId))
 
     return { success: true, error: null }
   } catch (error) {
@@ -507,42 +468,32 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get all posts and verify they belong to sites owned by this user
-    const { data: posts, error: postsError } = await supabaseAdmin
-      .from('posts')
-      .select('id, site_id')
-      .in('id', postIds)
+    const postRows = await db
+      .select({ id: posts.id, siteId: posts.siteId })
+      .from(posts)
+      .where(inArray(posts.id, postIds))
 
-    if (postsError || !posts?.length) {
+    if (!postRows.length) {
       return { success: false, error: 'Posts not found' }
     }
 
-    const siteIds = [...new Set(posts.map(p => p.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(postRows.map(p => p.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more posts' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('posts')
-      .delete()
-      .in('id', postIds)
-
-    if (error) {
-      return { success: false, error: `Failed to delete posts: ${error.message}` }
-    }
+    await db.delete(posts).where(inArray(posts.id, postIds))
 
     return { success: true, error: null }
   } catch (error) {
@@ -568,34 +519,29 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
       return { data: null, error: 'New post title is required' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the original post
-    const { data: originalPost, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
+    const [originalPost] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.id, postId))
 
-    if (postError || !originalPost) {
+    if (!originalPost) {
       return { data: null, error: 'Post not found' }
     }
 
     // Verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', originalPost.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, originalPost.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -612,12 +558,10 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 
     // Ensure unique slug
     while (true) {
-      const { data: existingPost } = await supabaseAdmin
-        .from('posts')
-        .select('id')
-        .eq('site_id', originalPost.site_id)
-        .eq('slug', newSlug)
-        .single()
+      const [existingPost] = await db
+        .select({ id: posts.id })
+        .from(posts)
+        .where(and(eq(posts.siteId, originalPost.siteId), eq(posts.slug, newSlug)))
 
       if (!existingPost) break
 
@@ -626,42 +570,41 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('posts')
-      .select('display_order')
-      .eq('site_id', originalPost.site_id)
-      .order('display_order', { ascending: false })
+    const [orderData] = await db
+      .select({ displayOrder: posts.displayOrder })
+      .from(posts)
+      .where(eq(posts.siteId, originalPost.siteId))
+      .orderBy(desc(posts.displayOrder))
       .limit(1)
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the duplicate post with content_blocks
-    const { data: newPost, error } = await supabaseAdmin
-      .from('posts')
-      .insert([{
-        site_id: originalPost.site_id,
+    const [newPost] = await db
+      .insert(posts)
+      .values({
+        siteId: originalPost.siteId,
         title: newTitle.trim(),
         slug: newSlug,
-        meta_description: originalPost.meta_description,
-        featured_image: originalPost.featured_image,
+        metaDescription: originalPost.metaDescription,
+        featuredImage: originalPost.featuredImage,
         excerpt: originalPost.excerpt,
-        content: originalPost.content,  // Keep for backward compatibility
-        content_blocks: originalPost.content_blocks || {},  // Copy content_blocks
-        is_published: originalPost.is_published,
-        display_order: nextOrder
-      }])
-      .select()
-      .single()
+        content: originalPost.content,
+        contentBlocks: originalPost.contentBlocks || {},
+        isPublished: originalPost.isPublished,
+        displayOrder: nextOrder,
+      })
+      .returning()
 
-    if (error) {
-      return { data: null, error: `Failed to duplicate post: ${error.message}` }
+    if (!newPost) {
+      return { data: null, error: 'Failed to duplicate post' }
     }
 
-    return { data: newPost as Post, error: null }
+    return { data: rowToPost(newPost), error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -677,34 +620,27 @@ export async function getPostBlocksAction(postId: string): Promise<{ data: Recor
       return { data: null, error: 'Invalid post ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get content_blocks directly from posts table
-    const { data, error } = await supabaseAdmin
-      .from('posts')
-      .select('content_blocks')
-      .eq('id', postId)
-      .single()
+    const [post] = await db
+      .select({ contentBlocks: posts.contentBlocks })
+      .from(posts)
+      .where(eq(posts.id, postId))
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Post not found
-        return { data: null, error: 'Post not found' }
-      }
-      return { data: null, error: `Failed to fetch post blocks: ${error.message}` }
+    if (!post) {
+      return { data: null, error: 'Post not found' }
     }
 
-    return { data: data.content_blocks || {}, error: null }
+    return { data: (post.contentBlocks || {}) as Record<string, PostBlock>, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -720,50 +656,38 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
       return { success: false, error: 'Invalid post ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the post first
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('id, site_id')
-      .eq('id', postId)
-      .single()
+    const [post] = await db
+      .select({ id: posts.id, siteId: posts.siteId, contentBlocks: posts.contentBlocks })
+      .from(posts)
+      .where(eq(posts.id, postId))
 
-    if (postError || !post) {
+    if (!post) {
       return { success: false, error: 'Post not found' }
     }
 
     // Then verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
-    // Get current content_blocks to preserve settings like show_featured_image
-    const { data: currentPost } = await supabaseAdmin
-      .from('posts')
-      .select('content_blocks')
-      .eq('id', postId)
-      .single()
-
     // Preserve non-block settings and merge with updated blocks
-    const currentContentBlocks = currentPost?.content_blocks || {}
+    const currentContentBlocks = (post.contentBlocks || {}) as Record<string, any>
     const preservedSettings: Record<string, any> = {}
-    
+
     // Extract non-block settings (primitive values and objects without block structure)
-    Object.entries(currentContentBlocks as Record<string, any>).forEach(([key, value]) => {
+    Object.entries(currentContentBlocks).forEach(([key, value]) => {
       // Preserve primitive values (like show_featured_image: boolean)
       if (typeof value !== 'object' || value === null) {
         preservedSettings[key] = value
@@ -779,25 +703,20 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
       ...blocks
     }
 
-
     // Update content_blocks directly in the posts table
-    const { error: updateError } = await supabaseAdmin
-      .from('posts')
-      .update({ 
-        content_blocks: updatedContentBlocks,
-        updated_at: new Date().toISOString()
+    await db
+      .update(posts)
+      .set({
+        contentBlocks: updatedContentBlocks,
+        updatedAt: new Date(),
       })
-      .eq('id', postId)
-    
-    if (updateError) {
-      return { success: false, error: `Failed to update post blocks: ${updateError.message}` }
-    }
+      .where(eq(posts.id, postId))
 
     return { success: true, error: null }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -806,8 +725,8 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
  * Add a new block to a post
  */
 export async function addPostBlockAction(
-  postId: string, 
-  blockType: PostBlock['type'], 
+  postId: string,
+  blockType: PostBlock['type'],
   blockContent: Record<string, any>
 ): Promise<{ data: PostBlock | null; error: string | null }> {
   try {
@@ -820,7 +739,7 @@ export async function addPostBlockAction(
     // Create new block
     const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     const existingBlocks = Object.values(currentBlocks || {})
-    const maxOrder = existingBlocks.length > 0 
+    const maxOrder = existingBlocks.length > 0
       ? Math.max(...existingBlocks.map(b => b.display_order))
       : 0
 
@@ -846,9 +765,9 @@ export async function addPostBlockAction(
 
     return { data: newBlock, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -874,9 +793,9 @@ export async function deletePostBlockAction(postId: string, blockId: string): Pr
     const { success, error } = await updatePostBlocksAction(postId, updatedBlocks)
     return { success, error }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }

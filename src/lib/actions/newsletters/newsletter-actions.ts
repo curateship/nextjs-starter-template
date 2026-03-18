@@ -1,17 +1,13 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { newsletters, newsletterContacts, newsletterSegments, newsletterEvents, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { Resend } from 'resend'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { generateEmailHtml } from './email-html'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
 
 export interface Newsletter {
   id: string
@@ -43,21 +39,35 @@ interface NewsletterBlock {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAuth() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return null
-  return user
+async function verifySiteOwnership(siteId: string, userId: string) {
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .limit(1)
+  return !!site
 }
 
-async function verifySiteOwnership(siteId: string, userId: string) {
-  const { data: site } = await supabaseAdmin
-    .from('sites')
-    .select('id')
-    .eq('id', siteId)
-    .eq('user_id', userId)
-    .single()
-  return !!site
+function rowToNewsletter(row: any): Newsletter {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    subject: row.subject,
+    content: row.content,
+    content_blocks: row.contentBlocks ?? {},
+    from_name: row.fromName ?? null,
+    status: row.status,
+    audience_filter: row.audienceFilter ?? {},
+    scheduled_at: row.scheduledAt?.toISOString() ?? null,
+    sent_at: row.sentAt?.toISOString() ?? null,
+    total_recipients: row.totalRecipients ?? 0,
+    total_sent: row.totalSent ?? 0,
+    total_opened: row.totalOpened ?? 0,
+    total_clicked: row.totalClicked ?? 0,
+    metadata: row.metadata ?? {},
+    created_at: row.createdAt?.toISOString() ?? '',
+    updated_at: row.updatedAt?.toISOString() ?? '',
+  }
 }
 
 export async function getNewslettersBySite(
@@ -67,7 +77,7 @@ export async function getNewslettersBySite(
   try {
     if (!UUID_REGEX.test(siteId)) return { data: null, total: 0, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, total: 0, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(siteId, user.id)) {
@@ -76,22 +86,23 @@ export async function getNewslettersBySite(
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data, error, count } = await supabaseAdmin
-      .from('newsletters')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    const [rows, countResult] = await Promise.all([
+      db
+        .select()
+        .from(newsletters)
+        .where(eq(newsletters.siteId, siteId))
+        .orderBy(desc(newsletters.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletters)
+        .where(eq(newsletters.siteId, siteId)),
+    ])
 
-    if (error) {
-      console.error('getNewslettersBySite error:', error.message)
-      return { data: null, total: 0, error: 'Failed to load newsletters' }
-    }
-
-    return { data: data as Newsletter[], total: count ?? 0, error: null }
+    return { data: rows.map(rowToNewsletter), total: countResult[0]?.count ?? 0, error: null }
   } catch (err) {
     console.error('getNewslettersBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -104,22 +115,22 @@ export async function getNewsletterById(
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: newsletter, error } = await supabaseAdmin
-      .from('newsletters')
-      .select('*')
-      .eq('id', newsletterId)
-      .single()
+    const [row] = await db
+      .select()
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
-    if (error || !newsletter) return { data: null, error: 'Newsletter not found' }
+    if (!row) return { data: null, error: 'Newsletter not found' }
 
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!await verifySiteOwnership(row.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: newsletter as Newsletter, error: null }
+    return { data: rowToNewsletter(row), error: null }
   } catch (err) {
     console.error('getNewsletterById error:', err)
     return { data: null, error: 'Server error' }
@@ -136,7 +147,7 @@ export async function createNewsletter(input: {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
     if (!await verifySiteOwnership(input.siteId, user.id)) {
@@ -147,24 +158,23 @@ export async function createNewsletter(input: {
 
     const subjectTrimmed = input.subject.trim()
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletters')
-      .insert({
-        site_id: input.siteId,
+    const [data] = await db
+      .insert(newsletters)
+      .values({
+        siteId: input.siteId,
+        name: subjectTrimmed,
         subject: subjectTrimmed,
-        audience_filter: input.audience_filter || {},
+        audienceFilter: input.audience_filter || {},
         content: input.content || '',
         status: input.status || 'draft',
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('createNewsletter error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to create newsletter' }
     }
 
-    return { data: data as Newsletter, error: null }
+    return { data: rowToNewsletter(data), error: null }
   } catch (err) {
     console.error('createNewsletter error:', err)
     return { data: null, error: 'Server error' }
@@ -178,18 +188,18 @@ export async function updateNewsletter(
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { data: newsletter } = await supabaseAdmin
-      .from('newsletters')
-      .select('site_id, metadata')
-      .eq('id', newsletterId)
-      .single()
+    const [newsletter] = await db
+      .select({ siteId: newsletters.siteId, metadata: newsletters.metadata })
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
     if (!newsletter) return { data: null, error: 'Newsletter not found' }
 
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!await verifySiteOwnership(newsletter.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
 
@@ -197,37 +207,36 @@ export async function updateNewsletter(
       return { data: null, error: 'Invalid status' }
     }
 
-    const allowedFields: Record<string, any> = {}
+    const allowedFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.subject !== undefined) allowedFields.subject = updates.subject
     if (updates.content !== undefined) allowedFields.content = updates.content
     if (updates.status !== undefined) allowedFields.status = updates.status
-    if (updates.audience_filter !== undefined) allowedFields.audience_filter = updates.audience_filter
+    if (updates.audience_filter !== undefined) allowedFields.audienceFilter = updates.audience_filter
     if (updates.metadata !== undefined) allowedFields.metadata = updates.metadata
     if (updates.content_blocks !== undefined) {
-      allowedFields.content_blocks = updates.content_blocks
+      allowedFields.contentBlocks = updates.content_blocks
       // Regenerate email HTML from blocks
       const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
       const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
       if (sortedBlocks.length > 0) {
         // Get maxWidth from metadata (check updates first, then existing DB metadata)
-        const maxWidth = updates.metadata?.maxWidth || newsletter.metadata?.maxWidth || 600
+        const existingMeta = newsletter.metadata as Record<string, any> | null
+        const maxWidth = updates.metadata?.maxWidth || existingMeta?.maxWidth || 600
         allowedFields.content = generateEmailHtml(sortedBlocks, maxWidth)
       }
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('newsletters')
-      .update(allowedFields)
-      .eq('id', newsletterId)
-      .select()
-      .single()
+    const [data] = await db
+      .update(newsletters)
+      .set(allowedFields)
+      .where(eq(newsletters.id, newsletterId))
+      .returning()
 
-    if (error) {
-      console.error('updateNewsletter error:', error.message)
+    if (!data) {
       return { data: null, error: 'Failed to update newsletter' }
     }
 
-    return { data: data as Newsletter, error: null }
+    return { data: rowToNewsletter(data), error: null }
   } catch (err) {
     console.error('updateNewsletter error:', err)
     return { data: null, error: 'Server error' }
@@ -241,36 +250,27 @@ export async function deleteNewsletters(ids: string[]): Promise<{ success: boole
       if (!UUID_REGEX.test(id)) return { success: false, error: 'Invalid ID' }
     }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: newsletters } = await supabaseAdmin
-      .from('newsletters')
-      .select('id, site_id')
-      .in('id', ids)
+    const rows = await db
+      .select({ id: newsletters.id, siteId: newsletters.siteId })
+      .from(newsletters)
+      .where(inArray(newsletters.id, ids))
 
-    if (!newsletters?.length) return { success: false, error: 'Not found' }
+    if (!rows.length) return { success: false, error: 'Not found' }
 
-    const siteIds = [...new Set(newsletters.map(n => n.site_id))]
-    const { data: sites } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(rows.map(n => n.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (!sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('newsletters')
-      .delete()
-      .in('id', ids)
-
-    if (error) {
-      console.error('deleteNewsletters error:', error.message)
-      return { success: false, error: 'Failed to delete' }
-    }
+    await db.delete(newsletters).where(inArray(newsletters.id, ids))
 
     return { success: true, error: null }
   } catch (err) {
@@ -283,19 +283,22 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
   try {
     if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: newsletter } = await supabaseAdmin
-      .from('newsletters')
-      .select('*')
-      .eq('id', newsletterId)
-      .single()
+    const [nlRow] = await db
+      .select()
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
-    if (!newsletter) return { success: false, error: 'Newsletter not found' }
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!nlRow) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(nlRow.siteId, user.id)) {
       return { success: false, error: 'Access denied' }
     }
+
+    const newsletter = rowToNewsletter(nlRow)
+
     if (newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused') {
       return { success: false, error: 'Already sent or in progress' }
     }
@@ -307,7 +310,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       if (sortedBlocks.length > 0) {
         const maxWidth = newsletter.metadata?.maxWidth || 600
         newsletter.content = generateEmailHtml(sortedBlocks, maxWidth)
-        await supabaseAdmin.from('newsletters').update({ content: newsletter.content }).eq('id', newsletterId)
+        await db.update(newsletters).set({ content: newsletter.content }).where(eq(newsletters.id, newsletterId))
       }
     }
     if (!newsletter.content?.trim()) {
@@ -322,46 +325,50 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       return { success: false, error: 'No audience selected. Choose a segment or audience before sending.' }
     }
 
-    await supabaseAdmin.from('newsletters').update({ status: 'sending' }).eq('id', newsletterId)
-
-    let query = supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id, email, metadata')
-      .eq('site_id', newsletter.site_id)
-      .eq('status', 'active')
+    await db.update(newsletters).set({ status: 'sending' }).where(eq(newsletters.id, newsletterId))
 
     // Resolve segment if segment_id is set
     if (filter.segment_id) {
-      const { data: segment } = await supabaseAdmin
-        .from('newsletter_segments')
-        .select('filter_rules')
-        .eq('id', filter.segment_id)
-        .single()
-      if (segment?.filter_rules?.tags?.length) {
-        filter = { ...filter, tags: segment.filter_rules.tags }
+      const [segment] = await db
+        .select({ filterRules: newsletterSegments.filterRules })
+        .from(newsletterSegments)
+        .where(eq(newsletterSegments.id, filter.segment_id))
+        .limit(1)
+      const rules = segment?.filterRules as Record<string, any> | null
+      if (rules?.tags?.length) {
+        filter = { ...filter, tags: rules.tags }
       }
     }
+
+    // Build contact query conditions
+    const contactConditions = [
+      eq(newsletterContacts.siteId, newsletter.site_id),
+      eq(newsletterContacts.status, 'active'),
+    ]
 
     if (filter.tags?.length) {
       for (const tag of filter.tags) {
-        query = query.contains('metadata', { tags: [tag] })
+        contactConditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
       }
     }
     if (filter.sources?.length) {
-      query = query.in('metadata->>source', filter.sources)
+      contactConditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(filter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
     }
 
-    const { data: contacts } = await query
+    const contacts = await db
+      .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+      .from(newsletterContacts)
+      .where(and(...contactConditions))
 
-    if (!contacts?.length) {
-      await supabaseAdmin.from('newsletters').update({ status: 'draft' }).eq('id', newsletterId)
+    if (!contacts.length) {
+      await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))
       return { success: false, error: 'No matching contacts' }
     }
 
     const resend = new Resend(config.apiKey)
     const fromEmail = config.fromEmail
     if (!fromEmail) {
-      await supabaseAdmin.from('newsletters').update({ status: 'draft' }).eq('id', newsletterId)
+      await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))
       return { success: false, error: 'From email not configured in Resend settings' }
     }
 
@@ -402,13 +409,13 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
 
         if (result.data?.id) {
           totalSent++
-          await supabaseAdmin.from('newsletter_events').insert({
-            site_id: newsletter.site_id,
-            contact_id: contact.id,
-            event_type: 'sent',
-            source_type: 'broadcast',
-            source_id: newsletterId,
-            resend_message_id: result.data.id,
+          await db.insert(newsletterEvents).values({
+            siteId: newsletter.site_id,
+            contactId: contact.id,
+            eventType: 'sent',
+            sourceType: 'broadcast',
+            sourceId: newsletterId,
+            resendMessageId: result.data.id,
           })
         }
       } catch {
@@ -423,11 +430,11 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
       const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
 
-      await supabaseAdmin
-        .from('newsletters')
-        .update({
-          total_recipients: contacts.length,
-          total_sent: totalSent,
+      await db
+        .update(newsletters)
+        .set({
+          totalRecipients: contacts.length,
+          totalSent: totalSent,
           metadata: {
             ...newsletter.metadata,
             send_errors: errors,
@@ -440,19 +447,19 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
             },
           },
         })
-        .eq('id', newsletterId)
+        .where(eq(newsletters.id, newsletterId))
     } else {
       // Non-drip or all contacts fit in first batch
-      await supabaseAdmin
-        .from('newsletters')
-        .update({
+      await db
+        .update(newsletters)
+        .set({
           status: 'sent',
-          sent_at: new Date().toISOString(),
-          total_recipients: contacts.length,
-          total_sent: totalSent,
+          sentAt: new Date(),
+          totalRecipients: contacts.length,
+          totalSent: totalSent,
           metadata: { ...newsletter.metadata, send_errors: errors },
         })
-        .eq('id', newsletterId)
+        .where(eq(newsletters.id, newsletterId))
     }
 
     return { success: true, error: null }
@@ -469,19 +476,21 @@ export async function sendTestNewsletter(
   try {
     if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: newsletter } = await supabaseAdmin
-      .from('newsletters')
-      .select('*')
-      .eq('id', newsletterId)
-      .single()
+    const [nlRow] = await db
+      .select()
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
-    if (!newsletter) return { success: false, error: 'Newsletter not found' }
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!nlRow) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(nlRow.siteId, user.id)) {
       return { success: false, error: 'Access denied' }
     }
+
+    const newsletter = rowToNewsletter(nlRow)
 
     // Generate HTML from content_blocks (always fresh)
     const contentBlocks = newsletter.content_blocks || {}
@@ -524,36 +533,38 @@ export async function pauseNewsletter(newsletterId: string): Promise<{ success: 
   try {
     if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: newsletter } = await supabaseAdmin
-      .from('newsletters')
-      .select('site_id, status, metadata')
-      .eq('id', newsletterId)
-      .single()
+    const [nlRow] = await db
+      .select({ siteId: newsletters.siteId, status: newsletters.status, metadata: newsletters.metadata })
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
-    if (!newsletter) return { success: false, error: 'Newsletter not found' }
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!nlRow) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(nlRow.siteId, user.id)) {
       return { success: false, error: 'Access denied' }
     }
-    if (newsletter.status !== 'sending') {
+    if (nlRow.status !== 'sending') {
       return { success: false, error: 'Newsletter is not currently sending' }
     }
 
-    await supabaseAdmin
-      .from('newsletters')
-      .update({
+    const existingMeta = nlRow.metadata as Record<string, any> | null
+
+    await db
+      .update(newsletters)
+      .set({
         status: 'paused',
         metadata: {
-          ...newsletter.metadata,
+          ...existingMeta,
           drip_config: {
-            ...newsletter.metadata?.drip_config,
+            ...existingMeta?.drip_config,
             paused_reason: 'manual',
           },
         },
       })
-      .eq('id', newsletterId)
+      .where(eq(newsletters.id, newsletterId))
 
     return { success: true, error: null }
   } catch (err) {
@@ -566,37 +577,39 @@ export async function resumeNewsletter(newsletterId: string): Promise<{ success:
   try {
     if (!UUID_REGEX.test(newsletterId)) return { success: false, error: 'Invalid ID' }
 
-    const user = await verifyAuth()
+    const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Not authenticated' }
 
-    const { data: newsletter } = await supabaseAdmin
-      .from('newsletters')
-      .select('site_id, status, metadata')
-      .eq('id', newsletterId)
-      .single()
+    const [nlRow] = await db
+      .select({ siteId: newsletters.siteId, status: newsletters.status, metadata: newsletters.metadata })
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
 
-    if (!newsletter) return { success: false, error: 'Newsletter not found' }
-    if (!await verifySiteOwnership(newsletter.site_id, user.id)) {
+    if (!nlRow) return { success: false, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(nlRow.siteId, user.id)) {
       return { success: false, error: 'Access denied' }
     }
-    if (newsletter.status !== 'paused') {
+    if (nlRow.status !== 'paused') {
       return { success: false, error: 'Newsletter is not paused' }
     }
 
-    await supabaseAdmin
-      .from('newsletters')
-      .update({
+    const existingMeta = nlRow.metadata as Record<string, any> | null
+
+    await db
+      .update(newsletters)
+      .set({
         status: 'sending',
         metadata: {
-          ...newsletter.metadata,
+          ...existingMeta,
           drip_config: {
-            ...newsletter.metadata?.drip_config,
+            ...existingMeta?.drip_config,
             next_batch_at: new Date().toISOString(),
             paused_reason: null,
           },
         },
       })
-      .eq('id', newsletterId)
+      .where(eq(newsletters.id, newsletterId))
 
     return { success: true, error: null }
   } catch (err) {

@@ -1,20 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { revalidateTag, unstable_cache } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { eq, and, desc, sql, inArray, like } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
+import { db } from '@/lib/db'
+import { sites, siteDashboardPages } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -63,28 +53,24 @@ export async function updateUserPagesSettingsAction(
   settings: { navigation?: any; footer?: any }
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Get current site settings and verify ownership
-    const { data: site, error: fetchError } = await supabaseAdmin
-      .from('sites')
-      .select('settings')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ settings: sites.settings })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
-    if (fetchError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
     // Build updated settings
-    const currentSettings = site.settings || {}
+    const currentSettings = (site.settings as Record<string, any>) || {}
     const userPagesSettings = currentSettings.user_pages || {}
 
     const updatedSettings = {
@@ -97,15 +83,10 @@ export async function updateUserPagesSettingsAction(
     }
 
     // Update sites table
-    const { error: updateError } = await supabaseAdmin
-      .from('sites')
-      .update({ settings: updatedSettings })
-      .eq('id', siteId)
-
-    if (updateError) {
-      console.error('Error updating user pages settings:', updateError)
-      return { success: false, error: updateError.message }
-    }
+    await db
+      .update(sites)
+      .set({ settings: updatedSettings })
+      .where(eq(sites.id, siteId))
 
     // Revalidate cache
     revalidateTag(`site-${siteId}`)
@@ -133,21 +114,17 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'Authentication required' }
     }
 
     // Verify user owns this site
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, total: 0, error: 'Access denied' }
@@ -157,22 +134,23 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    // Use admin client to fetch all pages
-    const { data, count, error } = await supabaseAdmin
-      .from('users_pages')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    // Get count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.siteId, siteId))
 
-    if (error) {
-      console.error('Error fetching user pages:', error)
-      return { data: null, total: 0, error: error.message }
-    }
+    // Get pages
+    const result = await db
+      .select()
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.siteId, siteId))
+      .orderBy(desc(siteDashboardPages.displayOrder))
+      .limit(pageSize)
+      .offset(from)
 
-    return { data: data || [], total: count ?? 0, error: null }
+    return { data: (result as unknown as UserPage[]) || [], total: countResult?.count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getUserPagesAction:', error)
     return { data: null, total: 0, error: error.message || 'Failed to fetch user pages' }
@@ -184,38 +162,33 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
  */
 export async function getUserPageAction(pageId: string): Promise<{ data: UserPage | null; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('users_pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const [page] = await db
+      .select()
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.id, pageId))
+      .limit(1)
 
-    if (error) {
-      console.error('Error fetching user page:', error)
-      return { data: null, error: error.message }
+    if (!page) {
+      return { data: null, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', data.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, error: 'Access denied' }
     }
 
-    return { data, error: null }
+    return { data: page as unknown as UserPage, error: null }
   } catch (error: any) {
     console.error('Exception in getUserPageAction:', error)
     return { data: null, error: error.message || 'Failed to fetch user page' }
@@ -230,21 +203,17 @@ export async function createUserPageAction(
   pageData: CreateUserPageData
 ): Promise<{ data: UserPage | null; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Verify user owns this site
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, error: 'Access denied' }
@@ -257,41 +226,37 @@ export async function createUserPageAction(
       .replace(/^-+|-+$/g, '')
 
     // Get the highest display_order for this site to append new page at the end
-    const { data: existingPages } = await supabaseAdmin
-      .from('users_pages')
-      .select('display_order')
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
+    const [lastPage] = await db
+      .select({ displayOrder: siteDashboardPages.displayOrder })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.siteId, siteId))
+      .orderBy(desc(siteDashboardPages.displayOrder))
       .limit(1)
 
-    const nextOrder = existingPages && existingPages.length > 0
-      ? existingPages[0].display_order + 1
-      : 1
+    const nextOrder = lastPage ? lastPage.displayOrder + 1 : 1
 
-    const { data, error } = await supabaseAdmin
-      .from('users_pages')
-      .insert({
-        site_id: siteId,
+    const [newPage] = await db
+      .insert(siteDashboardPages)
+      .values({
+        siteId,
         title: pageData.title,
         slug,
-        meta_description: pageData.meta_description || null,
-        is_default: pageData.is_default || false,
-        is_published: pageData.is_published !== false,
-        content_blocks: pageData.content_blocks || {},
-        display_order: nextOrder
+        metaDescription: pageData.meta_description || null,
+        isDefault: pageData.is_default || false,
+        isPublished: pageData.is_published !== false,
+        contentBlocks: pageData.content_blocks || {},
+        displayOrder: nextOrder
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('Error creating user page:', error)
-      return { data: null, error: error.message }
+    if (!newPage) {
+      return { data: null, error: 'Failed to create user page' }
     }
 
     // Revalidate cache
     revalidateTag(`user-pages-${siteId}`)
 
-    return { data, error: null }
+    return { data: newPage as unknown as UserPage, error: null }
   } catch (error: any) {
     console.error('Exception in createUserPageAction:', error)
     return { data: null, error: error.message || 'Failed to create user page' }
@@ -306,62 +271,56 @@ export async function updateUserPageAction(
   pageData: UpdateUserPageData
 ): Promise<{ data: UserPage | null; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Fetch page to verify ownership
-    const { data: existingPage, error: fetchError } = await supabaseAdmin
-      .from('users_pages')
-      .select('site_id')
-      .eq('id', pageId)
-      .single()
+    const [existingPage] = await db
+      .select({ siteId: siteDashboardPages.siteId })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.id, pageId))
+      .limit(1)
 
-    if (fetchError || !existingPage) {
+    if (!existingPage) {
       return { data: null, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', existingPage.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, existingPage.siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, error: 'Access denied' }
     }
 
-    // Whitelist allowed fields
-    const allowedUpdates: Record<string, any> = {}
-    if (pageData.title !== undefined) allowedUpdates.title = pageData.title
-    if (pageData.slug !== undefined) allowedUpdates.slug = pageData.slug
-    if (pageData.meta_description !== undefined) allowedUpdates.meta_description = pageData.meta_description
-    if (pageData.is_default !== undefined) allowedUpdates.is_default = pageData.is_default
-    if (pageData.is_published !== undefined) allowedUpdates.is_published = pageData.is_published
+    // Build Drizzle updates from allowed fields
+    const drizzleUpdates: Record<string, any> = {}
+    if (pageData.title !== undefined) drizzleUpdates.title = pageData.title
+    if (pageData.slug !== undefined) drizzleUpdates.slug = pageData.slug
+    if (pageData.meta_description !== undefined) drizzleUpdates.metaDescription = pageData.meta_description
+    if (pageData.is_default !== undefined) drizzleUpdates.isDefault = pageData.is_default
+    if (pageData.is_published !== undefined) drizzleUpdates.isPublished = pageData.is_published
 
-    const { data, error } = await supabaseAdmin
-      .from('users_pages')
-      .update(allowedUpdates)
-      .eq('id', pageId)
-      .select()
-      .single()
+    const [updatedPage] = await db
+      .update(siteDashboardPages)
+      .set(drizzleUpdates)
+      .where(eq(siteDashboardPages.id, pageId))
+      .returning()
 
-    if (error) {
-      console.error('Error updating user page:', error)
-      return { data: null, error: error.message }
+    if (!updatedPage) {
+      return { data: null, error: 'Failed to update page' }
     }
 
     // Revalidate cache
     revalidateTag(`user-page-${pageId}`)
-    revalidateTag(`user-pages-${data.site_id}`)
+    revalidateTag(`user-pages-${updatedPage.siteId}`)
 
-    return { data, error: null }
+    return { data: updatedPage as unknown as UserPage, error: null }
   } catch (error: any) {
     console.error('Exception in updateUserPageAction:', error)
     return { data: null, error: error.message || 'Failed to update user page' }
@@ -373,51 +332,37 @@ export async function updateUserPageAction(
  */
 export async function deleteUserPageAction(pageId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Get page to verify ownership and find site_id for cache revalidation
-    const { data: page } = await supabaseAdmin
-      .from('users_pages')
-      .select('site_id')
-      .eq('id', pageId)
-      .single()
+    const [page] = await db
+      .select({ siteId: siteDashboardPages.siteId })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.id, pageId))
+      .limit(1)
 
     if (!page) {
       return { success: false, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { success: false, error: 'Access denied' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('users_pages')
-      .delete()
-      .eq('id', pageId)
-
-    if (error) {
-      console.error('Error deleting user page:', error)
-      return { success: false, error: error.message }
-    }
+    await db.delete(siteDashboardPages).where(eq(siteDashboardPages.id, pageId))
 
     // Revalidate cache
-    if (page) {
-      revalidateTag(`user-pages-${page.site_id}`)
-    }
+    revalidateTag(`user-pages-${page.siteId}`)
     revalidateTag(`user-page-${pageId}`)
 
     return { success: true, error: null }
@@ -443,45 +388,35 @@ export async function deleteUserPagesAction(pageIds: string[]): Promise<{ succes
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: pages, error: pagesError } = await supabaseAdmin
-      .from('users_pages')
-      .select('id, site_id, is_default')
-      .in('id', pageIds)
+    const pages = await db
+      .select({ id: siteDashboardPages.id, siteId: siteDashboardPages.siteId, isDefault: siteDashboardPages.isDefault })
+      .from(siteDashboardPages)
+      .where(inArray(siteDashboardPages.id, pageIds))
 
-    if (pagesError || !pages?.length) {
+    if (!pages.length) {
       return { success: false, error: 'Pages not found' }
     }
 
-    if (pages.some(p => p.is_default)) {
+    if (pages.some(p => p.isDefault)) {
       return { success: false, error: 'Cannot delete the default page. Please deselect it and try again.' }
     }
 
-    const siteIds = [...new Set(pages.map(p => p.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(pages.map(p => p.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more pages' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('users_pages')
-      .delete()
-      .in('id', pageIds)
-
-    if (error) {
-      return { success: false, error: `Failed to delete pages: ${error.message}` }
-    }
+    await db.delete(siteDashboardPages).where(inArray(siteDashboardPages.id, pageIds))
 
     for (const siteId of siteIds) {
       revalidateTag(`user-pages-${siteId}`)
@@ -507,54 +442,48 @@ export async function updateUserPageBlocksAction(
   contentBlocks: Record<string, any>
 ): Promise<{ data: UserPage | null; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Fetch page to verify ownership
-    const { data: existingPage, error: fetchError } = await supabaseAdmin
-      .from('users_pages')
-      .select('site_id')
-      .eq('id', pageId)
-      .single()
+    const [existingPage] = await db
+      .select({ siteId: siteDashboardPages.siteId })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.id, pageId))
+      .limit(1)
 
-    if (fetchError || !existingPage) {
+    if (!existingPage) {
       return { data: null, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', existingPage.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, existingPage.siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, error: 'Access denied' }
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('users_pages')
-      .update({ content_blocks: contentBlocks })
-      .eq('id', pageId)
-      .select()
-      .single()
+    const [updatedPage] = await db
+      .update(siteDashboardPages)
+      .set({ contentBlocks })
+      .where(eq(siteDashboardPages.id, pageId))
+      .returning()
 
-    if (error) {
-      console.error('Error updating user page blocks:', error)
-      return { data: null, error: error.message }
+    if (!updatedPage) {
+      return { data: null, error: 'Failed to update page blocks' }
     }
 
     // Revalidate cache
     revalidateTag(`user-page-${pageId}`)
-    revalidateTag(`user-pages-${data.site_id}`)
+    revalidateTag(`user-pages-${updatedPage.siteId}`)
 
-    return { data, error: null }
+    return { data: updatedPage as unknown as UserPage, error: null }
   } catch (error: any) {
     console.error('Exception in updateUserPageBlocksAction:', error)
     return { data: null, error: error.message || 'Failed to update user page blocks' }
@@ -568,32 +497,28 @@ export async function reorderUserPagesAction(
   pageUpdates: Array<{ id: string; display_order: number }>
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Verify ownership via first page
     if (pageUpdates.length > 0) {
-      const { data: firstPage } = await supabaseAdmin
-        .from('users_pages')
-        .select('site_id')
-        .eq('id', pageUpdates[0].id)
-        .single()
+      const [firstPage] = await db
+        .select({ siteId: siteDashboardPages.siteId })
+        .from(siteDashboardPages)
+        .where(eq(siteDashboardPages.id, pageUpdates[0].id))
+        .limit(1)
 
       if (!firstPage) {
         return { success: false, error: 'Page not found' }
       }
 
-      const { data: site } = await supabaseAdmin
-        .from('sites')
-        .select('id')
-        .eq('id', firstPage.site_id)
-        .eq('user_id', user.id)
-        .single()
+      const [site] = await db
+        .select({ id: sites.id })
+        .from(sites)
+        .where(and(eq(sites.id, firstPage.siteId), eq(sites.userId, user.id)))
+        .limit(1)
 
       if (!site) {
         return { success: false, error: 'Access denied' }
@@ -602,27 +527,22 @@ export async function reorderUserPagesAction(
 
     // Update each page's display_order
     for (const update of pageUpdates) {
-      const { error } = await supabaseAdmin
-        .from('users_pages')
-        .update({ display_order: update.display_order })
-        .eq('id', update.id)
-
-      if (error) {
-        console.error('Error reordering user pages:', error)
-        return { success: false, error: error.message }
-      }
+      await db
+        .update(siteDashboardPages)
+        .set({ displayOrder: update.display_order })
+        .where(eq(siteDashboardPages.id, update.id))
     }
 
     // Get site_id for cache revalidation
     if (pageUpdates.length > 0) {
-      const { data: page } = await supabaseAdmin
-        .from('users_pages')
-        .select('site_id')
-        .eq('id', pageUpdates[0].id)
-        .single()
+      const [page] = await db
+        .select({ siteId: siteDashboardPages.siteId })
+        .from(siteDashboardPages)
+        .where(eq(siteDashboardPages.id, pageUpdates[0].id))
+        .limit(1)
 
       if (page) {
-        revalidateTag(`user-pages-${page.site_id}`)
+        revalidateTag(`user-pages-${page.siteId}`)
       }
     }
 
@@ -641,33 +561,28 @@ export async function duplicateUserPageAction(
   newTitle: string
 ): Promise<{ data: UserPage | null; error: string | null }> {
   try {
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Get the original page
-    const { data: originalPage, error: fetchError } = await supabaseAdmin
-      .from('users_pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const [originalPage] = await db
+      .select()
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.id, pageId))
+      .limit(1)
 
-    if (fetchError || !originalPage) {
-      console.error('Error fetching original page:', fetchError)
-      return { data: null, error: fetchError?.message || 'Original page not found' }
+    if (!originalPage) {
+      return { data: null, error: 'Original page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', originalPage.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, originalPage.siteId), eq(sites.userId, user.id)))
+      .limit(1)
 
     if (!site) {
       return { data: null, error: 'Access denied' }
@@ -680,14 +595,13 @@ export async function duplicateUserPageAction(
       .replace(/^-+|-+$/g, '')
 
     // Check for existing slugs and append number if needed
-    const { data: existingPages } = await supabaseAdmin
-      .from('users_pages')
-      .select('slug')
-      .eq('site_id', originalPage.site_id)
-      .like('slug', `${baseSlug}%`)
+    const existingPages = await db
+      .select({ slug: siteDashboardPages.slug })
+      .from(siteDashboardPages)
+      .where(and(eq(siteDashboardPages.siteId, originalPage.siteId), like(siteDashboardPages.slug, `${baseSlug}%`)))
 
     let slug = baseSlug
-    if (existingPages && existingPages.length > 0) {
+    if (existingPages.length > 0) {
       const existingSlugs = existingPages.map(p => p.slug)
       let counter = 1
       while (existingSlugs.includes(slug)) {
@@ -697,42 +611,38 @@ export async function duplicateUserPageAction(
     }
 
     // Get the highest display_order to append at the end
-    const { data: lastPage } = await supabaseAdmin
-      .from('users_pages')
-      .select('display_order')
-      .eq('site_id', originalPage.site_id)
-      .order('display_order', { ascending: false })
+    const [lastPage] = await db
+      .select({ displayOrder: siteDashboardPages.displayOrder })
+      .from(siteDashboardPages)
+      .where(eq(siteDashboardPages.siteId, originalPage.siteId))
+      .orderBy(desc(siteDashboardPages.displayOrder))
       .limit(1)
 
-    const nextOrder = lastPage && lastPage.length > 0
-      ? lastPage[0].display_order + 1
-      : 1
+    const nextOrder = lastPage ? lastPage.displayOrder + 1 : 1
 
     // Create the duplicate
-    const { data, error } = await supabaseAdmin
-      .from('users_pages')
-      .insert({
-        site_id: originalPage.site_id,
+    const [newPage] = await db
+      .insert(siteDashboardPages)
+      .values({
+        siteId: originalPage.siteId,
         title: newTitle,
         slug,
-        meta_description: originalPage.meta_description,
-        is_default: false, // Duplicate is never default
-        is_published: false, // Start as draft
-        content_blocks: originalPage.content_blocks,
-        display_order: nextOrder
+        metaDescription: originalPage.metaDescription,
+        isDefault: false, // Duplicate is never default
+        isPublished: false, // Start as draft
+        contentBlocks: originalPage.contentBlocks,
+        displayOrder: nextOrder
       })
-      .select()
-      .single()
+      .returning()
 
-    if (error) {
-      console.error('Error duplicating user page:', error)
-      return { data: null, error: error.message }
+    if (!newPage) {
+      return { data: null, error: 'Failed to duplicate page' }
     }
 
     // Revalidate cache
-    revalidateTag(`user-pages-${originalPage.site_id}`)
+    revalidateTag(`user-pages-${originalPage.siteId}`)
 
-    return { data, error: null }
+    return { data: newPage as unknown as UserPage, error: null }
   } catch (error: any) {
     console.error('Exception in duplicateUserPageAction:', error)
     return { data: null, error: error.message || 'Failed to duplicate user page' }

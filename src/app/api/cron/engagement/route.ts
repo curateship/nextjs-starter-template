@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { db } from '@/lib/db'
+import { newsletterContacts, newsletterEvents } from '@/lib/db/schema'
+import { eq, and, inArray, gte } from 'drizzle-orm'
 
 /**
  * GET /api/cron/engagement
@@ -24,42 +20,45 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // Get all contacts with their recent events
-    const { data: contacts, error: contactsError } = await supabaseAdmin
-      .from('newsletter_contacts')
-      .select('id, site_id, status, bounce_count, last_engaged_at')
-      .in('status', ['active', 'unsubscribed'])
+    // Get all contacts
+    const contacts = await db
+      .select({
+        id: newsletterContacts.id,
+        siteId: newsletterContacts.siteId,
+        status: newsletterContacts.status,
+        bounceCount: newsletterContacts.bounceCount,
+        lastEngagedAt: newsletterContacts.lastEngagedAt,
+        engagementScore: newsletterContacts.engagementScore,
+      })
+      .from(newsletterContacts)
+      .where(inArray(newsletterContacts.status, ['active', 'unsubscribed']))
 
-    if (contactsError) {
-      console.error('Engagement cron contacts error:', contactsError.message)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
-
-    if (!contacts?.length) {
+    if (!contacts.length) {
       return NextResponse.json({ message: 'No contacts to score', updated: 0 })
     }
 
-    // Get events from last 90 days grouped by contact
-    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+    // Get events from last 90 days
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
 
-    const { data: events, error: eventsError } = await supabaseAdmin
-      .from('newsletter_events')
-      .select('contact_id, event_type, created_at')
-      .in('event_type', ['opened', 'clicked'])
-      .gte('created_at', ninetyDaysAgo)
-
-    if (eventsError) {
-      console.error('Engagement cron events error:', eventsError.message)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
+    const events = await db
+      .select({
+        contactId: newsletterEvents.contactId,
+        eventType: newsletterEvents.eventType,
+        createdAt: newsletterEvents.createdAt,
+      })
+      .from(newsletterEvents)
+      .where(and(
+        inArray(newsletterEvents.eventType, ['opened', 'clicked']),
+        gte(newsletterEvents.createdAt, ninetyDaysAgo),
+      ))
 
     // Group events by contact
     const eventsByContact = new Map<string, { type: string; date: Date }[]>()
-    for (const event of events ?? []) {
-      if (!event.contact_id) continue
-      const list = eventsByContact.get(event.contact_id) || []
-      list.push({ type: event.event_type, date: new Date(event.created_at) })
-      eventsByContact.set(event.contact_id, list)
+    for (const event of events) {
+      if (!event.contactId) continue
+      const list = eventsByContact.get(event.contactId) || []
+      list.push({ type: event.eventType, date: new Date(event.createdAt) })
+      eventsByContact.set(event.contactId, list)
     }
 
     // Calculate scores
@@ -70,7 +69,6 @@ export async function GET(request: NextRequest) {
       let score = 0
       for (const event of contactEvents) {
         const daysAgo = (now.getTime() - event.date.getTime()) / (1000 * 60 * 60 * 24)
-        // Decay: full points if recent, less as time passes
         const decay = Math.max(0, 1 - daysAgo / 90)
 
         if (event.type === 'clicked') {
@@ -80,15 +78,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Cap at 100
       const finalScore = Math.min(100, Math.round(score))
 
-      // Only update if score changed
-      if (finalScore !== (contact as any).engagement_score) {
-        await supabaseAdmin
-          .from('newsletter_contacts')
-          .update({ engagement_score: finalScore })
-          .eq('id', contact.id)
+      if (finalScore !== (contact.engagementScore ?? 0)) {
+        await db
+          .update(newsletterContacts)
+          .set({ engagementScore: finalScore })
+          .where(eq(newsletterContacts.id, contact.id))
         updated++
       }
     }

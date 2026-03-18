@@ -1,19 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { unstable_cache } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { eq, and } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { sites, siteDashboardPages } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 // Types for blocks
 interface Block {
@@ -49,24 +39,26 @@ export interface SiteWithUserPageBlocks {
  * Helper function to build blocks array with navigation, page content, and footer
  */
 function buildUserPageBlocks(
-  site: any,
-  page: { content_blocks: Record<string, any> }
+  site: { settings: any },
+  page: { contentBlocks: any }
 ): Block[] {
   const blocks: Block[] = []
+  const siteSettings = site.settings as Record<string, any> | null
 
   // Add navigation from site settings
-  if (site.settings?.user_pages?.navigation) {
+  if (siteSettings?.user_pages?.navigation) {
     blocks.push({
       id: 'user-navigation',
       type: 'navigation',
-      content: site.settings.user_pages.navigation,
+      content: siteSettings.user_pages.navigation,
       display_order: -1
     })
   }
 
   // Add page blocks from content_blocks
-  if (page.content_blocks) {
-    Object.entries(page.content_blocks).forEach(([blockId, blockData]: [string, any]) => {
+  if (page.contentBlocks) {
+    const contentBlocks = page.contentBlocks as Record<string, any>
+    Object.entries(contentBlocks).forEach(([blockId, blockData]: [string, any]) => {
       blocks.push({
         id: blockId,
         type: blockData.type,
@@ -77,11 +69,11 @@ function buildUserPageBlocks(
   }
 
   // Add footer from site settings
-  if (site.settings?.user_pages?.footer) {
+  if (siteSettings?.user_pages?.footer) {
     blocks.push({
       id: 'user-footer',
       type: 'footer',
-      content: site.settings.user_pages.footer,
+      content: siteSettings.user_pages.footer,
       display_order: 999
     })
   }
@@ -97,22 +89,19 @@ export async function getUserPageBySlug(
   slug: string
 ): Promise<{ data: SiteWithUserPageBlocks | null; error: string | null }> {
   try {
-    // Get the authenticated user
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Fetch site data
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('*')
-      .eq('id', siteId)
-      .single()
+    const [site] = await db
+      .select()
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found' }
     }
 
@@ -120,24 +109,32 @@ export async function getUserPageBySlug(
     const pageSlug = slug || 'home'
 
     // Fetch the user page
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('users_pages')
-      .select('*')
-      .eq('site_id', siteId)
-      .eq('slug', pageSlug)
-      .eq('is_published', true)
-      .single()
+    const [page] = await db
+      .select()
+      .from(siteDashboardPages)
+      .where(
+        and(
+          eq(siteDashboardPages.siteId, siteId),
+          eq(siteDashboardPages.slug, pageSlug),
+          eq(siteDashboardPages.isPublished, true)
+        )
+      )
+      .limit(1)
 
-    if (pageError || !page) {
+    if (!page) {
       // If specific page not found, try to get default page
       if (pageSlug !== 'home') {
-        const { data: defaultPage } = await supabaseAdmin
-          .from('users_pages')
-          .select('*')
-          .eq('site_id', siteId)
-          .eq('is_default', true)
-          .eq('is_published', true)
-          .single()
+        const [defaultPage] = await db
+          .select()
+          .from(siteDashboardPages)
+          .where(
+            and(
+              eq(siteDashboardPages.siteId, siteId),
+              eq(siteDashboardPages.isDefault, true),
+              eq(siteDashboardPages.isPublished, true)
+            )
+          )
+          .limit(1)
 
         if (!defaultPage) {
           return { data: null, error: 'Page not found' }
@@ -151,14 +148,14 @@ export async function getUserPageBySlug(
             id: site.id,
             name: site.name,
             subdomain: site.subdomain,
-            custom_domain: site.custom_domain,
-            settings: site.settings,
+            custom_domain: site.customDomain,
+            settings: site.settings as SiteWithUserPageBlocks['settings'],
             blocks,
             currentPage: {
               id: defaultPage.id,
               title: defaultPage.title,
               slug: defaultPage.slug,
-              meta_description: defaultPage.meta_description
+              meta_description: defaultPage.metaDescription
             }
           },
           error: null
@@ -176,14 +173,14 @@ export async function getUserPageBySlug(
         id: site.id,
         name: site.name,
         subdomain: site.subdomain,
-        custom_domain: site.custom_domain,
-        settings: site.settings,
+        custom_domain: site.customDomain,
+        settings: site.settings as SiteWithUserPageBlocks['settings'],
         blocks,
         currentPage: {
           id: page.id,
           title: page.title,
           slug: page.slug,
-          meta_description: page.meta_description
+          meta_description: page.metaDescription
         }
       },
       error: null
@@ -200,25 +197,23 @@ export async function getUserPageBySlug(
  */
 export async function getCurrentUserSiteId(): Promise<{ siteId: string | null; error: string | null }> {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { siteId: null, error: 'Authentication required' }
     }
 
     // Get the user's first site
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('user_id', user.id)
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(eq(sites.userId, user.id))
       .limit(1)
 
-    if (sitesError || !sites || sites.length === 0) {
+    if (!site) {
       return { siteId: null, error: 'No site found for user' }
     }
 
-    return { siteId: sites[0].id, error: null }
+    return { siteId: site.id, error: null }
   } catch (error: any) {
     console.error('Exception in getCurrentUserSiteId:', error)
     return { siteId: null, error: error.message || 'Failed to get user site' }

@@ -1,21 +1,11 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, ne, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { purgeProxyCache } from '@/lib/utils/cache-purge'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { pages, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Page {
   id: string
@@ -66,92 +56,39 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
     }
 
     // Verify user owns this site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('pages')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pages)
+      .where(eq(pages.siteId, siteId))
 
-    if (error) {
-      // Check if it's a table not found error
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        // Pages table doesn't exist yet - return mock data for now
-        return {
-          data: [
-            {
-              id: '00000000-0000-0000-0000-000000000001',
-              site_id: siteId,
-              title: 'Home',
-              slug: 'home',
-              meta_description: 'Welcome to our website',
-              is_homepage: true,
-              is_published: true,
-              display_order: 1,
-              content_blocks: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            },
-            {
-              id: '00000000-0000-0000-0000-000000000002',
-              site_id: siteId,
-              title: 'About',
-              slug: 'about',
-              meta_description: 'Learn more about us',
-              is_homepage: false,
-              is_published: true,
-              display_order: 2,
-              content_blocks: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            },
-            {
-              id: '00000000-0000-0000-0000-000000000003',
-              site_id: siteId,
-              title: 'Contact',
-              slug: 'contact',
-              meta_description: 'Get in touch with us',
-              is_homepage: false,
-              is_published: true,
-              display_order: 3,
-              content_blocks: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ],
-          error: null,
-          total: 3
-        }
-      }
-      return { data: null, total: 0, error: `Failed to fetch pages: ${error.message}` }
-    }
+    const data = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.siteId, siteId))
+      .orderBy(desc(pages.displayOrder))
+      .limit(pageSize)
+      .offset(from)
 
-    return { data: data as Page[], total: count ?? 0, error: null }
+    return { data: data as unknown as Page[], total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,
@@ -172,80 +109,43 @@ export async function getPageByIdAction(pageId: string): Promise<{ data: Page | 
       return { data: null, error: 'Invalid page ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
-    // First get the page to check which site it belongs to
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
-
-    if (pageError) {
-      // Check if it's a table not found error
-      if (pageError.message.includes('relation') && pageError.message.includes('does not exist')) {
-        // Pages table doesn't exist yet - return mock data for now
-        return {
-          data: {
-            id: pageId,
-            site_id: 'mock-site-id',
-            title: 'Sample Page',
-            slug: 'sample-page',
-            meta_description: 'This is a sample page',
-            is_homepage: false,
-            is_published: true,
-            display_order: 1,
-            content_blocks: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          error: null
-        }
-      }
-      
-      // Page not found - this is expected if the page doesn't exist yet
-      if (pageError.code === 'PGRST116') {
-        return { data: null, error: 'Page not found. The database migration may not have created default pages yet.' }
-      }
-      
-      return { data: null, error: `Failed to fetch page: ${pageError.message}` }
-    }
+    // Get the page
+    const [page] = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.id, pageId))
 
     if (!page) {
-      return { data: null, error: 'Page not found' }
+      return { data: null, error: 'Page not found. The database migration may not have created default pages yet.' }
     }
-    
 
-    // Now verify the user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    // Verify user owns the site this page belongs to
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
     // Ensure all dates are properly serialized
     const serializedPage = {
       ...page,
-      created_at: page.created_at ? new Date(page.created_at).toISOString() : new Date().toISOString(),
-      updated_at: page.updated_at ? new Date(page.updated_at).toISOString() : new Date().toISOString()
+      created_at: page.createdAt ? new Date(page.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: page.updatedAt ? new Date(page.updatedAt).toISOString() : new Date().toISOString()
     }
-    
-    return { data: serializedPage, error: null }
+
+    return { data: serializedPage as unknown as Page, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -262,34 +162,28 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       return { data: null, error: 'Invalid page ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the page
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const [page] = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.id, pageId))
 
-    if (pageError || !page) {
+    if (!page) {
       return { data: null, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -302,7 +196,7 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
     let processedUpdates = { ...updates }
     if (updates.slug !== undefined) {
       const slug = updates.slug.trim()
-      
+
       // Validate slug format
       if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
         return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
@@ -315,17 +209,15 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       }
 
       // Check if slug conflicts with other pages (excluding current page)
-      const { data: existingPage } = await supabaseAdmin
-        .from('pages')
-        .select('id')
-        .eq('site_id', page.site_id)
-        .eq('slug', slug)
-        .single()
-      
+      const [existingPage] = await db
+        .select({ id: pages.id })
+        .from(pages)
+        .where(and(eq(pages.siteId, page.siteId), eq(pages.slug, slug)))
+
       if (existingPage && existingPage.id !== pageId) {
-        return { 
-          data: null, 
-          error: `A page with the slug "${slug}" already exists. Please choose a different slug.` 
+        return {
+          data: null,
+          error: `A page with the slug "${slug}" already exists. Please choose a different slug.`
         }
       }
 
@@ -334,16 +226,14 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
 
     // If setting as homepage, unset any existing homepage
     if (updates.is_homepage === true) {
-      await supabaseAdmin
-        .from('pages')
-        .update({ is_homepage: false })
-        .eq('site_id', page.site_id)
-        .eq('is_homepage', true)
-        .neq('id', pageId)
+      await db
+        .update(pages)
+        .set({ isHomepage: false })
+        .where(and(eq(pages.siteId, page.siteId), eq(pages.isHomepage, true), ne(pages.id, pageId)))
     }
 
     // Clean up the updates object
-    const finalUpdates: any = {}
+    const finalUpdates: Record<string, any> = {}
     Object.entries(processedUpdates).forEach(([key, value]) => {
       if (value !== undefined) {
         if (key === 'title' || key === 'meta_description') {
@@ -354,26 +244,30 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       }
     })
 
-    // Update the page
-    const { data, error } = await supabaseAdmin
-      .from('pages')
-      .update({
-        ...finalUpdates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', pageId)
-      .select()
-      .single()
+    // Map snake_case keys to Drizzle camelCase columns
+    const drizzleUpdates: Record<string, any> = { updatedAt: new Date() }
+    if (finalUpdates.title !== undefined) drizzleUpdates.title = finalUpdates.title
+    if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
+    if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
+    if (finalUpdates.is_homepage !== undefined) drizzleUpdates.isHomepage = finalUpdates.is_homepage
+    if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
 
-    if (error) {
-      return { data: null, error: `Failed to update page: ${error.message}` }
+    // Update the page
+    const [data] = await db
+      .update(pages)
+      .set(drizzleUpdates)
+      .where(eq(pages.id, pageId))
+      .returning()
+
+    if (!data) {
+      return { data: null, error: 'Failed to update page' }
     }
 
-    return { data: data as Page, error: null }
+    return { data: data as unknown as Page, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -389,34 +283,28 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
       return { success: false, error: 'Invalid page ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the page
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const [page] = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.id, pageId))
 
-    if (pageError || !page) {
+    if (!page) {
       return { success: false, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
@@ -429,20 +317,13 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
     }
 
     // Delete the page
-    const { error } = await supabaseAdmin
-      .from('pages')
-      .delete()
-      .eq('id', pageId)
-
-    if (error) {
-      return { success: false, error: `Failed to delete page: ${error.message}` }
-    }
+    await db.delete(pages).where(eq(pages.id, pageId))
 
     return { success: true, error: null }
   } catch (error) {
-    return { 
-      success: false, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      success: false,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -463,46 +344,36 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
-    const { data: pages, error: pagesError } = await supabaseAdmin
-      .from('pages')
-      .select('id, site_id, slug')
-      .in('id', pageIds)
+    const foundPages = await db
+      .select({ id: pages.id, siteId: pages.siteId, slug: pages.slug })
+      .from(pages)
+      .where(inArray(pages.id, pageIds))
 
-    if (pagesError || !pages?.length) {
+    if (!foundPages.length) {
       return { success: false, error: 'Pages not found' }
     }
 
     // Prevent deleting homepage
-    if (pages.some(p => p.slug === 'home')) {
+    if (foundPages.some(p => p.slug === 'home')) {
       return { success: false, error: 'Cannot delete the homepage. Please deselect it and try again.' }
     }
 
-    const siteIds = [...new Set(pages.map(p => p.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(foundPages.map(p => p.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more pages' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('pages')
-      .delete()
-      .in('id', pageIds)
-
-    if (error) {
-      return { success: false, error: `Failed to delete pages: ${error.message}` }
-    }
+    await db.delete(pages).where(inArray(pages.id, pageIds))
 
     return { success: true, error: null }
   } catch (error) {
@@ -528,34 +399,28 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
       return { data: null, error: 'New page title is required' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the original page
-    const { data: originalPage, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const [originalPage] = await db
+      .select()
+      .from(pages)
+      .where(eq(pages.id, pageId))
 
-    if (pageError || !originalPage) {
+    if (!originalPage) {
       return { data: null, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', originalPage.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, originalPage.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -572,12 +437,10 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
 
     // Ensure unique slug
     while (true) {
-      const { data: existingPage } = await supabaseAdmin
-        .from('pages')
-        .select('id')
-        .eq('site_id', originalPage.site_id)
-        .eq('slug', newSlug)
-        .single()
+      const [existingPage] = await db
+        .select({ id: pages.id })
+        .from(pages)
+        .where(and(eq(pages.siteId, originalPage.siteId), eq(pages.slug, newSlug)))
 
       if (!existingPage) break
 
@@ -586,40 +449,38 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('pages')
-      .select('display_order')
-      .eq('site_id', originalPage.site_id)
-      .order('display_order', { ascending: false })
+    const [orderData] = await db
+      .select({ displayOrder: pages.displayOrder })
+      .from(pages)
+      .where(eq(pages.siteId, originalPage.siteId))
+      .orderBy(desc(pages.displayOrder))
       .limit(1)
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the duplicate page
-    const { data: newPage, error } = await supabaseAdmin
-      .from('pages')
-      .insert([{
-        site_id: originalPage.site_id,
+    const [newPage] = await db
+      .insert(pages)
+      .values({
+        siteId: originalPage.siteId,
         title: newTitle.trim(),
         slug: newSlug,
-        meta_description: originalPage.meta_description,
-        is_homepage: false, // Never duplicate as homepage
-        is_published: originalPage.is_published,
-        display_order: nextOrder,
-        content_blocks: originalPage.content_blocks
-      }])
-      .select()
-      .single()
+        metaDescription: originalPage.metaDescription,
+        isHomepage: false, // Never duplicate as homepage
+        isPublished: originalPage.isPublished,
+        displayOrder: nextOrder,
+      })
+      .returning()
 
-    if (error) {
-      return { data: null, error: `Failed to duplicate page: ${error.message}` }
+    if (!newPage) {
+      return { data: null, error: 'Failed to duplicate page' }
     }
 
-    return { data: newPage as Page, error: null }
+    return { data: newPage as unknown as Page, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -636,33 +497,28 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
     }
 
     // Verify user is authenticated
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Get the page to verify ownership
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('id, site_id')
-      .eq('id', pageId)
-      .single()
+    const [page] = await db
+      .select({ id: pages.id, siteId: pages.siteId })
+      .from(pages)
+      .where(eq(pages.id, pageId))
 
-    if (pageError || !page) {
+    if (!page) {
       return { success: false, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
@@ -677,18 +533,10 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
       return { success: false, error: 'Content blocks too large' }
     }
 
-    // Update the page content_blocks
-    const { error } = await supabaseAdmin
-      .from('pages')
-      .update({
-        content_blocks: contentBlocks,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', pageId)
-
-    if (error) {
-      return { success: false, error: `Failed to update page blocks: ${error.message}` }
-    }
+    // Update the page content_blocks via raw SQL since content_blocks is not in the Drizzle schema
+    await db.execute(
+      sql`UPDATE pages SET content_blocks = ${JSON.stringify(contentBlocks)}::jsonb, updated_at = NOW() WHERE id = ${pageId}`
+    )
 
     // Invalidate page cache since page content blocks have changed
     revalidateTag('page-lookup')
@@ -724,31 +572,27 @@ export async function getPageBlockAction(pageId: string, blockType: string): Pro
     }
 
     // Verify user is authenticated
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    // Get the page with site_id for ownership check
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('content_blocks, site_id')
-      .eq('id', pageId)
-      .single()
+    // Get the page with content_blocks and site_id via raw SQL since content_blocks is not in Drizzle schema
+    const result = await db.execute(
+      sql`SELECT content_blocks, site_id FROM pages WHERE id = ${pageId} LIMIT 1`
+    )
 
-    if (pageError || !page) {
+    const page = result.rows?.[0] as { content_blocks: Record<string, any>; site_id: string } | undefined
+
+    if (!page) {
       return { success: false, error: 'Page not found' }
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, page.site_id), eq(sites.userId, user.id)))
 
     if (!site) {
       return { success: false, error: 'Access denied' }

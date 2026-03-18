@@ -1,20 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, ne, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { events, sites, contentTaxonomyRelationships, taxonomies } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 
 
@@ -52,26 +42,23 @@ function generateSlug(title: string): string {
 
 export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'Authentication required' }
     }
 
-    // Use admin client to verify site ownership
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
+    // Verify site ownership
+    const [site] = await db
+      .select({ id: sites.id, userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, error: 'Site not found' }
     }
 
-    if (site.user_id !== user.id) {
+    if (site.userId !== user.id) {
       return { data: null, total: 0, error: 'Unauthorized' }
     }
 
@@ -79,22 +66,23 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    // Get events for the site using admin client
-    const { data: events, error: eventsError, count } = await supabaseAdmin
-      .from('events')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    // Get count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(events)
+      .where(eq(events.siteId, siteId))
 
-    if (eventsError) {
-      return { data: null, total: 0, error: eventsError.message }
-    }
+    // Get events
+    const result = await db
+      .select()
+      .from(events)
+      .where(eq(events.siteId, siteId))
+      .orderBy(asc(events.displayOrder), desc(events.createdAt))
+      .limit(pageSize)
+      .offset(from)
 
-    return { data: events as Event[], total: count ?? 0, error: null }
+    return { data: result as unknown as Event[], total: countResult?.count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching events:', error)
     return { data: null, total: 0, error: 'Failed to fetch events' }
@@ -115,76 +103,94 @@ export async function getSiteEventsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, categories: {}, total: 0, error: 'Authentication required' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id, userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
 
-    if (siteError || !site || site.user_id !== user.id) {
+    if (!site || site.userId !== user.id) {
       return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data: events, error: eventsError, count } = await supabaseAdmin
-      .from('events')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(events)
+      .where(eq(events.siteId, siteId))
 
-    if (eventsError) {
-      return { data: null, categories: {}, total: 0, error: eventsError.message }
-    }
+    const result = await db
+      .select()
+      .from(events)
+      .where(eq(events.siteId, siteId))
+      .orderBy(desc(events.displayOrder))
+      .limit(pageSize)
+      .offset(from)
 
-    const evts = (events || []) as Event[]
+    const evts = result as unknown as Event[]
 
     let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (evts.length > 0) {
-      const { data: rels } = await supabaseAdmin
-        .from('category_relationships')
-        .select('content_id, category_id, categories!inner(id, title, slug, parent_id)')
-        .in('content_id', evts.map(e => e.id))
-        .eq('content_type', 'event')
+      const eventIds = evts.map(e => e.id)
 
-      if (rels) {
+      // Get category relationships with taxonomy data
+      const rels = await db
+        .select({
+          contentId: contentTaxonomyRelationships.contentId,
+          taxonomyId: contentTaxonomyRelationships.taxonomyId,
+          catId: taxonomies.id,
+          catTitle: taxonomies.title,
+          catSlug: taxonomies.slug,
+          catParentId: taxonomies.parentId,
+        })
+        .from(contentTaxonomyRelationships)
+        .innerJoin(taxonomies, eq(contentTaxonomyRelationships.taxonomyId, taxonomies.id))
+        .where(
+          and(
+            inArray(contentTaxonomyRelationships.contentId, eventIds),
+            eq(contentTaxonomyRelationships.contentType, 'event')
+          )
+        )
+
+      if (rels.length > 0) {
         const parentIds = new Set<string>()
         for (const rel of rels) {
-          const cat = (rel as any).categories
-          if (cat.parent_id) parentIds.add(cat.parent_id)
+          if (rel.catParentId) parentIds.add(rel.catParentId)
         }
+
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
-          const { data: parents } = await supabaseAdmin
-            .from('categories')
-            .select('id, title')
-            .in('id', Array.from(parentIds))
-          if (parents) parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
+          const parents = await db
+            .select({ id: taxonomies.id, title: taxonomies.title })
+            .from(taxonomies)
+            .where(inArray(taxonomies.id, Array.from(parentIds)))
+
+          parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
+
         for (const rel of rels) {
-          const cat = (rel as any).categories
-          const cid = rel.content_id
+          const cid = rel.contentId
           if (!categories[cid]) categories[cid] = []
           categories[cid].push({
-            id: cat.id, title: cat.title, slug: cat.slug,
-            parent_id: cat.parent_id,
-            parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+            id: rel.catId,
+            title: rel.catTitle,
+            slug: rel.catSlug,
+            parent_id: rel.catParentId,
+            parent_title: rel.catParentId ? parentTitles[rel.catParentId] : undefined
           })
         }
       }
     }
 
-    return { data: evts, categories, total: count ?? 0, error: null }
+    return { data: evts, categories, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch events' }
   }
@@ -198,26 +204,30 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
       return { data: null, error: 'Invalid event ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    // Get the event to verify ownership
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*, sites!inner(user_id)')
-      .eq('id', eventId)
-      .single()
+    // Get the event
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId))
+      .limit(1)
 
-    if (eventError || !event) {
+    if (!event) {
       return { data: null, error: 'Event not found' }
     }
 
-    if (event.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, event.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 
@@ -235,13 +245,17 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
       }
 
       if (slug !== event.slug) {
-        const { data: existingEvent } = await supabaseAdmin
-          .from('events')
-          .select('id')
-          .eq('site_id', event.site_id)
-          .eq('slug', slug)
-          .neq('id', eventId)
-          .single()
+        const [existingEvent] = await db
+          .select({ id: events.id })
+          .from(events)
+          .where(
+            and(
+              eq(events.siteId, event.siteId),
+              eq(events.slug, slug),
+              ne(events.id, eventId)
+            )
+          )
+          .limit(1)
 
         if (existingEvent) {
           return { data: null, error: 'An event with this slug already exists' }
@@ -264,27 +278,33 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
       }
     }
 
-    // Update the event
-    const { data: updatedEvent, error: updateError } = await supabaseAdmin
-      .from('events')
-      .update({
-        ...finalUpdates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', eventId)
-      .select()
-      .single()
+    // Map snake_case fields to camelCase Drizzle columns
+    const drizzleUpdates: Record<string, any> = {}
+    if (finalUpdates.title !== undefined) drizzleUpdates.title = finalUpdates.title
+    if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
+    if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
+    if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
+    if (finalUpdates.description !== undefined) drizzleUpdates.description = finalUpdates.description
+    if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
+    drizzleUpdates.updatedAt = new Date()
 
-    if (updateError) {
-      return { data: null, error: updateError.message }
+    // Update the event
+    const [updatedEvent] = await db
+      .update(events)
+      .set(drizzleUpdates)
+      .where(eq(events.id, eventId))
+      .returning()
+
+    if (!updatedEvent) {
+      return { data: null, error: 'Failed to update event' }
     }
 
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`event-${eventId}`)
-    revalidateTag(`site-${event.site_id}`)
+    revalidateTag(`site-${event.siteId}`)
 
-    return { data: updatedEvent as Event, error: null }
+    return { data: updatedEvent as unknown as Event, error: null }
   } catch (error) {
     console.error('Error updating event:', error)
     return { data: null, error: 'Failed to update event' }
@@ -299,43 +319,40 @@ export async function deleteEventAction(eventId: string) {
       return { success: false, error: 'Invalid event ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    // Get the event to verify ownership
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*, sites!inner(user_id)')
-      .eq('id', eventId)
-      .single()
+    // Get the event
+    const [event] = await db
+      .select({ id: events.id, siteId: events.siteId })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .limit(1)
 
-    if (eventError || !event) {
+    if (!event) {
       return { success: false, error: 'Event not found' }
     }
 
-    if (event.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, event.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
     // Delete the event
-    const { error: deleteError } = await supabaseAdmin
-      .from('events')
-      .delete()
-      .eq('id', eventId)
-
-    if (deleteError) {
-      return { success: false, error: deleteError.message }
-    }
+    await db.delete(events).where(eq(events.id, eventId))
 
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`event-${eventId}`)
-    revalidateTag(`site-${event.site_id}`)
+    revalidateTag(`site-${event.siteId}`)
 
     return { success: true, error: null }
   } catch (error) {
@@ -360,41 +377,31 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: events, error: eventsError } = await supabaseAdmin
-      .from('events')
-      .select('id, site_id')
-      .in('id', eventIds)
+    const eventRows = await db
+      .select({ id: events.id, siteId: events.siteId })
+      .from(events)
+      .where(inArray(events.id, eventIds))
 
-    if (eventsError || !events?.length) {
+    if (!eventRows.length) {
       return { success: false, error: 'Events not found' }
     }
 
-    const siteIds = [...new Set(events.map(e => e.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(eventRows.map(e => e.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more events' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('events')
-      .delete()
-      .in('id', eventIds)
-
-    if (error) {
-      return { success: false, error: `Failed to delete events: ${error.message}` }
-    }
+    await db.delete(events).where(inArray(events.id, eventIds))
 
     revalidateTag('events')
 
@@ -419,26 +426,30 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
       return { data: null, error: 'New event title is required' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
     // Get the event to duplicate
-    const { data: originalEvent, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*, sites!inner(user_id)')
-      .eq('id', eventId)
-      .single()
+    const [originalEvent] = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId))
+      .limit(1)
 
-    if (eventError || !originalEvent) {
+    if (!originalEvent) {
       return { data: null, error: 'Event not found' }
     }
 
-    if (originalEvent.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, originalEvent.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 
@@ -448,12 +459,11 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
     let counter = 1
 
     while (true) {
-      const { data: existingEvent } = await supabaseAdmin
-        .from('events')
-        .select('id')
-        .eq('site_id', originalEvent.site_id)
-        .eq('slug', slug)
-        .single()
+      const [existingEvent] = await db
+        .select({ id: events.id })
+        .from(events)
+        .where(and(eq(events.siteId, originalEvent.siteId), eq(events.slug, slug)))
+        .limit(1)
 
       if (!existingEvent) break
       slug = `${baseSlug}-${counter}`
@@ -461,42 +471,40 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
     }
 
     // Get the highest display_order for this site
-    const { data: maxOrderEvent } = await supabaseAdmin
-      .from('events')
-      .select('display_order')
-      .eq('site_id', originalEvent.site_id)
-      .order('display_order', { ascending: false })
+    const [maxOrderEvent] = await db
+      .select({ displayOrder: events.displayOrder })
+      .from(events)
+      .where(eq(events.siteId, originalEvent.siteId))
+      .orderBy(desc(events.displayOrder))
       .limit(1)
-      .single()
 
-    const nextDisplayOrder = maxOrderEvent ? maxOrderEvent.display_order + 1 : 0
+    const nextDisplayOrder = maxOrderEvent ? maxOrderEvent.displayOrder + 1 : 0
 
     // Create the duplicate
-    const { data: newEvent, error: createError } = await supabaseAdmin
-      .from('events')
-      .insert({
-        site_id: originalEvent.site_id,
+    const [newEvent] = await db
+      .insert(events)
+      .values({
+        siteId: originalEvent.siteId,
         title: newTitle,
         slug,
-        is_published: false, // Always create duplicates as draft
-        featured_image: originalEvent.featured_image,
+        isPublished: false, // Always create duplicates as draft
+        featuredImage: originalEvent.featuredImage,
         description: originalEvent.description,
-        meta_description: originalEvent.meta_description,
-        content_blocks: originalEvent.content_blocks || {},
-        display_order: nextDisplayOrder
+        metaDescription: originalEvent.metaDescription,
+        contentBlocks: originalEvent.contentBlocks || {},
+        displayOrder: nextDisplayOrder
       })
-      .select()
-      .single()
+      .returning()
 
-    if (createError) {
-      return { data: null, error: createError.message }
+    if (!newEvent) {
+      return { data: null, error: 'Failed to create duplicate event' }
     }
 
     // Revalidate cache
     revalidateTag('events')
-    revalidateTag(`site-${originalEvent.site_id}`)
+    revalidateTag(`site-${originalEvent.siteId}`)
 
-    return { data: newEvent as Event, error: null }
+    return { data: newEvent as unknown as Event, error: null }
   } catch (error) {
     console.error('Error duplicating event:', error)
     return { data: null, error: 'Failed to duplicate event' }
@@ -511,46 +519,46 @@ export async function updateEventBlocksAction(eventId: string, contentBlocks: Re
       return { success: false, error: 'Invalid event ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    // Get the event to verify ownership
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('*, sites!inner(user_id)')
-      .eq('id', eventId)
-      .single()
+    // Get the event
+    const [event] = await db
+      .select({ id: events.id, siteId: events.siteId })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .limit(1)
 
-    if (eventError || !event) {
+    if (!event) {
       return { success: false, error: 'Event not found' }
     }
 
-    if (event.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, event.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
     // Update the event blocks
-    const { error: updateError } = await supabaseAdmin
-      .from('events')
-      .update({
-        content_blocks: contentBlocks,
-        updated_at: new Date().toISOString()
+    await db
+      .update(events)
+      .set({
+        contentBlocks,
+        updatedAt: new Date()
       })
-      .eq('id', eventId)
-
-    if (updateError) {
-      return { success: false, error: updateError.message }
-    }
+      .where(eq(events.id, eventId))
 
     // Revalidate cache
     revalidateTag('events')
     revalidateTag(`event-${eventId}`)
-    revalidateTag(`site-${event.site_id}`)
+    revalidateTag(`site-${event.siteId}`)
 
     return { success: true, error: null }
   } catch (error) {

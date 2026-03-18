@@ -1,20 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { products, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 
 
@@ -56,6 +46,23 @@ export interface UpdateProductData {
   description?: string | null
 }
 
+function rowToProduct(row: typeof products.$inferSelect): Product {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    title: row.title,
+    slug: row.slug,
+    is_homepage: row.isHomepage,
+    is_published: row.isPublished,
+    display_order: row.displayOrder,
+    content_blocks: (row.contentBlocks || {}) as Record<string, any>,
+    featured_image: (row as any).featuredImage ?? (row as any).featured_image ?? null,
+    description: (row as any).description ?? null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  }
+}
+
 /**
  * Get all products for a site
  */
@@ -67,68 +74,68 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
     }
 
     // Verify user owns this site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('products')
-      .select('*, featured_image, description', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: true })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(eq(products.siteId, siteId))
 
-    if (error) {
-      console.error('Products query error:', error.message)
-      // Check if it's a table not found error
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        // Products table doesn't exist yet - return mock data for now
-        return {
-          data: [
-            {
-              id: '00000000-0000-0000-0000-000000000001',
-              site_id: siteId,
-              title: 'New Product',
-              slug: 'new-product',
-              featured_image: null,
-              description: null,
-              is_homepage: false,
-              is_published: true,
-              display_order: 1,
-              content_blocks: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ],
-          total: 1,
-          error: null
-        }
-      }
-      return { data: null, total: 0, error: `Failed to fetch products: ${error.message}` }
-    }
+    // Use raw SQL to include featured_image and description columns not in Drizzle schema
+    const data = await db.execute<{
+      id: string
+      site_id: string
+      title: string
+      slug: string
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+      featured_image: string | null
+      description: string | null
+      created_at: string
+      updated_at: string
+    }>(sql`
+      SELECT * FROM products
+      WHERE site_id = ${siteId}
+      ORDER BY display_order ASC
+      LIMIT ${pageSize} OFFSET ${from}
+    `)
 
-    return { data: data as Product[], total: count ?? 0, error: null }
+    const mapped: Product[] = (data.rows || []).map(row => ({
+      id: row.id,
+      site_id: row.site_id,
+      title: row.title,
+      slug: row.slug,
+      is_homepage: row.is_homepage,
+      is_published: row.is_published,
+      display_order: row.display_order,
+      content_blocks: row.content_blocks || {},
+      featured_image: row.featured_image ?? null,
+      description: row.description ?? null,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    }))
+
+    return { data: mapped, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,
@@ -156,80 +163,113 @@ export async function getSiteProductsWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, categories: {}, total: 0, error: 'User not authenticated' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
 
-    const { data, error, count } = await supabaseAdmin
-      .from('products')
-      .select('*, featured_image, description', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(eq(products.siteId, siteId))
 
-    if (error) {
-      if (error.message.includes('relation') && error.message.includes('does not exist')) {
-        return { data: [], categories: {}, total: 0, error: null }
-      }
-      return { data: null, categories: {}, total: 0, error: `Failed to fetch products: ${error.message}` }
-    }
+    // Use raw SQL to include featured_image and description columns
+    const data = await db.execute<{
+      id: string
+      site_id: string
+      title: string
+      slug: string
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+      featured_image: string | null
+      description: string | null
+      created_at: string
+      updated_at: string
+    }>(sql`
+      SELECT * FROM products
+      WHERE site_id = ${siteId}
+      ORDER BY display_order DESC
+      LIMIT ${pageSize} OFFSET ${from}
+    `)
 
-    const products = (data || []) as Product[]
+    const productRows: Product[] = (data.rows || []).map(row => ({
+      id: row.id,
+      site_id: row.site_id,
+      title: row.title,
+      slug: row.slug,
+      is_homepage: row.is_homepage,
+      is_published: row.is_published,
+      display_order: row.display_order,
+      content_blocks: row.content_blocks || {},
+      featured_image: row.featured_image ?? null,
+      description: row.description ?? null,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    }))
 
+    // Fetch categories using raw SQL (category_relationships table not in Drizzle schema)
     let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
-    if (products.length > 0) {
-      const { data: rels } = await supabaseAdmin
-        .from('category_relationships')
-        .select('content_id, category_id, categories!inner(id, title, slug, parent_id)')
-        .in('content_id', products.map(p => p.id))
-        .eq('content_type', 'product')
+    if (productRows.length > 0) {
+      const productIds = productRows.map(p => p.id)
+      const rels = await db.execute<{
+        content_id: string
+        category_id: string
+        cat_id: string
+        cat_title: string
+        cat_slug: string
+        cat_parent_id: string | null
+      }>(sql`
+        SELECT cr.content_id, cr.category_id,
+               c.id as cat_id, c.title as cat_title, c.slug as cat_slug, c.parent_id as cat_parent_id
+        FROM category_relationships cr
+        INNER JOIN categories c ON c.id = cr.category_id
+        WHERE cr.content_id = ANY(${productIds}) AND cr.content_type = 'product'
+      `)
 
-      if (rels) {
+      if (rels.rows && rels.rows.length > 0) {
         const parentIds = new Set<string>()
-        for (const rel of rels) {
-          const cat = (rel as any).categories
-          if (cat.parent_id) parentIds.add(cat.parent_id)
+        for (const rel of rels.rows) {
+          if (rel.cat_parent_id) parentIds.add(rel.cat_parent_id)
         }
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
-          const { data: parents } = await supabaseAdmin
-            .from('categories')
-            .select('id, title')
-            .in('id', Array.from(parentIds))
-          if (parents) parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
+          const parents = await db.execute<{ id: string; title: string }>(
+            sql`SELECT id, title FROM categories WHERE id = ANY(${Array.from(parentIds)})`
+          )
+          if (parents.rows) {
+            parentTitles = Object.fromEntries(parents.rows.map(p => [p.id, p.title]))
+          }
         }
-        for (const rel of rels) {
-          const cat = (rel as any).categories
+        for (const rel of rels.rows) {
           const cid = rel.content_id
           if (!categories[cid]) categories[cid] = []
           categories[cid].push({
-            id: cat.id, title: cat.title, slug: cat.slug,
-            parent_id: cat.parent_id,
-            parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+            id: rel.cat_id,
+            title: rel.cat_title,
+            slug: rel.cat_slug,
+            parent_id: rel.cat_parent_id,
+            parent_title: rel.cat_parent_id ? parentTitles[rel.cat_parent_id] : undefined
           })
         }
       }
     }
 
-    return { data: products, categories, total: count ?? 0, error: null }
+    return { data: productRows, categories, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -246,81 +286,63 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
       return { data: null, error: 'Invalid product ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
-    // First get the product to check which site it belongs to
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .single()
+    // Use raw SQL to get all columns including featured_image and description
+    const result = await db.execute<{
+      id: string
+      site_id: string
+      title: string
+      slug: string
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+      featured_image: string | null
+      description: string | null
+      created_at: string
+      updated_at: string
+    }>(sql`SELECT * FROM products WHERE id = ${productId} LIMIT 1`)
 
-    if (productError) {
-      // Check if it's a table not found error
-      if (productError.message.includes('relation') && productError.message.includes('does not exist')) {
-        // Products table doesn't exist yet - return mock data for now
-        return {
-          data: {
-            id: productId,
-            site_id: 'mock-site-id',
-            title: 'Sample Product',
-            slug: 'sample-product',
-            featured_image: null,
-            description: null,
-            is_homepage: false,
-            is_published: true,
-            display_order: 1,
-            content_blocks: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-          error: null
-        }
-      }
-      
-      // Product not found - this is expected if the product doesn't exist yet
-      if (productError.code === 'PGRST116') {
-        return { data: null, error: 'Product not found. The database migration may not have created default products yet.' }
-      }
-      
-      return { data: null, error: `Failed to fetch product: ${productError.message}` }
-    }
-
+    const product = result.rows?.[0]
     if (!product) {
       return { data: null, error: 'Product not found' }
     }
-    
 
     // Now verify the user owns the site this product belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', product.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, product.site_id), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
-    // Ensure all dates are properly serialized
-    const serializedProduct = {
-      ...product,
-      created_at: product.created_at ? new Date(product.created_at).toISOString() : new Date().toISOString(),
-      updated_at: product.updated_at ? new Date(product.updated_at).toISOString() : new Date().toISOString()
+    const serializedProduct: Product = {
+      id: product.id,
+      site_id: product.site_id,
+      title: product.title,
+      slug: product.slug,
+      is_homepage: product.is_homepage,
+      is_published: product.is_published,
+      display_order: product.display_order,
+      content_blocks: product.content_blocks || {},
+      featured_image: product.featured_image ?? null,
+      description: product.description ?? null,
+      created_at: new Date(product.created_at).toISOString(),
+      updated_at: new Date(product.updated_at).toISOString(),
     }
-    
+
     return { data: serializedProduct, error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -330,18 +352,38 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
  */
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
-    const { data: product, error } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('slug', slug)
-      .eq('is_published', true)
-      .single()
+    const result = await db.execute<{
+      id: string
+      site_id: string
+      title: string
+      slug: string
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+      featured_image: string | null
+      description: string | null
+      created_at: string
+      updated_at: string
+    }>(sql`SELECT * FROM products WHERE slug = ${slug} AND is_published = true LIMIT 1`)
 
-    if (error || !product) {
-      return null
+    const product = result.rows?.[0]
+    if (!product) return null
+
+    return {
+      id: product.id,
+      site_id: product.site_id,
+      title: product.title,
+      slug: product.slug,
+      is_homepage: product.is_homepage,
+      is_published: product.is_published,
+      display_order: product.display_order,
+      content_blocks: product.content_blocks || {},
+      featured_image: product.featured_image ?? null,
+      description: product.description ?? null,
+      created_at: new Date(product.created_at).toISOString(),
+      updated_at: new Date(product.updated_at).toISOString(),
     }
-
-    return product
   } catch (error) {
     console.error('Error fetching product by slug:', error)
     return null
@@ -359,34 +401,31 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: 'Invalid product ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the product
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .single()
+    const productResult = await db.execute<{
+      id: string
+      site_id: string
+      slug: string
+    }>(sql`SELECT id, site_id, slug FROM products WHERE id = ${productId} LIMIT 1`)
 
-    if (productError || !product) {
+    const product = productResult.rows?.[0]
+    if (!product) {
       return { data: null, error: 'Product not found' }
     }
 
     // Verify user owns the site this product belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', product.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, product.site_id), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -399,7 +438,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     let processedUpdates = { ...updates }
     if (updates.slug !== undefined) {
       const slug = updates.slug.trim()
-      
+
       // Validate slug format
       if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
         return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
@@ -412,17 +451,15 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       }
 
       // Check if slug conflicts with other products (excluding current product)
-      const { data: existingProduct } = await supabaseAdmin
-        .from('products')
-        .select('id')
-        .eq('site_id', product.site_id)
-        .eq('slug', slug)
-        .single()
-      
+      const [existingProduct] = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.siteId, product.site_id), eq(products.slug, slug)))
+
       if (existingProduct && existingProduct.id !== productId) {
-        return { 
-          data: null, 
-          error: `A product with the slug "${slug}" already exists. Please choose a different slug.` 
+        return {
+          data: null,
+          error: `A product with the slug "${slug}" already exists. Please choose a different slug.`
         }
       }
 
@@ -444,31 +481,60 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       }
     }
 
-    // Update the product
-    const { data, error } = await supabaseAdmin
-      .from('products')
-      .update({
-        ...finalUpdates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', productId)
-      .select()
-      .single()
+    // Build SET clause dynamically with raw SQL (to handle featured_image/description not in schema)
+    const setClauses: string[] = ['updated_at = NOW()']
+    const values: any[] = []
+    if (finalUpdates.title !== undefined) { setClauses.push(`title = $${values.length + 1}`); values.push(finalUpdates.title) }
+    if (finalUpdates.slug !== undefined) { setClauses.push(`slug = $${values.length + 1}`); values.push(finalUpdates.slug) }
+    if (finalUpdates.is_published !== undefined) { setClauses.push(`is_published = $${values.length + 1}`); values.push(finalUpdates.is_published) }
+    if (finalUpdates.featured_image !== undefined) { setClauses.push(`featured_image = $${values.length + 1}`); values.push(finalUpdates.featured_image) }
+    if (finalUpdates.description !== undefined) { setClauses.push(`description = $${values.length + 1}`); values.push(finalUpdates.description) }
 
-    if (error) {
-      return { data: null, error: `Failed to update product: ${error.message}` }
+    // Use Drizzle raw SQL for the update to handle extra columns
+    const updateResult = await db.execute<{
+      id: string
+      site_id: string
+      title: string
+      slug: string
+      is_homepage: boolean
+      is_published: boolean
+      display_order: number
+      content_blocks: Record<string, any>
+      featured_image: string | null
+      description: string | null
+      created_at: string
+      updated_at: string
+    }>(sql.raw(`UPDATE products SET ${setClauses.join(', ')} WHERE id = '${productId}' RETURNING *`))
+
+    const updated = updateResult.rows?.[0]
+    if (!updated) {
+      return { data: null, error: 'Failed to update product' }
     }
 
     // Invalidate listing views cache since product data may have changed
     revalidateTag('listing-views')
 
-    // Featured image usage tracking is now handled in the content_blocks JSON
-
-    return { data: data as Product, error: null }
+    return {
+      data: {
+        id: updated.id,
+        site_id: updated.site_id,
+        title: updated.title,
+        slug: updated.slug,
+        is_homepage: updated.is_homepage,
+        is_published: updated.is_published,
+        display_order: updated.display_order,
+        content_blocks: updated.content_blocks || {},
+        featured_image: updated.featured_image ?? null,
+        description: updated.description ?? null,
+        created_at: new Date(updated.created_at).toISOString(),
+        updated_at: new Date(updated.updated_at).toISOString(),
+      },
+      error: null
+    }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -484,46 +550,34 @@ export async function deleteProductAction(productId: string): Promise<{ success:
       return { success: false, error: 'Invalid product ID format' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the product
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .single()
+    const [product] = await db
+      .select({ id: products.id, siteId: products.siteId })
+      .from(products)
+      .where(eq(products.id, productId))
 
-    if (productError || !product) {
+    if (!product) {
       return { success: false, error: 'Product not found' }
     }
 
     // Verify user owns the site this product belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', product.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, product.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
     // Delete the product
-    const { error } = await supabaseAdmin
-      .from('products')
-      .delete()
-      .eq('id', productId)
-
-    if (error) {
-      return { success: false, error: `Failed to delete product: ${error.message}` }
-    }
+    await db.delete(products).where(eq(products.id, productId))
 
     // Invalidate listing views cache since a product was deleted
     revalidateTag('listing-views')
@@ -553,41 +607,31 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
-    const { data: products, error: productsError } = await supabaseAdmin
-      .from('products')
-      .select('id, site_id')
-      .in('id', productIds)
+    const productRows = await db
+      .select({ id: products.id, siteId: products.siteId })
+      .from(products)
+      .where(inArray(products.id, productIds))
 
-    if (productsError || !products?.length) {
+    if (!productRows.length) {
       return { success: false, error: 'Products not found' }
     }
 
-    const siteIds = [...new Set(products.map(p => p.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(productRows.map(p => p.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more products' }
     }
 
-    const { error } = await supabaseAdmin
-      .from('products')
-      .delete()
-      .in('id', productIds)
-
-    if (error) {
-      return { success: false, error: `Failed to delete products: ${error.message}` }
-    }
+    await db.delete(products).where(inArray(products.id, productIds))
 
     revalidateTag('listing-views')
 
@@ -615,34 +659,29 @@ export async function duplicateProductAction(productId: string, newTitle: string
       return { data: null, error: 'New product title is required' }
     }
 
-    // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    // Get the authenticated user
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the original product
-    const { data: originalProduct, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .single()
+    const [originalProduct] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, productId))
 
-    if (productError || !originalProduct) {
+    if (!originalProduct) {
       return { data: null, error: 'Product not found' }
     }
 
     // Verify user owns the site this product belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', originalProduct.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, originalProduct.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found or access denied' }
     }
 
@@ -659,12 +698,10 @@ export async function duplicateProductAction(productId: string, newTitle: string
 
     // Ensure unique slug
     while (true) {
-      const { data: existingProduct } = await supabaseAdmin
-        .from('products')
-        .select('id')
-        .eq('site_id', originalProduct.site_id)
-        .eq('slug', newSlug)
-        .single()
+      const [existingProduct] = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(and(eq(products.siteId, originalProduct.siteId), eq(products.slug, newSlug)))
 
       if (!existingProduct) break
 
@@ -673,42 +710,38 @@ export async function duplicateProductAction(productId: string, newTitle: string
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('products')
-      .select('display_order')
-      .eq('site_id', originalProduct.site_id)
-      .order('display_order', { ascending: false })
+    const [orderData] = await db
+      .select({ displayOrder: products.displayOrder })
+      .from(products)
+      .where(eq(products.siteId, originalProduct.siteId))
+      .orderBy(desc(products.displayOrder))
       .limit(1)
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the duplicate product
-    const { data: newProduct, error } = await supabaseAdmin
-      .from('products')
-      .insert([{
-        site_id: originalProduct.site_id,
+    const [newProduct] = await db
+      .insert(products)
+      .values({
+        siteId: originalProduct.siteId,
         title: newTitle.trim(),
         slug: newSlug,
-        is_homepage: false, // Products are never homepage
-        is_published: originalProduct.is_published,
-        display_order: nextOrder,
-        content_blocks: originalProduct.content_blocks || {}
-      }])
-      .select()
-      .single()
+        isHomepage: false,
+        isPublished: originalProduct.isPublished,
+        displayOrder: nextOrder,
+        contentBlocks: originalProduct.contentBlocks || {},
+      })
+      .returning()
 
-    if (error) {
-      return { data: null, error: `Failed to duplicate product: ${error.message}` }
+    if (!newProduct) {
+      return { data: null, error: 'Failed to duplicate product' }
     }
 
-    // Content blocks are already copied in the product creation above via content_blocks field
-    // No additional block copying needed since we now use JSON storage
-
-    return { data: newProduct as Product, error: null }
+    return { data: rowToProduct(newProduct), error: null }
   } catch (error) {
-    return { 
-      data: null, 
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+    return {
+      data: null,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }
 }
@@ -725,33 +758,28 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     }
 
     // Verify user is authenticated
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Get the product to verify ownership
-    const { data: product, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('id, site_id')
-      .eq('id', productId)
-      .single()
+    const [product] = await db
+      .select({ id: products.id, siteId: products.siteId })
+      .from(products)
+      .where(eq(products.id, productId))
 
-    if (productError || !product) {
+    if (!product) {
       return { success: false, error: 'Product not found' }
     }
 
     // Verify user owns the site this product belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', product.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, product.siteId), eq(sites.userId, user.id)))
 
-    if (siteError || !site) {
+    if (!site) {
       return { success: false, error: 'Site not found or access denied' }
     }
 
@@ -782,17 +810,13 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     }
 
     // Update the product content_blocks
-    const { error } = await supabaseAdmin
-      .from('products')
-      .update({
-        content_blocks: contentBlocks,
-        updated_at: new Date().toISOString()
+    await db
+      .update(products)
+      .set({
+        contentBlocks: contentBlocks,
+        updatedAt: new Date(),
       })
-      .eq('id', productId)
-
-    if (error) {
-      return { success: false, error: `Failed to update product blocks: ${error.message}` }
-    }
+      .where(eq(products.id, productId))
 
     // Invalidate listing views cache since product content may have changed
     revalidateTag('listing-views')
@@ -804,4 +828,3 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     return { success: false, error: 'Failed to update product blocks' }
   }
 }
-

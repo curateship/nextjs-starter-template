@@ -1,12 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, ne, asc, desc } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { db } from '@/lib/db'
+import { posts } from '@/lib/db/schema'
 
 export interface RelatedPostsData {
   posts: Array<{
@@ -22,27 +19,41 @@ export interface RelatedPostsData {
 
 const getCachedRelatedPosts = unstable_cache(
   async (siteId: string, excludePostId: string, sortBy: string, sortOrder: string, limit: number) => {
-    let orderColumn = 'created_at'
-    if (sortBy === 'title') {
-      orderColumn = 'title'
-    }
+    const orderByColumn = sortBy === 'title' ? posts.title : posts.createdAt
+    const orderByDir = sortOrder === 'asc' ? asc(orderByColumn) : desc(orderByColumn)
 
-    const { data: posts, error } = await supabaseAdmin
-      .from('posts')
-      .select('id, title, slug, featured_image, excerpt, created_at')
-      .eq('site_id', siteId)
-      .eq('is_published', true)
-      .neq('id', excludePostId)
-      .order(orderColumn, { ascending: sortOrder === 'asc' })
+    const data = await db
+      .select({
+        id: posts.id,
+        title: posts.title,
+        slug: posts.slug,
+        featuredImage: posts.featuredImage,
+        excerpt: posts.excerpt,
+        createdAt: posts.createdAt,
+      })
+      .from(posts)
+      .where(
+        and(
+          eq(posts.siteId, siteId),
+          eq(posts.isPublished, true),
+          ne(posts.id, excludePostId)
+        )
+      )
+      .orderBy(orderByDir)
       .limit(limit)
 
-    if (error) {
-      throw new Error(`Failed to load related posts: ${error.message}`)
-    }
+    const mapped = data.map(row => ({
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      featured_image: row.featuredImage,
+      excerpt: row.excerpt,
+      created_at: row.createdAt.toISOString(),
+    }))
 
     return {
-      posts: posts || [],
-      totalCount: posts?.length || 0
+      posts: mapped,
+      totalCount: mapped.length
     }
   },
   ['related-posts-data'],

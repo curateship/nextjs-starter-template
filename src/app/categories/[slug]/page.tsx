@@ -1,19 +1,11 @@
 import { CategoryBlockRenderer } from "@/components/frontend/categories/CategoryBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { createClient } from '@supabase/supabase-js'
+import { db } from "@/lib/db"
+import { taxonomies } from "@/lib/db/schema"
+import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/category-block-utils'
+import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
 
 interface CategoryPageProps {
   params: Promise<{
@@ -30,32 +22,36 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     notFound()
   }
 
-  // Direct query to categories table
-  const { data: category, error } = await supabaseAdmin
-    .from('categories')
-    .select('*')
-    .eq('site_id', site.id)
-    .eq('slug', slug)
-    .eq('is_published', true)
-    .single()
+  // Direct query to taxonomies table
+  const [category] = await db
+    .select()
+    .from(taxonomies)
+    .where(
+      and(
+        eq(taxonomies.siteId, site.id),
+        eq(taxonomies.slug, slug),
+        eq(taxonomies.isPublished, true)
+      )
+    )
+    .limit(1)
 
-  if (!category || error) {
+  if (!category) {
     notFound()
   }
 
   // Convert category blocks to array format
   let blocks: any[] = []
   try {
-    blocks = convertContentBlocksToArray(category.content_blocks || {}, category.id)
+    blocks = convertContentBlocksToArray((category.contentBlocks as any) || {}, category.id)
   } catch (error) {
     console.warn('Error loading category blocks:', error)
     blocks = []
   }
 
   const categoryWithBlocks = {
-    ...category,
+    ...toSnakeCase(category),
     blocks
-  }
+  } as any
 
   return <CategoryBlockRenderer
     site={site}
@@ -76,15 +72,19 @@ export async function generateMetadata({ params }: CategoryPageProps) {
       }
     }
 
-    const { data: category, error } = await supabaseAdmin
-      .from('categories')
-      .select('*')
-      .eq('site_id', site.id)
-      .eq('slug', slug)
-      .eq('is_published', true)
-      .single()
+    const [category] = await db
+      .select()
+      .from(taxonomies)
+      .where(
+        and(
+          eq(taxonomies.siteId, site.id),
+          eq(taxonomies.slug, slug),
+          eq(taxonomies.isPublished, true)
+        )
+      )
+      .limit(1)
 
-    if (!category || error) {
+    if (!category) {
       return {
         title: 'Category Not Found',
         description: 'The requested category could not be found.',
@@ -93,7 +93,7 @@ export async function generateMetadata({ params }: CategoryPageProps) {
 
     return {
       title: `${category.title} | ${site.name}`,
-      description: category.meta_description || category.description || `${category.title} on ${site.name}`,
+      description: category.metaDescription || category.description || `${category.title} on ${site.name}`,
     }
   } catch (error) {
     return {

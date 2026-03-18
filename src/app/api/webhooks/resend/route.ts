@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { db } from '@/lib/db'
+import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters, productOrders } from '@/lib/db/schema'
+import { eq, and, isNull, desc } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
 import { getProductByIdAction } from '@/lib/actions/products/product-actions'
-
-// Create admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
 
 /**
  * POST /api/webhooks/resend
@@ -40,20 +31,23 @@ export async function POST(request: NextRequest) {
 
     const rawBody = await request.text()
 
-    // Try all Resend integrations to find a matching webhook secret (same pattern as Stripe)
-    const { data: integrations } = await supabaseAdmin
-      .from('site_integrations')
-      .select('site_id, config')
-      .eq('integration_type', 'resend')
-      .eq('is_enabled', true)
+    // Try all Resend integrations to find a matching webhook secret
+    const integrations = await db
+      .select({ siteId: siteIntegrations.siteId, config: siteIntegrations.config })
+      .from(siteIntegrations)
+      .where(and(
+        eq(siteIntegrations.integrationType, 'resend'),
+        eq(siteIntegrations.isEnabled, true),
+      ))
 
-    if (!integrations || integrations.length === 0) {
+    if (!integrations.length) {
       return NextResponse.json({ error: 'No Resend integrations configured' }, { status: 400 })
     }
 
     let verified = false
     for (const integration of integrations) {
-      const secret = integration.config?.webhook_secret
+      const config = integration.config as Record<string, any>
+      const secret = config?.webhook_secret
       if (!secret) continue
 
       const PREFIX = 'whsec' + '_'
@@ -65,7 +59,7 @@ export async function POST(request: NextRequest) {
         .update(signedContent)
         .digest('base64')
 
-      verified = svixSignature.split(' ').some(sig => {
+      verified = svixSignature.split(' ').some((sig: string) => {
         const [, sigValue] = sig.split(',')
         return sigValue === expected
       })
@@ -98,78 +92,78 @@ export async function POST(request: NextRequest) {
     if (eventType && messageId) {
       try {
         // Find the event record by resend_message_id to get contact_id and source
-        const { data: existingEvent } = await supabaseAdmin
-          .from('newsletter_events')
-          .select('site_id, contact_id, source_type, source_id')
-          .eq('resend_message_id', messageId)
+        const [existingEvent] = await db
+          .select({
+            siteId: newsletterEvents.siteId,
+            contactId: newsletterEvents.contactId,
+            sourceType: newsletterEvents.sourceType,
+            sourceId: newsletterEvents.sourceId,
+          })
+          .from(newsletterEvents)
+          .where(eq(newsletterEvents.resendMessageId, messageId))
           .limit(1)
-          .single()
 
         if (existingEvent) {
-          await supabaseAdmin.from('newsletter_events').insert({
-            site_id: existingEvent.site_id,
-            contact_id: existingEvent.contact_id,
-            event_type: eventType,
-            source_type: existingEvent.source_type,
-            source_id: existingEvent.source_id,
-            resend_message_id: messageId,
+          await db.insert(newsletterEvents).values({
+            siteId: existingEvent.siteId,
+            contactId: existingEvent.contactId,
+            eventType,
+            sourceType: existingEvent.sourceType,
+            sourceId: existingEvent.sourceId,
+            resendMessageId: messageId,
             metadata: { link_url: data?.click?.link, bounce_type: data?.bounce?.type },
           })
 
           // Update contact status on bounces/complaints
-          if (eventType === 'bounced' && existingEvent.contact_id) {
+          if (eventType === 'bounced' && existingEvent.contactId) {
             const bounceType = data?.bounce?.type
             if (bounceType === 'hard') {
-              await supabaseAdmin
-                .from('newsletter_contacts')
-                .update({ status: 'bounced' })
-                .eq('id', existingEvent.contact_id)
+              await db
+                .update(newsletterContacts)
+                .set({ status: 'bounced' })
+                .where(eq(newsletterContacts.id, existingEvent.contactId))
             } else {
               // Soft bounce — increment count, suppress after 3
-              const { data: contact } = await supabaseAdmin
-                .from('newsletter_contacts')
-                .select('bounce_count')
-                .eq('id', existingEvent.contact_id)
-                .single()
-              const newCount = (contact?.bounce_count || 0) + 1
-              await supabaseAdmin
-                .from('newsletter_contacts')
-                .update({ bounce_count: newCount, ...(newCount >= 3 ? { status: 'bounced' } : {}) })
-                .eq('id', existingEvent.contact_id)
+              const [contact] = await db
+                .select({ bounceCount: newsletterContacts.bounceCount })
+                .from(newsletterContacts)
+                .where(eq(newsletterContacts.id, existingEvent.contactId))
+              const newCount = (contact?.bounceCount || 0) + 1
+              await db
+                .update(newsletterContacts)
+                .set({ bounceCount: newCount, ...(newCount >= 3 ? { status: 'bounced' } : {}) })
+                .where(eq(newsletterContacts.id, existingEvent.contactId))
             }
           }
 
-          if (eventType === 'complained' && existingEvent.contact_id) {
-            await supabaseAdmin
-              .from('newsletter_contacts')
-              .update({ status: 'complained' })
-              .eq('id', existingEvent.contact_id)
+          if (eventType === 'complained' && existingEvent.contactId) {
+            await db
+              .update(newsletterContacts)
+              .set({ status: 'complained' })
+              .where(eq(newsletterContacts.id, existingEvent.contactId))
           }
 
           // Update newsletter open/click counts
-          if (existingEvent.source_type === 'broadcast' && existingEvent.source_id) {
-            const statField = eventType === 'opened' ? 'total_opened' : eventType === 'clicked' ? 'total_clicked' : null
-            if (statField) {
-              const { data: bc } = await supabaseAdmin
-                .from('newsletters')
-                .select(statField)
-                .eq('id', existingEvent.source_id)
-                .single()
-              if (bc) {
-                await supabaseAdmin
-                  .from('newsletters')
-                  .update({ [statField]: ((bc as Record<string, number>)[statField] || 0) + 1 })
-                  .eq('id', existingEvent.source_id)
-              }
+          if (existingEvent.sourceType === 'broadcast' && existingEvent.sourceId) {
+            if (eventType === 'opened') {
+              await db
+                .update(newsletters)
+                .set({ totalOpened: sql`${newsletters.totalOpened} + 1` })
+                .where(eq(newsletters.id, existingEvent.sourceId))
+            } else if (eventType === 'clicked') {
+              await db
+                .update(newsletters)
+                .set({ totalClicked: sql`${newsletters.totalClicked} + 1` })
+                .where(eq(newsletters.id, existingEvent.sourceId))
             }
           }
 
           // Update engagement
-          if (existingEvent.contact_id && (eventType === 'opened' || eventType === 'clicked')) {
-            await supabaseAdmin
-              .from('newsletter_contacts')
-              .update({ last_engaged_at: new Date().toISOString() })
-              .eq('id', existingEvent.contact_id)
+          if (existingEvent.contactId && (eventType === 'opened' || eventType === 'clicked')) {
+            await db
+              .update(newsletterContacts)
+              .set({ lastEngagedAt: new Date() })
+              .where(eq(newsletterContacts.id, existingEvent.contactId))
           }
         }
       } catch (err) {
@@ -190,55 +184,51 @@ export async function POST(request: NextRequest) {
     console.log(`Resend webhook: ${type}`)
 
     // Find the most recent order for this email
-    const { data: orders, error: orderError } = await supabaseAdmin
-      .from('product_orders')
-      .select('*')
-      .eq('customer_email', email.toLowerCase().trim())
-      .is('flodesk_added_at', null)
-      .order('created_at', { ascending: false })
+    const [order] = await db
+      .select()
+      .from(productOrders)
+      .where(and(
+        eq(productOrders.customerEmail, email.toLowerCase().trim()),
+        isNull(productOrders.flodeskAddedAt),
+      ))
+      .orderBy(desc(productOrders.createdAt))
       .limit(1)
 
-    if (orderError) {
-      console.error('Error fetching order:', orderError)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
-    }
-
-    if (!orders || orders.length === 0) {
+    if (!order) {
       console.log(`No pending Flodesk addition found for ${email}`)
       return NextResponse.json({ message: 'No pending order found' })
     }
 
-    const order = orders[0]
-
     // Check if order already added to Flodesk
-    if (order.flodesk_added_at) {
+    if (order.flodeskAddedAt) {
       console.log(`Already added to Flodesk: ${email}`)
       return NextResponse.json({ message: 'Already added to Flodesk' })
     }
 
     // Get Flodesk configuration for this site
-    const flodeskConfig = await getFlodeskConfig(order.site_id)
+    const flodeskConfig = await getFlodeskConfig(order.siteId)
     if (!flodeskConfig) {
-      console.log(`No Flodesk configuration for site ${order.site_id}`)
+      console.log(`No Flodesk configuration for site ${order.siteId}`)
       return NextResponse.json({ message: 'Flodesk not configured' })
     }
 
     // Get product details for tags
-    const productResult = await getProductByIdAction(order.product_id)
+    const productResult = await getProductByIdAction(order.productId)
     if (!productResult.data) {
-      console.error(`Product not found: ${order.product_id}`)
+      console.error(`Product not found: ${order.productId}`)
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
     const product = productResult.data
-    const leadMagnetBlock = product.content_blocks?.['lead-magnet']
+    const leadMagnetBlock = (product.content_blocks as Record<string, any>)?.['lead-magnet']
     const flodeskSettings = leadMagnetBlock?.flodeskSettings || {}
 
     // Prepare subscriber data
+    const orderMeta = order.metadata as Record<string, any> | null
     const subscriberData: any = {
       email,
-      first_name: order.metadata?.first_name || '',
-      last_name: order.metadata?.last_name || '',
+      first_name: orderMeta?.first_name || '',
+      last_name: orderMeta?.last_name || '',
     }
 
     // Add to segment if configured
@@ -272,21 +262,17 @@ export async function POST(request: NextRequest) {
       console.log(`Added ${email} to Flodesk:`, flodeskData)
 
       // Mark as added to Flodesk
-      const { error: updateError } = await supabaseAdmin
-        .from('product_orders')
-        .update({
-          flodesk_added_at: new Date().toISOString(),
+      await db
+        .update(productOrders)
+        .set({
+          flodeskAddedAt: new Date(),
           metadata: {
-            ...order.metadata,
+            ...orderMeta,
             flodesk_subscriber_id: flodeskData.id,
             flodesk_event_type: type,
           },
         })
-        .eq('id', order.id)
-
-      if (updateError) {
-        console.error('Error updating order:', updateError)
-      }
+        .where(eq(productOrders.id, order.id))
 
       return NextResponse.json({
         success: true,

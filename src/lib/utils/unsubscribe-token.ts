@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 
 function getKey(): string {
-  return process.env.INTEGRATION_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
+  return process.env.INTEGRATION_ENCRYPTION_KEY || process.env.AUTH_SECRET!
 }
 
 /** Generate HMAC token for unsubscribe links */

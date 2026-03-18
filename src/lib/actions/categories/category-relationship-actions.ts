@@ -1,19 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, inArray, desc } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { taxonomies, contentTaxonomyRelationships, sites, posts, products, pages, events, directories } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export type ContentType = 'directory' | 'product' | 'post' | 'event' | 'page'
 
@@ -42,69 +33,71 @@ export async function assignCategoryToContentAction(
   categoryId: string
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('id, site_id, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category and verify ownership
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+      columns: { id: true, siteId: true },
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { success: false, error: 'Category not found' }
     }
 
-    if (category.sites[0]?.user_id !== user.id) {
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const tableName = getTableNameForContentType(contentType)
-    if (!tableName) {
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
       return { success: false, error: 'Invalid content type' }
     }
 
-    const { data: content, error: contentError } = await supabaseAdmin
-      .from(tableName)
-      .select('id, site_id')
-      .eq('id', contentId)
-      .single()
+    const contentRows = await db
+      .select({ id: contentTable.id, siteId: contentTable.siteId })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
 
-    if (contentError || !content) {
+    const content = contentRows[0]
+    if (!content) {
       return { success: false, error: 'Content not found' }
     }
 
-    if (content.site_id !== category.site_id) {
+    if (content.siteId !== category.siteId) {
       return { success: false, error: 'Content and category must belong to the same site' }
     }
 
-    const { data: existingRelationship } = await supabaseAdmin
-      .from('category_relationships')
-      .select('id')
-      .eq('content_id', contentId)
-      .eq('category_id', categoryId)
-      .eq('content_type', contentType)
-      .single()
+    // Check if relationship already exists
+    const existingRelationship = await db.query.contentTaxonomyRelationships.findFirst({
+      where: and(
+        eq(contentTaxonomyRelationships.contentId, contentId),
+        eq(contentTaxonomyRelationships.taxonomyId, categoryId),
+        eq(contentTaxonomyRelationships.contentType, contentType)
+      ),
+      columns: { id: true },
+    })
 
     if (existingRelationship) {
       return { success: true, error: null }
     }
 
-    const { error: createError } = await supabaseAdmin
-      .from('category_relationships')
-      .insert({
-        content_id: contentId,
-        content_type: contentType,
-        category_id: categoryId
+    await db
+      .insert(contentTaxonomyRelationships)
+      .values({
+        contentId,
+        contentType,
+        taxonomyId: categoryId,
       })
-
-    if (createError) {
-      return { success: false, error: createError.message }
-    }
 
     revalidateTag('content-categories')
     revalidateTag(`${contentType}-${contentId}`)
@@ -126,37 +119,37 @@ export async function removeCategoryFromContentAction(
   categoryId: string
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('id, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category and verify ownership
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+      columns: { id: true, siteId: true },
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { success: false, error: 'Category not found' }
     }
 
-    if (category.sites[0]?.user_id !== user.id) {
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const { error: deleteError } = await supabaseAdmin
-      .from('category_relationships')
-      .delete()
-      .eq('content_id', contentId)
-      .eq('category_id', categoryId)
-      .eq('content_type', contentType)
-
-    if (deleteError) {
-      return { success: false, error: deleteError.message }
-    }
+    await db
+      .delete(contentTaxonomyRelationships)
+      .where(and(
+        eq(contentTaxonomyRelationships.contentId, contentId),
+        eq(contentTaxonomyRelationships.taxonomyId, categoryId),
+        eq(contentTaxonomyRelationships.contentType, contentType)
+      ))
 
     revalidateTag('content-categories')
     revalidateTag(`${contentType}-${contentId}`)
@@ -174,58 +167,58 @@ export async function removeCategoryFromContentAction(
  */
 export async function getContentCategoriesAction(contentId: string, contentType: ContentType) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: relationships, error: relationshipsError } = await supabaseAdmin
-      .from('category_relationships')
-      .select(`
-        id,
-        category_id,
-        categories!inner(
-          id,
-          title,
-          slug,
-          parent_id
-        )
-      `)
-      .eq('content_id', contentId)
-      .eq('content_type', contentType)
+    // Get relationships for this content
+    const relationships = await db
+      .select({
+        id: contentTaxonomyRelationships.id,
+        taxonomyId: contentTaxonomyRelationships.taxonomyId,
+      })
+      .from(contentTaxonomyRelationships)
+      .where(and(
+        eq(contentTaxonomyRelationships.contentId, contentId),
+        eq(contentTaxonomyRelationships.contentType, contentType)
+      ))
 
-    if (relationshipsError) {
-      return { data: null, error: relationshipsError.message }
+    if (relationships.length === 0) {
+      return { data: [], error: null }
     }
 
-    const categoriesWithDetails: CategoryInfo[] = await Promise.all(
-      (relationships || []).map(async (rel: any) => {
-        const category = rel.categories
-        let parentTitle: string | undefined
-
-        if (category.parent_id) {
-          const { data: parent } = await supabaseAdmin
-            .from('categories')
-            .select('title')
-            .eq('id', category.parent_id)
-            .single()
-
-          if (parent) {
-            parentTitle = parent.title
-          }
-        }
-
-        return {
-          id: category.id,
-          title: category.title,
-          slug: category.slug,
-          parent_id: category.parent_id,
-          parent_title: parentTitle
-        }
+    // Fetch the category details
+    const categoryIds = relationships.map(r => r.taxonomyId)
+    const categoryRows = await db
+      .select({
+        id: taxonomies.id,
+        title: taxonomies.title,
+        slug: taxonomies.slug,
+        parentId: taxonomies.parentId,
       })
-    )
+      .from(taxonomies)
+      .where(inArray(taxonomies.id, categoryIds))
+
+    // Collect parent IDs and fetch parent titles
+    const parentIds = categoryRows.filter(c => c.parentId).map(c => c.parentId!)
+    let parentTitles: Record<string, string> = {}
+    if (parentIds.length > 0) {
+      const parentRows = await db
+        .select({ id: taxonomies.id, title: taxonomies.title })
+        .from(taxonomies)
+        .where(inArray(taxonomies.id, parentIds))
+
+      parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
+    }
+
+    const categoriesWithDetails: CategoryInfo[] = categoryRows.map(cat => ({
+      id: cat.id,
+      title: cat.title,
+      slug: cat.slug,
+      parent_id: cat.parentId,
+      parent_title: cat.parentId ? parentTitles[cat.parentId] : undefined,
+    }))
 
     return { data: categoriesWithDetails, error: null }
   } catch (error) {
@@ -244,63 +237,70 @@ export async function getBulkContentCategoriesAction(
   try {
     if (contentIds.length === 0) return { data: {}, error: null }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: relationships, error: relationshipsError } = await supabaseAdmin
-      .from('category_relationships')
-      .select(`
-        content_id,
-        category_id,
-        categories!inner(
-          id,
-          title,
-          slug,
-          parent_id
-        )
-      `)
-      .in('content_id', contentIds)
-      .eq('content_type', contentType)
+    // Get all relationships for these content items
+    const relationships = await db
+      .select({
+        contentId: contentTaxonomyRelationships.contentId,
+        taxonomyId: contentTaxonomyRelationships.taxonomyId,
+      })
+      .from(contentTaxonomyRelationships)
+      .where(and(
+        inArray(contentTaxonomyRelationships.contentId, contentIds),
+        eq(contentTaxonomyRelationships.contentType, contentType)
+      ))
 
-    if (relationshipsError) {
-      return { data: null, error: relationshipsError.message }
+    if (relationships.length === 0) {
+      return { data: {}, error: null }
     }
+
+    // Fetch category details
+    const categoryIds = [...new Set(relationships.map(r => r.taxonomyId))]
+    const categoryRows = await db
+      .select({
+        id: taxonomies.id,
+        title: taxonomies.title,
+        slug: taxonomies.slug,
+        parentId: taxonomies.parentId,
+      })
+      .from(taxonomies)
+      .where(inArray(taxonomies.id, categoryIds))
+
+    const categoryMap = Object.fromEntries(categoryRows.map(c => [c.id, c]))
 
     // Collect unique parent IDs to batch-fetch parent titles
     const parentIds = new Set<string>()
-    for (const rel of relationships || []) {
-      const cat = (rel as any).categories
-      if (cat.parent_id) parentIds.add(cat.parent_id)
+    for (const cat of categoryRows) {
+      if (cat.parentId) parentIds.add(cat.parentId)
     }
 
     let parentTitles: Record<string, string> = {}
     if (parentIds.size > 0) {
-      const { data: parents } = await supabaseAdmin
-        .from('categories')
-        .select('id, title')
-        .in('id', Array.from(parentIds))
+      const parentRows = await db
+        .select({ id: taxonomies.id, title: taxonomies.title })
+        .from(taxonomies)
+        .where(inArray(taxonomies.id, Array.from(parentIds)))
 
-      if (parents) {
-        parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
-      }
+      parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
     }
 
     // Group by content_id
     const result: Record<string, CategoryInfo[]> = {}
-    for (const rel of relationships || []) {
-      const cat = (rel as any).categories
-      const contentId = rel.content_id
+    for (const rel of relationships) {
+      const cat = categoryMap[rel.taxonomyId]
+      if (!cat) continue
 
-      if (!result[contentId]) result[contentId] = []
-      result[contentId].push({
+      if (!result[rel.contentId]) result[rel.contentId] = []
+      result[rel.contentId].push({
         id: cat.id,
         title: cat.title,
         slug: cat.slug,
-        parent_id: cat.parent_id,
-        parent_title: cat.parent_id ? parentTitles[cat.parent_id] : undefined
+        parent_id: cat.parentId,
+        parent_title: cat.parentId ? parentTitles[cat.parentId] : undefined,
       })
     }
 
@@ -320,49 +320,53 @@ export async function getCategoryContentAction(
   limit?: number
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('id, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category and verify ownership
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+      columns: { id: true, siteId: true },
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { data: null, error: 'Category not found' }
     }
 
-    if (category.sites[0]?.user_id !== user.id) {
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 
-    let query = supabaseAdmin
-      .from('category_relationships')
-      .select('content_id, content_type, created_at')
-      .eq('category_id', categoryId)
-
+    const conditions = [eq(contentTaxonomyRelationships.taxonomyId, categoryId)]
     if (contentType) {
-      query = query.eq('content_type', contentType)
+      conditions.push(eq(contentTaxonomyRelationships.contentType, contentType))
     }
+
+    let query = db
+      .select({
+        contentId: contentTaxonomyRelationships.contentId,
+        contentType: contentTaxonomyRelationships.contentType,
+        createdAt: contentTaxonomyRelationships.createdAt,
+      })
+      .from(contentTaxonomyRelationships)
+      .where(and(...conditions))
+      .orderBy(desc(contentTaxonomyRelationships.createdAt))
+      .$dynamic()
 
     if (limit) {
       query = query.limit(limit)
     }
 
-    query = query.order('created_at', { ascending: false })
+    const relationships = await query
 
-    const { data: relationships, error: relationshipsError } = await query
-
-    if (relationshipsError) {
-      return { data: null, error: relationshipsError.message }
-    }
-
-    return { data: relationships as ContentCategoryRelationship[], error: null }
+    return { data: relationships as unknown as ContentCategoryRelationship[], error: null }
   } catch (error) {
     console.error('Error getting category content:', error)
     return { data: null, error: 'Failed to get category content' }
@@ -378,75 +382,75 @@ export async function bulkAssignCategoriesToContentAction(
   categoryIds: string[]
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: categories, error: categoriesError } = await supabaseAdmin
-      .from('categories')
-      .select('id, site_id, sites!inner(user_id)')
-      .in('id', categoryIds)
+    // Fetch all categories and verify ownership
+    const categoryRows = await db
+      .select({ id: taxonomies.id, siteId: taxonomies.siteId })
+      .from(taxonomies)
+      .where(inArray(taxonomies.id, categoryIds))
 
-    if (categoriesError) {
-      return { success: false, error: categoriesError.message }
-    }
-
-    if (!categories || categories.length !== categoryIds.length) {
+    if (!categoryRows.length || categoryRows.length !== categoryIds.length) {
       return { success: false, error: 'One or more categories not found' }
     }
 
-    const unauthorizedCategory = categories.find((c: any) => c.sites.user_id !== user.id)
-    if (unauthorizedCategory) {
+    // Verify ownership of all category sites
+    const categorySiteIds = [...new Set(categoryRows.map(c => c.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, categorySiteIds), eq(sites.userId, user.id)))
+
+    if (!ownedSites.length || ownedSites.length !== categorySiteIds.length) {
       return { success: false, error: 'Unauthorized access to one or more categories' }
     }
 
-    const siteIds = new Set(categories.map((c: any) => c.site_id))
-    if (siteIds.size > 1) {
+    if (categorySiteIds.length > 1) {
       return { success: false, error: 'All categories must belong to the same site' }
     }
 
-    const siteId = categories[0].site_id
+    const siteId = categoryRows[0].siteId
 
-    const tableName = getTableNameForContentType(contentType)
-    if (!tableName) {
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
       return { success: false, error: 'Invalid content type' }
     }
 
-    const { data: content, error: contentError } = await supabaseAdmin
-      .from(tableName)
-      .select('id, site_id')
-      .eq('id', contentId)
-      .single()
+    const contentRows = await db
+      .select({ id: contentTable.id, siteId: contentTable.siteId })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
 
-    if (contentError || !content) {
+    const content = contentRows[0]
+    if (!content) {
       return { success: false, error: 'Content not found' }
     }
 
-    if (content.site_id !== siteId) {
+    if (content.siteId !== siteId) {
       return { success: false, error: 'Content and categories must belong to the same site' }
     }
 
-    await supabaseAdmin
-      .from('category_relationships')
-      .delete()
-      .eq('content_id', contentId)
-      .eq('content_type', contentType)
+    // Remove existing relationships
+    await db
+      .delete(contentTaxonomyRelationships)
+      .where(and(
+        eq(contentTaxonomyRelationships.contentId, contentId),
+        eq(contentTaxonomyRelationships.contentType, contentType)
+      ))
 
-    const relationships = categoryIds.map(categoryId => ({
-      content_id: contentId,
-      content_type: contentType,
-      category_id: categoryId
-    }))
+    // Insert new relationships
+    if (categoryIds.length > 0) {
+      const newRelationships = categoryIds.map(catId => ({
+        contentId,
+        contentType,
+        taxonomyId: catId,
+      }))
 
-    const { error: insertError } = await supabaseAdmin
-      .from('category_relationships')
-      .insert(relationships)
-
-    if (insertError) {
-      return { success: false, error: insertError.message }
+      await db.insert(contentTaxonomyRelationships).values(newRelationships)
     }
 
     revalidateTag('content-categories')
@@ -460,14 +464,14 @@ export async function bulkAssignCategoriesToContentAction(
   }
 }
 
-function getTableNameForContentType(contentType: ContentType): string | null {
-  const tableMap: Record<ContentType, string> = {
-    directory: 'directory',
-    product: 'products',
-    post: 'posts',
-    event: 'events',
-    page: 'pages'
-  }
+function getTableForContentType(contentType: ContentType) {
+  const tableMap = {
+    directory: directories,
+    product: products,
+    post: posts,
+    event: events,
+    page: pages,
+  } as const
 
   return tableMap[contentType] || null
 }

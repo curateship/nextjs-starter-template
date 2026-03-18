@@ -1,21 +1,10 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { unstable_cache } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { adminSettings } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface AdminSettings {
   id: string
@@ -40,80 +29,39 @@ export interface UpdateAdminSettingsData {
   dashboard_page_size?: number
 }
 
-/**
- * Cached admin settings fetcher for server components.
- * Uses service role key — only call from trusted server context (layout, etc.)
- */
 export const getCachedAdminSettings = unstable_cache(
   async () => {
-    const { data, error } = await supabaseAdmin
-      .from('admin_settings')
-      .select('*')
-      .single()
-
-    if (error) {
-      console.error('Error fetching cached admin settings:', error)
+    const result = await db.query.adminSettings.findFirst()
+    if (!result) {
+      console.error('Error fetching cached admin settings: no row found')
       return null
     }
-    return data as AdminSettings
+    return result as unknown as AdminSettings
   },
   ['admin-settings'],
   { revalidate: false, tags: ['admin-settings'] }
 )
 
-/**
- * Get admin settings
- * Returns the first (and only) row from admin_settings table
- */
 export async function getAdminSettingsAction(): Promise<{
   success: boolean
   data?: AdminSettings
   error?: string
 }> {
   try {
-    const supabase = await createServerSupabaseClient()
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, error: 'Authentication required' }
+    if (user.role !== 'super_admin') return { success: false, error: 'Forbidden: super_admin role required' }
 
-    // Verify user is authenticated and is super_admin
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
+    const result = await db.query.adminSettings.findFirst()
+    if (!result) return { success: false, error: 'Admin settings not found' }
 
-    if (user.app_metadata?.role !== 'super_admin') {
-      return { success: false, error: 'Forbidden: super_admin role required' }
-    }
-
-    // Fetch admin settings (there should only be one row)
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('*')
-      .single()
-
-    if (error) {
-      console.error('Error fetching admin settings:', error)
-      return {
-        success: false,
-        error: error.message
-      }
-    }
-
-    return {
-      success: true,
-      data: data as AdminSettings
-    }
+    return { success: true, data: result as unknown as AdminSettings }
   } catch (error) {
     console.error('Error in getAdminSettingsAction:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'An unexpected error occurred' }
   }
 }
 
-/**
- * Update admin settings
- * Updates the settings JSONB field in the admin_settings table
- */
 export async function updateAdminSettingsAction(
   settingsData: UpdateAdminSettingsData
 ): Promise<{
@@ -122,33 +70,13 @@ export async function updateAdminSettingsAction(
   error?: string
 }> {
   try {
-    const supabase = await createServerSupabaseClient()
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, error: 'Authentication required' }
+    if (user.role !== 'super_admin') return { success: false, error: 'Forbidden: super_admin role required' }
 
-    // Verify user is authenticated and is super_admin
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return { success: false, error: 'Authentication required' }
-    }
+    const currentSettings = await db.query.adminSettings.findFirst()
+    if (!currentSettings) return { success: false, error: 'Admin settings not found' }
 
-    if (user.app_metadata?.role !== 'super_admin') {
-      return { success: false, error: 'Forbidden: super_admin role required' }
-    }
-
-    // Get current settings first
-    const { data: currentSettings, error: fetchError } = await supabase
-      .from('admin_settings')
-      .select('*')
-      .single()
-
-    if (fetchError) {
-      console.error('Error fetching current admin settings:', fetchError)
-      return {
-        success: false,
-        error: fetchError.message
-      }
-    }
-
-    // Validate dashboard_page_size if provided
     if (settingsData.dashboard_page_size !== undefined) {
       const validSizes = [25, 50, 100]
       if (!validSizes.includes(settingsData.dashboard_page_size)) {
@@ -156,41 +84,24 @@ export async function updateAdminSettingsAction(
       }
     }
 
-    // Merge new settings with existing settings
     const updatedSettings = {
-      ...currentSettings.settings,
+      ...(currentSettings.settings as Record<string, any>),
       ...settingsData
     }
 
-    // Update the settings using admin client to bypass RLS
-    const { data, error } = await supabaseAdmin
-      .from('admin_settings')
-      .update({ settings: updatedSettings })
-      .eq('id', currentSettings.id)
-      .select()
-      .single()
+    const { eq } = await import('drizzle-orm')
+    const [updated] = await db
+      .update(adminSettings)
+      .set({ settings: updatedSettings, updatedAt: new Date() })
+      .where(eq(adminSettings.id, currentSettings.id))
+      .returning()
 
-    if (error) {
-      console.error('Error updating admin settings:', error)
-      return {
-        success: false,
-        error: error.message
-      }
-    }
-
-    // Revalidate admin layout to apply new fonts
     revalidateTag('admin-settings')
     revalidatePath('/admin', 'layout')
 
-    return {
-      success: true,
-      data: data as AdminSettings
-    }
+    return { success: true, data: updated as unknown as AdminSettings }
   } catch (error) {
     console.error('Error in updateAdminSettingsAction:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'An unexpected error occurred' }
   }
 }

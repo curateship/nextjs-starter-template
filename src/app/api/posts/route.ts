@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, desc } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { posts, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(request: NextRequest) {
   try {
     const postData = await request.json()
-    
+
     // Validate required fields
     if (!postData.title?.trim()) {
       return NextResponse.json(
@@ -29,25 +25,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Verify user owns the site
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id, settings')
-      .eq('id', postData.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, postData.site_id), eq(sites.userId, userId)),
+      columns: { id: true, userId: true, settings: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -83,13 +76,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slug conflicts with existing posts in this site
-    const { data: existingPost } = await supabaseAdmin
-      .from('posts')
-      .select('title')
-      .eq('site_id', postData.site_id)
-      .eq('slug', slug)
-      .single()
-    
+    const existingPost = await db.query.posts.findFirst({
+      where: and(eq(posts.siteId, postData.site_id), eq(posts.slug, slug)),
+      columns: { title: true },
+    })
+
     if (existingPost) {
       return NextResponse.json(
         { data: null, error: `This slug is already used by another post titled "${existingPost.title}". Please choose a different slug.` },
@@ -98,46 +89,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the next display order
-    const { data: orderData } = await supabaseAdmin
-      .from('posts')
-      .select('display_order')
-      .eq('site_id', postData.site_id)
-      .order('display_order', { ascending: false })
-      .limit(1)
+    const orderData = await db.query.posts.findFirst({
+      where: eq(posts.siteId, postData.site_id),
+      orderBy: [desc(posts.displayOrder)],
+      columns: { displayOrder: true },
+    })
 
-    const nextOrder = orderData && orderData.length > 0 ? orderData[0].display_order + 1 : 1
+    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the post
-    const { data: newPost, error: createError } = await supabaseAdmin
-      .from('posts')
-      .insert([{
-        site_id: postData.site_id,
+    const siteSettings = site.settings as Record<string, unknown> | null
+    const defaultBlocks = (siteSettings?.default_blocks as Record<string, unknown> | undefined)?.posts
+
+    const [newPost] = await db.insert(posts)
+      .values({
+        siteId: postData.site_id,
         title: postData.title.trim(),
         slug,
-        is_published: postData.is_published !== false,
-        display_order: nextOrder,
-        featured_image: postData.featured_image || null,
+        isPublished: postData.is_published !== false,
+        displayOrder: nextOrder,
+        featuredImage: postData.featured_image || null,
         excerpt: postData.excerpt || null,
-        meta_description: postData.meta_description || null,
-        content_blocks: applyDefaultBlocks(postData.content_blocks, 'posts', site.settings?.default_blocks?.posts)
-      }])
-      .select()
-      .single()
-
-    if (createError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to create post: ${createError.message}` },
-        { status: 500 }
-      )
-    }
+        metaDescription: postData.meta_description || null,
+        contentBlocks: applyDefaultBlocks(postData.content_blocks, 'posts', defaultBlocks as string[] | undefined),
+      })
+      .returning()
 
     return NextResponse.json({ data: newPost, error: null }, { status: 201 })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

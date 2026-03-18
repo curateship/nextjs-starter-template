@@ -1,20 +1,11 @@
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { createClient } from '@supabase/supabase-js'
+import { db } from "@/lib/db"
+import { directories } from "@/lib/db/schema"
+import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/directory-block-utils'
+import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
-
-// Create admin client for direct database queries
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -33,31 +24,35 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   }
 
   // Direct query to directory table
-  const { data: directory, error } = await supabaseAdmin
-    .from('directory')
-    .select('*')
-    .eq('site_id', site.id)
-    .eq('slug', slug)
-    .eq('is_published', true)
-    .single()
+  const [directory] = await db
+    .select()
+    .from(directories)
+    .where(
+      and(
+        eq(directories.siteId, site.id),
+        eq(directories.slug, slug),
+        eq(directories.isPublished, true)
+      )
+    )
+    .limit(1)
 
-  if (!directory || error) {
+  if (!directory) {
     notFound()
   }
 
   // Convert directory blocks to array format
   let blocks: any[] = []
   try {
-    blocks = convertContentBlocksToArray(directory.content_blocks || {}, directory.id)
+    blocks = convertContentBlocksToArray((directory.contentBlocks as any) || {}, directory.id)
   } catch (error) {
     console.warn('Error loading directory blocks:', error)
     blocks = []
   }
 
   const directoryWithBlocks = {
-    ...directory,
+    ...toSnakeCase(directory),
     blocks
-  }
+  } as any
 
   return <DirectoryBlockRenderer
     site={site}
@@ -80,15 +75,19 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
     }
 
     // Direct query to directory table
-    const { data: directory, error } = await supabaseAdmin
-      .from('directory')
-      .select('*')
-      .eq('site_id', site.id)
-      .eq('slug', slug)
-      .eq('is_published', true)
-      .single()
+    const [directory] = await db
+      .select()
+      .from(directories)
+      .where(
+        and(
+          eq(directories.siteId, site.id),
+          eq(directories.slug, slug),
+          eq(directories.isPublished, true)
+        )
+      )
+      .limit(1)
 
-    if (!directory || error) {
+    if (!directory) {
       return {
         title: 'Directory Not Found',
         description: 'The requested directory could not be found.',
@@ -97,7 +96,7 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
 
     return {
       title: `${directory.title} | ${site.name}`,
-      description: directory.meta_description || directory.description || `${directory.title} on ${site.name}`,
+      description: directory.metaDescription || directory.description || `${directory.title} on ${site.name}`,
     }
   } catch (error) {
     return {

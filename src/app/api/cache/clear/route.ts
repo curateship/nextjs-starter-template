@@ -1,22 +1,21 @@
 import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
 import { purgeProxyCache } from '@/lib/utils/cache-purge'
 
 export async function POST() {
   try {
-    // Verify user is authenticated and has super_admin role
-    const supabase = await createServerSupabaseClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth.api.getSession({ headers: await headers() })
 
-    if (!user) {
+    if (!session?.user) {
       return NextResponse.json({
         success: false,
         error: 'Unauthorized - authentication required'
       }, { status: 401 })
     }
 
-    const role = user.app_metadata?.role
+    const role = (session.user as { role?: string }).role
     if (role !== 'super_admin') {
       return NextResponse.json({
         success: false,
@@ -24,7 +23,6 @@ export async function POST() {
       }, { status: 403 })
     }
 
-    // Invalidate the global 'all' tag so any cache that includes it is cleared
     revalidateTag('all')
     await purgeProxyCache()
     return NextResponse.json({ success: true, cleared: ['all'] })
@@ -32,4 +30,3 @@ export async function POST() {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 })
   }
 }
-

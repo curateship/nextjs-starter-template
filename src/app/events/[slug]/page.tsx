@@ -1,20 +1,11 @@
 import { EventBlockRenderer } from "@/components/frontend/events/EventBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { createClient } from '@supabase/supabase-js'
+import { db } from "@/lib/db"
+import { events } from "@/lib/db/schema"
+import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/event-block-utils'
+import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
-
-// Create admin client for direct database queries
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
 
 interface EventPageProps {
   params: Promise<{
@@ -33,31 +24,35 @@ export default async function EventPage({ params }: EventPageProps) {
   }
 
   // Direct query to events table
-  const { data: event, error } = await supabaseAdmin
-    .from('events')
-    .select('*')
-    .eq('site_id', site.id)
-    .eq('slug', slug)
-    .eq('is_published', true)
-    .single()
+  const [event] = await db
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.siteId, site.id),
+        eq(events.slug, slug),
+        eq(events.isPublished, true)
+      )
+    )
+    .limit(1)
 
-  if (!event || error) {
+  if (!event) {
     notFound()
   }
 
   // Convert event blocks to array format
   let blocks: any[] = []
   try {
-    blocks = convertContentBlocksToArray(event.content_blocks || {}, event.id)
+    blocks = convertContentBlocksToArray((event.contentBlocks as any) || {}, event.id)
   } catch (error) {
     console.warn('Error loading event blocks:', error)
     blocks = []
   }
 
   const eventWithBlocks = {
-    ...event,
+    ...toSnakeCase(event),
     blocks
-  }
+  } as any
 
   return <EventBlockRenderer
     site={site}
@@ -80,15 +75,19 @@ export async function generateMetadata({ params }: EventPageProps) {
     }
 
     // Direct query to events table
-    const { data: event, error } = await supabaseAdmin
-      .from('events')
-      .select('*')
-      .eq('site_id', site.id)
-      .eq('slug', slug)
-      .eq('is_published', true)
-      .single()
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.siteId, site.id),
+          eq(events.slug, slug),
+          eq(events.isPublished, true)
+        )
+      )
+      .limit(1)
 
-    if (!event || error) {
+    if (!event) {
       return {
         title: 'Event Not Found',
         description: 'The requested event could not be found.',
@@ -97,7 +96,7 @@ export async function generateMetadata({ params }: EventPageProps) {
 
     return {
       title: `${event.title} | ${site.name}`,
-      description: event.meta_description || event.description || `${event.title} on ${site.name}`,
+      description: event.metaDescription || event.description || `${event.title} on ${site.name}`,
     }
   } catch (error) {
     return {

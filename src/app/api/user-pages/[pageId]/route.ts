@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq, and, ne } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { siteDashboardPages, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
@@ -25,35 +21,19 @@ export async function GET(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the user page
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('users_pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
-
-    if (pageError) {
-      if (pageError.code === 'PGRST116') {
-        return NextResponse.json(
-          { data: null, error: 'User page not found' },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json(
-        { data: null, error: `Failed to fetch user page: ${pageError.message}` },
-        { status: 500 }
-      )
-    }
+    const page = await db.query.siteDashboardPages.findFirst({
+      where: eq(siteDashboardPages.id, pageId),
+    })
 
     if (!page) {
       return NextResponse.json(
@@ -63,14 +43,12 @@ export async function GET(
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -108,24 +86,21 @@ export async function PUT(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the user page first
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('users_pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const page = await db.query.siteDashboardPages.findFirst({
+      where: eq(siteDashboardPages.id, pageId),
+    })
 
-    if (pageError || !page) {
+    if (!page) {
       return NextResponse.json(
         { data: null, error: 'User page not found' },
         { status: 404 }
@@ -133,14 +108,12 @@ export async function PUT(
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -157,31 +130,30 @@ export async function PUT(
 
     // If setting as default page, unset any existing default page
     if (updates.is_default === true) {
-      await supabaseAdmin
-        .from('users_pages')
-        .update({ is_default: false })
-        .eq('site_id', page.site_id)
-        .eq('is_default', true)
-        .neq('id', pageId)
+      await db.update(siteDashboardPages)
+        .set({ isDefault: false })
+        .where(and(
+          eq(siteDashboardPages.siteId, page.siteId),
+          eq(siteDashboardPages.isDefault, true),
+          ne(siteDashboardPages.id, pageId)
+        ))
     }
+
+    // Build update object with camelCase keys
+    const updateValues: Record<string, unknown> = { updatedAt: new Date() }
+    if (updates.title !== undefined) updateValues.title = updates.title
+    if (updates.slug !== undefined) updateValues.slug = updates.slug
+    if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
+    if (updates.content_blocks !== undefined) updateValues.contentBlocks = updates.content_blocks
+    if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
+    if (updates.is_default !== undefined) updateValues.isDefault = updates.is_default
+    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
 
     // Update the page
-    const { data: updatedPage, error: updateError } = await supabaseAdmin
-      .from('users_pages')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', pageId)
-      .select()
-      .single()
-
-    if (updateError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to update user page: ${updateError.message}` },
-        { status: 500 }
-      )
-    }
+    const [updatedPage] = await db.update(siteDashboardPages)
+      .set(updateValues)
+      .where(eq(siteDashboardPages.id, pageId))
+      .returning()
 
     return NextResponse.json({ data: updatedPage, error: null })
   } catch (error) {

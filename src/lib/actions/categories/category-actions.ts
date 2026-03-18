@@ -1,21 +1,11 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, desc, ne, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client with service role key for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+import { db } from '@/lib/db'
+import { taxonomies, contentTaxonomyRelationships, sites } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Category {
   id: string
@@ -70,45 +60,46 @@ function generateSlug(title: string): string {
  */
 export async function getCategoriesForSiteAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, error: 'Authentication required' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { id: true, userId: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, error: 'Site not found' }
     }
 
-    if (site.user_id !== user.id) {
+    if (site.userId !== user.id) {
       return { data: null, total: 0, error: 'Unauthorized' }
     }
 
     // Pagination
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    const { data: categories, count, error: categoriesError } = await supabaseAdmin
-      .from('categories')
-      .select('*', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [categories, countResult] = await Promise.all([
+      db
+        .select()
+        .from(taxonomies)
+        .where(eq(taxonomies.siteId, siteId))
+        .orderBy(desc(taxonomies.displayOrder))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(taxonomies)
+        .where(eq(taxonomies.siteId, siteId)),
+    ])
 
-    if (categoriesError) {
-      return { data: null, total: 0, error: categoriesError.message }
-    }
+    const total = Number(countResult[0]?.count ?? 0)
 
-    return { data: categories as Category[], total: count ?? 0, error: null }
+    return { data: categories as unknown as Category[], total, error: null }
   } catch (error) {
     console.error('Error fetching categories:', error)
     return { data: null, total: 0, error: 'Failed to fetch categories' }
@@ -120,64 +111,73 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
  */
 export async function getCategoriesWithCountsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Authentication required' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', siteId)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { id: true, userId: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Site not found' }
     }
 
-    if (site.user_id !== user.id) {
+    if (site.userId !== user.id) {
       return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Unauthorized' }
     }
 
     // Pagination
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-    const to = from + pageSize - 1
+    const offset = (page - 1) * pageSize
 
-    // Fetch paginated categories
-    const categoriesResult = await supabaseAdmin
-      .from('categories')
-      .select('id, title, slug, parent_id, featured_image, description, is_published, display_order, created_at, updated_at', { count: 'exact' })
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
-      .range(from, to)
+    const [categoriesResult, countResult] = await Promise.all([
+      db
+        .select({
+          id: taxonomies.id,
+          title: taxonomies.title,
+          slug: taxonomies.slug,
+          parentId: taxonomies.parentId,
+          featuredImage: taxonomies.featuredImage,
+          description: taxonomies.description,
+          isPublished: taxonomies.isPublished,
+          displayOrder: taxonomies.displayOrder,
+          createdAt: taxonomies.createdAt,
+          updatedAt: taxonomies.updatedAt,
+        })
+        .from(taxonomies)
+        .where(eq(taxonomies.siteId, siteId))
+        .orderBy(desc(taxonomies.displayOrder))
+        .limit(pageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(taxonomies)
+        .where(eq(taxonomies.siteId, siteId)),
+    ])
 
-    if (categoriesResult.error) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, error: categoriesResult.error.message }
-    }
+    const total = Number(countResult[0]?.count ?? 0)
 
     // Fetch assignment counts for the returned categories
     const counts: Record<string, number> = {}
-    const categoryIds = (categoriesResult.data || []).map(c => c.id)
+    const categoryIds = categoriesResult.map(c => c.id)
     if (categoryIds.length > 0) {
-      const { data: relationships } = await supabaseAdmin
-        .from('category_relationships')
-        .select('category_id')
-        .in('category_id', categoryIds)
+      const relationships = await db
+        .select({ taxonomyId: contentTaxonomyRelationships.taxonomyId })
+        .from(contentTaxonomyRelationships)
+        .where(inArray(contentTaxonomyRelationships.taxonomyId, categoryIds))
 
-      if (relationships) {
-        for (const rel of relationships) {
-          counts[rel.category_id] = (counts[rel.category_id] || 0) + 1
-        }
+      for (const rel of relationships) {
+        counts[rel.taxonomyId] = (counts[rel.taxonomyId] || 0) + 1
       }
     }
 
     return {
-      data: categoriesResult.data as Category[],
-      total: categoriesResult.count ?? 0,
+      data: categoriesResult as unknown as Category[],
+      total,
       counts,
       error: null
     }
@@ -195,24 +195,21 @@ export async function createCategoryAction(
   data: CreateCategoryData
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id, settings')
-      .eq('id', siteId)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { id: true, userId: true, settings: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return { data: null, error: 'Site not found' }
     }
 
-    if (site.user_id !== user.id) {
+    if (site.userId !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 
@@ -220,12 +217,10 @@ export async function createCategoryAction(
     const slug = data.slug || generateSlug(data.title)
 
     // Check if slug already exists for this site
-    const { data: existingCategory } = await supabaseAdmin
-      .from('categories')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('slug', slug)
-      .single()
+    const existingCategory = await db.query.taxonomies.findFirst({
+      where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, slug)),
+      columns: { id: true },
+    })
 
     if (existingCategory) {
       return { data: null, error: 'A category with this slug already exists' }
@@ -233,55 +228,51 @@ export async function createCategoryAction(
 
     // If parent_id is provided, verify it exists and belongs to the same site
     if (data.parent_id) {
-      const { data: parentCategory, error: parentError } = await supabaseAdmin
-        .from('categories')
-        .select('id')
-        .eq('id', data.parent_id)
-        .eq('site_id', siteId)
-        .single()
+      const parentCategory = await db.query.taxonomies.findFirst({
+        where: and(eq(taxonomies.id, data.parent_id), eq(taxonomies.siteId, siteId)),
+        columns: { id: true },
+      })
 
-      if (parentError || !parentCategory) {
+      if (!parentCategory) {
         return { data: null, error: 'Parent category not found' }
       }
     }
 
     // Get the highest display_order
-    const { data: maxOrderCategory } = await supabaseAdmin
-      .from('categories')
-      .select('display_order')
-      .eq('site_id', siteId)
-      .order('display_order', { ascending: false })
+    const maxOrderResult = await db
+      .select({ displayOrder: taxonomies.displayOrder })
+      .from(taxonomies)
+      .where(eq(taxonomies.siteId, siteId))
+      .orderBy(desc(taxonomies.displayOrder))
       .limit(1)
-      .single()
 
-    const nextDisplayOrder = maxOrderCategory ? maxOrderCategory.display_order + 1 : 0
+    const nextDisplayOrder = maxOrderResult.length > 0 ? maxOrderResult[0].displayOrder + 1 : 0
 
     // Create the category
-    const { data: newCategory, error: createError } = await supabaseAdmin
-      .from('categories')
-      .insert({
-        site_id: siteId,
+    const [newCategory] = await db
+      .insert(taxonomies)
+      .values({
+        siteId,
         title: data.title,
         slug,
-        parent_id: data.parent_id || null,
-        featured_image: data.featured_image || null,
+        parentId: data.parent_id || null,
+        featuredImage: data.featured_image || null,
         description: data.description || null,
-        meta_description: data.meta_description || null,
-        content_blocks: applyDefaultBlocks(data.content_blocks, 'categories', (site as any).settings?.default_blocks?.categories),
-        is_published: data.is_published ?? false,
-        display_order: nextDisplayOrder
+        metaDescription: data.meta_description || null,
+        contentBlocks: applyDefaultBlocks(data.content_blocks, 'categories', (site as any).settings?.default_blocks?.categories),
+        isPublished: data.is_published ?? false,
+        displayOrder: nextDisplayOrder,
       })
-      .select()
-      .single()
+      .returning()
 
-    if (createError) {
-      return { data: null, error: createError.message }
+    if (!newCategory) {
+      return { data: null, error: 'Failed to create category' }
     }
 
     revalidateTag('categories')
     revalidateTag(`site-${siteId}`)
 
-    return { data: newCategory as Category, error: null }
+    return { data: newCategory as unknown as Category, error: null }
   } catch (error) {
     console.error('Error creating category:', error)
     return { data: null, error: 'Failed to create category' }
@@ -299,24 +290,27 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       return { data: null, error: 'Invalid category ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { data: null, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { data: null, error: 'Category not found' }
     }
 
-    if (category.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { data: null, error: 'Unauthorized' }
     }
 
@@ -334,13 +328,14 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       }
 
       if (slug !== category.slug) {
-        const { data: existingCategory } = await supabaseAdmin
-          .from('categories')
-          .select('id')
-          .eq('site_id', category.site_id)
-          .eq('slug', slug)
-          .neq('id', categoryId)
-          .single()
+        const existingCategory = await db.query.taxonomies.findFirst({
+          where: and(
+            eq(taxonomies.siteId, category.siteId),
+            eq(taxonomies.slug, slug),
+            ne(taxonomies.id, categoryId)
+          ),
+          columns: { id: true },
+        })
 
         if (existingCategory) {
           return { data: null, error: 'A category with this slug already exists' }
@@ -355,58 +350,67 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       }
 
       if (data.parent_id) {
-        const { data: parentCategory, error: parentError } = await supabaseAdmin
-          .from('categories')
-          .select('id, parent_id')
-          .eq('id', data.parent_id)
-          .eq('site_id', category.site_id)
-          .single()
+        const parentCategory = await db.query.taxonomies.findFirst({
+          where: and(eq(taxonomies.id, data.parent_id), eq(taxonomies.siteId, category.siteId)),
+          columns: { id: true, parentId: true },
+        })
 
-        if (parentError || !parentCategory) {
+        if (!parentCategory) {
           return { data: null, error: 'Parent category not found' }
         }
 
         // Check for circular reference
-        if (parentCategory.parent_id === categoryId) {
+        if (parentCategory.parentId === categoryId) {
           return { data: null, error: 'Circular parent relationship detected' }
         }
       }
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'parent_id', 'is_published', 'featured_image', 'description', 'meta_description', 'content_blocks'] as const
     const finalUpdates: Record<string, any> = {}
-    for (const field of allowedFields) {
-      if ((data as any)[field] !== undefined) {
-        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
-          finalUpdates[field] = typeof (data as any)[field] === 'string'
-            ? (data as any)[field].trim() || null
-            : (data as any)[field]
-        } else {
-          finalUpdates[field] = (data as any)[field]
-        }
-      }
+
+    if (data.title !== undefined) {
+      finalUpdates.title = typeof data.title === 'string' ? data.title.trim() || null : data.title
+    }
+    if (data.slug !== undefined) {
+      finalUpdates.slug = data.slug
+    }
+    if (data.parent_id !== undefined) {
+      finalUpdates.parentId = data.parent_id
+    }
+    if (data.is_published !== undefined) {
+      finalUpdates.isPublished = data.is_published
+    }
+    if (data.featured_image !== undefined) {
+      finalUpdates.featuredImage = typeof data.featured_image === 'string' ? data.featured_image.trim() || null : data.featured_image
+    }
+    if (data.description !== undefined) {
+      finalUpdates.description = typeof data.description === 'string' ? data.description.trim() || null : data.description
+    }
+    if (data.meta_description !== undefined) {
+      finalUpdates.metaDescription = typeof data.meta_description === 'string' ? data.meta_description.trim() || null : data.meta_description
+    }
+    if (data.content_blocks !== undefined) {
+      finalUpdates.contentBlocks = data.content_blocks
     }
 
-    const { data: updatedCategory, error: updateError } = await supabaseAdmin
-      .from('categories')
-      .update({
-        ...finalUpdates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', categoryId)
-      .select()
-      .single()
+    finalUpdates.updatedAt = new Date()
 
-    if (updateError) {
-      return { data: null, error: updateError.message }
+    const [updatedCategory] = await db
+      .update(taxonomies)
+      .set(finalUpdates)
+      .where(eq(taxonomies.id, categoryId))
+      .returning()
+
+    if (!updatedCategory) {
+      return { data: null, error: 'Failed to update category' }
     }
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
-    revalidateTag(`site-${category.site_id}`)
+    revalidateTag(`site-${category.siteId}`)
 
-    return { data: updatedCategory as Category, error: null }
+    return { data: updatedCategory as unknown as Category, error: null }
   } catch (error) {
     console.error('Error updating category:', error)
     return { data: null, error: 'Failed to update category' }
@@ -424,24 +428,27 @@ export async function deleteCategoryAction(categoryId: string) {
       return { success: false, error: 'Invalid category ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { success: false, error: 'Category not found' }
     }
 
-    if (category.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
@@ -451,46 +458,30 @@ export async function deleteCategoryAction(categoryId: string) {
 
     while (queue.length > 0) {
       const parentId = queue.shift()!
-      const { data: children, error: childrenError } = await supabaseAdmin
-        .from('categories')
-        .select('id')
-        .eq('parent_id', parentId)
+      const children = await db
+        .select({ id: taxonomies.id })
+        .from(taxonomies)
+        .where(eq(taxonomies.parentId, parentId))
 
-      if (childrenError) {
-        return { success: false, error: childrenError.message }
-      }
-
-      if (children) {
-        for (const child of children) {
-          allIdsToDelete.push(child.id)
-          queue.push(child.id)
-        }
+      for (const child of children) {
+        allIdsToDelete.push(child.id)
+        queue.push(child.id)
       }
     }
 
     // Delete all content relationships for these categories
-    const { error: relDeleteError } = await supabaseAdmin
-      .from('category_relationships')
-      .delete()
-      .in('category_id', allIdsToDelete)
-
-    if (relDeleteError) {
-      return { success: false, error: relDeleteError.message }
-    }
+    await db
+      .delete(contentTaxonomyRelationships)
+      .where(inArray(contentTaxonomyRelationships.taxonomyId, allIdsToDelete))
 
     // Delete all categories (children first, then parent)
-    const { error: deleteError } = await supabaseAdmin
-      .from('categories')
-      .delete()
-      .in('id', allIdsToDelete)
-
-    if (deleteError) {
-      return { success: false, error: deleteError.message }
-    }
+    await db
+      .delete(taxonomies)
+      .where(inArray(taxonomies.id, allIdsToDelete))
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
-    revalidateTag(`site-${category.site_id}`)
+    revalidateTag(`site-${category.siteId}`)
 
     return { success: true, error: null }
   } catch (error) {
@@ -515,31 +506,28 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
       }
     }
 
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
     // Fetch all selected categories and verify ownership
-    const { data: categories, error: categoriesError } = await supabaseAdmin
-      .from('categories')
-      .select('id, site_id')
-      .in('id', categoryIds)
+    const categories = await db
+      .select({ id: taxonomies.id, siteId: taxonomies.siteId })
+      .from(taxonomies)
+      .where(inArray(taxonomies.id, categoryIds))
 
-    if (categoriesError || !categories?.length) {
+    if (!categories.length) {
       return { success: false, error: 'Categories not found' }
     }
 
-    const siteIds = [...new Set(categories.map(c => c.site_id))]
-    const { data: sites, error: sitesError } = await supabaseAdmin
-      .from('sites')
-      .select('id')
-      .in('id', siteIds)
-      .eq('user_id', user.id)
+    const siteIds = [...new Set(categories.map(c => c.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
 
-    if (sitesError || !sites?.length || sites.length !== siteIds.length) {
+    if (!ownedSites.length || ownedSites.length !== siteIds.length) {
       return { success: false, error: 'Access denied to one or more categories' }
     }
 
@@ -549,17 +537,15 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 
     while (queue.length > 0) {
       const parentId = queue.shift()!
-      const { data: children } = await supabaseAdmin
-        .from('categories')
-        .select('id')
-        .eq('parent_id', parentId)
+      const children = await db
+        .select({ id: taxonomies.id })
+        .from(taxonomies)
+        .where(eq(taxonomies.parentId, parentId))
 
-      if (children) {
-        for (const child of children) {
-          if (!allIdsToDelete.has(child.id)) {
-            allIdsToDelete.add(child.id)
-            queue.push(child.id)
-          }
+      for (const child of children) {
+        if (!allIdsToDelete.has(child.id)) {
+          allIdsToDelete.add(child.id)
+          queue.push(child.id)
         }
       }
     }
@@ -567,24 +553,14 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
     const idsArray = Array.from(allIdsToDelete)
 
     // Delete all content relationships
-    const { error: relDeleteError } = await supabaseAdmin
-      .from('category_relationships')
-      .delete()
-      .in('category_id', idsArray)
-
-    if (relDeleteError) {
-      return { success: false, error: relDeleteError.message }
-    }
+    await db
+      .delete(contentTaxonomyRelationships)
+      .where(inArray(contentTaxonomyRelationships.taxonomyId, idsArray))
 
     // Delete all categories
-    const { error: deleteError } = await supabaseAdmin
-      .from('categories')
-      .delete()
-      .in('id', idsArray)
-
-    if (deleteError) {
-      return { success: false, error: deleteError.message }
-    }
+    await db
+      .delete(taxonomies)
+      .where(inArray(taxonomies.id, idsArray))
 
     revalidateTag('categories')
 
@@ -608,42 +584,41 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
       return { success: false, error: 'Invalid category ID format' }
     }
 
-    const supabase = await createServerSupabaseClient()
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
+    const user = await getAuthenticatedUser()
+    if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    const { data: category, error: categoryError } = await supabaseAdmin
-      .from('categories')
-      .select('*, sites!inner(user_id)')
-      .eq('id', categoryId)
-      .single()
+    // Fetch category
+    const category = await db.query.taxonomies.findFirst({
+      where: eq(taxonomies.id, categoryId),
+    })
 
-    if (categoryError || !category) {
+    if (!category) {
       return { success: false, error: 'Category not found' }
     }
 
-    if (category.sites.user_id !== user.id) {
+    // Verify ownership via site
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, category.siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const { error: updateError } = await supabaseAdmin
-      .from('categories')
-      .update({
-        content_blocks: contentBlocks,
-        updated_at: new Date().toISOString()
+    await db
+      .update(taxonomies)
+      .set({
+        contentBlocks,
+        updatedAt: new Date(),
       })
-      .eq('id', categoryId)
-
-    if (updateError) {
-      return { success: false, error: updateError.message }
-    }
+      .where(eq(taxonomies.id, categoryId))
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
-    revalidateTag(`site-${category.site_id}`)
+    revalidateTag(`site-${category.siteId}`)
 
     return { success: true, error: null }
   } catch (error) {
@@ -651,4 +626,3 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
     return { success: false, error: 'Failed to update category blocks' }
   }
 }
-

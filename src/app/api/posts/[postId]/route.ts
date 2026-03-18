@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq, and } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { posts, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
     const { postId } = await params
-    
+
     // Validate post ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(postId)) {
@@ -25,35 +21,19 @@ export async function GET(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the post
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
-
-    if (postError) {
-      if (postError.code === 'PGRST116') {
-        return NextResponse.json(
-          { data: null, error: 'Post not found' },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json(
-        { data: null, error: `Failed to fetch post: ${postError.message}` },
-        { status: 500 }
-      )
-    }
+    const post = await db.query.posts.findFirst({
+      where: eq(posts.id, postId),
+    })
 
     if (!post) {
       return NextResponse.json(
@@ -63,14 +43,12 @@ export async function GET(
     }
 
     // Verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, post.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -81,9 +59,9 @@ export async function GET(
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )
@@ -97,7 +75,7 @@ export async function PUT(
   try {
     const { postId } = await params
     const updates = await request.json()
-    
+
     // Validate post ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(postId)) {
@@ -108,24 +86,21 @@ export async function PUT(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the post first
-    const { data: post, error: postError } = await supabaseAdmin
-      .from('posts')
-      .select('*')
-      .eq('id', postId)
-      .single()
+    const post = await db.query.posts.findFirst({
+      where: eq(posts.id, postId),
+    })
 
-    if (postError || !post) {
+    if (!post) {
       return NextResponse.json(
         { data: null, error: 'Post not found' },
         { status: 404 }
@@ -133,14 +108,12 @@ export async function PUT(
     }
 
     // Verify user owns the site this post belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', post.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, post.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -158,7 +131,7 @@ export async function PUT(
     // Validate and process slug if being updated
     if (updates.slug !== undefined) {
       const slug = updates.slug.trim()
-      
+
       // Validate slug format
       if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
         return NextResponse.json(
@@ -177,13 +150,11 @@ export async function PUT(
       }
 
       // Check if slug conflicts with other posts (excluding current post)
-      const { data: existingPost } = await supabaseAdmin
-        .from('posts')
-        .select('id')
-        .eq('site_id', post.site_id)
-        .eq('slug', slug)
-        .single()
-      
+      const existingPost = await db.query.posts.findFirst({
+        where: and(eq(posts.siteId, post.siteId), eq(posts.slug, slug)),
+        columns: { id: true },
+      })
+
       if (existingPost && existingPost.id !== postId) {
         return NextResponse.json(
           { data: null, error: `A post with the slug "${slug}" already exists. Please choose a different slug.` },
@@ -192,31 +163,32 @@ export async function PUT(
       }
     }
 
-    // Update the post
-    const { data: updatedPost, error: updateError } = await supabaseAdmin
-      .from('posts')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', postId)
-      .select()
-      .single()
+    // Build update object with camelCase keys
+    const updateValues: Record<string, unknown> = { updatedAt: new Date() }
+    if (updates.title !== undefined) updateValues.title = updates.title
+    if (updates.slug !== undefined) updateValues.slug = updates.slug
+    if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
+    if (updates.meta_keywords !== undefined) updateValues.metaKeywords = updates.meta_keywords
+    if (updates.featured_image !== undefined) updateValues.featuredImage = updates.featured_image
+    if (updates.excerpt !== undefined) updateValues.excerpt = updates.excerpt
+    if (updates.content !== undefined) updateValues.content = updates.content
+    if (updates.content_blocks !== undefined) updateValues.contentBlocks = updates.content_blocks
+    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
+    if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
 
-    if (updateError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to update post: ${updateError.message}` },
-        { status: 500 }
-      )
-    }
+    // Update the post
+    const [updatedPost] = await db.update(posts)
+      .set(updateValues)
+      .where(eq(posts.id, postId))
+      .returning()
 
     return NextResponse.json({ data: updatedPost, error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

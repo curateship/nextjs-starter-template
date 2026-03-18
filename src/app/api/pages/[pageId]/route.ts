@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-// Create admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq, and, ne } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { pages, sites } from '@/lib/db/schema'
+import { auth } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
@@ -14,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { pageId } = await params
-    
+
     // Validate page ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(pageId)) {
@@ -25,35 +21,19 @@ export async function GET(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the page
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
-
-    if (pageError) {
-      if (pageError.code === 'PGRST116') {
-        return NextResponse.json(
-          { data: null, error: 'Page not found' },
-          { status: 404 }
-        )
-      }
-      return NextResponse.json(
-        { data: null, error: `Failed to fetch page: ${pageError.message}` },
-        { status: 500 }
-      )
-    }
+    const page = await db.query.pages.findFirst({
+      where: eq(pages.id, pageId),
+    })
 
     if (!page) {
       return NextResponse.json(
@@ -63,14 +43,12 @@ export async function GET(
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -81,9 +59,9 @@ export async function GET(
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )
@@ -97,7 +75,7 @@ export async function PUT(
   try {
     const { pageId } = await params
     const updates = await request.json()
-    
+
     // Validate page ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(pageId)) {
@@ -108,24 +86,21 @@ export async function PUT(
     }
 
     // Get the authenticated user's ID from the session
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError || !user) {
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user) {
       return NextResponse.json(
         { data: null, error: 'User not authenticated' },
         { status: 401 }
       )
     }
+    const userId = session.user.id!
 
     // Get the page first
-    const { data: page, error: pageError } = await supabaseAdmin
-      .from('pages')
-      .select('*')
-      .eq('id', pageId)
-      .single()
+    const page = await db.query.pages.findFirst({
+      where: eq(pages.id, pageId),
+    })
 
-    if (pageError || !page) {
+    if (!page) {
       return NextResponse.json(
         { data: null, error: 'Page not found' },
         { status: 404 }
@@ -133,14 +108,12 @@ export async function PUT(
     }
 
     // Verify user owns the site this page belongs to
-    const { data: site, error: siteError } = await supabaseAdmin
-      .from('sites')
-      .select('id, user_id')
-      .eq('id', page.site_id)
-      .eq('user_id', user.id)
-      .single()
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
+      columns: { id: true },
+    })
 
-    if (siteError || !site) {
+    if (!site) {
       return NextResponse.json(
         { data: null, error: 'Site not found or access denied' },
         { status: 403 }
@@ -157,39 +130,39 @@ export async function PUT(
 
     // If setting as homepage, unset any existing homepage
     if (updates.is_homepage === true) {
-      await supabaseAdmin
-        .from('pages')
-        .update({ is_homepage: false })
-        .eq('site_id', page.site_id)
-        .eq('is_homepage', true)
-        .neq('id', pageId)
+      await db.update(pages)
+        .set({ isHomepage: false })
+        .where(and(
+          eq(pages.siteId, page.siteId),
+          eq(pages.isHomepage, true),
+          ne(pages.id, pageId)
+        ))
     }
+
+    // Build update object with camelCase keys
+    const updateValues: Record<string, unknown> = { updatedAt: new Date() }
+    if (updates.title !== undefined) updateValues.title = updates.title
+    if (updates.slug !== undefined) updateValues.slug = updates.slug
+    if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
+    if (updates.meta_keywords !== undefined) updateValues.metaKeywords = updates.meta_keywords
+    if (updates.template !== undefined) updateValues.template = updates.template
+    if (updates.is_homepage !== undefined) updateValues.isHomepage = updates.is_homepage
+    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
+    if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
 
     // Update the page
-    const { data: updatedPage, error: updateError } = await supabaseAdmin
-      .from('pages')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', pageId)
-      .select()
-      .single()
-
-    if (updateError) {
-      return NextResponse.json(
-        { data: null, error: `Failed to update page: ${updateError.message}` },
-        { status: 500 }
-      )
-    }
+    const [updatedPage] = await db.update(pages)
+      .set(updateValues)
+      .where(eq(pages.id, pageId))
+      .returning()
 
     return NextResponse.json({ data: updatedPage, error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
-      { 
-        data: null, 
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}` 
+      {
+        data: null,
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
       },
       { status: 500 }
     )

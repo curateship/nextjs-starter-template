@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
+import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,19 +11,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        window.location.href = '/admin'
-      } else {
-        setChecking(false)
-      }
-    })
-  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,12 +19,14 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const supabase = createClient()
-      const { error, data } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await authClient.signIn.email({
+        email,
+        password,
+      })
 
       if (error) {
-        setError(error.message)
-      } else if (data.user) {
+        setError("Invalid email or password")
+      } else {
         window.location.href = '/admin'
       }
     } catch {
@@ -45,8 +35,6 @@ export default function LoginPage() {
       setLoading(false)
     }
   }
-
-  if (checking) return null
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

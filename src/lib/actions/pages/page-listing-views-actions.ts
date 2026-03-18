@@ -1,12 +1,9 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { eq, and, asc, desc, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { db } from '@/lib/db'
+import { products } from '@/lib/db/schema'
 
 export interface ListingViewsData {
   products?: Array<{
@@ -26,63 +23,81 @@ export interface ListingViewsData {
 // Cached listing data function
 const getCachedListingData = unstable_cache(
   async (site_id: string, contentType: string, sortBy: string, sortOrder: string, limit: number, offset: number) => {
-    // Map sortBy to database column
-    let orderColumn = 'created_at'
+    // Map sortBy to Drizzle column
+    let orderByColumn: any = products.createdAt
     if (sortBy === 'title') {
-      orderColumn = 'title'
+      orderByColumn = products.title
     } else if (sortBy === 'display_order') {
-      orderColumn = 'display_order'
+      orderByColumn = products.displayOrder
     }
 
-    // Get total count for pagination (filter out private products via content_blocks)
-    const { data: allProducts, error: countError } = await supabaseAdmin
-      .from('products')
-      .select('content_blocks')
-      .eq('site_id', site_id)
-      .eq('is_published', true)
+    const orderFn = sortOrder === 'asc' ? asc : desc
 
-    if (countError) {
-      throw new Error(`Failed to count products: ${countError.message}`)
-    }
+    // Get all published products to filter private ones via content_blocks
+    const allProductsData = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        slug: products.slug,
+        createdAt: products.createdAt,
+        displayOrder: products.displayOrder,
+        contentBlocks: products.contentBlocks,
+      })
+      .from(products)
+      .where(and(eq(products.siteId, site_id), eq(products.isPublished, true)))
+      .orderBy(orderFn(orderByColumn))
 
     // Filter out private products from content_blocks
-    const publicProducts = (allProducts || []).filter(p => 
-      p.content_blocks?._settings?.is_private !== true
-    )
-    const count = publicProducts.length
+    const publicProductsData = (allProductsData || []).filter(p => {
+      const cb = p.contentBlocks as Record<string, any> | null
+      return cb?._settings?.is_private !== true
+    })
 
-    // Get products with pagination (need to filter private products client-side)
-    const { data: allProductsData, error } = await supabaseAdmin
-      .from('products')
-      .select('id, title, slug, created_at, display_order, featured_image, description, content_blocks')
-      .eq('site_id', site_id)
-      .eq('is_published', true)
-      .order(orderColumn, { ascending: sortOrder === 'asc' })
+    const totalCount = publicProductsData.length
 
-    if (error) {
-      throw new Error(`Failed to load products: ${error.message}`)
-    }
+    // Apply pagination
+    const paginatedProducts = publicProductsData.slice(offset, offset + limit)
 
-    // Filter out private products and apply pagination
-    const publicProductsData = (allProductsData || []).filter(p => 
-      p.content_blocks?._settings?.is_private !== true
-    )
-    const products = publicProductsData.slice(offset, offset + limit)
-
-    const totalCount = count || 0
     const totalPages = Math.ceil(totalCount / limit)
     const currentPage = Math.floor(offset / limit) + 1
 
-    // Transform products to use database columns directly
-    const transformedProducts = (products || []).map(product => ({
-      id: product.id,
-      title: product.title || 'Untitled',
-      slug: product.slug || '',
-      richText: product.description || '', // Use description as richText
-      featured_image: product.featured_image,
-      created_at: product.created_at,
-      display_order: product.display_order || 0
-    }))
+    // Transform products - use raw SQL to get featured_image and description columns if they exist
+    let transformedProducts: Array<{
+      id: string
+      title: string
+      slug: string
+      richText: string | null
+      featured_image: string | null
+      created_at: string
+      display_order: number
+    }>
+
+    if (paginatedProducts.length > 0) {
+      // Try to get featured_image and description from raw SQL
+      const ids = paginatedProducts.map(p => p.id)
+      const rawResult = await db.execute(
+        sql`SELECT id, featured_image, description FROM products WHERE id = ANY(${ids})`
+      )
+      const rawMap = new Map<string, any>()
+      for (const row of (rawResult.rows || [])) {
+        rawMap.set((row as any).id, row)
+      }
+
+      transformedProducts = paginatedProducts.map(product => {
+        const raw = rawMap.get(product.id)
+        return {
+          id: product.id,
+          title: product.title || 'Untitled',
+          slug: product.slug || '',
+          richText: raw?.description || '',
+          featured_image: raw?.featured_image || null,
+          created_at: product.createdAt ? new Date(product.createdAt).toISOString() : new Date().toISOString(),
+          display_order: product.displayOrder || 0
+        }
+      })
+    } else {
+      transformedProducts = []
+    }
 
     return {
       products: transformedProducts,
@@ -92,7 +107,7 @@ const getCachedListingData = unstable_cache(
     }
   },
   ['listing-data'],
-  { 
+  {
     revalidate: 3600, // 1-hour cache for product listing data
     tags: ['listing-views', 'all']
   }

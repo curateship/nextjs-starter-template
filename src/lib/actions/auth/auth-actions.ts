@@ -1,88 +1,87 @@
 'use server'
 
-import { createServerClient } from '@supabase/ssr'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { users } from '@/lib/db/schema'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
 
-async function createClient() {
-  const cookieStore = await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Ignore
-          }
-        },
-      },
-    }
-  )
+export async function getCurrentUser() {
+  return await getAuthenticatedUser()
 }
 
-// Admin client for user management (requires service role key)
-const supabaseAdmin = createSupabaseClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
-
 export async function signOut() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  await auth.api.signOut({
+    headers: await headers(),
+  })
   redirect('/auth/login')
 }
 
+export async function registerUser({
+  email,
+  password,
+  displayName,
+}: {
+  email: string
+  password: string
+  displayName?: string
+}) {
+  try {
+    const result = await auth.api.signUpEmail({
+      body: {
+        email: email.toLowerCase(),
+        password,
+        name: displayName || email.split('@')[0],
+      },
+    })
+
+    if (!result?.user) {
+      return { error: 'Failed to create account' }
+    }
+
+    return { data: { id: result.user.id }, error: null }
+  } catch (error: any) {
+    return { error: error.message || 'Failed to create account' }
+  }
+}
+
 export async function updateProfile(formData: FormData) {
-  const supabase = await createClient()
-  
-  // Input sanitization
+  const authUser = await getAuthenticatedUser()
+  if (!authUser) return { error: 'Not authenticated' }
+
   const displayName = (formData.get('display_name') as string)?.trim()?.slice(0, 100)
   const email = (formData.get('email') as string)?.trim()?.toLowerCase()
-  
+
   try {
-    const updates: any = {}
-    
-    // Validate and update display name in user metadata
+    const updates: Record<string, any> = {}
+
     if (displayName) {
-      // Additional validation
       if (displayName.length < 1 || displayName.length > 100) {
         return { error: 'Display name must be between 1-100 characters' }
       }
-      
-      // Sanitize display name (remove HTML tags, script content)
       const sanitizedDisplayName = displayName.replace(/<[^>]*>?/gm, '').replace(/[<>\"']/g, '')
-      updates.display_name = sanitizedDisplayName
+      updates.name = sanitizedDisplayName
     }
-    
-    // Update email if provided
-    if (email) {
-      const { error: emailError } = await supabase.auth.updateUser({ email })
-      if (emailError) throw emailError
-    }
-    
-    // Update user metadata
-    if (Object.keys(updates).length > 0) {
-      const { error: metadataError } = await supabase.auth.updateUser({
-        data: updates
+
+    if (email && email !== authUser.email) {
+      const existing = await db.query.users.findFirst({
+        where: eq(users.email, email),
       })
-      if (metadataError) throw metadataError
+      if (existing) return { error: 'Email already in use' }
+      updates.email = email
     }
-    
+
+    if (Object.keys(updates).length > 0) {
+      updates.updatedAt = new Date()
+      await auth.api.updateUser({
+        body: updates,
+        headers: await headers(),
+      })
+    }
+
     return { success: true }
   } catch (error: any) {
     return { error: error.message }
@@ -90,7 +89,8 @@ export async function updateProfile(formData: FormData) {
 }
 
 export async function updatePassword(formData: FormData) {
-  const supabase = await createClient()
+  const authUser = await getAuthenticatedUser()
+  if (!authUser) return { error: 'Not authenticated' }
 
   const newPassword = formData.get('new_password') as string
   const confirmPassword = formData.get('confirm_password') as string
@@ -103,7 +103,6 @@ export async function updatePassword(formData: FormData) {
     return { error: 'Password must be at least 12 characters' }
   }
 
-  // Server-side password strength validation
   const hasUpperCase = /[A-Z]/.test(newPassword)
   const hasLowerCase = /[a-z]/.test(newPassword)
   const hasNumbers = /\d/.test(newPassword)
@@ -114,39 +113,16 @@ export async function updatePassword(formData: FormData) {
   }
 
   try {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
+    await auth.api.changePassword({
+      body: {
+        newPassword,
+        currentPassword: '', // Better Auth handles this via session
+      },
+      headers: await headers(),
     })
 
-    if (error) throw error
-
     return { success: true }
   } catch (error: any) {
-    return { error: error.message }
-  }
-}
-
-/**
- * Assign end_user role to a newly created user
- * This must be called after signup using the admin client
- * @param userId - The user ID to assign the role to
- */
-export async function assignEndUserRole(userId: string) {
-  try {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
-      userId,
-      {
-        app_metadata: {
-          role: 'end_user'
-        }
-      }
-    )
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error: any) {
-    console.error('Error assigning end_user role:', error)
     return { error: error.message }
   }
 }
