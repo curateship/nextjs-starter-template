@@ -1,7 +1,6 @@
 import { betterAuth } from 'better-auth'
 import { admin } from 'better-auth/plugins'
 import { Pool } from 'pg'
-import * as bcrypt from 'bcryptjs'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
@@ -12,14 +11,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 6,
-    password: {
-      hash: async (password) => {
-        return await bcrypt.hash(password, 10)
-      },
-      verify: async ({ hash, password }) => {
-        return await bcrypt.compare(password, hash)
-      },
-    },
   },
   session: {
     cookieCache: {

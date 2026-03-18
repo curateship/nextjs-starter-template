@@ -92,6 +92,7 @@ export async function updatePassword(formData: FormData) {
   const authUser = await getAuthenticatedUser()
   if (!authUser) return { error: 'Not authenticated' }
 
+  const currentPassword = formData.get('current_password') as string
   const newPassword = formData.get('new_password') as string
   const confirmPassword = formData.get('confirm_password') as string
 
@@ -116,7 +117,7 @@ export async function updatePassword(formData: FormData) {
     await auth.api.changePassword({
       body: {
         newPassword,
-        currentPassword: '', // Better Auth handles this via session
+        currentPassword,
       },
       headers: await headers(),
     })

@@ -17,6 +17,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
+  const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
@@ -87,6 +88,7 @@ export default function SettingsPage() {
 
     try {
       const formData = new FormData()
+      formData.set('current_password', currentPassword)
       formData.set('new_password', newPassword)
       formData.set('confirm_password', confirmPassword)
 
@@ -95,6 +97,7 @@ export default function SettingsPage() {
         setMessage({ type: 'error', text: result.error })
       } else {
         setMessage({ type: 'success', text: 'Password updated successfully!' })
+        setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
       }
@@ -195,6 +198,18 @@ export default function SettingsPage() {
               <form onSubmit={handlePasswordUpdate} className="space-y-4">
                 <div className="space-y-4 max-w-md">
                   <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
                     <Input
                       id="newPassword"
@@ -223,7 +238,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex justify-end pt-4">
-                  <Button type="submit" disabled={saving || !newPassword || !confirmPassword}>
+                  <Button type="submit" disabled={saving || !currentPassword || !newPassword || !confirmPassword}>
                     <Lock className="w-4 h-4 mr-2" />
                     {saving ? 'Updating...' : 'Update Password'}
                   </Button>
