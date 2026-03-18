@@ -1,17 +1,13 @@
 import { betterAuth } from 'better-auth'
 import { admin } from 'better-auth/plugins'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { Pool } from 'pg'
-import { drizzle } from 'drizzle-orm/node-postgres'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
 })
 
-const db = drizzle(pool)
-
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
+  database: pool,
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 6,
