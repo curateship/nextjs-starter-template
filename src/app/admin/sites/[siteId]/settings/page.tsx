@@ -82,7 +82,7 @@ const IntegrationCard = forwardRef<IntegrationCardHandle, IntegrationCardProps>(
         })
         return { type: entry.type, config, hasValues }
       },
-    }))
+    }), [entry.type, entry.fields, formValues])
 
     const handleToggle = async (checked: boolean) => {
       if (!integration) return
