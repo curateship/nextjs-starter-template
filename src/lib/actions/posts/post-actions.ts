@@ -2,7 +2,7 @@
 
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { posts, sites } from '@/lib/db/schema'
+import { posts, sites, taxonomies, contentTaxonomyRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface PostBlock {
@@ -164,55 +164,48 @@ export async function getSitePostsWithCategoriesAction(
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
 
-    const [countResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(posts)
-      .where(eq(posts.siteId, siteId))
+    const [countPromise, dataPromise] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(posts).where(eq(posts.siteId, siteId)),
+      db.select().from(posts).where(eq(posts.siteId, siteId)).orderBy(desc(posts.displayOrder)).limit(pageSize).offset(from),
+    ])
 
-    const data = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.siteId, siteId))
-      .orderBy(desc(posts.displayOrder))
-      .limit(pageSize)
-      .offset(from)
+    const countResult = countPromise[0]
+    const postRows = dataPromise.map(rowToPost)
 
-    const postRows = data.map(rowToPost)
-
-    // Fetch categories in parallel using raw SQL (category_relationships table not in Drizzle schema)
+    // Fetch categories via Drizzle
     let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (postRows.length > 0) {
       const postIds = postRows.map(p => p.id)
-      const rels = await db.execute<{
-        content_id: string
-        category_id: string
-        cat_id: string
-        cat_title: string
-        cat_slug: string
-        cat_parent_id: string | null
-      }>(sql`
-        SELECT cr.content_id, cr.category_id,
-               c.id as cat_id, c.title as cat_title, c.slug as cat_slug, c.parent_id as cat_parent_id
-        FROM category_relationships cr
-        INNER JOIN categories c ON c.id = cr.category_id
-        WHERE cr.content_id = ANY(${postIds}) AND cr.content_type = 'post'
-      `)
+      const rels = await db
+        .select({
+          content_id: contentTaxonomyRelationships.contentId,
+          category_id: contentTaxonomyRelationships.taxonomyId,
+          cat_id: taxonomies.id,
+          cat_title: taxonomies.title,
+          cat_slug: taxonomies.slug,
+          cat_parent_id: taxonomies.parentId,
+        })
+        .from(contentTaxonomyRelationships)
+        .innerJoin(taxonomies, eq(taxonomies.id, contentTaxonomyRelationships.taxonomyId))
+        .where(and(
+          inArray(contentTaxonomyRelationships.contentId, postIds),
+          eq(contentTaxonomyRelationships.contentType, 'post')
+        ))
 
-      if (rels.rows && rels.rows.length > 0) {
+      if (rels.length > 0) {
         const parentIds = new Set<string>()
-        for (const rel of rels.rows) {
+        for (const rel of rels) {
           if (rel.cat_parent_id) parentIds.add(rel.cat_parent_id)
         }
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
-          const parents = await db.execute<{ id: string; title: string }>(
-            sql`SELECT id, title FROM categories WHERE id = ANY(${Array.from(parentIds)})`
-          )
-          if (parents.rows) {
-            parentTitles = Object.fromEntries(parents.rows.map(p => [p.id, p.title]))
-          }
+          const parents = await db
+            .select({ id: taxonomies.id, title: taxonomies.title })
+            .from(taxonomies)
+            .where(inArray(taxonomies.id, Array.from(parentIds)))
+          parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
-        for (const rel of rels.rows) {
+        for (const rel of rels) {
           const cid = rel.content_id
           if (!categories[cid]) categories[cid] = []
           categories[cid].push({

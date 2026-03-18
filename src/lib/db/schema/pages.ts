@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, integer, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
 
@@ -13,6 +13,7 @@ export const pages = pgTable('pages', {
   isHomepage: boolean('is_homepage').notNull().default(false),
   isPublished: boolean('is_published').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
+  contentBlocks: jsonb('content_blocks').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

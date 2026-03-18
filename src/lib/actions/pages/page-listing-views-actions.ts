@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, asc, desc, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { products } from '@/lib/db/schema'
@@ -73,14 +73,14 @@ const getCachedListingData = unstable_cache(
     }>
 
     if (paginatedProducts.length > 0) {
-      // Try to get featured_image and description from raw SQL
       const ids = paginatedProducts.map(p => p.id)
-      const rawResult = await db.execute(
-        sql`SELECT id, featured_image, description FROM products WHERE id = ANY(${ids})`
-      )
+      const rawRows = await db
+        .select({ id: products.id, featured_image: products.featuredImage, description: products.description })
+        .from(products)
+        .where(inArray(products.id, ids))
       const rawMap = new Map<string, any>()
-      for (const row of (rawResult.rows || [])) {
-        rawMap.set((row as any).id, row)
+      for (const row of rawRows) {
+        rawMap.set(row.id, row)
       }
 
       transformedProducts = paginatedProducts.map(product => {

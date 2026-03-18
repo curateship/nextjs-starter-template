@@ -29,6 +29,22 @@ export interface MediaUploadData {
 export type ImageData = MediaData
 export type ImageUploadData = MediaUploadData
 
+function toMediaData(row: any): MediaData {
+  return {
+    id: row.id,
+    filename: row.filename,
+    original_name: row.originalName ?? row.original_name,
+    alt_text: row.altText ?? row.alt_text ?? null,
+    file_size: row.fileSize ?? row.file_size,
+    file_type: row.fileType ?? row.file_type,
+    storage_path: row.storagePath ?? row.storage_path,
+    public_url: row.publicUrl ?? row.public_url,
+    site_id: row.siteId ?? row.site_id ?? null,
+    created_at: row.createdAt ? new Date(row.createdAt).toISOString() : row.created_at,
+    updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : row.updated_at,
+  }
+}
+
 export async function uploadMediaAction(
   file: File,
   alt_text?: string,
@@ -127,7 +143,7 @@ export async function getMediaAction(
       .where(and(...conditions))
       .orderBy(desc(media.createdAt))
 
-    return { data: result as unknown as MediaData[], error: null }
+    return { data: result.map(toMediaData), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -168,7 +184,7 @@ export async function getPaginatedMediaAction(
 
     return {
       data: {
-        data: result as unknown as MediaData[],
+        data: result.map(toMediaData),
         total: totalCount,
         page,
         pageSize,

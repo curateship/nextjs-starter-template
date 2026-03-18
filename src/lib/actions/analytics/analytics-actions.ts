@@ -43,18 +43,18 @@ export async function getAnalyticsOverview(siteId: string, period: string) {
   const { from, to } = getDateRange(period)
 
   try {
-    const result = await db.execute(sql`SELECT * FROM get_analytics_overview(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz)`)
+    const result = await db.execute(sql`SELECT get_analytics_overview(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz) as data`)
 
     if (!result.rows || result.rows.length === 0) {
       return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
     }
 
-    const row = result.rows[0] as Record<string, unknown>
+    const data = (result.rows[0] as any).data || {}
     return {
-      pageViews: Number(row.page_views ?? row.pageviews ?? 0),
-      uniqueVisitors: Number(row.unique_visitors ?? row.uniquevisitors ?? 0),
-      bounceRate: Number(row.bounce_rate ?? row.bouncerate ?? 0),
-      avgDuration: Number(row.avg_duration ?? row.avgduration ?? 0),
+      pageViews: Number(data.pageViews ?? 0),
+      uniqueVisitors: Number(data.uniqueVisitors ?? 0),
+      bounceRate: Number(data.bounceRate ?? 0),
+      avgDuration: Number(data.avgDuration ?? 0),
     } as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
   } catch (error) {
     console.error('Failed to get analytics overview:', error)
@@ -66,9 +66,10 @@ export async function getTopPages(siteId: string, period: string, limit = 10) {
   const { from, to } = getDateRange(period)
 
   try {
-    const result = await db.execute(sql`SELECT * FROM get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
+    const result = await db.execute(sql`SELECT get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
 
-    return (result.rows as { path: string; views: number }[]) || []
+    const data = (result.rows[0] as any)?.data
+    return (Array.isArray(data) ? data : []) as { path: string; views: number }[]
   } catch (error) {
     console.error('Failed to get top pages:', error)
     return []
@@ -79,9 +80,10 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
   const { from, to } = getDateRange(period)
 
   try {
-    const result = await db.execute(sql`SELECT * FROM get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
+    const result = await db.execute(sql`SELECT get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
 
-    return (result.rows as { domain: string; visits: number }[]) || []
+    const data = (result.rows[0] as any)?.data
+    return (Array.isArray(data) ? data : []) as { domain: string; visits: number }[]
   } catch (error) {
     console.error('Failed to get top referrers:', error)
     return []
@@ -93,9 +95,10 @@ export async function getTrafficOverTime(siteId: string, period: string) {
   const useHourly = period === 'today' || period === 'yesterday'
 
   try {
-    const result = await db.execute(sql`SELECT * FROM get_traffic_over_time(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${useHourly}::bool)`)
+    const result = await db.execute(sql`SELECT get_traffic_over_time(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${useHourly}::bool) as data`)
 
-    return (result.rows as { date: string; views: number; visitors: number }[]) || []
+    const data = (result.rows[0] as any)?.data
+    return (Array.isArray(data) ? data : []) as { date: string; views: number; visitors: number }[]
   } catch (error) {
     console.error('Failed to get traffic over time:', error)
     return []
@@ -106,9 +109,10 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
   const { from, to } = getDateRange(period)
 
   try {
-    const result = await db.execute(sql`SELECT * FROM get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int)`)
+    const result = await db.execute(sql`SELECT get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
 
-    return (result.rows as { path: string; count: number }[]) || []
+    const data = (result.rows[0] as any)?.data
+    return (Array.isArray(data) ? data : []) as { path: string; count: number }[]
   } catch (error) {
     console.error('Failed to get user journeys:', error)
     return []

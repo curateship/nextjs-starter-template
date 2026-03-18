@@ -88,7 +88,21 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
       .limit(pageSize)
       .offset(from)
 
-    return { data: data as unknown as Page[], total: countResult?.count ?? 0, error: null }
+    const serialized: Page[] = data.map(p => ({
+      id: p.id,
+      site_id: p.siteId,
+      title: p.title,
+      slug: p.slug,
+      meta_description: p.metaDescription,
+      is_homepage: p.isHomepage,
+      is_published: p.isPublished,
+      display_order: p.displayOrder,
+      content_blocks: (p.contentBlocks as Record<string, any>) || {},
+      created_at: new Date(p.createdAt).toISOString(),
+      updated_at: new Date(p.updatedAt).toISOString(),
+    }))
+
+    return { data: serialized, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,
@@ -134,14 +148,21 @@ export async function getPageByIdAction(pageId: string): Promise<{ data: Page | 
       return { data: null, error: 'Site not found or access denied' }
     }
 
-    // Ensure all dates are properly serialized
-    const serializedPage = {
-      ...page,
+    const serializedPage: Page = {
+      id: page.id,
+      site_id: page.siteId,
+      title: page.title,
+      slug: page.slug,
+      meta_description: page.metaDescription,
+      is_homepage: page.isHomepage,
+      is_published: page.isPublished,
+      display_order: page.displayOrder,
+      content_blocks: (page.contentBlocks as Record<string, any>) || {},
       created_at: page.createdAt ? new Date(page.createdAt).toISOString() : new Date().toISOString(),
-      updated_at: page.updatedAt ? new Date(page.updatedAt).toISOString() : new Date().toISOString()
+      updated_at: page.updatedAt ? new Date(page.updatedAt).toISOString() : new Date().toISOString(),
     }
 
-    return { data: serializedPage as unknown as Page, error: null }
+    return { data: serializedPage, error: null }
   } catch (error) {
     return {
       data: null,

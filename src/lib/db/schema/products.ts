@@ -2,7 +2,7 @@ import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqu
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
 
-export const orderTypeEnum = pgEnum('order_type_enum', ['free_signup', 'paid_purchase'])
+export const orderTypeEnum = pgEnum('order_type_enum', ['free_signup', 'paid_purchase', 'lead_magnet'])
 export const paymentStatusEnum = pgEnum('payment_status_enum', ['pending', 'succeeded', 'failed', 'canceled'])
 
 export const products = pgTable('products', {
@@ -16,6 +16,8 @@ export const products = pgTable('products', {
   isPublished: boolean('is_published').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
   contentBlocks: jsonb('content_blocks').default({}),
+  featuredImage: text('featured_image'),
+  description: text('description'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
