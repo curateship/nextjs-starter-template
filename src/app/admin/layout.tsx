@@ -13,7 +13,7 @@ export default async function AdminLayout({
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    redirect('/auth/login?redirect=/admin')
+    redirect('/login?redirect=/admin')
   }
 
   if (user.app_metadata?.role !== 'super_admin') {

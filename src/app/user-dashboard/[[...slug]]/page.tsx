@@ -17,7 +17,7 @@ export default async function UserPage({ params }: UserPageProps) {
 
   if (siteError || !siteId) {
     // Redirect to login if not authenticated
-    redirect('/auth/login')
+    redirect('/login')
   }
 
   // Fetch user page data
