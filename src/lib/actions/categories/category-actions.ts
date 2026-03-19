@@ -83,7 +83,7 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const offset = (page - 1) * pageSize
 
-    const [categories, countResult] = await Promise.all([
+    const [categoryRows, countResult] = await Promise.all([
       db
         .select()
         .from(categories)
@@ -99,7 +99,7 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
 
     const total = Number(countResult[0]?.count ?? 0)
 
-    return { data: categories as unknown as Category[], total, error: null }
+    return { data: categoryRows as unknown as Category[], total, error: null }
   } catch (error) {
     console.error('Error fetching categories:', error)
     return { data: null, total: 0, error: 'Failed to fetch categories' }
@@ -515,16 +515,16 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
     }
 
     // Fetch all selected categories and verify ownership
-    const categories = await db
+    const categoryRows = await db
       .select({ id: categories.id, siteId: categories.siteId })
       .from(categories)
       .where(inArray(categories.id, categoryIds))
 
-    if (!categories.length) {
+    if (!categoryRows.length) {
       return { success: false, error: 'Categories not found' }
     }
 
-    const siteIds = [...new Set(categories.map(c => c.siteId))]
+    const siteIds = [...new Set(categoryRows.map(c => c.siteId))]
     const ownedSites = await db
       .select({ id: sites.id })
       .from(sites)
