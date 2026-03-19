@@ -1,4 +1,5 @@
-import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
+import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { CATEGORY_CONTENT_STYLE_RENDERERS } from "./category-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -70,7 +71,11 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      <>
+      {navigationBlock?.content && (
+        <NavBlock {...navigationBlock.content} site={site} />
+      )}
+      <main className={navigationBlock ? "pt-16" : ""}>
         {sortedBlocks.map((block) => {
           if (block.type === 'navigation' || block.type === 'footer') {
             return null
@@ -91,6 +96,12 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
 
           return null
         })}
-      </SiteLayout>
+      </main>
+      {footerBlock?.content && (
+        <div data-block-type="footer">
+          <FooterBlock {...footerBlock.content} site={site} />
+        </div>
+      )}
+      </>
   )
 }

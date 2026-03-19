@@ -1,4 +1,5 @@
-import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
+import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
 import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
@@ -43,9 +44,11 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlo
   const customWidth = site.settings?.custom_width
 
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
-      
-      {/* Post Header */}
+      <>
+      {navigationBlock?.content && (
+        <NavBlock {...navigationBlock.content} site={site} />
+      )}
+      <main className={navigationBlock ? "pt-16" : ""}>
       <PostContentBlock
         blocks={sortedBlocks}
         post={{
@@ -61,7 +64,12 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlo
         siteWidth={siteWidth}
         customWidth={customWidth}
       />
-      
-      </SiteLayout>
+      </main>
+      {footerBlock?.content && (
+        <div data-block-type="footer">
+          <FooterBlock {...footerBlock.content} site={site} />
+        </div>
+      )}
+      </>
   )
 }

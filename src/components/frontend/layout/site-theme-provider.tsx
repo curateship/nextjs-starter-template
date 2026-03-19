@@ -26,20 +26,10 @@ export function SiteThemeProvider({ children, site, isPreview = false, enableThe
     )
   }
 
-  // If theme toggle is disabled, forcedTheme handles everything — no useEffect needed
+  // If theme toggle is disabled, skip ThemeProvider entirely — theme class is applied
+  // server-side on <html> in layout.tsx, so no client JS needed
   if (!enableThemeToggle) {
-    return (
-      <ThemeProvider
-        attribute="class"
-        defaultTheme={defaultTheme}
-        enableSystem={defaultTheme === 'system'}
-        disableTransitionOnChange
-        storageKey="site-theme"
-        forcedTheme={defaultTheme !== 'system' ? defaultTheme : undefined}
-      >
-        {children}
-      </ThemeProvider>
-    )
+    return <>{children}</>
   }
 
   // For live sites with toggle enabled, use next-themes normally
