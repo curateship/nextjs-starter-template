@@ -3,7 +3,6 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
-import { toCdnUrl } from "@/lib/utils/cdn"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -33,43 +32,7 @@ export default async function SiteHomePage() {
     }
   }
 
-  // Preload LCP image for performance optimization
-  // Priority order: hero image > first listing image
-  let lcpImageUrl = null
-
-  // First, check for hero block image (most common LCP element)
-  const heroBlock = site.blocks?.find(block => block.type === 'hero')
-  if (heroBlock?.content) {
-    const c = heroBlock.content
-    const heroStyle = c.heroStyle || 'default'
-    const raw = c.styleConfig?.[heroStyle]?.heroImage || c.heroImage || null
-    lcpImageUrl = raw ? toCdnUrl(raw) : null
-  }
-
-  // If no hero image, check for first listing-views product image
-  if (!lcpImageUrl) {
-    const listingBlock = site.blocks?.find(block => block.type === 'listing-views')
-    if (listingBlock && site.listingData?.[listingBlock.id]) {
-      const firstProduct = site.listingData[listingBlock.id]?.products?.[0]
-      if (firstProduct?.featured_image) {
-        lcpImageUrl = firstProduct.featured_image
-      }
-    }
-  }
-
-  return (
-    <>
-      {lcpImageUrl && (
-        <link
-          rel="preload"
-          as="image"
-          href={lcpImageUrl}
-          fetchPriority="high"
-        />
-      )}
-      <BlockRenderer site={site} />
-    </>
-  )
+  return <BlockRenderer site={site} />
 }
 
 export async function generateMetadata() {
