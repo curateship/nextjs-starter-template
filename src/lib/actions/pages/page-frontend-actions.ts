@@ -250,7 +250,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       custom_domain: site.customDomain,
       settings: site.settings as Record<string, any>,
       blocks,
-      listingData: Object.keys(listingData).length > 0 ? listingData : undefined
+      listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
     }
 
     return { success: true, site: siteWithBlocks }
@@ -365,7 +365,7 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       custom_domain: site.customDomain,
       settings: site.settings as Record<string, any>,
       blocks,
-      listingData: Object.keys(listingData).length > 0 ? listingData : undefined
+      listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
     }
 
     return { success: true, site: siteWithBlocks }
