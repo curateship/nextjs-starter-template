@@ -56,8 +56,7 @@ export async function getAnalyticsOverview(siteId: string, period: string) {
       bounceRate: Number(data.bounceRate ?? 0),
       avgDuration: Number(data.avgDuration ?? 0),
     } as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
-  } catch (error) {
-    console.error('Failed to get analytics overview:', error)
+  } catch {
     return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
   }
 }
@@ -70,8 +69,7 @@ export async function getTopPages(siteId: string, period: string, limit = 10) {
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { path: string; views: number }[]
-  } catch (error) {
-    console.error('Failed to get top pages:', error)
+  } catch {
     return []
   }
 }
@@ -84,8 +82,7 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { domain: string; visits: number }[]
-  } catch (error) {
-    console.error('Failed to get top referrers:', error)
+  } catch {
     return []
   }
 }
@@ -99,8 +96,7 @@ export async function getTrafficOverTime(siteId: string, period: string) {
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { date: string; views: number; visitors: number }[]
-  } catch (error) {
-    console.error('Failed to get traffic over time:', error)
+  } catch {
     return []
   }
 }
@@ -113,8 +109,7 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { path: string; count: number }[]
-  } catch (error) {
-    console.error('Failed to get user journeys:', error)
+  } catch {
     return []
   }
 }
