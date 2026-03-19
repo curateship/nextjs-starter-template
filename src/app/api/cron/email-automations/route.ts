@@ -101,16 +101,20 @@ export async function GET(request: NextRequest) {
         const unsubToken = generateUnsubscribeToken(siteId, contact.email)
         const unsubUrl = `${baseUrl}/unsubscribe?site=${siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
 
-        const unsubHtml = `
-          <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
-            <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
-          </div>`
+        // Replace {{unsubscribe_url}} placeholder from footer block
+        let html = (step.content || '').replace(/\{\{unsubscribe_url\}\}/g, unsubUrl)
 
-        let html = step.content || ''
-        if (html.includes('</body>')) {
-          html = html.replace('</body>', unsubHtml + '</body>')
-        } else {
-          html = html + unsubHtml
+        // Only append unsubscribe if content doesn't already have one
+        if (!html.includes('/unsubscribe?')) {
+          const unsubHtml = `
+            <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
+              <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
+            </div>`
+          if (html.includes('</body>')) {
+            html = html.replace('</body>', unsubHtml + '</body>')
+          } else {
+            html = html + unsubHtml
+          }
         }
 
         const result = await resend.emails.send({

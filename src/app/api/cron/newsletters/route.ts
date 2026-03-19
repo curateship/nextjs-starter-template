@@ -147,16 +147,20 @@ export async function GET(request: NextRequest) {
             const unsubToken = generateUnsubscribeToken(newsletter.siteId, contact.email)
             const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
 
-            const unsubHtml = `
-              <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
-                <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
-              </div>`
+            // Replace {{unsubscribe_url}} placeholder from footer block
+            let htmlWithUnsub = newsletter.content!.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl)
 
-            let htmlWithUnsub = newsletter.content!
-            if (htmlWithUnsub.includes('</body>')) {
-              htmlWithUnsub = htmlWithUnsub.replace('</body>', unsubHtml + '</body>')
-            } else {
-              htmlWithUnsub = htmlWithUnsub + unsubHtml
+            // Only append unsubscribe if content doesn't already have one
+            if (!htmlWithUnsub.includes('/unsubscribe?')) {
+              const unsubHtml = `
+                <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
+                  <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
+                </div>`
+              if (htmlWithUnsub.includes('</body>')) {
+                htmlWithUnsub = htmlWithUnsub.replace('</body>', unsubHtml + '</body>')
+              } else {
+                htmlWithUnsub = htmlWithUnsub + unsubHtml
+              }
             }
 
             const result = await resend.emails.send({

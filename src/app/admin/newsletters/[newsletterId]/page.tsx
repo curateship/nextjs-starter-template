@@ -10,10 +10,10 @@ import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layou
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/layout/PublishNewsletterModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
-import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { pauseNewsletter, resumeNewsletter, previewNewsletterHtml } from "@/lib/actions/newsletters/newsletter-actions"
 import { SaveAsTemplateModal } from "@/components/admin/newsletter-builder/layout/SaveAsTemplateModal"
 import { useSiteContext } from "@/contexts/site-context"
-import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send, FileText } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send, FileText, Eye } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -176,6 +176,23 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
                 <Smartphone className="h-3.5 w-3.5" />
               </Button>
             </div>
+
+            {/* Preview HTML */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                await builder.handleSave()
+                const { html, error } = await previewNewsletterHtml(newsletterId)
+                if (error || !html) return alert(error || 'No content')
+                const win = window.open('', '_blank')
+                if (win) { win.document.write(html); win.document.close() }
+              }}
+              disabled={builder.isSaving}
+            >
+              <Eye className="w-4 h-4 mr-1" />
+              Preview HTML
+            </Button>
 
             {/* Save as Template */}
             <Button

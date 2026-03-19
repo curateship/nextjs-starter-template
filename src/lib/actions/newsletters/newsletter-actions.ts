@@ -511,11 +511,14 @@ export async function sendTestNewsletter(
     const resend = new Resend(config.apiKey)
     const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
+    // Replace unsubscribe placeholder with a # link for test emails
+    const testHtml = html.replace(/\{\{unsubscribe_url\}\}/g, '#unsubscribe-preview')
+
     const result = await resend.emails.send({
       from,
       to: testEmail,
       subject: `[TEST] ${newsletter.subject}`,
-      html,
+      html: testHtml,
     })
 
     if (result.error) {
@@ -526,6 +529,44 @@ export async function sendTestNewsletter(
   } catch (err) {
     console.error('sendTestNewsletter error:', err)
     return { success: false, error: 'Server error' }
+  }
+}
+
+export async function previewNewsletterHtml(
+  newsletterId: string
+): Promise<{ html: string | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(newsletterId)) return { html: null, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { html: null, error: 'Not authenticated' }
+
+    const [nlRow] = await db
+      .select()
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
+
+    if (!nlRow) return { html: null, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(nlRow.siteId, user.id)) {
+      return { html: null, error: 'Access denied' }
+    }
+
+    const newsletter = rowToNewsletter(nlRow)
+    const contentBlocks = newsletter.content_blocks || {}
+    const blockEntries = Object.values(contentBlocks).filter((b: any) => b.id && b.type)
+    const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+
+    const maxWidth = newsletter.metadata?.maxWidth || 600
+    const html = sortedBlocks.length > 0 ? generateEmailHtml(sortedBlocks, maxWidth) : newsletter.content
+    if (!html?.trim()) {
+      return { html: null, error: 'Newsletter has no content. Add some blocks and save first.' }
+    }
+
+    // Replace unsubscribe placeholder with preview link
+    return { html: html.replace(/\{\{unsubscribe_url\}\}/g, '#unsubscribe-preview'), error: null }
+  } catch {
+    return { html: null, error: 'Server error' }
   }
 }
 
