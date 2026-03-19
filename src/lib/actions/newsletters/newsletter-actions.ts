@@ -511,8 +511,11 @@ export async function sendTestNewsletter(
     const resend = new Resend(config.apiKey)
     const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
-    // Replace unsubscribe placeholder with a # link for test emails
-    const testHtml = html.replace(/\{\{unsubscribe_url\}\}/g, '#unsubscribe-preview')
+    // Build a real unsubscribe URL so link domain matches sending domain (avoids spam filters)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
+    const unsubToken = generateUnsubscribeToken(newsletter.site_id, testEmail)
+    const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(testEmail)}&token=${unsubToken}`
+    const testHtml = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl)
 
     const result = await resend.emails.send({
       from,
@@ -563,8 +566,12 @@ export async function previewNewsletterHtml(
       return { html: null, error: 'Newsletter has no content. Add some blocks and save first.' }
     }
 
-    // Replace unsubscribe placeholder with preview link
-    return { html: html.replace(/\{\{unsubscribe_url\}\}/g, '#unsubscribe-preview'), error: null }
+    // Build a real unsubscribe URL so link domain matches sending domain (avoids spam filters)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
+    const previewEmail = user.email
+    const unsubToken = generateUnsubscribeToken(newsletter.siteId, previewEmail)
+    const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(previewEmail)}&token=${unsubToken}`
+    return { html: html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl), error: null }
   } catch {
     return { html: null, error: 'Server error' }
   }
