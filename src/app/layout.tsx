@@ -5,7 +5,6 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
-import { SiteThemeProvider } from "@/components/frontend/layout/site-theme-provider";
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -80,12 +79,10 @@ export default async function RootLayout({
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >
-        <SiteThemeProvider site={site} enableThemeToggle={themeToggleEnabled}>
-          <HeaderScripts scripts={site?.settings?.tracking_scripts} />
-          {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
-          {children}
-          <DeferredScripts />
-        </SiteThemeProvider>
+        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
+        {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
+        {children}
+        <DeferredScripts />
       </body>
     </html>
   );

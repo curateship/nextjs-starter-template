@@ -1,5 +1,4 @@
-import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
-import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
+import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -74,12 +73,10 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
   const customWidth = site.settings?.custom_width;
 
   return (
-      <>
-      {navigationBlock?.content && (
-        <NavBlock {...navigationBlock.content} site={site} />
-      )}
-      <main className={navigationBlock ? "pt-16" : ""}>
+      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+        {/* Directory Blocks */}
         {sortedBlocks.map((block) => {
+          // Skip navigation and footer blocks as they're handled by SiteLayout
           if (block.type === 'navigation' || block.type === 'footer') {
             return null
           }
@@ -99,12 +96,6 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
 
           return null
         })}
-      </main>
-      {footerBlock?.content && (
-        <div data-block-type="footer">
-          <FooterBlock {...footerBlock.content} site={site} />
-        </div>
-      )}
-      </>
+      </SiteLayout>
   )
 }

@@ -10,8 +10,7 @@ import { ProductFAQBlock } from "@/components/frontend/products/faq/ProductFAQBl
 import { ProductListingViewBlock } from "@/components/frontend/products/listing-view/ProductListingViewBlock"
 import { ProductRichTextBlock } from "@/components/frontend/products/rich-text/ProductRichTextBlock"
 import { ProductVideoBlock } from "@/components/frontend/products/video/ProductVideoBlock"
-import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
-import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
+import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 
@@ -37,12 +36,10 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const customWidth = site.settings?.custom_width;
   
   return (
-      <>
-      {navigationBlock?.content && (
-        <NavBlock {...navigationBlock.content} site={site} />
-      )}
-      <main className={navigationBlock ? "pt-16" : ""}>
+      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      
       {sortedBlocks.map((block) => {
+        // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {
           return null
         }
@@ -224,12 +221,6 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
 
         return null
       })}
-      </main>
-      {footerBlock?.content && (
-        <div data-block-type="footer">
-          <FooterBlock {...footerBlock.content} site={site} />
-        </div>
-      )}
-      </>
+      </SiteLayout>
   )
 }

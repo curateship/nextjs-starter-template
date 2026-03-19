@@ -1,5 +1,3 @@
-"use client"
-
 import Link from 'next/link'
 import { Globe } from 'lucide-react'
 import { isSafeUrl } from '@/lib/utils/url-validator'

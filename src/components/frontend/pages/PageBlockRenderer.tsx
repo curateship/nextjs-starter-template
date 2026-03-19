@@ -1,8 +1,7 @@
 import { Suspense } from "react"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
-import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
-import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
+import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { RichTextBlock } from "@/components/frontend/pages/rich-text/PageRichTextBlock"
 import { ListingViewsBlock } from "@/components/frontend/pages/listing-view/PageListingViewBlock"
 import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlock"
@@ -42,12 +41,13 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   const customWidth = site.settings?.custom_width;
 
   return (
-      <>
-      {navigationBlock?.content && (
-        <NavBlock {...navigationBlock.content} site={site} />
-      )}
-      <main className={navigationBlock ? "pt-16" : ""}>
+      <SiteLayout
+        navigation={navigationBlock?.content}
+        footer={footerBlock?.content}
+        site={site}
+      >
       {sortedBlocks.map((block) => {
+        // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {
           return null
         }
@@ -171,12 +171,6 @@ export function BlockRenderer({ site }: BlockRendererProps) {
 
         return null
       })}
-      </main>
-      {footerBlock?.content && (
-        <div data-block-type="footer">
-          <FooterBlock {...footerBlock.content} site={site} />
-        </div>
-      )}
-      </>
+      </SiteLayout>
   )
 }
