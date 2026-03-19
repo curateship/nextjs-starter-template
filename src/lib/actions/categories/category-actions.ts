@@ -4,7 +4,7 @@ import { eq, and, desc, ne, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 import { db } from '@/lib/db'
-import { taxonomies, contentTaxonomyRelationships, sites } from '@/lib/db/schema'
+import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Category {
@@ -86,15 +86,15 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
     const [categories, countResult] = await Promise.all([
       db
         .select()
-        .from(taxonomies)
-        .where(eq(taxonomies.siteId, siteId))
-        .orderBy(desc(taxonomies.displayOrder))
+        .from(categories)
+        .where(eq(categories.siteId, siteId))
+        .orderBy(desc(categories.displayOrder))
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)` })
-        .from(taxonomies)
-        .where(eq(taxonomies.siteId, siteId)),
+        .from(categories)
+        .where(eq(categories.siteId, siteId)),
     ])
 
     const total = Number(countResult[0]?.count ?? 0)
@@ -137,26 +137,29 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
     const [categoriesResult, countResult] = await Promise.all([
       db
         .select({
-          id: taxonomies.id,
-          title: taxonomies.title,
-          slug: taxonomies.slug,
-          parentId: taxonomies.parentId,
-          featuredImage: taxonomies.featuredImage,
-          description: taxonomies.description,
-          isPublished: taxonomies.isPublished,
-          displayOrder: taxonomies.displayOrder,
-          createdAt: taxonomies.createdAt,
-          updatedAt: taxonomies.updatedAt,
+          id: categories.id,
+          site_id: categories.siteId,
+          title: categories.title,
+          slug: categories.slug,
+          parent_id: categories.parentId,
+          featured_image: categories.featuredImage,
+          description: categories.description,
+          meta_description: categories.metaDescription,
+          content_blocks: categories.contentBlocks,
+          is_published: categories.isPublished,
+          display_order: categories.displayOrder,
+          created_at: categories.createdAt,
+          updated_at: categories.updatedAt,
         })
-        .from(taxonomies)
-        .where(eq(taxonomies.siteId, siteId))
-        .orderBy(desc(taxonomies.displayOrder))
+        .from(categories)
+        .where(eq(categories.siteId, siteId))
+        .orderBy(desc(categories.displayOrder))
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)` })
-        .from(taxonomies)
-        .where(eq(taxonomies.siteId, siteId)),
+        .from(categories)
+        .where(eq(categories.siteId, siteId)),
     ])
 
     const total = Number(countResult[0]?.count ?? 0)
@@ -166,12 +169,12 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
     const categoryIds = categoriesResult.map(c => c.id)
     if (categoryIds.length > 0) {
       const relationships = await db
-        .select({ taxonomyId: contentTaxonomyRelationships.taxonomyId })
-        .from(contentTaxonomyRelationships)
-        .where(inArray(contentTaxonomyRelationships.taxonomyId, categoryIds))
+        .select({ categoryId: contentCategoryRelationships.categoryId })
+        .from(contentCategoryRelationships)
+        .where(inArray(contentCategoryRelationships.categoryId, categoryIds))
 
       for (const rel of relationships) {
-        counts[rel.taxonomyId] = (counts[rel.taxonomyId] || 0) + 1
+        counts[rel.categoryId] = (counts[rel.categoryId] || 0) + 1
       }
     }
 
@@ -217,8 +220,8 @@ export async function createCategoryAction(
     const slug = data.slug || generateSlug(data.title)
 
     // Check if slug already exists for this site
-    const existingCategory = await db.query.taxonomies.findFirst({
-      where: and(eq(taxonomies.siteId, siteId), eq(taxonomies.slug, slug)),
+    const existingCategory = await db.query.categories.findFirst({
+      where: and(eq(categories.siteId, siteId), eq(categories.slug, slug)),
       columns: { id: true },
     })
 
@@ -228,8 +231,8 @@ export async function createCategoryAction(
 
     // If parent_id is provided, verify it exists and belongs to the same site
     if (data.parent_id) {
-      const parentCategory = await db.query.taxonomies.findFirst({
-        where: and(eq(taxonomies.id, data.parent_id), eq(taxonomies.siteId, siteId)),
+      const parentCategory = await db.query.categories.findFirst({
+        where: and(eq(categories.id, data.parent_id), eq(categories.siteId, siteId)),
         columns: { id: true },
       })
 
@@ -240,17 +243,17 @@ export async function createCategoryAction(
 
     // Get the highest display_order
     const maxOrderResult = await db
-      .select({ displayOrder: taxonomies.displayOrder })
-      .from(taxonomies)
-      .where(eq(taxonomies.siteId, siteId))
-      .orderBy(desc(taxonomies.displayOrder))
+      .select({ displayOrder: categories.displayOrder })
+      .from(categories)
+      .where(eq(categories.siteId, siteId))
+      .orderBy(desc(categories.displayOrder))
       .limit(1)
 
     const nextDisplayOrder = maxOrderResult.length > 0 ? maxOrderResult[0].displayOrder + 1 : 0
 
     // Create the category
     const [newCategory] = await db
-      .insert(taxonomies)
+      .insert(categories)
       .values({
         siteId,
         title: data.title,
@@ -296,8 +299,8 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
     }
 
     // Fetch category
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
     })
 
     if (!category) {
@@ -328,11 +331,11 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       }
 
       if (slug !== category.slug) {
-        const existingCategory = await db.query.taxonomies.findFirst({
+        const existingCategory = await db.query.categories.findFirst({
           where: and(
-            eq(taxonomies.siteId, category.siteId),
-            eq(taxonomies.slug, slug),
-            ne(taxonomies.id, categoryId)
+            eq(categories.siteId, category.siteId),
+            eq(categories.slug, slug),
+            ne(categories.id, categoryId)
           ),
           columns: { id: true },
         })
@@ -350,8 +353,8 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       }
 
       if (data.parent_id) {
-        const parentCategory = await db.query.taxonomies.findFirst({
-          where: and(eq(taxonomies.id, data.parent_id), eq(taxonomies.siteId, category.siteId)),
+        const parentCategory = await db.query.categories.findFirst({
+          where: and(eq(categories.id, data.parent_id), eq(categories.siteId, category.siteId)),
           columns: { id: true, parentId: true },
         })
 
@@ -397,9 +400,9 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
     finalUpdates.updatedAt = new Date()
 
     const [updatedCategory] = await db
-      .update(taxonomies)
+      .update(categories)
       .set(finalUpdates)
-      .where(eq(taxonomies.id, categoryId))
+      .where(eq(categories.id, categoryId))
       .returning()
 
     if (!updatedCategory) {
@@ -434,8 +437,8 @@ export async function deleteCategoryAction(categoryId: string) {
     }
 
     // Fetch category
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
     })
 
     if (!category) {
@@ -459,9 +462,9 @@ export async function deleteCategoryAction(categoryId: string) {
     while (queue.length > 0) {
       const parentId = queue.shift()!
       const children = await db
-        .select({ id: taxonomies.id })
-        .from(taxonomies)
-        .where(eq(taxonomies.parentId, parentId))
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.parentId, parentId))
 
       for (const child of children) {
         allIdsToDelete.push(child.id)
@@ -471,13 +474,13 @@ export async function deleteCategoryAction(categoryId: string) {
 
     // Delete all content relationships for these categories
     await db
-      .delete(contentTaxonomyRelationships)
-      .where(inArray(contentTaxonomyRelationships.taxonomyId, allIdsToDelete))
+      .delete(contentCategoryRelationships)
+      .where(inArray(contentCategoryRelationships.categoryId, allIdsToDelete))
 
     // Delete all categories (children first, then parent)
     await db
-      .delete(taxonomies)
-      .where(inArray(taxonomies.id, allIdsToDelete))
+      .delete(categories)
+      .where(inArray(categories.id, allIdsToDelete))
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)
@@ -513,9 +516,9 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 
     // Fetch all selected categories and verify ownership
     const categories = await db
-      .select({ id: taxonomies.id, siteId: taxonomies.siteId })
-      .from(taxonomies)
-      .where(inArray(taxonomies.id, categoryIds))
+      .select({ id: categories.id, siteId: categories.siteId })
+      .from(categories)
+      .where(inArray(categories.id, categoryIds))
 
     if (!categories.length) {
       return { success: false, error: 'Categories not found' }
@@ -538,9 +541,9 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
     while (queue.length > 0) {
       const parentId = queue.shift()!
       const children = await db
-        .select({ id: taxonomies.id })
-        .from(taxonomies)
-        .where(eq(taxonomies.parentId, parentId))
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.parentId, parentId))
 
       for (const child of children) {
         if (!allIdsToDelete.has(child.id)) {
@@ -554,13 +557,13 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 
     // Delete all content relationships
     await db
-      .delete(contentTaxonomyRelationships)
-      .where(inArray(contentTaxonomyRelationships.taxonomyId, idsArray))
+      .delete(contentCategoryRelationships)
+      .where(inArray(contentCategoryRelationships.categoryId, idsArray))
 
     // Delete all categories
     await db
-      .delete(taxonomies)
-      .where(inArray(taxonomies.id, idsArray))
+      .delete(categories)
+      .where(inArray(categories.id, idsArray))
 
     revalidateTag('categories')
 
@@ -590,8 +593,8 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
     }
 
     // Fetch category
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
     })
 
     if (!category) {
@@ -609,12 +612,12 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
     }
 
     await db
-      .update(taxonomies)
+      .update(categories)
       .set({
         contentBlocks,
         updatedAt: new Date(),
       })
-      .where(eq(taxonomies.id, categoryId))
+      .where(eq(categories.id, categoryId))
 
     revalidateTag('categories')
     revalidateTag(`category-${categoryId}`)

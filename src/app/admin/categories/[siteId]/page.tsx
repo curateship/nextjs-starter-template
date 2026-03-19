@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -58,7 +58,12 @@ export default function CategoriesPage({
   }, [currentSite, siteId, router])
 
   // Load categories and assignment counts in a single server action
+  const loadedRef = useRef<string | null>(null)
   useEffect(() => {
+    const key = `${siteId}-${currentPage}`
+    if (loadedRef.current === key) return
+    loadedRef.current = key
+
     async function loadData() {
       try {
         setLoading(true)

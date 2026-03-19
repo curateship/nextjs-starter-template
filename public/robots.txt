@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /login
+Disallow: /maintenance
+Disallow: /user-dashboard
+
+Sitemap: https://systemeverything.com/sitemap.xml

@@ -5,7 +5,7 @@ import { eq, and, desc, asc, sql, inArray, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { directories } from '@/lib/db/schema/directories'
 import { sites } from '@/lib/db/schema/sites'
-import { contentTaxonomyRelationships, taxonomies } from '@/lib/db/schema/categories'
+import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 
@@ -149,25 +149,25 @@ export async function getSiteDirectoriesWithCategoriesAction(
 
     const dirs = rows.map(toDirectory)
 
-    let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
+    let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (dirs.length > 0) {
       const dirIds = dirs.map(d => d.id)
 
-      // Query relationships joined with taxonomies (replaces category_relationships + categories join)
+      // Query relationships joined with categories (replaces category_relationships + categories join)
       const rels = await db.select({
-        contentId: contentTaxonomyRelationships.contentId,
-        taxonomyId: contentTaxonomyRelationships.taxonomyId,
-        catId: taxonomies.id,
-        catTitle: taxonomies.title,
-        catSlug: taxonomies.slug,
-        catParentId: taxonomies.parentId,
+        contentId: contentCategoryRelationships.contentId,
+        categoryId: contentCategoryRelationships.categoryId,
+        catId: categories.id,
+        catTitle: categories.title,
+        catSlug: categories.slug,
+        catParentId: categories.parentId,
       })
-        .from(contentTaxonomyRelationships)
-        .innerJoin(taxonomies, eq(contentTaxonomyRelationships.taxonomyId, taxonomies.id))
+        .from(contentCategoryRelationships)
+        .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
         .where(
           and(
-            inArray(contentTaxonomyRelationships.contentId, dirIds),
-            eq(contentTaxonomyRelationships.contentType, 'directory')
+            inArray(contentCategoryRelationships.contentId, dirIds),
+            eq(contentCategoryRelationships.contentType, 'directory')
           )
         )
 
@@ -178,15 +178,15 @@ export async function getSiteDirectoriesWithCategoriesAction(
         }
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
-          const parents = await db.select({ id: taxonomies.id, title: taxonomies.title })
-            .from(taxonomies)
-            .where(inArray(taxonomies.id, Array.from(parentIds)))
+          const parents = await db.select({ id: categories.id, title: categories.title })
+            .from(categories)
+            .where(inArray(categories.id, Array.from(parentIds)))
           parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
         for (const rel of rels) {
           const cid = rel.contentId
-          if (!categories[cid]) categories[cid] = []
-          categories[cid].push({
+          if (!categoryMap[cid]) categoryMap[cid] = []
+          categoryMap[cid].push({
             id: rel.catId,
             title: rel.catTitle,
             slug: rel.catSlug,
@@ -197,7 +197,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
       }
     }
 
-    return { data: dirs, categories, total: count ?? 0, error: null }
+    return { data: dirs, categories: categoryMap, total: count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch directories' }
   }

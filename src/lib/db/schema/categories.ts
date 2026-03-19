@@ -2,7 +2,7 @@ import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqu
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
 
-export const taxonomies = pgTable('categories', {
+export const categories = pgTable('categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 255 }).notNull(),
@@ -21,25 +21,25 @@ export const taxonomies = pgTable('categories', {
   index('idx_categories_parent_id').on(table.parentId),
 ])
 
-export const contentTaxonomyRelationships = pgTable('content_category_relationships', {
+export const contentCategoryRelationships = pgTable('content_category_relationships', {
   id: uuid('id').defaultRandom().primaryKey(),
   contentId: uuid('content_id').notNull(),
   contentType: varchar('content_type', { length: 50 }).notNull(),
-  taxonomyId: uuid('category_id').notNull().references(() => taxonomies.id, { onDelete: 'cascade' }),
+  categoryId: uuid('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex('idx_ccr_unique').on(table.contentId, table.taxonomyId, table.contentType),
+  uniqueIndex('idx_ccr_unique').on(table.contentId, table.categoryId, table.contentType),
   index('idx_ccr_content').on(table.contentId, table.contentType),
-  index('idx_ccr_category_id').on(table.taxonomyId),
+  index('idx_ccr_category_id').on(table.categoryId),
 ])
 
-export const taxonomiesRelations = relations(taxonomies, ({ one }) => ({
+export const categoriesRelations = relations(categories, ({ one }) => ({
   site: one(sites, {
-    fields: [taxonomies.siteId],
+    fields: [categories.siteId],
     references: [sites.id],
   }),
-  parent: one(taxonomies, {
-    fields: [taxonomies.parentId],
-    references: [taxonomies.id],
+  parent: one(categories, {
+    fields: [categories.parentId],
+    references: [categories.id],
   }),
 }))

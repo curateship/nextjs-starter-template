@@ -3,7 +3,7 @@
 import { eq, and, inArray, desc } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { taxonomies, contentTaxonomyRelationships, sites, posts, products, pages, events, directories } from '@/lib/db/schema'
+import { categories, contentCategoryRelationships, sites, posts, products, pages, events, directories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export type ContentType = 'directory' | 'product' | 'post' | 'event' | 'page'
@@ -39,8 +39,8 @@ export async function assignCategoryToContentAction(
     }
 
     // Fetch category and verify ownership
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
       columns: { id: true, siteId: true },
     })
 
@@ -78,11 +78,11 @@ export async function assignCategoryToContentAction(
     }
 
     // Check if relationship already exists
-    const existingRelationship = await db.query.contentTaxonomyRelationships.findFirst({
+    const existingRelationship = await db.query.contentCategoryRelationships.findFirst({
       where: and(
-        eq(contentTaxonomyRelationships.contentId, contentId),
-        eq(contentTaxonomyRelationships.taxonomyId, categoryId),
-        eq(contentTaxonomyRelationships.contentType, contentType)
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.categoryId, categoryId),
+        eq(contentCategoryRelationships.contentType, contentType)
       ),
       columns: { id: true },
     })
@@ -92,11 +92,11 @@ export async function assignCategoryToContentAction(
     }
 
     await db
-      .insert(contentTaxonomyRelationships)
+      .insert(contentCategoryRelationships)
       .values({
         contentId,
         contentType,
-        taxonomyId: categoryId,
+        categoryId: categoryId,
       })
 
     revalidateTag('content-categories')
@@ -125,8 +125,8 @@ export async function removeCategoryFromContentAction(
     }
 
     // Fetch category and verify ownership
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
       columns: { id: true, siteId: true },
     })
 
@@ -144,11 +144,11 @@ export async function removeCategoryFromContentAction(
     }
 
     await db
-      .delete(contentTaxonomyRelationships)
+      .delete(contentCategoryRelationships)
       .where(and(
-        eq(contentTaxonomyRelationships.contentId, contentId),
-        eq(contentTaxonomyRelationships.taxonomyId, categoryId),
-        eq(contentTaxonomyRelationships.contentType, contentType)
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.categoryId, categoryId),
+        eq(contentCategoryRelationships.contentType, contentType)
       ))
 
     revalidateTag('content-categories')
@@ -175,13 +175,13 @@ export async function getContentCategoriesAction(contentId: string, contentType:
     // Get relationships for this content
     const relationships = await db
       .select({
-        id: contentTaxonomyRelationships.id,
-        taxonomyId: contentTaxonomyRelationships.taxonomyId,
+        id: contentCategoryRelationships.id,
+        categoryId: contentCategoryRelationships.categoryId,
       })
-      .from(contentTaxonomyRelationships)
+      .from(contentCategoryRelationships)
       .where(and(
-        eq(contentTaxonomyRelationships.contentId, contentId),
-        eq(contentTaxonomyRelationships.contentType, contentType)
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.contentType, contentType)
       ))
 
     if (relationships.length === 0) {
@@ -189,25 +189,25 @@ export async function getContentCategoriesAction(contentId: string, contentType:
     }
 
     // Fetch the category details
-    const categoryIds = relationships.map(r => r.taxonomyId)
+    const categoryIds = relationships.map(r => r.categoryId)
     const categoryRows = await db
       .select({
-        id: taxonomies.id,
-        title: taxonomies.title,
-        slug: taxonomies.slug,
-        parentId: taxonomies.parentId,
+        id: categories.id,
+        title: categories.title,
+        slug: categories.slug,
+        parentId: categories.parentId,
       })
-      .from(taxonomies)
-      .where(inArray(taxonomies.id, categoryIds))
+      .from(categories)
+      .where(inArray(categories.id, categoryIds))
 
     // Collect parent IDs and fetch parent titles
     const parentIds = categoryRows.filter(c => c.parentId).map(c => c.parentId!)
     let parentTitles: Record<string, string> = {}
     if (parentIds.length > 0) {
       const parentRows = await db
-        .select({ id: taxonomies.id, title: taxonomies.title })
-        .from(taxonomies)
-        .where(inArray(taxonomies.id, parentIds))
+        .select({ id: categories.id, title: categories.title })
+        .from(categories)
+        .where(inArray(categories.id, parentIds))
 
       parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
     }
@@ -245,13 +245,13 @@ export async function getBulkContentCategoriesAction(
     // Get all relationships for these content items
     const relationships = await db
       .select({
-        contentId: contentTaxonomyRelationships.contentId,
-        taxonomyId: contentTaxonomyRelationships.taxonomyId,
+        contentId: contentCategoryRelationships.contentId,
+        categoryId: contentCategoryRelationships.categoryId,
       })
-      .from(contentTaxonomyRelationships)
+      .from(contentCategoryRelationships)
       .where(and(
-        inArray(contentTaxonomyRelationships.contentId, contentIds),
-        eq(contentTaxonomyRelationships.contentType, contentType)
+        inArray(contentCategoryRelationships.contentId, contentIds),
+        eq(contentCategoryRelationships.contentType, contentType)
       ))
 
     if (relationships.length === 0) {
@@ -259,16 +259,16 @@ export async function getBulkContentCategoriesAction(
     }
 
     // Fetch category details
-    const categoryIds = [...new Set(relationships.map(r => r.taxonomyId))]
+    const categoryIds = [...new Set(relationships.map(r => r.categoryId))]
     const categoryRows = await db
       .select({
-        id: taxonomies.id,
-        title: taxonomies.title,
-        slug: taxonomies.slug,
-        parentId: taxonomies.parentId,
+        id: categories.id,
+        title: categories.title,
+        slug: categories.slug,
+        parentId: categories.parentId,
       })
-      .from(taxonomies)
-      .where(inArray(taxonomies.id, categoryIds))
+      .from(categories)
+      .where(inArray(categories.id, categoryIds))
 
     const categoryMap = Object.fromEntries(categoryRows.map(c => [c.id, c]))
 
@@ -281,9 +281,9 @@ export async function getBulkContentCategoriesAction(
     let parentTitles: Record<string, string> = {}
     if (parentIds.size > 0) {
       const parentRows = await db
-        .select({ id: taxonomies.id, title: taxonomies.title })
-        .from(taxonomies)
-        .where(inArray(taxonomies.id, Array.from(parentIds)))
+        .select({ id: categories.id, title: categories.title })
+        .from(categories)
+        .where(inArray(categories.id, Array.from(parentIds)))
 
       parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
     }
@@ -291,7 +291,7 @@ export async function getBulkContentCategoriesAction(
     // Group by content_id
     const result: Record<string, CategoryInfo[]> = {}
     for (const rel of relationships) {
-      const cat = categoryMap[rel.taxonomyId]
+      const cat = categoryMap[rel.categoryId]
       if (!cat) continue
 
       if (!result[rel.contentId]) result[rel.contentId] = []
@@ -326,8 +326,8 @@ export async function getCategoryContentAction(
     }
 
     // Fetch category and verify ownership
-    const category = await db.query.taxonomies.findFirst({
-      where: eq(taxonomies.id, categoryId),
+    const category = await db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
       columns: { id: true, siteId: true },
     })
 
@@ -344,20 +344,20 @@ export async function getCategoryContentAction(
       return { data: null, error: 'Unauthorized' }
     }
 
-    const conditions = [eq(contentTaxonomyRelationships.taxonomyId, categoryId)]
+    const conditions = [eq(contentCategoryRelationships.categoryId, categoryId)]
     if (contentType) {
-      conditions.push(eq(contentTaxonomyRelationships.contentType, contentType))
+      conditions.push(eq(contentCategoryRelationships.contentType, contentType))
     }
 
     let query = db
       .select({
-        contentId: contentTaxonomyRelationships.contentId,
-        contentType: contentTaxonomyRelationships.contentType,
-        createdAt: contentTaxonomyRelationships.createdAt,
+        contentId: contentCategoryRelationships.contentId,
+        contentType: contentCategoryRelationships.contentType,
+        createdAt: contentCategoryRelationships.createdAt,
       })
-      .from(contentTaxonomyRelationships)
+      .from(contentCategoryRelationships)
       .where(and(...conditions))
-      .orderBy(desc(contentTaxonomyRelationships.createdAt))
+      .orderBy(desc(contentCategoryRelationships.createdAt))
       .$dynamic()
 
     if (limit) {
@@ -389,9 +389,9 @@ export async function bulkAssignCategoriesToContentAction(
 
     // Fetch all categories and verify ownership
     const categoryRows = await db
-      .select({ id: taxonomies.id, siteId: taxonomies.siteId })
-      .from(taxonomies)
-      .where(inArray(taxonomies.id, categoryIds))
+      .select({ id: categories.id, siteId: categories.siteId })
+      .from(categories)
+      .where(inArray(categories.id, categoryIds))
 
     if (!categoryRows.length || categoryRows.length !== categoryIds.length) {
       return { success: false, error: 'One or more categories not found' }
@@ -436,10 +436,10 @@ export async function bulkAssignCategoriesToContentAction(
 
     // Remove existing relationships
     await db
-      .delete(contentTaxonomyRelationships)
+      .delete(contentCategoryRelationships)
       .where(and(
-        eq(contentTaxonomyRelationships.contentId, contentId),
-        eq(contentTaxonomyRelationships.contentType, contentType)
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.contentType, contentType)
       ))
 
     // Insert new relationships
@@ -447,10 +447,10 @@ export async function bulkAssignCategoriesToContentAction(
       const newRelationships = categoryIds.map(catId => ({
         contentId,
         contentType,
-        taxonomyId: catId,
+        categoryId: catId,
       }))
 
-      await db.insert(contentTaxonomyRelationships).values(newRelationships)
+      await db.insert(contentCategoryRelationships).values(newRelationships)
     }
 
     revalidateTag('content-categories')

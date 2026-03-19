@@ -3,7 +3,7 @@
 import { eq, and, ne, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { events, sites, contentTaxonomyRelationships, taxonomies } from '@/lib/db/schema'
+import { events, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 
@@ -119,26 +119,26 @@ export async function getSiteEventsWithCategoriesAction(
 
     const evts = result as unknown as Event[]
 
-    let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
+    let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (evts.length > 0) {
       const eventIds = evts.map(e => e.id)
 
-      // Get category relationships with taxonomy data
+      // Get category relationships with category data
       const rels = await db
         .select({
-          contentId: contentTaxonomyRelationships.contentId,
-          taxonomyId: contentTaxonomyRelationships.taxonomyId,
-          catId: taxonomies.id,
-          catTitle: taxonomies.title,
-          catSlug: taxonomies.slug,
-          catParentId: taxonomies.parentId,
+          contentId: contentCategoryRelationships.contentId,
+          categoryId: contentCategoryRelationships.categoryId,
+          catId: categories.id,
+          catTitle: categories.title,
+          catSlug: categories.slug,
+          catParentId: categories.parentId,
         })
-        .from(contentTaxonomyRelationships)
-        .innerJoin(taxonomies, eq(contentTaxonomyRelationships.taxonomyId, taxonomies.id))
+        .from(contentCategoryRelationships)
+        .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
         .where(
           and(
-            inArray(contentTaxonomyRelationships.contentId, eventIds),
-            eq(contentTaxonomyRelationships.contentType, 'event')
+            inArray(contentCategoryRelationships.contentId, eventIds),
+            eq(contentCategoryRelationships.contentType, 'event')
           )
         )
 
@@ -151,17 +151,17 @@ export async function getSiteEventsWithCategoriesAction(
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
           const parents = await db
-            .select({ id: taxonomies.id, title: taxonomies.title })
-            .from(taxonomies)
-            .where(inArray(taxonomies.id, Array.from(parentIds)))
+            .select({ id: categories.id, title: categories.title })
+            .from(categories)
+            .where(inArray(categories.id, Array.from(parentIds)))
 
           parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
 
         for (const rel of rels) {
           const cid = rel.contentId
-          if (!categories[cid]) categories[cid] = []
-          categories[cid].push({
+          if (!categoryMap[cid]) categoryMap[cid] = []
+          categoryMap[cid].push({
             id: rel.catId,
             title: rel.catTitle,
             slug: rel.catSlug,
@@ -172,7 +172,7 @@ export async function getSiteEventsWithCategoriesAction(
       }
     }
 
-    return { data: evts, categories, total: countResult[0]?.count ?? 0, error: null }
+    return { data: evts, categories: categoryMap, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch events' }
   }

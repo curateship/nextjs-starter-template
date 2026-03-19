@@ -3,7 +3,7 @@
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { products, sites, taxonomies, contentTaxonomyRelationships } from '@/lib/db/schema'
+import { products, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 
@@ -204,23 +204,23 @@ export async function getSiteProductsWithCategoriesAction(
     }))
 
     // Fetch categories via Drizzle
-    let categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
+    let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (productRows.length > 0) {
       const productIds = productRows.map(p => p.id)
       const rels = await db
         .select({
-          content_id: contentTaxonomyRelationships.contentId,
-          category_id: contentTaxonomyRelationships.taxonomyId,
-          cat_id: taxonomies.id,
-          cat_title: taxonomies.title,
-          cat_slug: taxonomies.slug,
-          cat_parent_id: taxonomies.parentId,
+          content_id: contentCategoryRelationships.contentId,
+          category_id: contentCategoryRelationships.categoryId,
+          cat_id: categories.id,
+          cat_title: categories.title,
+          cat_slug: categories.slug,
+          cat_parent_id: categories.parentId,
         })
-        .from(contentTaxonomyRelationships)
-        .innerJoin(taxonomies, eq(taxonomies.id, contentTaxonomyRelationships.taxonomyId))
+        .from(contentCategoryRelationships)
+        .innerJoin(categories, eq(categories.id, contentCategoryRelationships.categoryId))
         .where(and(
-          inArray(contentTaxonomyRelationships.contentId, productIds),
-          eq(contentTaxonomyRelationships.contentType, 'product')
+          inArray(contentCategoryRelationships.contentId, productIds),
+          eq(contentCategoryRelationships.contentType, 'product')
         ))
 
       if (rels.length > 0) {
@@ -231,15 +231,15 @@ export async function getSiteProductsWithCategoriesAction(
         let parentTitles: Record<string, string> = {}
         if (parentIds.size > 0) {
           const parents = await db
-            .select({ id: taxonomies.id, title: taxonomies.title })
-            .from(taxonomies)
-            .where(inArray(taxonomies.id, Array.from(parentIds)))
+            .select({ id: categories.id, title: categories.title })
+            .from(categories)
+            .where(inArray(categories.id, Array.from(parentIds)))
           parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
         for (const rel of rels) {
           const cid = rel.content_id
-          if (!categories[cid]) categories[cid] = []
-          categories[cid].push({
+          if (!categoryMap[cid]) categoryMap[cid] = []
+          categoryMap[cid].push({
             id: rel.cat_id,
             title: rel.cat_title,
             slug: rel.cat_slug,
@@ -250,7 +250,7 @@ export async function getSiteProductsWithCategoriesAction(
       }
     }
 
-    return { data: productRows, categories, total: countResult?.count ?? 0, error: null }
+    return { data: productRows, categories: categoryMap, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }

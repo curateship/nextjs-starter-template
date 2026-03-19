@@ -1,7 +1,7 @@
 import { CategoryBlockRenderer } from "@/components/frontend/categories/CategoryBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { db } from "@/lib/db"
-import { taxonomies } from "@/lib/db/schema"
+import { categories } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/category-block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
@@ -22,15 +22,15 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     notFound()
   }
 
-  // Direct query to taxonomies table
+  // Direct query to categories table
   const [category] = await db
     .select()
-    .from(taxonomies)
+    .from(categories)
     .where(
       and(
-        eq(taxonomies.siteId, site.id),
-        eq(taxonomies.slug, slug),
-        eq(taxonomies.isPublished, true)
+        eq(categories.siteId, site.id),
+        eq(categories.slug, slug),
+        eq(categories.isPublished, true)
       )
     )
     .limit(1)
@@ -74,12 +74,12 @@ export async function generateMetadata({ params }: CategoryPageProps) {
 
     const [category] = await db
       .select()
-      .from(taxonomies)
+      .from(categories)
       .where(
         and(
-          eq(taxonomies.siteId, site.id),
-          eq(taxonomies.slug, slug),
-          eq(taxonomies.isPublished, true)
+          eq(categories.siteId, site.id),
+          eq(categories.slug, slug),
+          eq(categories.isPublished, true)
         )
       )
       .limit(1)
