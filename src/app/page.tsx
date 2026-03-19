@@ -3,6 +3,7 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
+import { toCdnUrl } from "@/lib/utils/cdn"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -32,7 +33,20 @@ export default async function SiteHomePage() {
     }
   }
 
-  return <BlockRenderer site={site} />
+  // Find hero image for LCP preload
+  const heroBlock = site.blocks?.find(block => block.type === 'hero')
+  const heroStyle = heroBlock?.content?.heroStyle || 'default'
+  const heroImage = heroBlock?.content?.styleConfig?.[heroStyle]?.heroImage || heroBlock?.content?.heroImage
+  const lcpImageUrl = heroImage ? toCdnUrl(heroImage) : null
+
+  return (
+    <>
+      {lcpImageUrl && (
+        <link rel="preload" as="image" href={lcpImageUrl} fetchPriority="high" />
+      )}
+      <BlockRenderer site={site} />
+    </>
+  )
 }
 
 export async function generateMetadata() {

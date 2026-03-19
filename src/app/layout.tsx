@@ -58,12 +58,15 @@ export default async function RootLayout({
         ['--font-sans' as string]: fonts.fontSecondary
       } : undefined}
     >
-      <head>{fonts ? (<>
-        {fonts.preloadPaths.map(path => (
-          <link key={path} rel="preload" href={path} as="font" type="font/woff2" crossOrigin="anonymous" />
-        ))}
-        <style dangerouslySetInnerHTML={{ __html: fonts.fontCSS }} />
-      </>) : null}</head>
+      <head>
+        <link rel="preconnect" href="https://pub-01334433f2d349b1814dc29bae7f95d7.r2.dev" />
+        {fonts ? (<>
+          {fonts.preloadPaths.map(path => (
+            <link key={path} rel="preload" href={path} as="font" type="font/woff2" crossOrigin="anonymous" />
+          ))}
+          <style dangerouslySetInnerHTML={{ __html: fonts.fontCSS }} />
+        </>) : null}
+      </head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
