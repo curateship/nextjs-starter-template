@@ -125,6 +125,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
               alt=""
               fill
               priority
+              fetchPriority="high"
               sizes={`${heroImageSize}px`}
             />
           </div>
@@ -141,6 +142,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
         alt=""
         fill
         priority
+        fetchPriority="high"
         sizes="100vw"
         style={{ objectPosition }}
       />
