@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -95,17 +96,19 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         if (block.type === 'listing-views') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <ListingViewsBlock
-                content={block.content}
-                siteId={site.id}
-                urlPrefixes={{
-                  products: 'products',
-                  posts: 'posts'
-                }}
-                preloadedData={site.listingData?.[block.id]}
-                siteWidth={siteWidth}
-                customWidth={customWidth}
-              />
+              <Suspense>
+                <ListingViewsBlock
+                  content={block.content}
+                  siteId={site.id}
+                  urlPrefixes={{
+                    products: 'products',
+                    posts: 'posts'
+                  }}
+                  preloadedData={site.listingData?.[block.id]}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                />
+              </Suspense>
             </div>
           )
         }
@@ -133,9 +136,11 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         if (block.type === 'auth') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <AuthBlock
-                {...block.content}
-              />
+              <Suspense>
+                <AuthBlock
+                  {...block.content}
+                />
+              </Suspense>
             </div>
           )
         }

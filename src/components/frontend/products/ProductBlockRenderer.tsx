@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { PRODUCT_CONTENT_STYLE_RENDERERS } from "@/components/frontend/products/content"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
@@ -176,16 +177,18 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
         if (block.type === 'listing-views') {
           return (
             <div key={`listing-views-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-            <ProductListingViewBlock
-              content={block.content as any}
-              siteId={site.id}
-              urlPrefixes={{
-                products: 'products',
-                posts: 'posts'
-              }}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
+            <Suspense>
+              <ProductListingViewBlock
+                content={block.content as any}
+                siteId={site.id}
+                urlPrefixes={{
+                  products: 'products',
+                  posts: 'posts'
+                }}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
+            </Suspense>
             </div>
           )
         }
