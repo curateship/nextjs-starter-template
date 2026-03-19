@@ -66,6 +66,11 @@ export async function GET(request: NextRequest) {
           continue
         }
 
+        if (!step.subject?.trim()) {
+          // Skip steps with no subject — can't send without one
+          continue
+        }
+
         // Check if delay has passed
         const referenceTime = enrollment.lastStepSentAt || enrollment.enrolledAt
         const dueAt = new Date(new Date(referenceTime).getTime() + step.delayMinutes * 60 * 1000)
@@ -96,15 +101,22 @@ export async function GET(request: NextRequest) {
         const unsubToken = generateUnsubscribeToken(siteId, contact.email)
         const unsubUrl = `${baseUrl}/unsubscribe?site=${siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
 
-        const html = (step.content || '') + `
+        const unsubHtml = `
           <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
             <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
           </div>`
 
+        let html = step.content || ''
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', unsubHtml + '</body>')
+        } else {
+          html = html + unsubHtml
+        }
+
         const result = await resend.emails.send({
           from,
           to: contact.email,
-          subject: step.subject!,
+          subject: step.subject,
           html,
           headers: {
             'List-Unsubscribe': `<${unsubUrl}>`,
@@ -135,14 +147,13 @@ export async function GET(request: NextRequest) {
 
           processed++
         }
-      } catch (err) {
-        console.error(`Failed to process enrollment ${enrollment.id}:`, err)
+      } catch {
+        // Skip failed enrollment, will retry next cron tick
       }
     }
 
     return NextResponse.json({ message: `Processed ${processed} steps`, processed })
-  } catch (err) {
-    console.error('Cron email-automations error:', err)
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

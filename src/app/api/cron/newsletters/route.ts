@@ -147,10 +147,17 @@ export async function GET(request: NextRequest) {
             const unsubToken = generateUnsubscribeToken(newsletter.siteId, contact.email)
             const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
 
-            const htmlWithUnsub = newsletter.content + `
+            const unsubHtml = `
               <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
                 <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
               </div>`
+
+            let htmlWithUnsub = newsletter.content!
+            if (htmlWithUnsub.includes('</body>')) {
+              htmlWithUnsub = htmlWithUnsub.replace('</body>', unsubHtml + '</body>')
+            } else {
+              htmlWithUnsub = htmlWithUnsub + unsubHtml
+            }
 
             const result = await resend.emails.send({
               from,
@@ -174,8 +181,8 @@ export async function GET(request: NextRequest) {
                 resendMessageId: result.data.id,
               })
             }
-          } catch (err) {
-            console.error(`Failed to send to ${contact.email}:`, err)
+          } catch {
+            // Skip failed contact, will retry next cron tick
           }
         }
 
@@ -253,14 +260,13 @@ export async function GET(request: NextRequest) {
         }
 
         totalProcessed += batchSent
-      } catch (err) {
-        console.error(`Failed to process newsletter ${newsletter.id}:`, err)
+      } catch {
+        // Skip failed newsletter, will retry next cron tick
       }
     }
 
     return NextResponse.json({ message: `Sent ${totalProcessed} emails`, processed: totalProcessed })
-  } catch (err) {
-    console.error('Cron newsletters error:', err)
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -311,7 +317,7 @@ async function sendBounceAlertEmail(
         </div>
       `,
     })
-  } catch (err) {
-    console.error('Failed to send bounce alert email:', err)
+  } catch {
+    // Bounce alert is best-effort
   }
 }
