@@ -27,9 +27,11 @@ export function generateEmailHtml(blocks: NewsletterBlock[], maxWidth: number = 
       }
       case 'newsletter-rich-text': {
         const { htmlContent = '', backgroundColor = '#ffffff', padding = 20 } = block.content
+        // Add margin to all <p> tags and preserve empty paragraphs as spacers
         const styledContent = htmlContent
-          .replace(/<p>/g, '<p style="margin:0 0 8px 0;">')
+          .replace(/<p><br\s*\/?><\/p>/gi, '<p style="margin:0 0 8px 0;">&nbsp;</p>')
           .replace(/<p style="/g, '<p style="margin:0 0 8px 0;')
+          .replace(/<p>/g, '<p style="margin:0 0 8px 0;">')
         return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${styledContent}</td></tr></table>`
       }
       case 'newsletter-divider': {

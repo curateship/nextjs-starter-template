@@ -63,6 +63,20 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
     ],
     content: content.content,
     immediatelyRender: false,
+    editorProps: {
+      transformPastedText(text) {
+        // Convert single newlines to double so Tiptap creates
+        // separate <p> tags instead of <br> within one <p>
+        return text.replace(/\n/g, '\n\n')
+      },
+      transformPastedHTML(html) {
+        // Convert <br> sequences and <div>s into paragraph breaks
+        return html
+          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '</p><p>')
+          .replace(/<div>/gi, '<p>')
+          .replace(/<\/div>/gi, '</p>')
+      },
+    },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
       onContentChange({
