@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText } from "lucide-react"
+import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText, Clock } from "lucide-react"
 
 export default function EmailHealthPage() {
   const { currentSite } = useSiteContext()
@@ -57,6 +57,7 @@ export default function EmailHealthPage() {
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
           { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield, active: true },
+          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

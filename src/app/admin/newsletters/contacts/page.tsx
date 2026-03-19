@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus, Mail, Filter, Zap, FileText, Shield } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -507,6 +507,7 @@ export default function ContactsPage() {
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
           { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
+          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

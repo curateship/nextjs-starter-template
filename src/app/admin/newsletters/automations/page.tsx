@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText, Shield } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText, Shield, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getAutomationsBySite,
@@ -180,6 +180,7 @@ export default function EmailAutomationsPage() {
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap, active: true },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
           { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
+          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>
