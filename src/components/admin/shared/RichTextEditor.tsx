@@ -304,7 +304,7 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
           >
             <EditorContent
               editor={editor}
-              className={`prose prose-sm max-w-none ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
+              className={`prose prose-sm max-w-none [&_p]:!my-1.5 ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
             />
           </div>
         </div>
@@ -354,7 +354,7 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
                 >
                   <EditorContent
                     editor={editor}
-                    className={`prose prose-sm max-w-none ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                    className={`prose prose-sm max-w-none [&_p]:!my-1.5 ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
                   />
                 </div>
               </>
@@ -373,7 +373,7 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
                     </p>
                   )}
                   <div
-                    className="prose prose-sm max-w-none"
+                    className="prose prose-sm max-w-none [&_p]:!my-1.5"
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(content.content, {
                         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],

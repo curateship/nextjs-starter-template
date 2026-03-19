@@ -23,7 +23,7 @@ function CanvasRichTextBlock({ block }: { block: NewsletterBlock }) {
       }}
     >
       <div
-        className="prose prose-sm max-w-none"
+        className="prose prose-sm max-w-none [&_p]:!my-1.5"
         dangerouslySetInnerHTML={{
           __html: DOMPurify.sanitize(block.content.htmlContent || '<p class="text-muted-foreground">Add your content here...</p>', {
             ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
