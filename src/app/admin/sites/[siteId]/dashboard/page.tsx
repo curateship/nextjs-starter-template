@@ -28,10 +28,11 @@ export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
 
   // Get the site data and analytics in parallel
+  const defaultAnalytics = { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
   const [site, analytics, traffic] = await Promise.all([
     getSiteForDashboard(siteId),
-    getAnalyticsOverview(siteId, '30d'),
-    getTrafficOverTime(siteId, '7d'),
+    getAnalyticsOverview(siteId, '30d').catch(() => defaultAnalytics),
+    getTrafficOverTime(siteId, '7d').catch(() => []),
   ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
