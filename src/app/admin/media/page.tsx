@@ -43,20 +43,17 @@ export default function ImagesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [typeCounts, setTypeCounts] = useState<{ all: number; image: number; video: number }>({ all: 0, image: 0, video: 0 })
 
-  // Load images when page, pageSize, filterType, or currentSite changes
+  // Load images when page, pageSize, or filterType changes
   useEffect(() => {
-    if (currentSite) {
-      loadImages()
-    }
-  }, [currentPage, pageSize, filterType, currentSite])
+    loadImages()
+  }, [currentPage, pageSize, filterType])
 
-  // Load type counts when site changes or after mutations
+  // Load type counts after mutations
   const loadTypeCounts = async () => {
-    if (!currentSite) return
     const [allRes, imgRes, vidRes] = await Promise.all([
-      getPaginatedMediaAction(1, 1, undefined, currentSite.id),
-      getPaginatedMediaAction(1, 1, 'image', currentSite.id),
-      getPaginatedMediaAction(1, 1, 'video', currentSite.id),
+      getPaginatedMediaAction(1, 1),
+      getPaginatedMediaAction(1, 1, 'image'),
+      getPaginatedMediaAction(1, 1, 'video'),
     ])
     setTypeCounts({
       all: allRes.data?.total ?? 0,
@@ -66,16 +63,14 @@ export default function ImagesPage() {
   }
 
   useEffect(() => {
-    if (currentSite) loadTypeCounts()
-  }, [currentSite])
+    loadTypeCounts()
+  }, [])
 
   const loadImages = async () => {
-    if (!currentSite) return
-
     try {
       setIsLoading(true)
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSite.id)
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {

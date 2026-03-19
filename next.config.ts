@@ -29,11 +29,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://*.google-analytics.com https://*.googletagmanager.com https://*.flodesk.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com;
       style-src 'self' 'unsafe-inline';
       img-src 'self' blob: data: https:;
       font-src 'self' data:;
-      connect-src 'self' https://api.stripe.com https://*.google-analytics.com https://*.googletagmanager.com https://*.analytics.google.com https://*.flodesk.com;
+      connect-src 'self' https://api.stripe.com https://*.cloudflareinsights.com;
       frame-src https://js.stripe.com;
       object-src 'none';
       frame-ancestors 'none';
@@ -114,6 +114,10 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/cdn/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        source: '/fonts/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       ...publicCacheRoutes.map(source => ({
