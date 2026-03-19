@@ -6,7 +6,6 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -17,10 +16,9 @@ import {
   getCronJobs,
   toggleCronJob,
   getCronJobRuns,
-  runCronJobManually,
 } from "@/lib/actions/cron/cron-actions"
 import type { CronJob, CronJobRun } from "@/lib/actions/cron/cron-actions"
-import { Mail, Users, Filter, Zap, FileText, Shield, Clock, Play, RefreshCw, CheckCircle, XCircle, ChevronRight } from "lucide-react"
+import { Mail, Users, Filter, Zap, FileText, Shield, Clock, RefreshCw, CheckCircle, XCircle } from "lucide-react"
 
 export default function CronJobsPage() {
   const [jobs, setJobs] = useState<CronJob[]>([])
@@ -28,7 +26,6 @@ export default function CronJobsPage() {
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [runs, setRuns] = useState<CronJobRun[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
-  const [runningJobId, setRunningJobId] = useState<string | null>(null)
 
   useEffect(() => {
     loadJobs()
@@ -46,16 +43,6 @@ export default function CronJobsPage() {
     const { success } = await toggleCronJob(jobId, enabled)
     if (!success) {
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, enabled: !enabled } : j))
-    }
-  }
-
-  async function handleRunNow(jobId: string) {
-    setRunningJobId(jobId)
-    await runCronJobManually(jobId)
-    await loadJobs()
-    setRunningJobId(null)
-    if (selectedJob?.id === jobId) {
-      loadRuns(jobId)
     }
   }
 
@@ -151,7 +138,7 @@ export default function CronJobsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-medium truncate">{job.name}</h3>
+                        <h3 className="font-medium truncate cursor-pointer hover:underline" onClick={() => openRunHistory(job)}>{job.name}</h3>
                         <Badge variant="secondary" className="text-xs font-mono shrink-0">
                           {formatSchedule(job.schedule)}
                         </Badge>
@@ -183,30 +170,12 @@ export default function CronJobsPage() {
 
                     <div className="flex items-center gap-3 ml-4 shrink-0">
                       <Button
-                        variant="outline"
+                        variant={job.enabled ? "destructive" : "outline"}
                         size="sm"
-                        onClick={() => handleRunNow(job.id)}
-                        disabled={runningJobId === job.id}
+                        onClick={() => handleToggle(job.id, !job.enabled)}
                       >
-                        {runningJobId === job.id ? (
-                          <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5 mr-1.5" />
-                        )}
-                        Run Now
+                        {job.enabled ? "Stop" : "Start"}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openRunHistory(job)}
-                      >
-                        History
-                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                      </Button>
-                      <Switch
-                        checked={job.enabled}
-                        onCheckedChange={(checked) => handleToggle(job.id, checked)}
-                      />
                     </div>
                   </div>
                 </Card>
@@ -217,7 +186,7 @@ export default function CronJobsPage() {
       </AdminLayout>
 
       <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[840px] max-w-[95vw] max-h-[80vh] overflow-y-auto p-10" style={{ width: '840px', maxWidth: '95vw' }}>
           <DialogHeader>
             <DialogTitle>{selectedJob?.name} — Run History</DialogTitle>
           </DialogHeader>
