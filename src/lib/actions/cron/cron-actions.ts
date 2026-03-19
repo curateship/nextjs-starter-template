@@ -135,7 +135,7 @@ export async function runCronJobManually(jobId: string): Promise<{ success: bool
     const cronSecret = process.env.CRON_SECRET
     if (!cronSecret) return { success: false, error: 'CRON_SECRET not configured' }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
     const startTime = Date.now()
 
     let status = 'success'

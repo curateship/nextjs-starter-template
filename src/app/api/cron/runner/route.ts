@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date()
-  const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
   // Get enabled jobs that are due (nextRunAt <= now OR nextRunAt is null)
   const jobs = await db
