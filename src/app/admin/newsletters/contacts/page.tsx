@@ -32,6 +32,7 @@ import {
   bulkImportContacts,
   createOrUpsertContact,
   updateContact,
+  getContactIdsAction,
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -47,6 +48,8 @@ export default function ContactsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -190,8 +193,12 @@ export default function ContactsPage() {
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -199,9 +206,33 @@ export default function ContactsPage() {
   const toggleSelectAll = () => {
     if (selectedIds.size === contacts.length) {
       setSelectedIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedIds(new Set(contacts.map(c => c.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getContactIdsAction(currentSite.id, {
+      sources: filters.sources.length ? filters.sources : undefined,
+      statuses: filters.statuses.length ? filters.statuses : undefined,
+      createdAfter: filters.createdAfter || undefined,
+      createdBefore: filters.createdBefore || undefined,
+      engagedAfter: filters.engagedAfter || undefined,
+      engagedBefore: filters.engagedBefore || undefined,
+    })
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const handleDelete = (id: string) => {
@@ -243,6 +274,7 @@ export default function ContactsPage() {
       }
       if (success) {
         setSelectedIds(new Set())
+        setAllSelected(false)
         loadContacts()
       }
     } catch {
@@ -266,6 +298,7 @@ export default function ContactsPage() {
         setSuccessMessage(`${updated} contact${updated !== 1 ? "s" : ""} added to ${segName}`)
         setTimeout(() => setSuccessMessage(null), 5000)
         setSelectedIds(new Set())
+        setAllSelected(false)
         setSelectedSegmentId("")
         loadContacts()
       }
@@ -610,12 +643,14 @@ export default function ContactsPage() {
     })
     setCurrentPage(1)
     setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   function clearAllFilters() {
     setFilters(emptyFilters)
     setCurrentPage(1)
     setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   function applyFilters() {
@@ -623,6 +658,7 @@ export default function ContactsPage() {
     setFilterModalOpen(false)
     setCurrentPage(1)
     setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   return (
@@ -839,6 +875,17 @@ export default function ContactsPage() {
               </div>
             </div>
 
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {contacts.length > 0 && selectedIds.size === contacts.length && total > contacts.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{contacts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             <div className="divide-y divide-muted/80">
               {loading ? (
                 <div className="space-y-0">
@@ -956,7 +1003,7 @@ export default function ContactsPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()) }}
+                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
                   showFirstLast={false}
                 />
               </div>

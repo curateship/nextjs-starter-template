@@ -282,6 +282,59 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
   }
 }
 
+/** Returns only contact IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getContactIdsAction(
+  siteId: string,
+  options?: {
+    sources?: string[]
+    statuses?: string[]
+    createdAfter?: string
+    createdBefore?: string
+    engagedAfter?: string
+    engagedBefore?: string
+  }
+): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { ids: [], error: 'Access denied' }
+    }
+
+    const conditions = [eq(newsletterContacts.siteId, siteId)]
+    if (options?.sources?.length) {
+      conditions.push(or(...options.sources.map(s => sql`${newsletterContacts.metadata}->>'source' = ${s}`))!)
+    }
+    if (options?.statuses?.length) {
+      conditions.push(inArray(newsletterContacts.status, options.statuses))
+    }
+    if (options?.createdAfter) {
+      conditions.push(gte(newsletterContacts.createdAt, new Date(options.createdAfter)))
+    }
+    if (options?.createdBefore) {
+      conditions.push(lte(newsletterContacts.createdAt, new Date(options.createdBefore)))
+    }
+    if (options?.engagedAfter) {
+      conditions.push(gte(newsletterContacts.lastEngagedAt, new Date(options.engagedAfter)))
+    }
+    if (options?.engagedBefore) {
+      conditions.push(lte(newsletterContacts.lastEngagedAt, new Date(options.engagedBefore)))
+    }
+
+    const rows = await db
+      .select({ id: newsletterContacts.id })
+      .from(newsletterContacts)
+      .where(and(...conditions))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (err) {
+    return { ids: [], error: 'Server error' }
+  }
+}
+
 export async function getContactsWithStats(
   siteId: string,
   options?: {

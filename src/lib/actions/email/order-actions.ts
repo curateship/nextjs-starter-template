@@ -161,6 +161,22 @@ export async function createPaidOrder(params: {
   }
 }
 
+/** Returns only order IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getOrderIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    await verifySiteOwnership(siteId)
+
+    const rows = await db
+      .select({ id: productOrders.id })
+      .from(productOrders)
+      .where(eq(productOrders.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 /**
  * Get order by access token
  */

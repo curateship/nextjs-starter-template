@@ -147,6 +147,34 @@ export async function getUserPagesAction(siteId: string, options?: { page?: numb
   }
 }
 
+/** Returns only user page IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getUserPageIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(siteId)) return { ids: [], error: 'Invalid site ID format' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Authentication required' }
+
+    const [site] = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+      .limit(1)
+
+    if (!site) return { ids: [], error: 'Access denied' }
+
+    const rows = await db
+      .select({ id: siteDashboardPages.id })
+      .from(siteDashboardPages)
+      .where(and(eq(siteDashboardPages.siteId, siteId), eq(siteDashboardPages.isDefault, false)))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 /**
  * Get a single user page by ID
  */

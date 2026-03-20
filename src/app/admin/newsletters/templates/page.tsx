@@ -21,6 +21,7 @@ import {
   getTemplatesBySite,
   createTemplate,
   deleteTemplates,
+  getTemplateIdsAction,
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -33,6 +34,8 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -105,6 +108,7 @@ export default function TemplatesPage() {
       setError(deleteError)
     } else {
       setSelectedIds(new Set())
+      setAllSelected(false)
     }
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
@@ -114,8 +118,12 @@ export default function TemplatesPage() {
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -123,9 +131,26 @@ export default function TemplatesPage() {
   function toggleSelectAll() {
     if (selectedIds.size === templates.length) {
       setSelectedIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedIds(new Set(templates.map(t => t.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getTemplateIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const toggleSort = (column: 'name' | 'blocks' | 'modified') => {
@@ -263,6 +288,17 @@ export default function TemplatesPage() {
               </div>
             </div>
 
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {templates.length > 0 && selectedIds.size === templates.length && total > templates.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{templates.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             <div className="divide-y divide-muted/80">
               {loading ? (
                 <div className="space-y-0">
@@ -357,7 +393,7 @@ export default function TemplatesPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()) }}
+                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
                   showFirstLast={false}
                 />
               </div>

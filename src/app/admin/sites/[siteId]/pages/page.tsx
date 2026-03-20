@@ -30,7 +30,7 @@ import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, Chevro
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
-import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction } from "@/lib/actions/pages/page-actions"
+import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction, getPageIdsAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 
 interface PageProps {
@@ -56,6 +56,8 @@ export default function SitePagesPage({ params }: PageProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'status' | 'modified' | null>(null)
@@ -156,8 +158,12 @@ export default function SitePagesPage({ params }: PageProps) {
   const toggleSelectPage = (pageId: string) => {
     setSelectedPageIds(prev => {
       const next = new Set(prev)
-      if (next.has(pageId)) next.delete(pageId)
-      else next.add(pageId)
+      if (next.has(pageId)) {
+        next.delete(pageId)
+        setAllSelected(false)
+      } else {
+        next.add(pageId)
+      }
       return next
     })
   }
@@ -167,9 +173,26 @@ export default function SitePagesPage({ params }: PageProps) {
     const selectablePages = filteredPages.filter(p => !p.is_homepage)
     if (selectedPageIds.size === selectablePages.length) {
       setSelectedPageIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedPageIds(new Set(selectablePages.map(p => p.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (total === 0) return
+    const { ids } = await getPageIdsAction(siteId)
+    if (ids) {
+      setSelectedPageIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedPageIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -186,6 +209,7 @@ export default function SitePagesPage({ params }: PageProps) {
       if (success) {
         setPages(prev => prev.filter(p => !selectedPageIds.has(p.id)))
         setSelectedPageIds(new Set())
+        setAllSelected(false)
       }
     } catch (err) {
       setErrorMessage('Failed to delete pages')
@@ -344,7 +368,7 @@ export default function SitePagesPage({ params }: PageProps) {
                   )}
                 </Button>
               )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setCurrentPage(1) }}>
+              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                 <TabsList className="h-auto p-1 gap-1">
                   <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                   <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
@@ -405,7 +429,21 @@ export default function SitePagesPage({ params }: PageProps) {
               <div>Actions</div>
             </div>
           </div>
-          
+
+          {/* "Select all" banner — shown when all page items selected but more exist */}
+          {(() => {
+            const selectablePages = filteredPages.filter(p => !p.is_homepage)
+            return selectablePages.length > 0 && selectedPageIds.size === selectablePages.length && total > filteredPages.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{selectablePages.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )
+          })()}
+
           <div className="divide-y divide-muted/80">
             {loading ? (
               // Skeleton loading state for pages

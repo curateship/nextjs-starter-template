@@ -190,6 +190,30 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
   }
 }
 
+/** Returns only category IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getCategoryIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Authentication required' }
+
+    const site = await db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { id: true, userId: true },
+    })
+
+    if (!site || site.userId !== user.id) return { ids: [], error: 'Site not found or unauthorized' }
+
+    const rows = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 /**
  * Create a new category
  */

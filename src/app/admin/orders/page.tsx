@@ -36,6 +36,7 @@ import { useSiteContext } from "@/contexts/site-context"
 import {
   getOrdersWithProducts,
   deleteOrders,
+  getOrderIdsAction,
   type ProductOrder,
   type OrderType,
 } from "@/lib/actions/email/order-actions"
@@ -97,6 +98,8 @@ function OrdersContent() {
   const [deleteIds, setDeleteIds] = useState<string[]>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
 
   const typeParam = searchParams.get("type") as OrderType | null
   const [activeTab, setActiveTab] = useState<"all" | OrderType>(
@@ -143,6 +146,7 @@ function OrdersContent() {
       await deleteOrders(deleteIds)
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
       setSelectedIds(new Set())
+      setAllSelected(false)
     } catch (error) {
       console.error("Error deleting orders:", error)
     } finally {
@@ -214,8 +218,12 @@ function OrdersContent() {
   const toggleSelectOrder = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -223,9 +231,26 @@ function OrdersContent() {
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredOrders.length) {
       setSelectedIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedIds(new Set(filteredOrders.map((o) => o.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getOrderIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const getEmailStatusBadge = (order: ProductOrder) => {
@@ -292,6 +317,7 @@ function OrdersContent() {
                     setActiveTab(v as "all" | OrderType)
                     setCurrentPage(1)
                     setSelectedIds(new Set())
+                    setAllSelected(false)
                   }}
                 >
                   <TabsList className="h-auto p-1 gap-1">
@@ -384,6 +410,17 @@ function OrdersContent() {
                 </div>
               </div>
             </div>
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredOrders.length > 0 && selectedIds.size === filteredOrders.length && total > filteredOrders.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredOrders.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
 
             {/* Table Body */}
             <div className="divide-y divide-muted/80">

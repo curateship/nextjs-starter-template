@@ -29,7 +29,7 @@ const PostSettingsModal = dynamic(() =>
 import { Eye, Copy, Trash2, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction } from "@/lib/actions/posts/post-actions"
+import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction, getPostIdsAction } from "@/lib/actions/posts/post-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -50,6 +50,8 @@ export default function PostsPage() {
   const [postCategories, setPostCategories] = useState<Record<string, CategoryInfo[]>>({})
 
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
@@ -142,8 +144,12 @@ export default function PostsPage() {
   const toggleSelectPost = (postId: string) => {
     setSelectedPostIds(prev => {
       const next = new Set(prev)
-      if (next.has(postId)) next.delete(postId)
-      else next.add(postId)
+      if (next.has(postId)) {
+        next.delete(postId)
+        setAllSelected(false)
+      } else {
+        next.add(postId)
+      }
       return next
     })
   }
@@ -151,9 +157,26 @@ export default function PostsPage() {
   const toggleSelectAll = () => {
     if (selectedPostIds.size === filteredPosts.length) {
       setSelectedPostIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedPostIds(new Set(filteredPosts.map(p => p.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getPostIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedPostIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedPostIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -170,6 +193,7 @@ export default function PostsPage() {
       if (success) {
         setPosts(prev => prev.filter(p => !selectedPostIds.has(p.id)))
         setSelectedPostIds(new Set())
+        setAllSelected(false)
       }
     } catch (err) {
       setErrorMessage('Failed to delete posts')
@@ -311,7 +335,7 @@ export default function PostsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="h-auto p-1 gap-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
@@ -384,7 +408,18 @@ export default function PostsPage() {
                 <div>Actions</div>
               </div>
             </div>
-            
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredPosts.length > 0 && selectedPostIds.size === filteredPosts.length && total > filteredPosts.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredPosts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             <div className="divide-y divide-muted/80">
               {loading ? (
                 // Skeleton loading state for posts

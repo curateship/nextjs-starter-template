@@ -178,6 +178,31 @@ export async function getSiteEventsWithCategoriesAction(
   }
 }
 
+/** Returns only event IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getEventIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Authentication required' }
+
+    const [site] = await db
+      .select({ id: sites.id, userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) return { ids: [], error: 'Site not found or unauthorized' }
+
+    const rows = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {
     // Validate event ID format

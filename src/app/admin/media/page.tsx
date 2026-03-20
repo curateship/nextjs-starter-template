@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getPaginatedMediaAction, deleteImageAction, updateImageAction } from "@/lib/actions/media/media-actions"
+import { getPaginatedMediaAction, deleteImageAction, updateImageAction, getMediaIdsAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
@@ -38,6 +38,8 @@ export default function ImagesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [sortColumn, setSortColumn] = useState<'name' | 'type' | 'size' | 'added' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -87,6 +89,8 @@ export default function ImagesPage() {
   const handleFilterChange = (newFilter: 'all' | 'image' | 'video') => {
     setFilterType(newFilter)
     setCurrentPage(1)
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   // Handle page change
@@ -207,6 +211,7 @@ export default function ImagesPage() {
       const newSet = new Set(prev)
       if (newSet.has(mediaId)) {
         newSet.delete(mediaId)
+        setAllSelected(false)
       } else {
         newSet.add(mediaId)
       }
@@ -215,25 +220,41 @@ export default function ImagesPage() {
   }
 
   const handleToggleSelectAll = () => {
-    // Check if all items on current page are selected
     const allPageIds = images.map(media => media.id)
-    const allSelected = allPageIds.every(id => selectedIds.has(id))
+    const allPageSelected_ = allPageIds.every(id => selectedIds.has(id))
 
-    if (allSelected) {
-      // Deselect all items on current page
+    if (allPageSelected_) {
       setSelectedIds(prev => {
         const newSet = new Set(prev)
         allPageIds.forEach(id => newSet.delete(id))
         return newSet
       })
+      setAllSelected(false)
     } else {
-      // Select all items on current page
       setSelectedIds(prev => {
         const newSet = new Set(prev)
         allPageIds.forEach(id => newSet.add(id))
         return newSet
       })
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    const total = paginatedData?.total ?? 0
+    if (total === 0) return
+    const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
+    const { ids } = await getMediaIdsAction(fileType)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const handleBulkDelete = async () => {
@@ -270,6 +291,7 @@ export default function ImagesPage() {
       }
 
       setSelectedIds(new Set())
+      setAllSelected(false)
       loadImages()
       loadTypeCounts()
 
@@ -471,6 +493,17 @@ export default function ImagesPage() {
             </div>
           )}
 
+          {/* "Select all" banner — shown when all page items selected but more exist */}
+          {allPageSelected && paginatedData && paginatedData.total > images.length && (
+            <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+              {allSelected ? (
+                <span>All {paginatedData.total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+              ) : (
+                <span>{images.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {paginatedData.total}</button></span>
+              )}
+            </div>
+          )}
+
           <div className="divide-y divide-muted/80">
           {isLoading ? (
             viewMode === 'gallery' ? (
@@ -654,23 +687,21 @@ export default function ImagesPage() {
             })
           )}
           </div>
+          {paginatedData && paginatedData.totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <PaginationInfo
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={paginatedData.total}
+              />
+              <Pagination
+                currentPage={currentPage}
+                totalPages={paginatedData.totalPages}
+                onPageChange={handlePageChange}
+              />
+            </div>
+          )}
         </Card>
-
-        {/* Pagination Controls */}
-        {paginatedData && paginatedData.totalPages > 1 && (
-          <div className="mt-6 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <PaginationInfo
-              currentPage={currentPage}
-              pageSize={pageSize}
-              total={paginatedData.total}
-            />
-            <Pagination
-              currentPage={currentPage}
-              totalPages={paginatedData.totalPages}
-              onPageChange={handlePageChange}
-            />
-          </div>
-        )}
 
         {/* Edit Image Dialog */}
         <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>

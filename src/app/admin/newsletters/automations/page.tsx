@@ -31,6 +31,7 @@ import {
   getAutomationsBySite,
   createAutomation,
   deleteAutomations,
+  getAutomationIdsAction,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -43,6 +44,8 @@ export default function EmailAutomationsPage() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -83,12 +86,28 @@ export default function EmailAutomationsPage() {
   }
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
+    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) { next.delete(id); setAllSelected(false) } else { next.add(id) }; return next })
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) setSelectedIds(new Set())
+    if (selectedIds.size === filtered.length) { setSelectedIds(new Set()); setAllSelected(false) }
     else setSelectedIds(new Set(filtered.map(a => a.id)))
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getAutomationIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -96,7 +115,7 @@ export default function EmailAutomationsPage() {
     setMassDeleting(true)
     const { success, error } = await deleteAutomations(Array.from(selectedIds))
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
-    if (success) { setSelectedIds(new Set()); loadAutomations() }
+    if (success) { setSelectedIds(new Set()); setAllSelected(false); loadAutomations() }
     setMassDeleting(false)
   }
 
@@ -196,7 +215,7 @@ export default function EmailAutomationsPage() {
                     <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="h-auto p-1 gap-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="active" className="px-2 sm:px-3"><Play className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Active ({statusCounts.active})</span></TabsTrigger>
@@ -277,6 +296,17 @@ export default function EmailAutomationsPage() {
                 <div>Actions</div>
               </div>
             </div>
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filtered.length > 0 && selectedIds.size === filtered.length && total > filtered.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filtered.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (

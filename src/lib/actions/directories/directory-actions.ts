@@ -203,6 +203,30 @@ export async function getSiteDirectoriesWithCategoriesAction(
   }
 }
 
+/** Returns only directory IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getDirectoryIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Authentication required' }
+
+    const [site] = await db.select({ id: sites.id, userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) return { ids: [], error: 'Site not found or unauthorized' }
+
+    const rows = await db
+      .select({ id: directories.id })
+      .from(directories)
+      .where(eq(directories.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryData) {
   try {
     // Validate directory ID format

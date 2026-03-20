@@ -30,7 +30,7 @@ const ProductSettingsModal = dynamic(() =>
 import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, ShoppingCart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction } from "@/lib/actions/products/product-actions"
+import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -55,6 +55,8 @@ export default function ProductsPage() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
@@ -143,8 +145,12 @@ export default function ProductsPage() {
   const toggleSelectProduct = (productId: string) => {
     setSelectedProductIds(prev => {
       const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else next.add(productId)
+      if (next.has(productId)) {
+        next.delete(productId)
+        setAllSelected(false)
+      } else {
+        next.add(productId)
+      }
       return next
     })
   }
@@ -152,9 +158,26 @@ export default function ProductsPage() {
   const toggleSelectAll = () => {
     if (selectedProductIds.size === filteredProducts.length) {
       setSelectedProductIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedProductIds(new Set(filteredProducts.map(p => p.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getProductIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedProductIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedProductIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -171,6 +194,7 @@ export default function ProductsPage() {
       if (success) {
         setProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)))
         setSelectedProductIds(new Set())
+        setAllSelected(false)
       }
     } catch (err) {
       setErrorMessage('Failed to delete products')
@@ -358,7 +382,7 @@ export default function ProductsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="gap-1 h-auto p-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
@@ -431,7 +455,18 @@ export default function ProductsPage() {
                 <div>Actions</div>
               </div>
             </div>
-            
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredProducts.length > 0 && selectedProductIds.size === filteredProducts.length && total > filteredProducts.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredProducts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             <div className="divide-y divide-muted/80">
               {loading ? (
                 // Skeleton loading state for products

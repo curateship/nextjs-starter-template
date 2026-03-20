@@ -75,6 +75,29 @@ export async function getTemplatesBySite(
   }
 }
 
+/** Returns only template IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getTemplateIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { ids: [], error: 'Access denied' }
+    }
+
+    const rows = await db
+      .select({ id: newsletterTemplates.id })
+      .from(newsletterTemplates)
+      .where(eq(newsletterTemplates.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (err) {
+    return { ids: [], error: 'Server error' }
+  }
+}
+
 export async function getTemplateById(
   templateId: string
 ): Promise<{ data: NewsletterTemplate | null; error: string | null }> {

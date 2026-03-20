@@ -32,7 +32,7 @@ import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, Chevron
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction, getDirectoryIdsAction } from "@/lib/actions/directories/directory-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
@@ -56,6 +56,8 @@ export default function DirectoriesPage() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [selectedDirectoryIds, setSelectedDirectoryIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
@@ -144,8 +146,12 @@ export default function DirectoriesPage() {
   const toggleSelectDirectory = (directoryId: string) => {
     setSelectedDirectoryIds(prev => {
       const next = new Set(prev)
-      if (next.has(directoryId)) next.delete(directoryId)
-      else next.add(directoryId)
+      if (next.has(directoryId)) {
+        next.delete(directoryId)
+        setAllSelected(false)
+      } else {
+        next.add(directoryId)
+      }
       return next
     })
   }
@@ -153,9 +159,26 @@ export default function DirectoriesPage() {
   const toggleSelectAll = () => {
     if (selectedDirectoryIds.size === filteredDirectories.length) {
       setSelectedDirectoryIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedDirectoryIds(new Set(filteredDirectories.map(d => d.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getDirectoryIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedDirectoryIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedDirectoryIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -172,6 +195,7 @@ export default function DirectoriesPage() {
       if (success) {
         setDirectories(prev => prev.filter(d => !selectedDirectoryIds.has(d.id)))
         setSelectedDirectoryIds(new Set())
+        setAllSelected(false)
       }
     } catch (err) {
       setErrorMessage('Failed to delete directories')
@@ -331,7 +355,7 @@ export default function DirectoriesPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedDirectoryIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="h-auto p-1 gap-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
@@ -404,7 +428,18 @@ export default function DirectoriesPage() {
                 <div>Actions</div>
               </div>
             </div>
-            
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredDirectories.length > 0 && selectedDirectoryIds.size === filteredDirectories.length && total > filteredDirectories.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredDirectories.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             <div className="divide-y divide-muted/80">
               {loading ? (
                 // Skeleton loading state for directories

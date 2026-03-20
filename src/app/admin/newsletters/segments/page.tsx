@@ -23,6 +23,7 @@ import {
   createSegment,
   updateSegment,
   deleteSegments,
+  getSegmentIdsAction,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -34,6 +35,8 @@ export default function SegmentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({})
@@ -143,6 +146,7 @@ export default function SegmentsPage() {
       setError(deleteError)
     } else {
       setSelectedIds(new Set())
+      setAllSelected(false)
     }
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
@@ -152,8 +156,12 @@ export default function SegmentsPage() {
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -161,9 +169,26 @@ export default function SegmentsPage() {
   function toggleSelectAll() {
     if (selectedIds.size === segments.length) {
       setSelectedIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedIds(new Set(segments.map(s => s.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getSegmentIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const toggleSort = (column: 'name' | 'tags' | 'contacts' | 'modified') => {
@@ -316,6 +341,17 @@ export default function SegmentsPage() {
               </div>
             </div>
 
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {segments.length > 0 && selectedIds.size === segments.length && total > segments.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{segments.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
+
             {/* Table Body */}
             <div className="divide-y divide-muted/80">
               {loading ? (
@@ -438,7 +474,7 @@ export default function SegmentsPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()) }}
+                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
                   showFirstLast={false}
                 />
               </div>

@@ -274,6 +274,28 @@ export async function getMediaDataByUrlAction(publicUrl: string): Promise<{ data
   }
 }
 
+/** Returns only media IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getMediaIdsAction(
+  fileType?: 'image' | 'video'
+): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Authentication required' }
+
+    const conditions = [eq(media.userId, user.id)]
+    if (fileType) conditions.push(eq(media.fileType, fileType))
+
+    const rows = await db
+      .select({ id: media.id })
+      .from(media)
+      .where(and(...conditions))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (error) {
+    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 export const uploadImageAction = uploadMediaAction
 export const getImagesAction = async () => await getMediaAction('image')
 export const updateImageAction = updateMediaAction

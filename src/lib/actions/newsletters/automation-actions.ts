@@ -168,6 +168,29 @@ export async function getAutomationsBySite(siteId: string, options?: { page?: nu
   }
 }
 
+/** Returns only automation IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getAutomationIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { ids: [], error: 'Access denied' }
+    }
+
+    const rows = await db
+      .select({ id: emailAutomations.id })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (err) {
+    return { ids: [], error: 'Server error' }
+  }
+}
+
 export async function getAutomationById(automationId: string): Promise<{ data: EmailAutomation | null; steps: AutomationStep[] | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { data: null, steps: null, error: 'Invalid ID' }

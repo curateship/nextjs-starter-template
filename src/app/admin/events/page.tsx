@@ -32,7 +32,7 @@ const EventSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getSiteEventsWithCategoriesAction, deleteEventAction, deleteEventsAction, duplicateEventAction } from "@/lib/actions/events/event-actions"
+import { getSiteEventsWithCategoriesAction, deleteEventAction, deleteEventsAction, duplicateEventAction, getEventIdsAction } from "@/lib/actions/events/event-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 
@@ -58,6 +58,8 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
@@ -179,8 +181,12 @@ export default function EventsPage() {
   const toggleSelectEvent = (eventId: string) => {
     setSelectedEventIds(prev => {
       const next = new Set(prev)
-      if (next.has(eventId)) next.delete(eventId)
-      else next.add(eventId)
+      if (next.has(eventId)) {
+        next.delete(eventId)
+        setAllSelected(false)
+      } else {
+        next.add(eventId)
+      }
       return next
     })
   }
@@ -188,9 +194,26 @@ export default function EventsPage() {
   const toggleSelectAll = () => {
     if (selectedEventIds.size === filteredEvents.length) {
       setSelectedEventIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedEventIds(new Set(filteredEvents.map(e => e.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getEventIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedEventIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedEventIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -207,6 +230,7 @@ export default function EventsPage() {
       if (success) {
         setEvents(prev => prev.filter(e => !selectedEventIds.has(e.id)))
         setSelectedEventIds(new Set())
+        setAllSelected(false)
       }
     } catch (err) {
       setErrorMessage('Failed to delete events')
@@ -339,7 +363,7 @@ export default function EventsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="h-auto p-1 gap-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
@@ -412,6 +436,17 @@ export default function EventsPage() {
                 <div>Actions</div>
               </div>
             </div>
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredEvents.length > 0 && selectedEventIds.size === filteredEvents.length && total > filteredEvents.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredEvents.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (

@@ -25,7 +25,7 @@ const NewsletterSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -44,6 +44,8 @@ export default function NewslettersPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Tracks if user selected all items across all pages
+  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -113,8 +115,12 @@ export default function NewslettersPage() {
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
@@ -122,9 +128,26 @@ export default function NewslettersPage() {
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredNewsletters.length) {
       setSelectedIds(new Set())
+      setAllSelected(false)
     } else {
       setSelectedIds(new Set(filteredNewsletters.map(n => n.id)))
     }
+  }
+
+  // Select all items across all pages (lightweight ID-only fetch)
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+    const { ids } = await getNewsletterIdsAction(currentSite.id)
+    if (ids) {
+      setSelectedIds(new Set(ids))
+      setAllSelected(true)
+    }
+  }
+
+  // Clear all selections
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
@@ -139,6 +162,7 @@ export default function NewslettersPage() {
       }
       if (success) {
         setSelectedIds(new Set())
+        setAllSelected(false)
         loadNewsletters()
       }
     } catch {
@@ -268,7 +292,7 @@ export default function NewslettersPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setCurrentPage(1) }}>
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
                   <TabsList className="h-auto p-1 gap-1">
                     <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
                     <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Drafts ({statusCounts.draft})</span></TabsTrigger>
@@ -365,6 +389,17 @@ export default function NewslettersPage() {
                 <div>Actions</div>
               </div>
             </div>
+
+            {/* "Select all" banner — shown when all page items selected but more exist */}
+            {filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length && total > filteredNewsletters.length && (
+              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
+                {allSelected ? (
+                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
+                ) : (
+                  <span>{filteredNewsletters.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                )}
+              </div>
+            )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (

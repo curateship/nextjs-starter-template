@@ -77,6 +77,29 @@ export async function getSegmentsBySite(
   }
 }
 
+/** Returns only segment IDs for bulk selection — lightweight alternative to full record fetch */
+export async function getSegmentIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { ids: [], error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { ids: [], error: 'Access denied' }
+    }
+
+    const rows = await db
+      .select({ id: newsletterSegments.id })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.siteId, siteId))
+
+    return { ids: rows.map(r => r.id), error: null }
+  } catch (err) {
+    return { ids: [], error: 'Server error' }
+  }
+}
+
 export async function getSegmentById(
   segmentId: string
 ): Promise<{ data: Segment | null; error: string | null }> {
