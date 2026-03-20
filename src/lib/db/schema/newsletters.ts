@@ -75,11 +75,20 @@ export const newsletterSegments = pgTable('newsletter_segments', {
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description').default(''),
-  filterRules: jsonb('filter_rules').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('idx_newsletter_segments_site').on(table.siteId),
+])
+
+export const newsletterSegmentContacts = pgTable('newsletter_segment_contacts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  segmentId: uuid('segment_id').notNull().references(() => newsletterSegments.id, { onDelete: 'cascade' }),
+  contactId: uuid('contact_id').notNull().references(() => newsletterContacts.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('idx_segment_contacts_unique').on(table.segmentId, table.contactId),
+  index('idx_segment_contacts_contact').on(table.contactId),
 ])
 
 export const newsletterContactsRelations = relations(newsletterContacts, ({ one }) => ({
@@ -93,5 +102,16 @@ export const newslettersRelations = relations(newsletters, ({ one }) => ({
   site: one(sites, {
     fields: [newsletters.siteId],
     references: [sites.id],
+  }),
+}))
+
+export const newsletterSegmentContactsRelations = relations(newsletterSegmentContacts, ({ one }) => ({
+  segment: one(newsletterSegments, {
+    fields: [newsletterSegmentContacts.segmentId],
+    references: [newsletterSegments.id],
+  }),
+  contact: one(newsletterContacts, {
+    fields: [newsletterSegmentContacts.contactId],
+    references: [newsletterContacts.id],
   }),
 }))

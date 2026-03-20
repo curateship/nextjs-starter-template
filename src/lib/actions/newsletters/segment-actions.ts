@@ -2,7 +2,7 @@
 
 import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterSegments, newsletterContacts, sites } from '@/lib/db/schema'
+import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Segment {
@@ -10,7 +10,6 @@ export interface Segment {
   site_id: string
   name: string
   description: string
-  filter_rules: { tags?: string[] }
   created_at: string
   updated_at: string
 }
@@ -32,7 +31,6 @@ function rowToSegment(row: any): Segment {
     site_id: row.siteId,
     name: row.name,
     description: (row.description as string) ?? '',
-    filter_rules: (row.filterRules as { tags?: string[] }) ?? {},
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
@@ -132,7 +130,6 @@ export async function createSegment(input: {
   siteId: string
   name: string
   description?: string
-  filterRules: { tags?: string[] }
 }): Promise<{ data: Segment | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
@@ -152,7 +149,6 @@ export async function createSegment(input: {
         siteId: input.siteId,
         name: input.name.trim(),
         description: input.description || '',
-        filterRules: input.filterRules || {},
       })
       .returning()
 
@@ -169,7 +165,7 @@ export async function createSegment(input: {
 
 export async function updateSegment(
   segmentId: string,
-  updates: { name?: string; description?: string; filterRules?: { tags?: string[] } }
+  updates: { name?: string; description?: string }
 ): Promise<{ data: Segment | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
@@ -192,7 +188,6 @@ export async function updateSegment(
     const allowedFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) allowedFields.name = updates.name
     if (updates.description !== undefined) allowedFields.description = updates.description
-    if (updates.filterRules !== undefined) allowedFields.filterRules = updates.filterRules
 
     const [data] = await db
       .update(newsletterSegments)
@@ -283,28 +278,20 @@ export async function getSegmentsWithCounts(
     const counts: Record<string, number> = {}
 
     if (segments.length) {
-      await Promise.all(
-        segments.map(async (seg) => {
-          const conditions = [
-            eq(newsletterContacts.siteId, siteId),
-            eq(newsletterContacts.status, 'active'),
-          ]
+      const segmentIds = segments.map(s => s.id)
+      const countRows = await db
+        .select({ segmentId: newsletterSegmentContacts.segmentId, count: sql<number>`count(*)::int` })
+        .from(newsletterSegmentContacts)
+        .where(inArray(newsletterSegmentContacts.segmentId, segmentIds))
+        .groupBy(newsletterSegmentContacts.segmentId)
 
-          const rules = seg.filter_rules as { tags?: string[] }
-          if (rules.tags?.length) {
-            for (const tag of rules.tags) {
-              conditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
-            }
-          }
-
-          const [result] = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(newsletterContacts)
-            .where(and(...conditions))
-
-          counts[seg.id] = result?.count ?? 0
-        })
-      )
+      for (const row of countRows) {
+        counts[row.segmentId] = row.count
+      }
+      // Fill in zeros for segments with no contacts
+      for (const seg of segments) {
+        if (!(seg.id in counts)) counts[seg.id] = 0
+      }
     }
 
     return { data: segments, total: countResult[0]?.count ?? 0, counts, error: null }
@@ -317,62 +304,88 @@ export async function getSegmentsWithCounts(
 export async function addContactsToSegment(
   contactIds: string[],
   segmentId: string
-): Promise<{ updated: number; error: string | null }> {
+): Promise<{ added: number; error: string | null }> {
   try {
-    if (!contactIds.length) return { updated: 0, error: 'No contacts selected' }
-    if (!UUID_REGEX.test(segmentId)) return { updated: 0, error: 'Invalid segment ID' }
+    if (!contactIds.length) return { added: 0, error: 'No contacts selected' }
+    if (!UUID_REGEX.test(segmentId)) return { added: 0, error: 'Invalid segment ID' }
     for (const id of contactIds) {
-      if (!UUID_REGEX.test(id)) return { updated: 0, error: 'Invalid contact ID' }
+      if (!UUID_REGEX.test(id)) return { added: 0, error: 'Invalid contact ID' }
     }
 
     const user = await getAuthenticatedUser()
-    if (!user) return { updated: 0, error: 'Not authenticated' }
+    if (!user) return { added: 0, error: 'Not authenticated' }
 
     const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId, filterRules: newsletterSegments.filterRules })
+      .select({ siteId: newsletterSegments.siteId })
       .from(newsletterSegments)
       .where(eq(newsletterSegments.id, segmentId))
       .limit(1)
 
-    if (!segment) return { updated: 0, error: 'Segment not found' }
+    if (!segment) return { added: 0, error: 'Segment not found' }
 
     if (!await verifySiteOwnership(segment.siteId, user.id)) {
-      return { updated: 0, error: 'Access denied' }
+      return { added: 0, error: 'Access denied' }
     }
 
-    const rules = segment.filterRules as { tags?: string[] } | null
-    const segmentTags: string[] = rules?.tags || []
-    if (!segmentTags.length) return { updated: 0, error: 'Segment has no tags to add' }
-
-    // Fetch contacts and merge tags
+    // Verify contacts belong to the same site
     const contacts = await db
-      .select({ id: newsletterContacts.id, metadata: newsletterContacts.metadata })
+      .select({ id: newsletterContacts.id })
       .from(newsletterContacts)
       .where(and(inArray(newsletterContacts.id, contactIds), eq(newsletterContacts.siteId, segment.siteId)))
 
-    if (!contacts.length) return { updated: 0, error: 'No matching contacts found' }
+    if (!contacts.length) return { added: 0, error: 'No matching contacts found' }
 
-    let updated = 0
-    for (const contact of contacts) {
-      const meta = contact.metadata as Record<string, any> | null
-      const existingTags: string[] = meta?.tags || []
-      const mergedTags = [...new Set([...existingTags, ...segmentTags])]
-      if (mergedTags.length === existingTags.length) continue // no new tags
+    const values = contacts.map(c => ({ segmentId, contactId: c.id }))
+    const result = await db
+      .insert(newsletterSegmentContacts)
+      .values(values)
+      .onConflictDoNothing()
+      .returning({ id: newsletterSegmentContacts.id })
 
-      try {
-        await db
-          .update(newsletterContacts)
-          .set({ metadata: { ...meta, tags: mergedTags }, updatedAt: new Date() })
-          .where(eq(newsletterContacts.id, contact.id))
-        updated++
-      } catch {
-        // skip failed updates
-      }
-    }
-
-    return { updated, error: null }
+    return { added: result.length, error: null }
   } catch (err) {
     console.error('addContactsToSegment error:', err)
-    return { updated: 0, error: 'Server error' }
+    return { added: 0, error: 'Server error' }
+  }
+}
+
+export async function removeContactsFromSegment(
+  contactIds: string[],
+  segmentId: string
+): Promise<{ removed: number; error: string | null }> {
+  try {
+    if (!contactIds.length) return { removed: 0, error: 'No contacts selected' }
+    if (!UUID_REGEX.test(segmentId)) return { removed: 0, error: 'Invalid segment ID' }
+    for (const id of contactIds) {
+      if (!UUID_REGEX.test(id)) return { removed: 0, error: 'Invalid contact ID' }
+    }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { removed: 0, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { removed: 0, error: 'Segment not found' }
+
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { removed: 0, error: 'Access denied' }
+    }
+
+    const result = await db
+      .delete(newsletterSegmentContacts)
+      .where(and(
+        eq(newsletterSegmentContacts.segmentId, segmentId),
+        inArray(newsletterSegmentContacts.contactId, contactIds)
+      ))
+      .returning({ id: newsletterSegmentContacts.id })
+
+    return { removed: result.length, error: null }
+  } catch (err) {
+    console.error('removeContactsFromSegment error:', err)
+    return { removed: 0, error: 'Server error' }
   }
 }

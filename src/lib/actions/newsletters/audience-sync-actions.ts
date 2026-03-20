@@ -2,7 +2,7 @@
 
 import { eq, and, sql, gte } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterContacts, siteIntegrations, sites } from '@/lib/db/schema'
+import { newsletterContacts, newsletterSegmentContacts, siteIntegrations, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { Resend } from 'resend'
@@ -137,7 +137,7 @@ export async function syncContactsToResend(siteId: string): Promise<{ synced: nu
  */
 export async function getAudienceCount(
   siteId: string,
-  audienceFilter: { tags?: string[]; sources?: string[]; min_engagement_score?: number }
+  audienceFilter: { segment_id?: string; tags?: string[]; sources?: string[]; min_engagement_score?: number }
 ): Promise<{ count: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { count: 0, error: 'Invalid site ID' }
@@ -145,13 +145,26 @@ export async function getAudienceCount(
     if (!user) return { count: 0, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { count: 0, error: 'Access denied' }
 
+    // If segment_id is provided, count via join table
+    if (audienceFilter.segment_id) {
+      const [result] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterContacts)
+        .innerJoin(newsletterSegmentContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+        .where(and(
+          eq(newsletterSegmentContacts.segmentId, audienceFilter.segment_id),
+          eq(newsletterContacts.siteId, siteId),
+          eq(newsletterContacts.status, 'active')
+        ))
+      return { count: result?.count ?? 0, error: null }
+    }
+
     const conditions = [
       eq(newsletterContacts.siteId, siteId),
       eq(newsletterContacts.status, 'active'),
     ]
 
     if (audienceFilter.tags?.length) {
-      // Filter contacts whose metadata tags overlap with filter tags
       for (const tag of audienceFilter.tags) {
         conditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
       }

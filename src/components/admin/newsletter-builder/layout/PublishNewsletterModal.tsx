@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
@@ -57,9 +56,13 @@ export function PublishNewsletterModal({
       return
     }
 
-    const tags = filter.tags || []
-    const countFilter = tags.length ? { tags } : {}
-    getAudienceCount(siteId, countFilter).then(({ count }) => setAudienceCount(count))
+    if (filter.segment_id) {
+      getAudienceCount(siteId, { segment_id: filter.segment_id }).then(({ count }) => setAudienceCount(count))
+    } else {
+      const tags = filter.tags || []
+      const countFilter = tags.length ? { tags } : {}
+      getAudienceCount(siteId, countFilter).then(({ count }) => setAudienceCount(count))
+    }
   }, [open, siteId, newsletter])
 
   useEffect(() => {
@@ -163,13 +166,6 @@ export function PublishNewsletterModal({
                       ? `${audienceCount.toLocaleString()} contact${audienceCount !== 1 ? 's' : ''}`
                       : 'Calculating...'}
                   </span>
-                </div>
-              )}
-              {filter.tags?.length > 0 && (
-                <div className="flex flex-wrap gap-1 justify-end mt-1.5">
-                  {filter.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                  ))}
                 </div>
               )}
             </div>

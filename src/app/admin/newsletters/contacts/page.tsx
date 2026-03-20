@@ -290,12 +290,12 @@ export default function ContactsPage() {
     setAddingToSegment(true)
     try {
       const segName = segments.find(s => s.id === selectedSegmentId)?.name || "segment"
-      const { updated, error } = await addContactsToSegment(Array.from(selectedIds), selectedSegmentId)
+      const { added, error } = await addContactsToSegment(Array.from(selectedIds), selectedSegmentId)
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
       } else {
-        setSuccessMessage(`${updated} contact${updated !== 1 ? "s" : ""} added to ${segName}`)
+        setSuccessMessage(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}`)
         setTimeout(() => setSuccessMessage(null), 5000)
         setSelectedIds(new Set())
         setAllSelected(false)

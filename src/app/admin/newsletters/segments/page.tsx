@@ -5,7 +5,6 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-la
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -45,7 +44,7 @@ export default function SegmentsPage() {
   const [total, setTotal] = useState(0)
 
   // Sort state
-  const [sortColumn, setSortColumn] = useState<'name' | 'tags' | 'contacts' | 'modified' | null>(null)
+  const [sortColumn, setSortColumn] = useState<'name' | 'contacts' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Create/Edit modal state
@@ -53,7 +52,6 @@ export default function SegmentsPage() {
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
-  const [formTags, setFormTags] = useState("")
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -90,7 +88,6 @@ export default function SegmentsPage() {
     setEditingSegment(null)
     setFormName("")
     setFormDescription("")
-    setFormTags("")
     setModalOpen(true)
   }
 
@@ -98,7 +95,6 @@ export default function SegmentsPage() {
     setEditingSegment(segment)
     setFormName(segment.name)
     setFormDescription(segment.description || "")
-    setFormTags(segment.filter_rules?.tags?.join(", ") || "")
     setModalOpen(true)
   }
 
@@ -106,14 +102,10 @@ export default function SegmentsPage() {
     if (!currentSite?.id || !formName.trim()) return
     setSaving(true)
 
-    const tags = formTags ? formTags.split(",").map(t => t.trim()).filter(Boolean) : []
-    const filterRules = tags.length ? { tags } : {}
-
     if (editingSegment) {
       const { error: updateError } = await updateSegment(editingSegment.id, {
         name: formName.trim(),
         description: formDescription,
-        filterRules,
       })
       if (updateError) {
         setError(updateError)
@@ -125,7 +117,6 @@ export default function SegmentsPage() {
         siteId: currentSite.id,
         name: formName.trim(),
         description: formDescription,
-        filterRules,
       })
       if (createError) {
         setError(createError)
@@ -191,7 +182,7 @@ export default function SegmentsPage() {
     setAllSelected(false)
   }
 
-  const toggleSort = (column: 'name' | 'tags' | 'contacts' | 'modified') => {
+  const toggleSort = (column: 'name' | 'contacts' | 'modified') => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
         setSortColumn(null)
@@ -205,7 +196,7 @@ export default function SegmentsPage() {
     }
   }
 
-  const getSortIcon = (column: 'name' | 'tags' | 'contacts' | 'modified') => {
+  const getSortIcon = (column: 'name' | 'contacts' | 'modified') => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
     if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
@@ -215,11 +206,6 @@ export default function SegmentsPage() {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'tags') {
-      const aTag = a.filter_rules?.tags?.[0] || '\uffff'
-      const bTag = b.filter_rules?.tags?.[0] || '\uffff'
-      return aTag.localeCompare(bTag) * dir
-    }
     if (sortColumn === 'contacts') {
       const aCount = contactCounts[a.id] ?? 0
       const bCount = contactCounts[b.id] ?? 0
@@ -281,7 +267,7 @@ export default function SegmentsPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
                     checked={segments.length > 0 && selectedIds.size === segments.length}
@@ -301,18 +287,6 @@ export default function SegmentsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('tags')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Tags</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('tags')}</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => toggleSort('contacts')}
@@ -358,17 +332,13 @@ export default function SegmentsPage() {
                 <div className="space-y-0">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
+                      <div className="grid grid-cols-5 gap-4 items-center">
                         <div className="col-span-2 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div>
                             <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40" />
                             <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
                           </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-14" />
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-16" />
                         </div>
                         <div><div className="h-4 bg-muted/60 rounded animate-pulse w-12" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
@@ -398,7 +368,7 @@ export default function SegmentsPage() {
               ) : (
                 sortedSegments.map((segment) => (
                   <div key={segment.id} className={`p-6 transition-colors ${selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-6 gap-4 items-center">
+                    <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
                           checked={selectedIds.has(segment.id)}
@@ -415,15 +385,6 @@ export default function SegmentsPage() {
                             <p className="text-xs text-muted-foreground">{segment.description}</p>
                           )}
                         </a>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {segment.filter_rules?.tags?.length ? (
-                          segment.filter_rules.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
@@ -511,19 +472,6 @@ export default function SegmentsPage() {
                 rows={2}
               />
             </div>
-            <div>
-              <Label htmlFor="segment-tags">Filter by Tags</Label>
-              <Input
-                id="segment-tags"
-                value={formTags}
-                onChange={(e) => setFormTags(e.target.value)}
-                placeholder="austin, fitness (comma-separated)"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Contacts must have ALL of these tags to be included in this segment.
-              </p>
-            </div>
-
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
                 Cancel

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -70,27 +69,22 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       return
     }
 
-    let tags: string[] = []
     if (audienceMode === 'custom') {
-      tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
-    } else if (audienceMode !== 'all' && audienceMode !== 'none') {
-      const seg = segments.find(s => s.id === audienceMode)
-      tags = seg?.filter_rules?.tags || []
+      const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+      const filter = tags.length ? { tags } : {}
+      getAudienceCount(currentSite.id, filter).then(({ count }) => setAudienceCount(count))
+    } else if (audienceMode === 'all') {
+      getAudienceCount(currentSite.id, {}).then(({ count }) => setAudienceCount(count))
+    } else {
+      // It's a segment ID — count via join table
+      getAudienceCount(currentSite.id, { segment_id: audienceMode }).then(({ count }) => setAudienceCount(count))
     }
-
-    const filter = tags.length ? { tags } : {}
-    getAudienceCount(currentSite.id, filter).then(({ count }) => setAudienceCount(count))
   }, [audienceMode, filterTags, currentSite?.id, segments])
 
   function handleAudienceModeChange(value: string) {
     setAudienceMode(value)
     if (value !== 'custom') {
-      if (value === 'all' || value === 'none') {
-        setFilterTags('')
-      } else {
-        const seg = segments.find(s => s.id === value)
-        setFilterTags(seg?.filter_rules?.tags?.join(', ') || '')
-      }
+      setFilterTags('')
     }
   }
 
@@ -101,14 +95,9 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       return tags.length ? { tags } : {}
     }
-    const seg = segments.find(s => s.id === audienceMode)
-    const tags = seg?.filter_rules?.tags || []
-    return { segment_id: audienceMode, tags }
+    // Segment selected — store segment_id only
+    return { segment_id: audienceMode }
   }
-
-  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'none' && audienceMode !== 'custom'
-    ? segments.find(s => s.id === audienceMode)
-    : null
 
   const handleCreate = async (status: 'draft' | 'scheduled') => {
     if (!subject.trim()) {
@@ -228,14 +217,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             </SelectContent>
           </Select>
         </div>
-
-        {selectedSegment && selectedSegment.filter_rules?.tags?.length ? (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {selectedSegment.filter_rules.tags.map(tag => (
-              <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-            ))}
-          </div>
-        ) : null}
 
         {audienceMode === 'custom' && (
           <div className="mt-3">

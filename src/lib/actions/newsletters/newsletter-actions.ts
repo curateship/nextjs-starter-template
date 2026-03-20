@@ -2,7 +2,7 @@
 
 import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletters, newsletterContacts, newsletterSegments, newsletterEvents, sites } from '@/lib/db/schema'
+import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import { Resend } from 'resend'
@@ -350,38 +350,41 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
 
     await db.update(newsletters).set({ status: 'sending' }).where(eq(newsletters.id, newsletterId))
 
-    // Resolve segment if segment_id is set
+    // Resolve contacts based on filter
+    let contacts: { id: string; email: string; metadata: any }[]
+
     if (filter.segment_id) {
-      const [segment] = await db
-        .select({ filterRules: newsletterSegments.filterRules })
-        .from(newsletterSegments)
-        .where(eq(newsletterSegments.id, filter.segment_id))
-        .limit(1)
-      const rules = segment?.filterRules as Record<string, any> | null
-      if (rules?.tags?.length) {
-        filter = { ...filter, tags: rules.tags }
+      // Get contacts via join table
+      contacts = await db
+        .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+        .from(newsletterContacts)
+        .innerJoin(newsletterSegmentContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+        .where(and(
+          eq(newsletterSegmentContacts.segmentId, filter.segment_id),
+          eq(newsletterContacts.siteId, newsletter.site_id),
+          eq(newsletterContacts.status, 'active')
+        ))
+    } else {
+      // Build contact query conditions for non-segment filters
+      const contactConditions = [
+        eq(newsletterContacts.siteId, newsletter.site_id),
+        eq(newsletterContacts.status, 'active'),
+      ]
+
+      if (filter.tags?.length) {
+        for (const tag of filter.tags) {
+          contactConditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
+        }
       }
-    }
-
-    // Build contact query conditions
-    const contactConditions = [
-      eq(newsletterContacts.siteId, newsletter.site_id),
-      eq(newsletterContacts.status, 'active'),
-    ]
-
-    if (filter.tags?.length) {
-      for (const tag of filter.tags) {
-        contactConditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
+      if (filter.sources?.length) {
+        contactConditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(filter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
       }
-    }
-    if (filter.sources?.length) {
-      contactConditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(filter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
-    }
 
-    const contacts = await db
-      .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
-      .from(newsletterContacts)
-      .where(and(...contactConditions))
+      contacts = await db
+        .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+        .from(newsletterContacts)
+        .where(and(...contactConditions))
+    }
 
     if (!contacts.length) {
       await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))

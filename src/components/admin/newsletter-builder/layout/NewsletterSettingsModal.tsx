@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -106,29 +105,22 @@ export function NewsletterSettingsModal({
       return
     }
 
-    let tags: string[] = []
-
     if (audienceMode === 'custom') {
-      tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
-    } else if (audienceMode !== 'all') {
-      // It's a segment ID — find the segment's tags
-      const seg = segments.find(s => s.id === audienceMode)
-      tags = seg?.filter_rules?.tags || []
+      const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
+      const filter = tags.length ? { tags } : {}
+      getAudienceCount(siteId, filter).then(({ count }) => setAudienceCount(count))
+    } else if (audienceMode === 'all') {
+      getAudienceCount(siteId, {}).then(({ count }) => setAudienceCount(count))
+    } else {
+      // It's a segment ID — count via join table
+      getAudienceCount(siteId, { segment_id: audienceMode }).then(({ count }) => setAudienceCount(count))
     }
-
-    const filter = tags.length ? { tags } : {}
-    getAudienceCount(siteId, filter).then(({ count }) => setAudienceCount(count))
   }, [audienceMode, filterTags, siteId, open, segments])
 
   function handleAudienceModeChange(value: string) {
     setAudienceMode(value)
     if (value !== 'custom') {
-      if (value === 'all' || value === 'none') {
-        setFilterTags('')
-      } else {
-        const seg = segments.find(s => s.id === value)
-        setFilterTags(seg?.filter_rules?.tags?.join(', ') || '')
-      }
+      setFilterTags('')
     }
   }
 
@@ -139,10 +131,8 @@ export function NewsletterSettingsModal({
       const tags = filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : []
       return tags.length ? { tags } : {}
     }
-    // Segment selected — store segment_id + resolved tags
-    const seg = segments.find(s => s.id === audienceMode)
-    const tags = seg?.filter_rules?.tags || []
-    return { segment_id: audienceMode, tags }
+    // Segment selected — store segment_id only
+    return { segment_id: audienceMode }
   }
 
   const handleSave = async () => {
@@ -204,11 +194,6 @@ export function NewsletterSettingsModal({
 
   if (!newsletter) return null
   const isSent = newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused'
-
-  // Get selected segment for display
-  const selectedSegment = audienceMode !== 'all' && audienceMode !== 'custom'
-    ? segments.find(s => s.id === audienceMode)
-    : null
 
   return (
     <>
@@ -283,15 +268,6 @@ export function NewsletterSettingsModal({
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Show segment tags as badges when a segment is selected */}
-              {selectedSegment && selectedSegment.filter_rules?.tags?.length ? (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {selectedSegment.filter_rules.tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                  ))}
-                </div>
-              ) : null}
 
               {/* Show manual tags input for custom filter */}
               {audienceMode === 'custom' && (
