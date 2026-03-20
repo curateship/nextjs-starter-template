@@ -101,7 +101,7 @@ export default function ContactsPage() {
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [dateFilterType, setDateFilterType] = useState<"created" | "engaged">("created")
   const [calendarRange, setCalendarRange] = useState<DateRange | undefined>()
-  const [activePreset, setActivePreset] = useState<number | null>(null)
+  const [activePreset, setActivePreset] = useState<number | string | null>(null)
 
   useEffect(() => {
     loadContacts()
@@ -316,6 +316,8 @@ export default function ContactsPage() {
     { value: "first_name", label: "First Name" },
     { value: "last_name", label: "Last Name" },
     { value: "tags", label: "Tags" },
+    { value: "created_at", label: "Created At" },
+    { value: "last_engaged_at", label: "Last Engaged" },
   ]
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,6 +340,8 @@ export default function ContactsPage() {
         else if (!used.has("first_name") && (lower === "first_name" || lower === "first name" || lower === "firstname" || lower === "first")) { match = "first_name" }
         else if (!used.has("last_name") && (lower === "last_name" || lower === "last name" || lower === "lastname" || lower === "last")) { match = "last_name" }
         else if (!used.has("tags") && (lower === "tags" || lower === "tag")) { match = "tags" }
+        else if (!used.has("created_at") && (lower === "created_at" || lower === "created at" || lower === "date added" || lower === "created" || lower === "date")) { match = "created_at" }
+        else if (!used.has("last_engaged_at") && (lower === "last_engaged_at" || lower === "last engaged" || lower === "last engaged at" || lower === "last active" || lower === "last_active" || lower === "last open" || lower === "last_open")) { match = "last_engaged_at" }
         autoMap[h] = match
         if (match) used.add(match)
       }
@@ -382,7 +386,7 @@ export default function ContactsPage() {
     return result
   }
 
-  function getMappedContacts(): { email: string; first_name?: string; last_name?: string; tags?: string[] }[] {
+  function getMappedContacts(): { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[] {
     // Build reverse map: our field → CSV column index
     const fieldToIdx: Record<string, number> = {}
     for (const [csvHeader, ourField] of Object.entries(columnMap)) {
@@ -394,7 +398,7 @@ export default function ContactsPage() {
 
     if (fieldToIdx.email === undefined) return []
 
-    const results: { email: string; first_name?: string; last_name?: string; tags?: string[] }[] = []
+    const results: { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[] = []
     for (const cols of csvRows) {
       const email = cols[fieldToIdx.email]
       if (!email) continue
@@ -403,6 +407,8 @@ export default function ContactsPage() {
         first_name: fieldToIdx.first_name !== undefined ? cols[fieldToIdx.first_name] || undefined : undefined,
         last_name: fieldToIdx.last_name !== undefined ? cols[fieldToIdx.last_name] || undefined : undefined,
         tags: fieldToIdx.tags !== undefined && cols[fieldToIdx.tags] ? cols[fieldToIdx.tags].split(";").map(t => t.trim()).filter(Boolean) : undefined,
+        created_at: fieldToIdx.created_at !== undefined ? cols[fieldToIdx.created_at] || undefined : undefined,
+        last_engaged_at: fieldToIdx.last_engaged_at !== undefined ? cols[fieldToIdx.last_engaged_at] || undefined : undefined,
       })
     }
     return results
@@ -566,22 +572,25 @@ export default function ContactsPage() {
     { value: "complained", label: "Complained" },
   ]
 
-  const DATE_PRESETS = [
-    { label: "Today", days: 0 },
-    { label: "Last 7 days", days: 7 },
-    { label: "Last 30 days", days: 30 },
-    { label: "Last 90 days", days: 90 },
-    { label: "Last year", days: 365 },
+  const DATE_PRESETS: { label: string; value: number | "ytd" }[] = [
+    { label: "Today", value: 0 },
+    { label: "Last 7 days", value: 7 },
+    { label: "Last 30 days", value: 30 },
+    { label: "Last 90 days", value: 90 },
+    { label: "YTD", value: "ytd" },
+    { label: "Last year", value: 365 },
   ]
 
-  function applyDatePreset(days: number) {
+  function applyDatePreset(value: number | "ytd") {
     const now = new Date()
-    const from = days === 0
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const from = value === "ytd"
+      ? new Date(now.getFullYear(), 0, 1)
+      : value === 0
+        ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        : new Date(now.getTime() - value * 24 * 60 * 60 * 1000)
     const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
     setCalendarRange({ from, to })
-    setActivePreset(days)
+    setActivePreset(value)
     if (dateFilterType === "created") {
       setPendingFilters(prev => ({ ...prev, createdAfter: from.toISOString(), createdBefore: to.toISOString() }))
     } else {
@@ -624,6 +633,9 @@ export default function ContactsPage() {
       if (diffDays === 30) return `${prefix}: Last 30 days`
       if (diffDays === 90) return `${prefix}: Last 90 days`
       if (diffDays === 365) return `${prefix}: Last year`
+      // Check YTD: from is Jan 1 of current year
+      const jan1 = new Date(now.getFullYear(), 0, 1)
+      if (fromDate.getTime() === jan1.getTime()) return `${prefix}: YTD`
     }
     const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
     if (fromDate && toDate) return `${prefix}: ${fmt(fromDate)} - ${fmt(toDate)}`
@@ -1085,7 +1097,7 @@ export default function ContactsPage() {
                   {/* Presets */}
                   <div className="flex flex-wrap gap-2 mb-6">
                     {DATE_PRESETS.map(preset => {
-                      const isActive = activePreset === preset.days
+                      const isActive = activePreset === preset.value
                       return (
                         <Button
                           key={preset.label}
@@ -1096,31 +1108,12 @@ export default function ContactsPage() {
                             "text-xs",
                             isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
                           )}
-                          onClick={() => applyDatePreset(preset.days)}
+                          onClick={() => applyDatePreset(preset.value)}
                         >
                           {preset.label}
                         </Button>
                       )
                     })}
-                    {calendarRange && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-muted-foreground"
-                        onClick={() => {
-                          setCalendarRange(undefined)
-                          setActivePreset(null)
-                          if (dateFilterType === "created") {
-                            setPendingFilters(prev => ({ ...prev, createdAfter: null, createdBefore: null }))
-                          } else {
-                            setPendingFilters(prev => ({ ...prev, engagedAfter: null, engagedBefore: null }))
-                          }
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    )}
                   </div>
                   <div>
                     <Calendar
@@ -1262,7 +1255,7 @@ export default function ContactsPage() {
                     )}
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="flex items-center justify-between mt-6 pt-4">
                       <Button variant="ghost" onClick={closeImportModal}>
                         ← Back
                       </Button>

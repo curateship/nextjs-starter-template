@@ -110,7 +110,7 @@ export async function createOrUpsertContact(input: {
 
 export async function bulkImportContacts(input: {
   siteId: string
-  contacts: { email: string; first_name?: string; last_name?: string; tags?: string[] }[]
+  contacts: { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[]
 }): Promise<{ imported: number; skipped: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { imported: 0, skipped: 0, error: 'Invalid site ID' }
@@ -166,6 +166,8 @@ export async function bulkImportContacts(input: {
           siteId: input.siteId,
           email: c.email,
           metadata,
+          ...(c.created_at ? { createdAt: new Date(c.created_at) } : {}),
+          ...(c.last_engaged_at ? { lastEngagedAt: new Date(c.last_engaged_at) } : {}),
         }
       })
 
