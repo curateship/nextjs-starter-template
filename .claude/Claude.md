@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+**Before starting any task, read `.claude/rules/common-mistakes.md` first.**
+
 Guidance for Claude Code working in this repository.
 
 ## Core Philosophy
