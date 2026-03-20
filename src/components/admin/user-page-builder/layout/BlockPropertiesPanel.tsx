@@ -46,7 +46,7 @@ export function BlockPropertiesPanel({
   blocksLoading = false
 }: BlockPropertiesPanelProps) {
   return (
-    <div className={`flex-1 border-r bg-background ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-hidden'}`}>
+    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
       {selectedBlock ? (
         <AdminLayout>
             {selectedBlock.type === 'navigation' && (
