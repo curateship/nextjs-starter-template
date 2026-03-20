@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar } from "@/components/ui/calendar"
+import type { DateRange } from "react-day-picker"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, List, Magnet, ShoppingCart, FileDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock, SlidersHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -43,7 +44,6 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<CrmContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filterSource, setFilterSource] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -56,7 +56,7 @@ export default function ContactsPage() {
   const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [total, setTotal] = useState(0)
-  const [stats, setStats] = useState<{ total: number; active: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null>(null)
+
 
   // Add Contact state
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -83,9 +83,26 @@ export default function ContactsPage() {
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Filter state
+  interface ContactFilters {
+    sources: string[]
+    statuses: string[]
+    createdAfter: string | null
+    createdBefore: string | null
+    engagedAfter: string | null
+    engagedBefore: string | null
+  }
+  const emptyFilters: ContactFilters = { sources: [], statuses: [], createdAfter: null, createdBefore: null, engagedAfter: null, engagedBefore: null }
+  const [filters, setFilters] = useState<ContactFilters>(emptyFilters)
+  const [pendingFilters, setPendingFilters] = useState<ContactFilters>(emptyFilters)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [dateFilterType, setDateFilterType] = useState<"created" | "engaged">("created")
+  const [calendarRange, setCalendarRange] = useState<DateRange | undefined>()
+  const [activePreset, setActivePreset] = useState<number | null>(null)
+
   useEffect(() => {
     loadContacts()
-  }, [currentSite?.id, filterSource, currentPage])
+  }, [currentSite?.id, filters, currentPage])
 
   useEffect(() => {
     if (currentSite?.id) {
@@ -104,7 +121,16 @@ export default function ContactsPage() {
       setLoading(true)
       setError(null)
 
-      const result = await getContactsWithStats(currentSite.id, { source: filterSource, page: currentPage, pageSize })
+      const result = await getContactsWithStats(currentSite.id, {
+        sources: filters.sources.length ? filters.sources : undefined,
+        statuses: filters.statuses.length ? filters.statuses : undefined,
+        createdAfter: filters.createdAfter || undefined,
+        createdBefore: filters.createdBefore || undefined,
+        engagedAfter: filters.engagedAfter || undefined,
+        engagedBefore: filters.engagedBefore || undefined,
+        page: currentPage,
+        pageSize,
+      })
 
       if (result.error) {
         setError(result.error)
@@ -114,15 +140,13 @@ export default function ContactsPage() {
 
       setContacts(result.data ?? [])
       setTotal(result.total)
-      if (result.stats) setStats(result.stats)
+
       setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load contacts")
       setLoading(false)
     }
   }
-
-  const filteredContacts = contacts
 
   const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added') => {
     if (sortColumn === column) {
@@ -144,7 +168,7 @@ export default function ContactsPage() {
     return <ArrowDown className="h-3 w-3" />
   }
 
-  const sortedContacts = [...filteredContacts].sort((a, b) => {
+  const sortedContacts = [...contacts].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'contact') return a.email.localeCompare(b.email) * dir
@@ -173,10 +197,10 @@ export default function ContactsPage() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredContacts.length) {
+    if (selectedIds.size === contacts.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredContacts.map(c => c.id)))
+      setSelectedIds(new Set(contacts.map(c => c.id)))
     }
   }
 
@@ -489,12 +513,116 @@ export default function ContactsPage() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
 
-  const sourceCounts = {
-    all: stats?.total ?? 0,
-    lead_magnet: stats?.bySource?.lead_magnet ?? 0,
-    paid_purchase: stats?.bySource?.paid_purchase ?? 0,
-    import: stats?.bySource?.import ?? 0,
-    manual: stats?.bySource?.manual ?? 0,
+  const activeFilterCount =
+    filters.sources.length +
+    filters.statuses.length +
+    (filters.createdAfter || filters.createdBefore ? 1 : 0) +
+    (filters.engagedAfter || filters.engagedBefore ? 1 : 0)
+
+  const SOURCE_OPTIONS = [
+    { value: "lead_magnet", label: "Lead Magnet" },
+    { value: "paid_purchase", label: "Purchase" },
+    { value: "import", label: "Import" },
+    { value: "manual", label: "Manual" },
+  ]
+
+  const STATUS_OPTIONS = [
+    { value: "active", label: "Active" },
+    { value: "unsubscribed", label: "Unsubscribed" },
+    { value: "bounced", label: "Bounced" },
+    { value: "complained", label: "Complained" },
+  ]
+
+  const DATE_PRESETS = [
+    { label: "Today", days: 0 },
+    { label: "Last 7 days", days: 7 },
+    { label: "Last 30 days", days: 30 },
+    { label: "Last 90 days", days: 90 },
+    { label: "Last year", days: 365 },
+  ]
+
+  function applyDatePreset(days: number) {
+    const now = new Date()
+    const from = days === 0
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+    setCalendarRange({ from, to })
+    setActivePreset(days)
+    if (dateFilterType === "created") {
+      setPendingFilters(prev => ({ ...prev, createdAfter: from.toISOString(), createdBefore: to.toISOString() }))
+    } else {
+      setPendingFilters(prev => ({ ...prev, engagedAfter: from.toISOString(), engagedBefore: to.toISOString() }))
+    }
+  }
+
+  function switchDateFilterType(type: "created" | "engaged") {
+    setDateFilterType(type)
+    // Clear the other type's values and sync calendar to the selected type
+    if (type === "created") {
+      setPendingFilters(prev => ({ ...prev, engagedAfter: null, engagedBefore: null }))
+      setCalendarRange(
+        pendingFilters.createdAfter || pendingFilters.createdBefore
+          ? { from: pendingFilters.createdAfter ? new Date(pendingFilters.createdAfter) : undefined, to: pendingFilters.createdBefore ? new Date(pendingFilters.createdBefore) : undefined }
+          : undefined
+      )
+    } else {
+      setPendingFilters(prev => ({ ...prev, createdAfter: null, createdBefore: null }))
+      setCalendarRange(
+        pendingFilters.engagedAfter || pendingFilters.engagedBefore
+          ? { from: pendingFilters.engagedAfter ? new Date(pendingFilters.engagedAfter) : undefined, to: pendingFilters.engagedBefore ? new Date(pendingFilters.engagedBefore) : undefined }
+          : undefined
+      )
+    }
+  }
+
+  function getDateChipLabel(after: string | null, before: string | null, prefix: string): string {
+    if (!after && !before) return ""
+    const fromDate = after ? new Date(after) : null
+    const toDate = before ? new Date(before) : null
+    // Check if matches a preset
+    if (fromDate && toDate) {
+      const now = new Date()
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const diffMs = todayStart.getTime() - fromDate.getTime()
+      const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000))
+      if (diffDays === 0) return `${prefix}: Today`
+      if (diffDays === 7) return `${prefix}: Last 7 days`
+      if (diffDays === 30) return `${prefix}: Last 30 days`
+      if (diffDays === 90) return `${prefix}: Last 90 days`
+      if (diffDays === 365) return `${prefix}: Last year`
+    }
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    if (fromDate && toDate) return `${prefix}: ${fmt(fromDate)} - ${fmt(toDate)}`
+    if (fromDate) return `${prefix}: After ${fmt(fromDate)}`
+    if (toDate) return `${prefix}: Before ${fmt(toDate)}`
+    return ""
+  }
+
+  function removeFilter(type: string, value?: string) {
+    setFilters(prev => {
+      const next = { ...prev }
+      if (type === "source" && value) next.sources = prev.sources.filter(s => s !== value)
+      if (type === "status" && value) next.statuses = prev.statuses.filter(s => s !== value)
+      if (type === "created") { next.createdAfter = null; next.createdBefore = null }
+      if (type === "engaged") { next.engagedAfter = null; next.engagedBefore = null }
+      return next
+    })
+    setCurrentPage(1)
+    setSelectedIds(new Set())
+  }
+
+  function clearAllFilters() {
+    setFilters(emptyFilters)
+    setCurrentPage(1)
+    setSelectedIds(new Set())
+  }
+
+  function applyFilters() {
+    setFilters(pendingFilters)
+    setFilterModalOpen(false)
+    setCurrentPage(1)
+    setSelectedIds(new Set())
   }
 
   return (
@@ -566,15 +694,29 @@ export default function ContactsPage() {
                     <p className="text-green-800 text-sm">{successMessage}</p>
                   </div>
                 )}
-                <Tabs value={filterSource} onValueChange={(v) => { setFilterSource(v); setSelectedIds(new Set()); setCurrentPage(1) }}>
-                  <TabsList className="h-auto p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({sourceCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="lead_magnet" className="px-2 sm:px-3"><Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({sourceCounts.lead_magnet})</span></TabsTrigger>
-                    <TabsTrigger value="paid_purchase" className="px-2 sm:px-3"><ShoppingCart className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Purchases ({sourceCounts.paid_purchase})</span></TabsTrigger>
-                    <TabsTrigger value="import" className="px-2 sm:px-3"><FileDown className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Imported ({sourceCounts.import})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <div className="w-1 sm:w-0" />
+                <Button
+                  variant="outline"
+                  className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2 relative"
+                  onClick={() => {
+                    setPendingFilters(filters)
+                    setDateFilterType("created")
+                    // Sync calendar to whichever date type is default (created)
+                    setCalendarRange(
+                      filters.createdAfter || filters.createdBefore
+                        ? { from: filters.createdAfter ? new Date(filters.createdAfter) : undefined, to: filters.createdBefore ? new Date(filters.createdBefore) : undefined }
+                        : undefined
+                    )
+                    setFilterModalOpen(true)
+                  }}
+                >
+                  <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
                 <Button className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2" onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Import CSV</span></Button>
                 <Button className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-4 sm:py-2" onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4 sm:mr-2" /><span className="hidden sm:inline">Add Contact</span></Button>
               </div>
@@ -591,12 +733,44 @@ export default function ContactsPage() {
           />
 
           <Card className="shadow-sm">
+            {/* Active filter chips */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2 px-6 py-4 border-b">
+                {filters.sources.map(s => (
+                  <Badge key={`src-${s}`} variant="secondary" className="gap-1 pr-1">
+                    Source: {SOURCE_OPTIONS.find(o => o.value === s)?.label || s}
+                    <button type="button" onClick={() => removeFilter("source", s)} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                  </Badge>
+                ))}
+                {filters.statuses.map(s => (
+                  <Badge key={`st-${s}`} variant="secondary" className="gap-1 pr-1">
+                    Status: {STATUS_OPTIONS.find(o => o.value === s)?.label || s}
+                    <button type="button" onClick={() => removeFilter("status", s)} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                  </Badge>
+                ))}
+                {(filters.createdAfter || filters.createdBefore) && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    {getDateChipLabel(filters.createdAfter, filters.createdBefore, "Added")}
+                    <button type="button" onClick={() => removeFilter("created")} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                  </Badge>
+                )}
+                {(filters.engagedAfter || filters.engagedBefore) && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    {getDateChipLabel(filters.engagedAfter, filters.engagedBefore, "Last Active")}
+                    <button type="button" onClick={() => removeFilter("engaged")} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                  </Badge>
+                )}
+                <button type="button" onClick={clearAllFilters} className="text-sm text-muted-foreground hover:text-foreground underline">
+                  Clear all
+                </button>
+              </div>
+            )}
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredContacts.length > 0 && selectedIds.size === filteredContacts.length}
+                    checked={contacts.length > 0 && selectedIds.size === contacts.length}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all contacts"
                   />
@@ -692,7 +866,7 @@ export default function ContactsPage() {
                   <p className="text-red-600 mb-4">{error}</p>
                   <Button onClick={() => loadContacts()} variant="outline" size="sm">Try Again</Button>
                 </div>
-              ) : filteredContacts.length === 0 ? (
+              ) : contacts.length === 0 ? (
                 <div className="p-8 text-center">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
@@ -788,6 +962,165 @@ export default function ContactsPage() {
               </div>
             )}
           </Card>
+
+          {/* Filter Modal */}
+          <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+            <DialogContent className="w-[600px] max-w-[95vw] p-0 max-h-[85vh] flex flex-col" style={{ width: '600px', maxWidth: '95vw' }}>
+              <DialogHeader className="px-6 pt-6 pb-4">
+                <DialogTitle>Filter Contacts</DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-6">
+                {/* Source */}
+                <div>
+                  <Label className="text-sm font-medium mb-3 block">Source</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SOURCE_OPTIONS.map(opt => (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={pendingFilters.sources.includes(opt.value)}
+                          onCheckedChange={(checked) => {
+                            setPendingFilters(prev => ({
+                              ...prev,
+                              sources: checked
+                                ? [...prev.sources, opt.value]
+                                : prev.sources.filter(s => s !== opt.value),
+                            }))
+                          }}
+                        />
+                        <span className="text-sm">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <Label className="text-sm font-medium mb-3 block">Status</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {STATUS_OPTIONS.map(opt => (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={pendingFilters.statuses.includes(opt.value)}
+                          onCheckedChange={(checked) => {
+                            setPendingFilters(prev => ({
+                              ...prev,
+                              statuses: checked
+                                ? [...prev.statuses, opt.value]
+                                : prev.statuses.filter(s => s !== opt.value),
+                            }))
+                          }}
+                        />
+                        <span className="text-sm">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date Range — single calendar with radio selection */}
+                <div>
+                  <Label className="text-sm font-medium mb-3 block">Filter Type</Label>
+                  <div className="grid grid-cols-2 gap-2 mb-8">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={dateFilterType === "created"}
+                        onCheckedChange={() => switchDateFilterType("created")}
+                      />
+                      <span className="text-sm">Date Added</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={dateFilterType === "engaged"}
+                        onCheckedChange={() => switchDateFilterType("engaged")}
+                      />
+                      <span className="text-sm">Last Active</span>
+                    </label>
+                  </div>
+                  {/* Presets */}
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {DATE_PRESETS.map(preset => {
+                      const isActive = activePreset === preset.days
+                      return (
+                        <Button
+                          key={preset.label}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "text-xs",
+                            isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                          )}
+                          onClick={() => applyDatePreset(preset.days)}
+                        >
+                          {preset.label}
+                        </Button>
+                      )
+                    })}
+                    {calendarRange && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground"
+                        onClick={() => {
+                          setCalendarRange(undefined)
+                          setActivePreset(null)
+                          if (dateFilterType === "created") {
+                            setPendingFilters(prev => ({ ...prev, createdAfter: null, createdBefore: null }))
+                          } else {
+                            setPendingFilters(prev => ({ ...prev, engagedAfter: null, engagedBefore: null }))
+                          }
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  <div>
+                    <Calendar
+                      mode="range"
+                      numberOfMonths={2}
+                      defaultMonth={calendarRange?.from || undefined}
+                      key={calendarRange?.from?.toISOString() || "empty"}
+                      selected={calendarRange}
+                      onSelect={(range) => {
+                        setCalendarRange(range)
+                        setActivePreset(null)
+                        const afterISO = range?.from ? range.from.toISOString() : null
+                        const beforeISO = range?.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59, 999).toISOString() : null
+                        if (dateFilterType === "created") {
+                          setPendingFilters(prev => ({ ...prev, createdAfter: afterISO, createdBefore: beforeISO }))
+                        } else {
+                          setPendingFilters(prev => ({ ...prev, engagedAfter: afterISO, engagedBefore: beforeISO }))
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setPendingFilters(emptyFilters)
+                    setCalendarRange(undefined)
+                  }}
+                >
+                  Reset
+                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setFilterModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={applyFilters}>
+                    Apply Filters
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Import Modal */}
           {importModalOpen && (

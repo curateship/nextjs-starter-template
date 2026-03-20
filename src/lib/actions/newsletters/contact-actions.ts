@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { eq, and, or, sql, desc, inArray, gte, lte } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -284,7 +284,18 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
 
 export async function getContactsWithStats(
   siteId: string,
-  options?: { source?: string; status?: string; page?: number; pageSize?: number }
+  options?: {
+    source?: string
+    status?: string
+    sources?: string[]
+    statuses?: string[]
+    createdAfter?: string
+    createdBefore?: string
+    engagedAfter?: string
+    engagedBefore?: string
+    page?: number
+    pageSize?: number
+  }
 ): Promise<{
   data: CrmContact[] | null
   total: number
@@ -312,6 +323,26 @@ export async function getContactsWithStats(
     }
     if (options?.status && options.status !== 'all') {
       conditions.push(eq(newsletterContacts.status, options.status))
+    }
+
+    // Multi-select filters
+    if (options?.sources?.length) {
+      conditions.push(or(...options.sources.map(s => sql`${newsletterContacts.metadata}->>'source' = ${s}`))!)
+    }
+    if (options?.statuses?.length) {
+      conditions.push(inArray(newsletterContacts.status, options.statuses))
+    }
+    if (options?.createdAfter) {
+      conditions.push(gte(newsletterContacts.createdAt, new Date(options.createdAfter)))
+    }
+    if (options?.createdBefore) {
+      conditions.push(lte(newsletterContacts.createdAt, new Date(options.createdBefore)))
+    }
+    if (options?.engagedAfter) {
+      conditions.push(gte(newsletterContacts.lastEngagedAt, new Date(options.engagedAfter)))
+    }
+    if (options?.engagedBefore) {
+      conditions.push(lte(newsletterContacts.lastEngagedAt, new Date(options.engagedBefore)))
     }
 
     const whereClause = and(...conditions)
