@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import { getEmailProvider } from '@/lib/email/provider'
 import { generateProductEmail } from './templates/product-delivery'
 
 /**
@@ -8,6 +8,7 @@ interface EmailConfig {
   apiKey?: string
   fromEmail?: string
   fromName?: string
+  providerType?: string
 }
 
 /**
@@ -36,16 +37,6 @@ interface EmailResult {
  * Email service for sending product delivery emails with link tracking
  */
 class EmailService {
-  /**
-   * Get Resend client with site-specific or default API key
-   */
-  private getResendClient(apiKey?: string): Resend {
-    if (!apiKey) {
-      throw new Error('Resend API key not configured. Add your Resend API key in site Integration settings.')
-    }
-    return new Resend(apiKey)
-  }
-
   /**
    * Get sender information
    */
@@ -126,8 +117,11 @@ class EmailService {
         }
       }
 
-      // Get Resend client
-      const resend = this.getResendClient(config?.apiKey)
+      if (!config?.apiKey) {
+        throw new Error('Email API key not configured. Add your API key in site Integration settings.')
+      }
+
+      const provider = getEmailProvider(config.apiKey, config.providerType)
 
       // Get sender info
       const { from, replyTo } = this.getSenderInfo(config)
@@ -143,33 +137,14 @@ class EmailService {
         trackingToken: token,
       })
 
-      // Send email via Resend
-      const result = await resend.emails.send({
+      // Send email via provider
+      return await provider.send({
         from,
         to,
         subject,
         html: htmlContent,
         replyTo,
       })
-
-      if (result.error) {
-        return {
-          success: false,
-          error: result.error.message || 'Failed to send email',
-        }
-      }
-
-      if (!result.data?.id) {
-        return {
-          success: false,
-          error: 'Failed to send email - no message ID returned',
-        }
-      }
-
-      return {
-        success: true,
-        messageId: result.data.id,
-      }
     } catch (error) {
       console.error('Error sending product delivery email:', error)
       return {

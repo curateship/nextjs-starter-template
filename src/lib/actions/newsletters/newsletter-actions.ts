@@ -4,8 +4,8 @@ import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
-import { Resend } from 'resend'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
+import { getEmailProvider } from '@/lib/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { generateEmailHtml } from './email-html'
 
@@ -340,8 +340,8 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       return { success: false, error: 'Newsletter has no content' }
     }
 
-    const config = await getResendConfig(newsletter.site_id)
-    if (!config?.apiKey) return { success: false, error: 'Resend not configured' }
+    const config = await getEmailConfig(newsletter.site_id)
+    if (!config?.apiKey) return { success: false, error: 'Email provider not configured' }
 
     let filter = newsletter.audience_filter || {}
     if (!filter.audience && !filter.segment_id && !filter.tags?.length && !filter.sources?.length) {
@@ -391,7 +391,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       return { success: false, error: 'No matching contacts' }
     }
 
-    const resend = new Resend(config.apiKey)
+    const provider = getEmailProvider(config.apiKey, config.providerType)
     const fromEmail = config.fromEmail
     if (!fromEmail) {
       await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))
@@ -422,7 +422,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
             <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
           </div>`
 
-        const result = await resend.emails.send({
+        const result = await provider.send({
           from,
           to: contact.email,
           subject: newsletter.subject,
@@ -433,7 +433,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
           },
         })
 
-        if (result.data?.id) {
+        if (result.success && result.messageId) {
           totalSent++
           await db.insert(newsletterEvents).values({
             siteId: newsletter.site_id,
@@ -441,7 +441,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
             eventType: 'sent',
             sourceType: 'broadcast',
             sourceId: newsletterId,
-            resendMessageId: result.data.id,
+            providerMessageId: result.messageId,
           })
         }
       } catch {
@@ -529,12 +529,12 @@ export async function sendTestNewsletter(
       return { success: false, error: 'Newsletter has no content. Add some blocks and save first.' }
     }
 
-    const config = await getResendConfig(newsletter.site_id)
+    const config = await getEmailConfig(newsletter.site_id)
     if (!config?.apiKey || !config?.fromEmail) {
-      return { success: false, error: 'Resend not configured. Add your Resend API key in site integrations.' }
+      return { success: false, error: 'Email provider not configured. Add your API key in site integrations.' }
     }
 
-    const resend = new Resend(config.apiKey)
+    const provider = getEmailProvider(config.apiKey, config.providerType)
     const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
     // Build a real unsubscribe URL so link domain matches sending domain (avoids spam filters)
@@ -543,15 +543,15 @@ export async function sendTestNewsletter(
     const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(testEmail)}&token=${unsubToken}`
     const testHtml = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl)
 
-    const result = await resend.emails.send({
+    const result = await provider.send({
       from,
       to: testEmail,
       subject: `[TEST] ${newsletter.subject}`,
       html: testHtml,
     })
 
-    if (result.error) {
-      return { success: false, error: result.error.message }
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to send test email' }
     }
 
     return { success: true, error: null }

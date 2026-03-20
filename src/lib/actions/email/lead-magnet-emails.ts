@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import { getEmailProvider } from '@/lib/email/provider'
 
 interface LeadMagnetEmailParams {
   to: string
@@ -10,6 +10,7 @@ interface LeadMagnetEmailParams {
   productName: string
   siteUrl: string
   apiKey?: string
+  providerType?: string
 }
 
 /**
@@ -19,12 +20,12 @@ interface LeadMagnetEmailParams {
 export async function sendLeadMagnetDeliveryEmail(
   params: LeadMagnetEmailParams
 ): Promise<void> {
-  const { to, subject, fromName, fromEmail, replyTo, content, productName, siteUrl, apiKey } = params
+  const { to, subject, fromName, fromEmail, replyTo, content, productName, siteUrl, apiKey, providerType } = params
 
   if (!apiKey) {
-    throw new Error('Resend API key not configured. Add your Resend API key in site Integration settings.')
+    throw new Error('Email API key not configured. Add your API key in site Integration settings.')
   }
-  const resend = new Resend(apiKey)
+  const provider = getEmailProvider(apiKey, providerType)
 
   const html = `
     <!DOCTYPE html>
@@ -95,7 +96,7 @@ export async function sendLeadMagnetDeliveryEmail(
     </html>
   `
 
-  await resend.emails.send({
+  await provider.send({
     from: `${fromName} <${fromEmail || 'noreply@yourdomain.com'}>`,
     to,
     subject,

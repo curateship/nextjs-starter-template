@@ -49,23 +49,39 @@ export async function getFlodeskConfig(siteId: string): Promise<{
 }
 
 /**
- * Get Resend config for a site from site integrations.
+ * Get email provider config for a site from site integrations.
+ * Checks enabled email-type integrations (resend, then future providers).
  */
-export async function getResendConfig(siteId: string): Promise<{
-  apiKey?: string
+export async function getEmailConfig(siteId: string): Promise<{
+  apiKey: string
   fromEmail?: string
   fromName?: string
+  providerType: string
+  webhookSecret?: string
 } | null> {
-  const integration = await getSiteIntegration(siteId, 'resend')
+  // Check providers in priority order
+  const providerTypes = ['resend'] as const
 
-  if (integration && integration.isEnabled) {
-    const { api_key, from_email, from_name } = integration.config
-    return {
-      apiKey: api_key,
-      fromEmail: from_email,
-      fromName: from_name,
+  for (const providerType of providerTypes) {
+    const integration = await getSiteIntegration(siteId, providerType)
+    if (integration && integration.isEnabled) {
+      const { api_key, from_email, from_name, webhook_secret } = integration.config
+      if (api_key) {
+        return {
+          apiKey: api_key,
+          fromEmail: from_email,
+          fromName: from_name,
+          providerType,
+          webhookSecret: webhook_secret,
+        }
+      }
     }
   }
 
   return null
+}
+
+/** @deprecated Use getEmailConfig instead */
+export async function getResendConfig(siteId: string) {
+  return getEmailConfig(siteId)
 }

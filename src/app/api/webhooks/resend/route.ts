@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     // Record to newsletter_events if we have a message ID
     if (eventType && messageId) {
       try {
-        // Find the event record by resend_message_id to get contact_id and source
+        // Find the event record by provider_message_id to get contact_id and source
         const [existingEvent] = await db
           .select({
             siteId: newsletterEvents.siteId,
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
             sourceId: newsletterEvents.sourceId,
           })
           .from(newsletterEvents)
-          .where(eq(newsletterEvents.resendMessageId, messageId))
+          .where(eq(newsletterEvents.providerMessageId, messageId))
           .limit(1)
 
         if (existingEvent) {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
             eventType,
             sourceType: existingEvent.sourceType,
             sourceId: existingEvent.sourceId,
-            resendMessageId: messageId,
+            providerMessageId: messageId,
             metadata: { link_url: data?.click?.link, bounce_type: data?.bounce?.type },
           })
 

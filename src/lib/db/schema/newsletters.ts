@@ -49,14 +49,14 @@ export const newsletterEvents = pgTable('newsletter_events', {
   eventType: varchar('event_type', { length: 20 }).notNull(),
   sourceType: varchar('source_type', { length: 20 }).notNull(),
   sourceId: uuid('source_id'),
-  resendMessageId: varchar('resend_message_id', { length: 255 }),
+  providerMessageId: varchar('provider_message_id', { length: 255 }),
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('idx_newsletter_events_site_created').on(table.siteId, table.createdAt),
   index('idx_newsletter_events_contact').on(table.contactId),
   index('idx_newsletter_events_source').on(table.sourceType, table.sourceId),
-  index('idx_newsletter_events_resend_msg').on(table.resendMessageId),
+  index('idx_newsletter_events_provider_msg').on(table.providerMessageId),
 ])
 
 export const newsletterTemplates = pgTable('newsletter_templates', {

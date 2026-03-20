@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
-import { getFlodeskConfig, getResendConfig } from '@/lib/actions/email/integration-actions'
+import { getFlodeskConfig, getEmailConfig } from '@/lib/actions/email/integration-actions'
 import { flodeskService } from '@/lib/actions/email/flodesk-service'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 
@@ -134,11 +134,11 @@ export async function POST(request: NextRequest) {
     // Get email content
     const emailContent = emailSettings.content || ''
 
-    // Get per-site Resend config
-    const resendConfig = await getResendConfig(siteId)
+    // Get per-site email config
+    const emailConfig = await getEmailConfig(siteId)
 
-    if (!resendConfig) {
-      console.error('Resend not configured for site:', siteId)
+    if (!emailConfig) {
+      console.error('Email provider not configured for site:', siteId)
       return NextResponse.json({ success: true, message: 'Order created but email not configured' })
     }
 
@@ -148,12 +148,13 @@ export async function POST(request: NextRequest) {
         to: email,
         subject: emailSettings.subject || `Your ${product.title} is ready!`,
         fromName: emailSettings.fromName || site.name || 'Your Company',
-        fromEmail: resendConfig.fromEmail,
+        fromEmail: emailConfig.fromEmail,
         replyTo: emailSettings.replyTo,
         content: emailContent,
         productName: product.title,
         siteUrl,
-        apiKey: resendConfig.apiKey,
+        apiKey: emailConfig.apiKey,
+        providerType: emailConfig.providerType,
       })
 
       // Mark email as sent

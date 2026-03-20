@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { newsletters, newsletterContacts, newsletterEvents, sites, users } from '@/lib/db/schema'
 import { eq, and, lte, inArray, sql } from 'drizzle-orm'
-import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { Resend } from 'resend'
+import { getEmailProvider, type EmailProvider } from '@/lib/email/provider'
 
 const BATCH_SIZE = 50
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     for (const newsletter of sendingNewsletters) {
       try {
-        const config = await getResendConfig(newsletter.siteId)
+        const config = await getEmailConfig(newsletter.siteId)
         if (!config?.apiKey || !config?.fromEmail) continue
         if (!newsletter.content?.trim()) continue
 
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
           : BATCH_SIZE
 
         const batch = unsent.slice(0, batchSize)
-        const resend = new Resend(config.apiKey)
+        const provider = getEmailProvider(config.apiKey, config.providerType)
         const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
         const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
               }
             }
 
-            const result = await resend.emails.send({
+            const result = await provider.send({
               from,
               to: contact.email,
               subject: newsletter.subject || newsletter.name,
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
               },
             })
 
-            if (result.data?.id) {
+            if (result.success && result.messageId) {
               batchSent++
               await db.insert(newsletterEvents).values({
                 siteId: newsletter.siteId,
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
                 eventType: 'sent',
                 sourceType: 'broadcast',
                 sourceId: newsletter.id,
-                resendMessageId: result.data.id,
+                providerMessageId: result.messageId,
               })
             }
           } catch {
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
               .where(eq(newsletters.id, newsletter.id))
 
             // Send admin email notification
-            await sendBounceAlertEmail(newsletter, config, resend, bounceRate, threshold, totalBounced, newTotalSent)
+            await sendBounceAlertEmail(newsletter, config, provider, bounceRate, threshold, totalBounced, newTotalSent)
           } else {
             // Schedule next batch
             const intervalMin = dripConfig.interval_min_minutes || 30
@@ -278,7 +278,7 @@ export async function GET(request: NextRequest) {
 async function sendBounceAlertEmail(
   newsletter: any,
   config: any,
-  resend: Resend,
+  provider: EmailProvider,
   bounceRate: number,
   threshold: number,
   totalBounced: number,
@@ -303,7 +303,7 @@ async function sendBounceAlertEmail(
 
     const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
 
-    await resend.emails.send({
+    await provider.send({
       from,
       to: adminEmail,
       subject: `Newsletter Paused — Bounce rate ${bounceRate.toFixed(1)}% exceeded ${threshold}% threshold`,

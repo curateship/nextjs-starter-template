@@ -1,0 +1,2 @@
+ALTER TABLE newsletter_events RENAME COLUMN resend_message_id TO provider_message_id;
+ALTER INDEX idx_newsletter_events_resend_msg RENAME TO idx_newsletter_events_provider_msg;

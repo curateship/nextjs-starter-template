@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { Resend } from 'resend'
+import { getEmailProvider } from '@/lib/email/provider'
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -90,11 +90,11 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Get Resend config
-        const config = await getResendConfig(siteId)
+        // Get email config
+        const config = await getEmailConfig(siteId)
         if (!config?.apiKey || !config?.fromEmail) continue
 
-        const resend = new Resend(config.apiKey)
+        const provider = getEmailProvider(config.apiKey, config.providerType)
         const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
         const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
@@ -117,10 +117,10 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const result = await resend.emails.send({
+        const result = await provider.send({
           from,
           to: contact.email,
-          subject: step.subject,
+          subject: step.subject!,
           html,
           headers: {
             'List-Unsubscribe': `<${unsubUrl}>`,
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
           },
         })
 
-        if (result.data?.id) {
+        if (result.success && result.messageId) {
           // Update enrollment
           await db
             .update(emailAutomationEnrollments)
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
             eventType: 'sent',
             sourceType: 'automation',
             sourceId: enrollment.automationId,
-            resendMessageId: result.data.id,
+            providerMessageId: result.messageId,
             metadata: { step_order: nextStepOrder },
           })
 

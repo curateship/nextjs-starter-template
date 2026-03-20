@@ -15,4 +15,5 @@ export {
 export {
   getFlodeskConfig,
   getResendConfig,
+  getEmailConfig,
 } from '@/lib/actions/integrations/config-helpers'
