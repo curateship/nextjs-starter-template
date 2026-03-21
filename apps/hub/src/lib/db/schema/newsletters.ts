@@ -64,6 +64,7 @@ export const newsletterTemplates = pgTable('newsletter_templates', {
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   contentBlocks: jsonb('content_blocks').notNull().default({}),
+  isDefault: boolean('is_default').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

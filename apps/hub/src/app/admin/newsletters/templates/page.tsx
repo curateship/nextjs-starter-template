@@ -11,6 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator
 } from "@/components/admin/layout/dashboard/breadcrumb"
+import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -137,11 +138,12 @@ export default function TemplatesPage() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === templates.length) {
+    const deletable = templates.filter(t => !t.is_default)
+    if (selectedIds.size === deletable.length) {
       setSelectedIds(new Set())
       setAllSelected(false)
     } else {
-      setSelectedIds(new Set(templates.map(t => t.id)))
+      setSelectedIds(new Set(deletable.map(t => t.id)))
     }
   }
 
@@ -363,10 +365,12 @@ export default function TemplatesPage() {
                   <div key={template.id} className={`p-6 transition-colors ${selectedIds.has(template.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
+                        {/* Default templates can't be selected for deletion */}
                         <Checkbox
                           checked={selectedIds.has(template.id)}
                           onCheckedChange={() => toggleSelect(template.id)}
                           aria-label={`Select ${template.name}`}
+                          disabled={template.is_default}
                         />
                         <a
                           href={`/admin/newsletters/templates/${template.id}`}
@@ -392,19 +396,22 @@ export default function TemplatesPage() {
                           <Settings className="h-4 w-4" />
                           <span className="sr-only">Edit Template</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => {
-                            setSelectedIds(new Set([template.id]))
-                            setMassDeleteConfirmOpen(true)
-                          }}
-                          title="Delete Template"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Template</span>
-                        </Button>
+                        {/* Default templates can't be deleted */}
+                        {!template.is_default && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                            onClick={() => {
+                              setSelectedIds(new Set([template.id]))
+                              setMassDeleteConfirmOpen(true)
+                            }}
+                            title="Delete Template"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete Template</span>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

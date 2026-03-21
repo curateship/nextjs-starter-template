@@ -57,7 +57,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   useEffect(() => {
     if (!currentSite?.id) return
     getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
-    getTemplatesBySite(currentSite.id).then(({ data }) => setTemplates(data || []))
+    getTemplatesBySite(currentSite.id).then(({ data }) => {
+      const loaded = data || []
+      setTemplates(loaded)
+      // Preselect the default template
+      const defaultTemplate = loaded.find(t => t.is_default)
+      if (defaultTemplate) {
+        setSelectedTemplateId(defaultTemplate.id)
+      }
+    })
   }, [currentSite?.id])
 
   // Update audience count based on mode
@@ -170,22 +178,20 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
         </div>
       )}
 
-      {templates.length > 0 && (
-        <div>
-          <Label htmlFor="newsletter-template">Start from template</Label>
-          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-            <SelectTrigger id="newsletter-template">
-              <SelectValue placeholder="Select template" />
-            </SelectTrigger>
-            <SelectContent className="z-[60]">
-              <SelectItem value="blank">Blank</SelectItem>
-              {templates.map(t => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <div>
+        <Label htmlFor="newsletter-template">Start from template</Label>
+        <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+          <SelectTrigger id="newsletter-template">
+            <SelectValue placeholder="Select template" />
+          </SelectTrigger>
+          <SelectContent className="z-[60]">
+            <SelectItem value="blank">Blank</SelectItem>
+            {templates.map(t => (
+              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div>
         <Label htmlFor="newsletter-subject">Subject Line *</Label>

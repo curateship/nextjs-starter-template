@@ -10,6 +10,7 @@ export interface NewsletterTemplate {
   site_id: string
   name: string
   content_blocks: Record<string, any>
+  is_default: boolean
   created_at: string
   updated_at: string
 }
@@ -31,9 +32,28 @@ function rowToTemplate(row: any): NewsletterTemplate {
     site_id: row.siteId,
     name: row.name,
     content_blocks: row.contentBlocks ?? {},
+    is_default: row.isDefault ?? false,
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
+}
+
+// Ensures a default template exists for a site, creates one if missing
+async function ensureDefaultTemplate(siteId: string): Promise<void> {
+  const [existing] = await db
+    .select({ id: newsletterTemplates.id })
+    .from(newsletterTemplates)
+    .where(and(eq(newsletterTemplates.siteId, siteId), eq(newsletterTemplates.isDefault, true)))
+    .limit(1)
+
+  if (existing) return
+
+  await db.insert(newsletterTemplates).values({
+    siteId,
+    name: 'Default',
+    contentBlocks: {},
+    isDefault: true,
+  })
 }
 
 export async function getTemplatesBySite(
@@ -49,6 +69,9 @@ export async function getTemplatesBySite(
     if (!await verifySiteOwnership(siteId, user.id)) {
       return { data: null, total: 0, error: 'Access denied' }
     }
+
+    // Ensure a default template exists for this site
+    await ensureDefaultTemplate(siteId)
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
@@ -68,7 +91,10 @@ export async function getTemplatesBySite(
         .where(eq(newsletterTemplates.siteId, siteId)),
     ])
 
-    return { data: rows.map(rowToTemplate), total: countResult[0]?.count ?? 0, error: null }
+    // Sort default templates first
+    const mapped = rows.map(rowToTemplate)
+    mapped.sort((a, b) => (a.is_default === b.is_default ? 0 : a.is_default ? -1 : 1))
+    return { data: mapped, total: countResult[0]?.count ?? 0, error: null }
   } catch (err) {
     console.error('getTemplatesBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -217,13 +243,17 @@ export async function deleteTemplates(ids: string[]): Promise<{ success: boolean
     if (!user) return { success: false, error: 'Not authenticated' }
 
     const templates = await db
-      .select({ id: newsletterTemplates.id, siteId: newsletterTemplates.siteId })
+      .select({ id: newsletterTemplates.id, siteId: newsletterTemplates.siteId, isDefault: newsletterTemplates.isDefault })
       .from(newsletterTemplates)
       .where(inArray(newsletterTemplates.id, ids))
 
     if (!templates.length) return { success: false, error: 'Not found' }
 
-    const siteIds = [...new Set(templates.map(t => t.siteId))]
+    // Filter out default templates — they can't be deleted
+    const deletableIds = templates.filter(t => !t.isDefault).map(t => t.id)
+    if (!deletableIds.length) return { success: false, error: 'Default templates cannot be deleted' }
+
+    const siteIds = [...new Set(templates.filter(t => !t.isDefault).map(t => t.siteId))]
     const ownedSites = await db
       .select({ id: sites.id })
       .from(sites)
@@ -233,7 +263,7 @@ export async function deleteTemplates(ids: string[]): Promise<{ success: boolean
       return { success: false, error: 'Access denied' }
     }
 
-    await db.delete(newsletterTemplates).where(inArray(newsletterTemplates.id, ids))
+    await db.delete(newsletterTemplates).where(inArray(newsletterTemplates.id, deletableIds))
 
     return { success: true, error: null }
   } catch (err) {
