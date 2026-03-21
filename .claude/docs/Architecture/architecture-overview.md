@@ -1,6 +1,20 @@
 ## Architecture Overview
 
-This is a **multi-tenant platform** where each site is a separate tenant with its own subdomain, custom domain, content, and theme. Built on Next.js 15.3.4 with App Router.
+This is a **Turborepo monorepo** containing the System Everything platform. The main app (`apps/hub/`) is a **multi-tenant website builder** where each site is a separate tenant with its own subdomain, custom domain, content, and theme. Built on Next.js 15 with App Router.
+
+### Monorepo Structure
+
+```
+├── apps/hub/          # Main Next.js app (website builder SaaS)
+├── packages/          # Shared packages (future — extract when building 2nd app)
+├── services/          # Python/other services (future)
+├── package.json       # Root workspace config (npm workspaces)
+├── turbo.json         # Turborepo task config
+├── Dockerfile         # Builds apps/hub for production
+└── .claude/           # Claude Code config and docs
+```
+
+All app source code, configs, and `.env` files live in `apps/hub/`.
 
 ### Multi-Tenant Architecture
 
@@ -31,6 +45,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - **Database**: Postgres on Hetzner VPS (not Supabase), accessed via Drizzle ORM
 - **File Storage**: Cloudflare R2 (object storage only, not CDN)
 - **CDN**: Cloudflare (proxied DNS, caches HTML pages at edge)
+- **Deployment**: Dockerfile at repo root builds `apps/hub` as standalone Next.js server
 - **NOT on Vercel** — no Vercel-specific features (ISR, Edge Functions, etc.)
 
 **Caching layers:**
@@ -74,14 +89,16 @@ All 6 renderers follow the same pattern: extract nav/footer from site blocks, wr
 
 ### Folder Structure
 
+All paths below are relative to `apps/hub/`.
+
 **Application Routes:**
-- `/app/` — frontend routes (homepage, products, posts, pages, categories, etc.)
-- `/app/admin/` — admin dashboard
-- `/app/api/` — API routes (media upload, cache clear, auth, etc.)
+- `src/app/` — frontend routes (homepage, products, posts, pages, categories, etc.)
+- `src/app/admin/` — admin dashboard
+- `src/app/api/` — API routes (media upload, cache clear, auth, etc.)
 
 **Component Structure:**
 ```
-/src/components/
+apps/hub/src/components/
 ├── ui/                    # Reusable UI components (ShadCN)
 ├── admin/                 # Admin dashboard components
 │   ├── layout/            # Admin layout (sidebar, sticky header, dashboard cards)
