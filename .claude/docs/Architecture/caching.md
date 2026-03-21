@@ -1,9 +1,4 @@
----
-name: caching
-description: Add server-side caching to Supabase data fetchers using Next.js unstable_cache. Use this skill whenever adding a new cached fetcher, wrapping an existing query in a cache, or adding cache invalidation to an admin action. Also trigger when the user mentions caching, cache tags, revalidation, or asks to speed up a data query — even if they don't say "cache" explicitly.
----
-
-# Caching Skill
+# Caching
 
 This project caches server-side Supabase queries using `unstable_cache` from `next/cache`. Every cached entry gets a domain-specific tag plus the global `'all'` tag (so the admin "Clear Cache" button works).
 
@@ -71,6 +66,40 @@ revalidateTag('event-lookup')
 
 Look at the existing admin actions for the content type — the revalidateTag call goes right after the successful Supabase mutation.
 
+## Standard Tags
+
+| Tag | Used for |
+|-----|----------|
+| `site-lookup` | Site-level lookups (by subdomain, domain) |
+| `page-lookup` | Page-level lookups |
+| `listing-views` | Paginated/product listing data |
+| `all` | Global tag — included on every cache for universal invalidation |
+
+## Site Resolver Cache
+
+Host-to-site resolution is cached and shared by middleware and page loaders.
+
+- **Resolver**: `resolveSiteByHost(hostname)` in `src/lib/actions/pages/page-frontend-actions.ts`
+  - Uses `unstable_cache` with tags `['site-lookup', 'all']`
+  - Normalizes host (strips `www.`), tries custom domain, then subdomain (skips `www`, `api`, `admin`, `app`)
+- **Middleware** (`src/middleware.ts`): calls `resolveSiteByHost(hostname)` (cached), sets `x-site-*` headers
+- **Page loader** (`src/lib/utils/site-resolver.ts`): `getSiteFromHeaders()` calls `resolveSiteByHost(host)` first (cached), then fetches site data
+
+## Clearing Cache
+
+**Global clear-all endpoint**: `POST /api/cache/clear`
+- File: `src/app/api/cache/clear/route.ts`
+- Runs `revalidateTag('all')` — invalidates any cache entry tagged with `all`
+
+**Admin UI**: `src/components/admin/layout/dashboard/CacheSettingsCard.tsx` — "Clear Cache" button on Site Settings page
+
+**Programmatic**:
+```bash
+curl -X POST https://<host>/api/cache/clear
+```
+
+**Note**: `revalidate: false` means entries persist until invalidated by tag. If unsure which tag to revalidate, use the global Clear Cache endpoint.
+
 ## Checklist
 
 - [ ] `unstable_cache` wraps the Supabase query
@@ -87,4 +116,3 @@ Look at the existing admin actions for the content type — the revalidateTag ca
 - `src/lib/actions/posts/related-posts-actions.ts` — related posts cache
 - `src/lib/actions/sites/site-actions.ts` — invalidation example (`revalidateTag('site-lookup')`)
 - `src/app/api/cache/clear/route.ts` — global clear endpoint (uses `revalidateTag('all')`)
-- `docs/performance/Caching.md` — full caching documentation

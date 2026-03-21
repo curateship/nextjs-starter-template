@@ -286,6 +286,11 @@ if (block.type === '{entity}-{block-name}') {
 }
 ```
 
+## Reference Docs
+
+- `.claude/docs/how-tos/how-to-add-blocks.md` — step-by-step guide for adding blocks
+- `.claude/docs/how-tos/how-to-add-block-styles.md` — how to add style variants to blocks
+
 ## Checklist
 
 When adding a new block, verify all 5 steps are done:

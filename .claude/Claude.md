@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-**Before starting any task, read `.claude/rules/common-mistakes.md` first.**
-
 Guidance for Claude Code working in this repository.
 
 ## Core Philosophy
@@ -30,32 +28,16 @@ Guidance for Claude Code working in this repository.
 - Repeat back the user's request, confirm the component/file, and state which files you'll examine
 - Wait for confirmation before proceeding (exception: simple questions — just answer directly)
 
-### Server Verification
-- Never claim "server is running" without testing: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000`
-- Verify process exists: `lsof -ti:3000`
-
-### Git Commits
-- When asked to commit, ONLY commit existing changes — never make additional code changes and never push changes unless asked
-- If build fails during commit, report errors and ask before fixing
-
-### Security
-- Never hardcode credentials in client-side code
-- Always validate authentication server-side
-- Every `'use server'` action that mutates data must verify auth + ownership independently — middleware only protects UI routes, not server action calls
-- Use secure session management (httpOnly cookies, proper JWT expiration)
-- Check for XSS, CSRF, SQL injection, and OWASP Top 10 after every code change
-- Never add `.trim()` to input sanitization — it breaks typing spaces
-
-### Code Quality
-- Delete test files after debugging (test-*.js, debug-*.*, tmp-*.*, etc.)
-- Never leave debugging console.logs in production code
-- Clean up unused imports and dead code before completing a task
-- Never commit test data or mock data used for debugging
-
 ### Debugging
 - Never ask the user to test or debug for you — solve problems through code analysis
 - Only add code that directly solves the stated problem
 - Trace code flow → identify root cause → implement direct fix
+
+## Infrastructure
+
+- Local dev uses a local Postgres database
+- Production runs on a Hetzner VPS managed by Coolify
+- Use the Coolify MCP for server/database operations when needed
 
 ## Development Commands
 
@@ -65,12 +47,3 @@ npm run build    # Production build
 npm start        # Production server
 npm run lint     # ESLint
 ```
-
-## Code Review Checklist
-
-Before implementing any feature:
-- Can this be done with basic CRUD operations? (Usually yes)
-- Am I adding complexity to solve a problem I created? (Usually yes)
-- Would a junior developer understand this in 5 minutes? (If no, simplify)
-- Does this follow the "Load → Edit → Save" pattern? (If no, why not?)
-- With every changes, check the server to see if its running. if not then reboot the server on port 3000

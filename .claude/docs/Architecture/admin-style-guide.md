@@ -1,11 +1,8 @@
----
-name: style-guide
-description: Admin dashboard styling conventions. Use this skill whenever creating or editing any admin UI — pages, panels, modals, block editors, settings screens, or any component rendered inside the admin area (`src/app/admin/`, `src/components/admin/`). Also use it when the user asks about layout, spacing, cards, or styling in the admin dashboard. This applies to everything below the StickyHeader and beside the sidebar.
----
-
 # Admin Style Guide
 
-This skill defines the styling rules for the admin dashboard. Every admin UI component must follow these patterns to maintain visual consistency.
+Styling rules for the admin dashboard. Every admin UI component must follow these patterns to maintain visual consistency.
+
+See also: `.claude/docs/Architecture/architecture-overview.md`
 
 ## Rule 1: Use shadcn components for everything
 
