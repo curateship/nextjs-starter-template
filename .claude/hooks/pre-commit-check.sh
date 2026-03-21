@@ -2,7 +2,7 @@
 # Pre-commit hook for Claude Code Bash tool calls.
 # Runs before any Bash tool invocation. If the command is a git commit,
 # scans staged files for secrets and leftover debug files.
-# Exit 2 = block the tool call; stderr tells Claude what's wrong.
+# Outputs structured JSON with permissionDecision: "deny" on stdout to block.
 
 set -euo pipefail
 
@@ -43,10 +43,15 @@ fi
 
 # --- Report issues ---
 if [ -n "$ISSUES" ]; then
-  echo "BLOCKED: Pre-commit check found issues:" >&2
-  echo -e "$ISSUES" >&2
-  echo "Unstage or fix these files before committing." >&2
-  exit 2
+  REASON="Pre-commit check found issues:\n${ISSUES}Unstage or fix these files before committing."
+  jq -n --arg reason "$REASON" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
 fi
 
 exit 0

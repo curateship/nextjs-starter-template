@@ -3,18 +3,6 @@
     "skill-creator@claude-plugins-official": true
   },
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "curl -sf -o /dev/null http://localhost:3000 || echo '⚠ DEV SERVER DOWN — restart with: npm run dev'",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
