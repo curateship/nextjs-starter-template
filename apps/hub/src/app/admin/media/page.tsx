@@ -1,12 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
+import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload, HomeIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getPaginatedMediaAction, deleteImageAction, updateImageAction, getMediaIdsAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
@@ -362,62 +370,73 @@ export default function ImagesPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Media Library"
-            primaryAction={{
-              label: isUploading ? "Uploading..." : "Upload Media",
-              icon: <Upload className="h-4 w-4 sm:mr-2" />,
-              mobileIconOnly: true,
-              onClick: isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()
-            }}
-            extraContent={
-              <div className="flex items-center space-x-4">
-                {/* Bulk Actions */}
-                {selectedIds.size > 0 && (
-                  <>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleBulkDelete}
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="w-4 h-4 sm:mr-2" />
-                      {isDeleting ? <span className="hidden sm:inline">Deleting...</span> : <span className="hidden sm:inline">Delete {selectedIds.size}</span>}
-                    </Button>
-                  </>
-                )}
+          {/* Breadcrumb navigation + action buttons */}
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin">
+                    <HomeIcon className="size-4" />
+                    <span className="sr-only">Home</span>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Media</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {/* Bulk Actions */}
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeleting ? <span className="hidden sm:inline">Deleting...</span> : <span className="hidden sm:inline">Delete {selectedIds.size}</span>}
+                </Button>
+              )}
 
-                {/* Filter Tabs */}
-                <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
-                  <TabsList className="h-auto p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({typeCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="image" className="px-2 sm:px-3"><ImageIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Images ({typeCounts.image})</span></TabsTrigger>
-                    <TabsTrigger value="video" className="px-2 sm:px-3"><VideoIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Videos ({typeCounts.video})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
-
-                {/* View Mode Toggle */}
-                <div className="flex items-center border rounded-md">
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="rounded-r-none"
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'gallery' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('gallery')}
-                    className="rounded-l-none"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </Button>
-                </div>
+              {/* View Mode Toggle */}
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-r-none"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'gallery' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('gallery')}
+                  className="rounded-l-none"
+                >
+                  <Grid className="w-4 h-4" />
+                </Button>
               </div>
-            }
-          />
+
+              {/* Filter Tabs */}
+              <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
+                <TabsList className="h-9 p-1 gap-1">
+                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({typeCounts.all})</span></TabsTrigger>
+                  <TabsTrigger value="image" className="px-2 sm:px-3"><ImageIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Images ({typeCounts.image})</span></TabsTrigger>
+                  <TabsTrigger value="video" className="px-2 sm:px-3"><VideoIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Videos ({typeCounts.video})</span></TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <Button
+                onClick={isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()}
+                disabled={isUploading}
+              >
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload Media"}</span>
+              </Button>
+            </div>
+          </div>
 
         {/* Hidden file input */}
         <input

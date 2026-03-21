@@ -2,11 +2,19 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban } from "lucide-react"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban, HomeIcon } from "lucide-react"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -138,26 +146,33 @@ export default function SitesPage() {
   return (
     <AdminLayout>
       <div className="w-full">
-        <AdminPageHeader
-          title="Sites"
-          primaryAction={{
-            label: "Create Site",
-            icon: <Plus className="h-4 w-4 sm:mr-2" />,
-            mobileIconOnly: true,
-            href: "/admin/sites/new"
-          }}
-          extraContent={
+        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+          <Breadcrumb>
+            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin">
+                  <HomeIcon className="h-4 w-4" />
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Sites</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <div className="flex items-center gap-3">
             <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
-              <TabsList className="h-auto p-1 gap-1">
-                <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
-                <TabsTrigger value="active" className="px-2 sm:px-3"><CircleCheck className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Active</span></TabsTrigger>
-                <TabsTrigger value="inactive" className="px-2 sm:px-3"><CircleX className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Inactive</span></TabsTrigger>
-                <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft</span></TabsTrigger>
-                <TabsTrigger value="suspended" className="px-2 sm:px-3"><Ban className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Suspended</span></TabsTrigger>
+              <TabsList className="h-9 p-1 gap-1">
+                <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
+                <TabsTrigger value="active" className="px-2 sm:px-3"><CircleCheck className="h-3.5 w-3.5" /><span className="hidden sm:inline">Active</span></TabsTrigger>
+                <TabsTrigger value="inactive" className="px-2 sm:px-3"><CircleX className="h-3.5 w-3.5" /><span className="hidden sm:inline">Inactive</span></TabsTrigger>
+                <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft</span></TabsTrigger>
+                <TabsTrigger value="suspended" className="px-2 sm:px-3"><Ban className="h-3.5 w-3.5" /><span className="hidden sm:inline">Suspended</span></TabsTrigger>
               </TabsList>
             </Tabs>
-          }
-        />
+            <Button asChild><Link href="/admin/sites/new"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Site</span></Link></Button>
+          </div>
+        </div>
 
         <Card className="shadow-sm">
           

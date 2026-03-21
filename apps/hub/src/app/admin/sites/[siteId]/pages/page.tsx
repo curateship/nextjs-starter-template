@@ -4,7 +4,14 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +33,7 @@ const PageSettingsModal = dynamic(() =>
   import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, Users } from "lucide-react"
+import { HomeIcon, Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -338,46 +345,55 @@ export default function SitePagesPage({ params }: PageProps) {
       />
       <AdminLayout>
         <div className="w-full">
-        <AdminPageHeader
-          title="Pages"
-          primaryAction={{
-            label: "Create Page",
-            icon: <Plus className="h-4 w-4 sm:mr-2" />,
-            mobileIconOnly: true,
-            onClick: () => setShowCreateDialog(true)
-          }}
-          extraContent={
-            <div className="flex items-center gap-3">
-              {selectedPageIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                <TabsList className="h-auto p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                  <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          }
-        />
+        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+          <Breadcrumb>
+            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin"><HomeIcon className="h-4 w-4" /></BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin/sites">Sites</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Pages</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <div className="flex items-center gap-3">
+            {selectedPageIds.size > 0 && (
+              <Button
+                variant="destructive"
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span className="hidden sm:inline">Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
+                  </>
+                )}
+              </Button>
+            )}
+            <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+              <TabsList className="h-9 p-1 gap-1">
+                <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
+                <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4" />
+              Create Page
+            </Button>
+          </div>
+        </div>
 
         <Card className="shadow-sm">
           {/* Table Header */}

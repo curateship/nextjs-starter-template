@@ -117,7 +117,7 @@ export default function CronJobsPage() {
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4  mt-2">
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
             <Breadcrumb>
               <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
                 <BreadcrumbItem>

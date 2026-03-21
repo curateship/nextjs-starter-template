@@ -1,10 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
+import { AlertTriangle, Palette, LayoutGrid, HomeIcon } from "lucide-react"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
@@ -92,15 +101,27 @@ export default function PlatformSettingsPage() {
   return (
     <AdminLayout>
       <div className="w-full">
-        <AdminPageHeader
-          title="Platform Settings"
-          subtitle="Configure default settings for the admin panel"
-          primaryAction={{
-            label: saving ? 'Saving...' : 'Save Changes',
-            onClick: handleSave,
-            disabled: saving || !hasChanges
-          }}
-        />
+        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+          <Breadcrumb>
+            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin">
+                  <HomeIcon className="h-4 w-4" />
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Platform Settings</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
 
         {message && (
           <Alert className={`mb-6 ${message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>

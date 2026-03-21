@@ -2,11 +2,18 @@
 
 import { use, useEffect, useState, useCallback } from 'react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
-import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Globe, TrendingDown, Clock, ArrowUpRight } from 'lucide-react'
+import { HomeIcon, Users, Globe, TrendingDown, Clock, ArrowUpRight } from 'lucide-react'
 import {
   getAnalyticsOverview,
   getTopPages,
@@ -83,27 +90,38 @@ export default function AnalyticsPage({ params }: PageProps) {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Analytics"
-            subtitle="Track visitors, page views, and engagement"
-            extraContent={
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  {period === 'today' && new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {period === 'yesterday' && new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {period === '7d' && `${new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                  {period === '30d' && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                </span>
-                <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-                  <TabsList className="h-auto p-1">
-                    {PERIODS.map(p => (
-                      <TabsTrigger key={p.id} value={p.id}>{p.label}</TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-            }
-          />
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin"><HomeIcon className="h-4 w-4" /></BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin/sites">Sites</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Analytics</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                {period === 'today' && new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {period === 'yesterday' && new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {period === '7d' && `${new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                {period === '30d' && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              </span>
+              <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
+                <TabsList className="h-auto p-1">
+                  {PERIODS.map(p => (
+                    <TabsTrigger key={p.id} value={p.id}>{p.label}</TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
       {/* Stats Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>

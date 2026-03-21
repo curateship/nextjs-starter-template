@@ -1,8 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { PostBlock } from "@/components/ui/post-block"
+import { Button } from "@/components/ui/button"
+import { HomeIcon } from "lucide-react"
+import Link from "next/link"
 
 export default function NewPostPage() {
   const [title, setTitle] = useState("")
@@ -28,19 +39,34 @@ export default function NewPostPage() {
   return (
     <AdminLayout>
       <div className="w-full">
-        <AdminPageHeader
-          title="Add New Post"
-          subtitle="Create a new blog post or article"
-          primaryAction={{
-            label: "Save Post",
-            onClick: handleSaveClick
-          }}
-          secondaryAction={{
-            label: "Cancel",
-            href: "/admin/posts",
-            variant: "outline"
-          }}
-        />
+        {/* Breadcrumb navigation + action buttons */}
+        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+          <Breadcrumb>
+            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin">
+                  <HomeIcon className="size-4" />
+                  <span className="sr-only">Home</span>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/admin/posts">Posts</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>New</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <Button variant="outline" asChild>
+              <Link href="/admin/posts">Cancel</Link>
+            </Button>
+            <Button onClick={handleSaveClick}>Save Post</Button>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <PostBlock

@@ -63,3 +63,6 @@ tasks/
 
 # MCP config (contains API tokens)
 .mcp.json
+
+# playwright CLI logs
+.playwright-cli/

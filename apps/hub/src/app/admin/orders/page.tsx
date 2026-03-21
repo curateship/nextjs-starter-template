@@ -12,11 +12,19 @@ import {
   Magnet,
   CreditCard,
   Package,
+  HomeIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -287,52 +295,63 @@ function OrdersContent() {
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Orders"
-            extraContent={
-              <div className="flex items-center gap-3">
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deleting}
-                    onClick={() => promptDelete(Array.from(selectedIds))}
-                  >
-                    {deleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Tabs
-                  value={activeTab}
-                  onValueChange={(v) => {
-                    setActiveTab(v as "all" | OrderType)
-                    setCurrentPage(1)
-                    setSelectedIds(new Set())
-                    setAllSelected(false)
-                  }}
+          {/* Breadcrumb navigation + action buttons */}
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin">
+                    <HomeIcon className="size-4" />
+                    <span className="sr-only">Home</span>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Orders</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  disabled={deleting}
+                  onClick={() => promptDelete(Array.from(selectedIds))}
                 >
-                  <TabsList className="h-auto p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({tabCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="lead_magnet" className="px-2 sm:px-3">
-                      <Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({tabCounts.lead_magnet})</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="paid_purchase" className="px-2 sm:px-3">
-                      <CreditCard className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paid ({tabCounts.paid_purchase})</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            }
-          />
+                  {deleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                    </>
+                  )}
+                </Button>
+              )}
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => {
+                  setActiveTab(v as "all" | OrderType)
+                  setCurrentPage(1)
+                  setSelectedIds(new Set())
+                  setAllSelected(false)
+                }}
+              >
+                <TabsList className="h-9 p-1 gap-1">
+                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({tabCounts.all})</span></TabsTrigger>
+                  <TabsTrigger value="lead_magnet" className="px-2 sm:px-3">
+                    <Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({tabCounts.lead_magnet})</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="paid_purchase" className="px-2 sm:px-3">
+                    <CreditCard className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paid ({tabCounts.paid_purchase})</span>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
 
           <Card className="shadow-sm">
             {/* Table Header */}
