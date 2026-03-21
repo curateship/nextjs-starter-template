@@ -17,7 +17,7 @@ async function getStripeClient(siteId: string | undefined): Promise<Stripe> {
   }
 
   return new Stripe(config.secretKey, {
-    apiVersion: '2025-09-30.clover',
+    apiVersion: '2025-10-29.clover',
   })
 }
 

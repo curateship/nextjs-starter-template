@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const stripe = new Stripe(config.secret_key, {
-          apiVersion: '2025-09-30.clover',
+          apiVersion: '2025-10-29.clover',
         })
         event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
         break

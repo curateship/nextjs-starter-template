@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         const chunksize = (end - start) + 1
         const chunk = body.slice(start, end + 1)
 
-        return new NextResponse(chunk, {
+        return new NextResponse(new Uint8Array(chunk), {
           status: 206,
           headers: {
             'Content-Range': `bytes ${start}-${end}/${body.length}`,
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      return new NextResponse(body, {
+      return new NextResponse(new Uint8Array(body), {
         headers: {
           'Content-Type': contentType,
           'Content-Length': contentLength,
