@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText, Shield, Clock, HomeIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getAutomationsBySite,
@@ -204,28 +212,48 @@ export default function EmailAutomationsPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Email Automations"
-            primaryAction={{ label: "Create Automation", icon: <Plus className="h-4 w-4 sm:mr-2" />, onClick: () => setCreateOpen(true), mobileIconOnly: true }}
-            extraContent={
-              <div className="flex items-center gap-3">
-                {selectedIds.size > 0 && (
-                  <Button variant="destructive" size="sm" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
-                    <Trash2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                  </Button>
-                )}
-                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="h-auto p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="active" className="px-2 sm:px-3"><Play className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Active ({statusCounts.active})</span></TabsTrigger>
-                    <TabsTrigger value="paused" className="px-2 sm:px-3"><Pause className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paused ({statusCounts.paused})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            }
-          />
+          {/* Breadcrumb navigation + action buttons */}
+          <div className="flex items-center justify-between mb-6 mx-4  mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin">
+                    <HomeIcon className="size-4" />
+                    <span className="sr-only">Home</span>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Automations</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {selectedIds.size > 0 && (
+                <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
+                  <Trash2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                </Button>
+              )}
+              <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+                <TabsList className="h-9 p-1 gap-1">
+                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                  <TabsTrigger value="active" className="px-2 sm:px-3"><Play className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Active ({statusCounts.active})</span></TabsTrigger>
+                  <TabsTrigger value="paused" className="px-2 sm:px-3"><Pause className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paused ({statusCounts.paused})</span></TabsTrigger>
+                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Automation</span>
+              </Button>
+            </div>
+          </div>
 
           <Card className="shadow-sm">
             <div className="px-6 py-4 border-b bg-muted/30">

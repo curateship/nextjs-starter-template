@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -15,7 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Shield, Clock, HomeIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getTemplatesBySite,
@@ -207,36 +215,52 @@ export default function TemplatesPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Templates"
-            extraContent={
-              <div className="flex items-center gap-3">
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }}>
-                  Create Template
+          {/* Breadcrumb navigation + action buttons */}
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin">
+                    <HomeIcon className="size-4" />
+                    <span className="sr-only">Home</span>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Templates</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                    </>
+                  )}
                 </Button>
-              </div>
-            }
-          />
+              )}
+              <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }}>
+                Create Template
+              </Button>
+            </div>
+          </div>
 
           <Card className="shadow-sm">
             <div className="px-6 py-4 border-b bg-muted/30">

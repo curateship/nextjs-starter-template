@@ -1,7 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from "@/components/admin/layout/dashboard/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -15,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText, Shield, Clock, HomeIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getSegmentsWithCounts,
@@ -235,34 +243,50 @@ export default function SegmentsPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title="Segments"
-            extraContent={
-              <div className="flex items-center gap-3">
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white sm:mr-2" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
-                <Button onClick={openCreateModal}>Create Segment</Button>
-              </div>
-            }
-          />
+          {/* Breadcrumb navigation + action buttons */}
+          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
+            <Breadcrumb>
+              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin">
+                    <HomeIcon className="size-4" />
+                    <span className="sr-only">Home</span>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Segments</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button onClick={openCreateModal}>Create Segment</Button>
+            </div>
+          </div>
 
           <Card className="shadow-sm">
             {/* Table Header */}
