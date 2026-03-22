@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock, SlidersHorizontal } from "lucide-react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -969,9 +970,8 @@ export default function ContactsPage() {
                           onCheckedChange={() => toggleSelect(contact.id)}
                           aria-label={`Select ${contact.email}`}
                         />
-                        <a
-                          onClick={(e) => { e.preventDefault(); openEditModal(contact) }}
-                          href="#"
+                        <Link
+                          href={`/admin/newsletters/contacts/${contact.id}`}
                           className="hover:opacity-80 transition-opacity"
                         >
                           <h4 className="font-medium text-sm hover:underline">
@@ -982,7 +982,7 @@ export default function ContactsPage() {
                           {(contact.metadata?.first_name || contact.metadata?.last_name) && (
                             <p className="text-xs text-muted-foreground">{contact.email}</p>
                           )}
-                        </a>
+                        </Link>
                       </div>
                       <div>{getSourceBadge(contact.metadata?.source || "manual")}</div>
                       <div>{getStatusBadge(contact.status)}</div>
