@@ -85,3 +85,43 @@ export async function getEmailConfig(siteId: string): Promise<{
 export async function getResendConfig(siteId: string) {
   return getEmailConfig(siteId)
 }
+
+/**
+ * Get AI provider config for a site. Checks anthropic → openai → google_ai in order.
+ */
+export async function getAIConfig(siteId: string): Promise<{
+  apiKey: string
+  provider: 'anthropic' | 'openai' | 'google_ai'
+} | null> {
+  const providerTypes = ['anthropic', 'openai', 'google_ai'] as const
+
+  for (const providerType of providerTypes) {
+    const integration = await getSiteIntegration(siteId, providerType)
+    if (integration && integration.isEnabled) {
+      const { api_key } = integration.config
+      if (api_key) {
+        return { apiKey: api_key, provider: providerType }
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get Perplexity (research) config for a site.
+ */
+export async function getResearchConfig(siteId: string): Promise<{
+  apiKey: string
+} | null> {
+  const integration = await getSiteIntegration(siteId, 'perplexity')
+
+  if (integration && integration.isEnabled) {
+    const { api_key } = integration.config
+    if (api_key) {
+      return { apiKey: api_key }
+    }
+  }
+
+  return null
+}

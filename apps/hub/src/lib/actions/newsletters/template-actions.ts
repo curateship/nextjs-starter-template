@@ -232,6 +232,33 @@ export async function updateTemplate(
   }
 }
 
+/**
+ * Get the default template for a site. Creates one if it doesn't exist.
+ */
+export async function getDefaultTemplate(
+  siteId: string
+): Promise<{ data: NewsletterTemplate | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
+
+    // Ensure a default template exists
+    await ensureDefaultTemplate(siteId)
+
+    const [row] = await db
+      .select()
+      .from(newsletterTemplates)
+      .where(and(eq(newsletterTemplates.siteId, siteId), eq(newsletterTemplates.isDefault, true)))
+      .limit(1)
+
+    if (!row) return { data: null, error: 'No default template found' }
+
+    return { data: rowToTemplate(row), error: null }
+  } catch (err) {
+    console.error('getDefaultTemplate error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
 export async function deleteTemplates(ids: string[]): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!ids.length) return { success: false, error: 'No items selected' }

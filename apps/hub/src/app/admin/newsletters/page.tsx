@@ -34,7 +34,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock, HomeIcon } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock, HomeIcon, Wand2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -313,6 +313,10 @@ export default function NewslettersPage() {
                   <TabsTrigger value="sent" className="px-2 sm:px-3"><Send className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sent ({statusCounts.sent})</span></TabsTrigger>
                 </TabsList>
               </Tabs>
+              <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
+                <Wand2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Create with AI</span>
+              </Button>
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4" />
                 <span className="hidden sm:inline">Create Newsletter</span>
@@ -648,6 +652,7 @@ export default function NewslettersPage() {
           )}
         </div>
       </AdminLayout>
+
     </>
   )
 }
