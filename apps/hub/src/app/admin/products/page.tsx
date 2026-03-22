@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
 
@@ -356,8 +356,17 @@ export default function ProductsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Products" }]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              items: [
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
+                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
+                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {selectedProductIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -377,17 +386,10 @@ export default function ProductsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="gap-1 h-9 p-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <Button onClick={() => setShowCreateDialog(true)}>
                   <Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Product</span>
                 </Button>
-              </div>
+              </>
             }
           />
 

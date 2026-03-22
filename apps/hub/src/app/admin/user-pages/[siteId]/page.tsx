@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
 
@@ -355,8 +355,17 @@ export default function UserUserPagesPage({ params }: PageProps) {
         <div className="w-full">
         <DashboardSubheader
           items={[{ label: "User Pages" }]}
+          tabs={{
+            value: filterStatus,
+            onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+            items: [
+              { value: "all", label: "All", count: statusCounts.all },
+              { value: "published", label: "Published", count: statusCounts.published },
+              { value: "draft", label: "Draft", count: statusCounts.draft },
+            ],
+          }}
           actions={
-            <div className="flex items-center gap-3">
+            <>
               {selectedPageIds.size > 0 && (
                 <Button
                   variant="destructive"
@@ -376,18 +385,11 @@ export default function UserUserPagesPage({ params }: PageProps) {
                   )}
                 </Button>
               )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                <TabsList className="h-auto p-1 gap-1">
-                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                </TabsList>
-              </Tabs>
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4" />
                 Create User Dashboard Page
               </Button>
-            </div>
+            </>
           }
         />
 

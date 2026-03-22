@@ -6,7 +6,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 import { Plus, List, Shield, Pencil, User, UserX } from "lucide-react"
 import Link from "next/link"
@@ -91,23 +91,23 @@ export default function UsersPage() {
         {/* Breadcrumb navigation + action buttons */}
         <DashboardSubheader
           items={[{ label: "Users" }]}
+          tabs={{
+            value: "all",
+            onValueChange: () => {},
+            items: [
+              { value: "all", label: "All", icon: List },
+              { value: "admin", label: "Admin", icon: Shield },
+              { value: "editor", label: "Editor", icon: Pencil },
+              { value: "user", label: "User", icon: User },
+              { value: "guest", label: "Guest", icon: UserX },
+            ],
+          }}
           actions={
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              <Tabs defaultValue="all">
-                <TabsList className="h-9 p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
-                  <TabsTrigger value="admin" className="px-2 sm:px-3"><Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">Admin</span></TabsTrigger>
-                  <TabsTrigger value="editor" className="px-2 sm:px-3"><Pencil className="h-3.5 w-3.5" /><span className="hidden sm:inline">Editor</span></TabsTrigger>
-                  <TabsTrigger value="user" className="px-2 sm:px-3"><User className="h-3.5 w-3.5" /><span className="hidden sm:inline">User</span></TabsTrigger>
-                  <TabsTrigger value="guest" className="px-2 sm:px-3"><UserX className="h-3.5 w-3.5" /><span className="hidden sm:inline">Guest</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button asChild>
-                <Link href="/admin/users/new">
-                  <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add User</span>
-                </Link>
-              </Button>
-            </div>
+            <Button asChild>
+              <Link href="/admin/users/new">
+                <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add User</span>
+              </Link>
+            </Button>
           }
         />
 

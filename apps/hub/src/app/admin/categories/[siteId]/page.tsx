@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteContext } from "@/contexts/site-context"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -254,8 +254,17 @@ export default function CategoriesPage({
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Categories" }]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              items: [
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
+                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
+                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {depthLevels.length > 1 && (
                   <Select value={filterLevel} onValueChange={setFilterLevel}>
                     <SelectTrigger size="sm">
@@ -290,18 +299,11 @@ export default function CategoriesPage({
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <Button onClick={() => setShowCreateModal(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Category</span>
                 </Button>
-              </div>
+              </>
             }
           />
 

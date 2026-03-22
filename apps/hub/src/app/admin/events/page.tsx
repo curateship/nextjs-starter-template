@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Copy, Trash2, Settings, Calendar, X, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -337,8 +337,17 @@ export default function EventsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Events" }]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              items: [
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
+                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
+                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {selectedEventIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -358,18 +367,11 @@ export default function EventsPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <Button onClick={() => setShowCreateDialog(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Event Item</span>
                 </Button>
-              </div>
+              </>
             }
           />
 

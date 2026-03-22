@@ -7,7 +7,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow, ArrowUp, ArrowDown, ChevronsUpDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -125,21 +125,21 @@ export default function AutomationsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Automations" }]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (value) => setFilterStatus(value as 'all' | WorkflowStatus),
+              items: [
+                { value: "all", label: "All", count: statusCounts.all },
+                { value: "active", label: "Active", count: statusCounts.active },
+                { value: "paused", label: "Paused", count: statusCounts.paused },
+                { value: "draft", label: "Draft", count: statusCounts.draft },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                <Tabs value={filterStatus} onValueChange={(value) => setFilterStatus(value as 'all' | WorkflowStatus)}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                    <TabsTrigger value="active">Active ({statusCounts.active})</TabsTrigger>
-                    <TabsTrigger value="paused">Paused ({statusCounts.paused})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <Button onClick={() => {}}>
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">New Workflow</span>
-                </Button>
-              </div>
+              <Button onClick={() => {}}>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">New Workflow</span>
+              </Button>
             }
           />
 

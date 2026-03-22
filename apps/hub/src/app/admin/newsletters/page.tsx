@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import dynamic from "next/dynamic"
 
 const CreateNewsletterModal = dynamic(() =>
@@ -265,8 +264,17 @@ export default function NewslettersPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters" }]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              items: [
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
+                { value: "draft", label: "Drafts", icon: FileEdit, count: statusCounts.draft },
+                { value: "sent", label: "Sent", icon: Send, count: statusCounts.sent },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {selectedIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -286,13 +294,6 @@ export default function NewslettersPage() {
                     )}
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Drafts ({statusCounts.draft})</span></TabsTrigger>
-                    <TabsTrigger value="sent" className="px-2 sm:px-3"><Send className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sent ({statusCounts.sent})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
                   <Wand2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Create with AI</span>
@@ -301,7 +302,7 @@ export default function NewslettersPage() {
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Newsletter</span>
                 </Button>
-              </div>
+              </>
             }
           />
 

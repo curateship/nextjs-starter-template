@@ -1,4 +1,4 @@
-import { HomeIcon } from "lucide-react"
+import { HomeIcon, type LucideIcon } from "lucide-react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,12 +7,30 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils/tailwind-class-merger"
+
+/** Single filter tab definition */
+export interface SubheaderTab {
+  value: string
+  label: string
+  icon?: LucideIcon
+  count?: number
+}
+
+/** Config for the built-in filter tabs */
+export interface SubheaderTabsConfig {
+  value: string
+  onValueChange: (value: string) => void
+  items: SubheaderTab[]
+}
 
 interface DashboardSubheaderProps {
   /** Breadcrumb trail — last item is rendered as the current page (no link) */
   items: Array<{ label: React.ReactNode; href?: string }>
-  /** Optional right-side content (buttons, tabs, filters, etc.) */
+  /** Filter tabs rendered between breadcrumbs and actions */
+  tabs?: SubheaderTabsConfig
+  /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
   className?: string
 }
@@ -20,10 +38,12 @@ interface DashboardSubheaderProps {
 /**
  * Full-width breadcrumb row that sits below the StickyHeader.
  * Renders Home icon automatically as the first breadcrumb item.
+ * Optionally renders filter tabs (All/Draft/Published etc.) and action buttons.
  */
-export function DashboardSubheader({ items, actions, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({ items, tabs, actions, className }: DashboardSubheaderProps) {
   return (
     <div className={cn("flex items-center justify-between mb-6 mx-4 mt-2", className)}>
+      {/* Left side: breadcrumbs */}
       <Breadcrumb>
         <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
           {/* Home icon — always first */}
@@ -53,7 +73,27 @@ export function DashboardSubheader({ items, actions, className }: DashboardSubhe
         </BreadcrumbList>
       </Breadcrumb>
 
-      {actions}
+      {/* Right side: filter tabs + action buttons */}
+      {(tabs || actions) && (
+        <div className="flex items-center gap-1 sm:gap-3">
+          {/* Filter tabs */}
+          {tabs && (
+            <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
+              <TabsList className="gap-1">
+                {tabs.items.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value}>
+                    {tab.icon && <tab.icon className="h-3.5 w-3.5 mr-1.5" />}
+                    {tab.label}{tab.count !== undefined ? ` (${tab.count})` : ""}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
+
+          {/* Action buttons */}
+          {actions}
+        </div>
+      )}
     </div>
   )
 }

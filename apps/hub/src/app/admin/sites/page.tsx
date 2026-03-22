@@ -5,7 +5,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -144,19 +144,19 @@ export default function SitesPage() {
       <div className="w-full">
         <DashboardSubheader
           items={[{ label: "Sites" }]}
+          tabs={{
+            value: filter,
+            onValueChange: (value) => setFilter(value as FilterStatus),
+            items: [
+              { value: "all", label: "All", icon: List },
+              { value: "active", label: "Active", icon: CircleCheck },
+              { value: "inactive", label: "Inactive", icon: CircleX },
+              { value: "draft", label: "Draft", icon: FileEdit },
+              { value: "suspended", label: "Suspended", icon: Ban },
+            ],
+          }}
           actions={
-            <div className="flex items-center gap-3">
-              <Tabs value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
-                <TabsList className="h-9 p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
-                  <TabsTrigger value="active" className="px-2 sm:px-3"><CircleCheck className="h-3.5 w-3.5" /><span className="hidden sm:inline">Active</span></TabsTrigger>
-                  <TabsTrigger value="inactive" className="px-2 sm:px-3"><CircleX className="h-3.5 w-3.5" /><span className="hidden sm:inline">Inactive</span></TabsTrigger>
-                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft</span></TabsTrigger>
-                  <TabsTrigger value="suspended" className="px-2 sm:px-3"><Ban className="h-3.5 w-3.5" /><span className="hidden sm:inline">Suspended</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button asChild><Link href="/admin/sites/new"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Site</span></Link></Button>
-            </div>
+            <Button asChild><Link href="/admin/sites/new"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Site</span></Link></Button>
           }
         />
 

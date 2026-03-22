@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
 import {
@@ -290,8 +290,22 @@ function OrdersContent() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Orders" }]}
+            tabs={{
+              value: activeTab,
+              onValueChange: (v) => {
+                setActiveTab(v as "all" | OrderType)
+                setCurrentPage(1)
+                setSelectedIds(new Set())
+                setAllSelected(false)
+              },
+              items: [
+                { value: "all", label: "All", icon: List, count: tabCounts.all },
+                { value: "lead_magnet", label: "Lead Magnets", icon: Magnet, count: tabCounts.lead_magnet },
+                { value: "paid_purchase", label: "Paid", icon: CreditCard, count: tabCounts.paid_purchase },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {selectedIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -311,26 +325,7 @@ function OrdersContent() {
                     )}
                   </Button>
                 )}
-                <Tabs
-                  value={activeTab}
-                  onValueChange={(v) => {
-                    setActiveTab(v as "all" | OrderType)
-                    setCurrentPage(1)
-                    setSelectedIds(new Set())
-                    setAllSelected(false)
-                  }}
-                >
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({tabCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="lead_magnet" className="px-2 sm:px-3">
-                      <Magnet className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Lead Magnets ({tabCounts.lead_magnet})</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="paid_purchase" className="px-2 sm:px-3">
-                      <CreditCard className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paid ({tabCounts.paid_purchase})</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+              </>
             }
           />
 

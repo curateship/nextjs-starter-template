@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import {
   Dialog,
   DialogContent,
@@ -210,27 +210,29 @@ export default function EmailAutomationsPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Automations" },
             ]}
+            tabs={{
+              value: filterStatus,
+              onValueChange: (v) => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              items: [
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
+                { value: "active", label: "Active", icon: Play, count: statusCounts.active },
+                { value: "paused", label: "Paused", icon: Pause, count: statusCounts.paused },
+                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {selectedIds.size > 0 && (
                   <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
                     <Trash2 className="h-4 w-4" />
                     <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
                   </Button>
                 )}
-                <Tabs value={filterStatus} onValueChange={v => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="active" className="px-2 sm:px-3"><Play className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Active ({statusCounts.active})</span></TabsTrigger>
-                    <TabsTrigger value="paused" className="px-2 sm:px-3"><Pause className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Paused ({statusCounts.paused})</span></TabsTrigger>
-                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
                 <Button onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Automation</span>
                 </Button>
-              </div>
+              </>
             }
           />
 

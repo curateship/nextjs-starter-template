@@ -5,7 +5,7 @@ import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { Users, Globe, TrendingDown, Clock, ArrowUpRight } from 'lucide-react'
 import {
   getAnalyticsOverview,
@@ -88,22 +88,18 @@ export default function AnalyticsPage({ params }: PageProps) {
               { label: "Sites", href: "/admin/sites" },
               { label: "Analytics" },
             ]}
+            tabs={{
+              value: period,
+              onValueChange: (v) => setPeriod(v as Period),
+              items: PERIODS.map(p => ({ value: p.id, label: p.label })),
+            }}
             actions={
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  {period === 'today' && new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {period === 'yesterday' && new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {period === '7d' && `${new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                  {period === '30d' && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                </span>
-                <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
-                  <TabsList className="h-auto p-1">
-                    {PERIODS.map(p => (
-                      <TabsTrigger key={p.id} value={p.id}>{p.label}</TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
+              <span className="text-sm text-muted-foreground">
+                {period === 'today' && new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {period === 'yesterday' && new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {period === '7d' && `${new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                {period === '30d' && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              </span>
             }
           />
       {/* Stats Grid */}

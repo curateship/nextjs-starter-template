@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 
 
 export default function ImagesPage() {
@@ -365,8 +365,17 @@ export default function ImagesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Media" }]}
+            tabs={{
+              value: filterType,
+              onValueChange: (value) => handleFilterChange(value as 'all' | 'image' | 'video'),
+              items: [
+                { value: "all", label: "All", icon: List, count: typeCounts.all },
+                { value: "image", label: "Images", icon: ImageIcon, count: typeCounts.image },
+                { value: "video", label: "Videos", icon: VideoIcon, count: typeCounts.video },
+              ],
+            }}
             actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <>
                 {/* Bulk Actions */}
                 {selectedIds.size > 0 && (
                   <Button
@@ -399,15 +408,6 @@ export default function ImagesPage() {
                   </Button>
                 </div>
 
-                {/* Filter Tabs */}
-                <Tabs value={filterType} onValueChange={(value) => handleFilterChange(value as 'all' | 'image' | 'video')}>
-                  <TabsList className="h-9 p-1 gap-1">
-                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({typeCounts.all})</span></TabsTrigger>
-                    <TabsTrigger value="image" className="px-2 sm:px-3"><ImageIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Images ({typeCounts.image})</span></TabsTrigger>
-                    <TabsTrigger value="video" className="px-2 sm:px-3"><VideoIcon className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Videos ({typeCounts.video})</span></TabsTrigger>
-                  </TabsList>
-                </Tabs>
-
                 <Button
                   onClick={isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()}
                   disabled={isUploading}
@@ -415,7 +415,7 @@ export default function ImagesPage() {
                   <Upload className="h-4 w-4" />
                   <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload Media"}</span>
                 </Button>
-              </div>
+              </>
             }
           />
 
