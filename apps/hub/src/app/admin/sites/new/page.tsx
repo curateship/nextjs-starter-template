@@ -12,15 +12,8 @@ import { useSiteContext } from "@/contexts/site-context"
 import type { Site } from "@/lib/actions/sites/site-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Palette, HomeIcon } from "lucide-react"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { Palette } from "lucide-react"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 
 export default function NewSitePage() {
   const router = useRouter()
@@ -112,31 +105,20 @@ export default function NewSitePage() {
   return (
     <AdminLayout>
       <div className="w-full pb-8">
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="h-4 w-4" />
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/sites">Sites</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>New</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <Button
-            onClick={isSubmitting ? undefined : handleSaveClick}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Creating..." : "Create Site"}
-          </Button>
-        </div>
+        <DashboardSubheader
+          items={[
+            { label: "Sites", href: "/admin/sites" },
+            { label: "New" },
+          ]}
+          actions={
+            <Button
+              onClick={isSubmitting ? undefined : handleSaveClick}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Creating..." : "Create Site"}
+            </Button>
+          }
+        />
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">

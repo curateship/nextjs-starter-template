@@ -4,14 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { HomeIcon, Mail, Users, Filter, Zap, FileText, Shield, Clock, Trash2, ExternalLink } from "lucide-react"
+import { Mail, Users, Filter, Zap, FileText, Shield, Clock, Trash2, ExternalLink } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -272,41 +265,25 @@ export default function ContactDashboardPage() {
       <StickyHeader navLinks={navLinks} />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2.5">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters/contacts">Contacts</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{loading ? "Loading..." : displayName}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting || loading}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
-          </div>
+          <DashboardSubheader
+            className="mt-2.5"
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Contacts", href: "/admin/newsletters/contacts" },
+              { label: loading ? "Loading..." : displayName },
+            ]}
+            actions={
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting || loading}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            }
+          />
 
           {/* Loading skeleton */}
           {loading && (

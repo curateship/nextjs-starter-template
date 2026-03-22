@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +26,7 @@ const PostSettingsModal = dynamic(() =>
   import("@/components/admin/post-builder/layout/PostSettingsModal").then(m => ({ default: m.PostSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, HomeIcon } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction, getPostIdsAction } from "@/lib/actions/posts/post-actions"
@@ -312,55 +305,42 @@ export default function PostsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Posts</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {selectedPostIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedPostIds.size})</span>
-                    </>
-                  )}
+          <DashboardSubheader
+            items={[{ label: "Posts" }]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {selectedPostIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span className="hidden sm:inline">Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Delete ({selectedPostIds.size})</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+                  <TabsList className="h-9 p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
+                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Button onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Post</span>
                 </Button>
-              )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                <TabsList className="h-9 p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                  <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Post</span>
-              </Button>
-            </div>
-          </div>
+              </div>
+            }
+          />
 
           <Card className="shadow-sm">
             {/* Table Header */}

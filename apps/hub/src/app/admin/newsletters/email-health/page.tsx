@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText, Clock, HomeIcon } from "lucide-react"
+import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText, Clock } from "lucide-react"
 
 export default function EmailHealthPage() {
   const { currentSite } = useSiteContext()
@@ -70,34 +63,18 @@ export default function EmailHealthPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Email Health</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
+          <DashboardSubheader
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Email Health" },
+            ]}
+            actions={
               <Button variant="outline" onClick={loadReport} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-            </div>
-          </div>
+            }
+          />
 
           {loading ? (
             <div>

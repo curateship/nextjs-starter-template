@@ -4,14 +4,7 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -35,7 +28,7 @@ const UserPageSettingsModal = dynamic(() =>
   import("@/components/admin/user-page-builder/layout/UserPageSettingsModal").then(m => ({ default: m.UserPageSettingsModal })),
   { ssr: false }
 )
-import { HomeIcon, Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Users } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -360,51 +353,43 @@ export default function UserUserPagesPage({ params }: PageProps) {
       />
       <AdminLayout>
         <div className="w-full">
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin"><HomeIcon className="h-4 w-4" /></BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>User Pages</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="flex items-center gap-3">
-            {selectedPageIds.size > 0 && (
-              <Button
-                variant="destructive"
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span className="hidden sm:inline">Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
-                  </>
-                )}
+        <DashboardSubheader
+          items={[{ label: "User Pages" }]}
+          actions={
+            <div className="flex items-center gap-3">
+              {selectedPageIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
+                    </>
+                  )}
+                </Button>
+              )}
+              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+                <TabsList className="h-auto p-1 gap-1">
+                  <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+                  <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
+                  <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4" />
+                Create User Dashboard Page
               </Button>
-            )}
-            <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-              <TabsList className="h-auto p-1 gap-1">
-                <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                <TabsTrigger value="published">Published ({statusCounts.published})</TabsTrigger>
-                <TabsTrigger value="draft">Draft ({statusCounts.draft})</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4" />
-              Create User Dashboard Page
-            </Button>
-          </div>
-        </div>
+            </div>
+          }
+        />
 
         <Card className="shadow-sm">
           

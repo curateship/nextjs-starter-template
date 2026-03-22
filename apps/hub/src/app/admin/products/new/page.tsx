@@ -2,17 +2,9 @@
 
 import { useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { BasicBlock } from "@/components/admin/product-builder/blocks/basic/ProductBasicBlock"
 import { Button } from "@/components/ui/button"
-import { HomeIcon } from "lucide-react"
 import Link from "next/link"
 
 export default function NewProductPage() {
@@ -37,33 +29,20 @@ export default function NewProductPage() {
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="size-4" />
-                  <span className="sr-only">Home</span>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/products">Products</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>New</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <Button variant="outline" asChild>
-              <Link href="/admin/products">Cancel</Link>
-            </Button>
-            <Button onClick={handleSaveClick}>Save Product</Button>
-          </div>
-        </div>
+        <DashboardSubheader
+          items={[
+            { label: "Products", href: "/admin/products" },
+            { label: "New" },
+          ]}
+          actions={
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <Button variant="outline" asChild>
+                <Link href="/admin/products">Cancel</Link>
+              </Button>
+              <Button onClick={handleSaveClick}>Save Product</Button>
+            </div>
+          }
+        />
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-6">

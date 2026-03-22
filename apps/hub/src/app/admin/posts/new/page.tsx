@@ -2,17 +2,9 @@
 
 import { useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { PostBlock } from "@/components/ui/post-block"
 import { Button } from "@/components/ui/button"
-import { HomeIcon } from "lucide-react"
 import Link from "next/link"
 
 export default function NewPostPage() {
@@ -40,33 +32,20 @@ export default function NewPostPage() {
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="size-4" />
-                  <span className="sr-only">Home</span>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/posts">Posts</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>New</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <Button variant="outline" asChild>
-              <Link href="/admin/posts">Cancel</Link>
-            </Button>
-            <Button onClick={handleSaveClick}>Save Post</Button>
-          </div>
-        </div>
+        <DashboardSubheader
+          items={[
+            { label: "Posts", href: "/admin/posts" },
+            { label: "New" },
+          ]}
+          actions={
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <Button variant="outline" asChild>
+                <Link href="/admin/posts">Cancel</Link>
+              </Button>
+              <Button onClick={handleSaveClick}>Save Post</Button>
+            </div>
+          }
+        />
 
         <form onSubmit={handleSubmit}>
           <PostBlock

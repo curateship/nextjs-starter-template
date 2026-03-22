@@ -3,14 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
@@ -26,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   Play, Check, X, Pencil, ExternalLink, Wand2, Settings,
-  Mail, Users, Filter, Zap, FileText, Shield, Clock, HomeIcon
+  Mail, Users, Filter, Zap, FileText, Shield, Clock
 } from "lucide-react"
 import {
   getSkillById,
@@ -292,48 +285,31 @@ export default function SkillOutputsPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb + actions */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters/skills">Create with AI</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{skill?.name || <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <Button
-              onClick={handleRun}
-              disabled={runningSkill}
-            >
-              {runningSkill ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  <span className="ml-1">{runProgress || 'Running...'}</span>
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  <span className="ml-1">Run Skill</span>
-                </>
-              )}
-            </Button>
-          </div>
+          <DashboardSubheader
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Create with AI", href: "/admin/newsletters/skills" },
+              { label: skill?.name || "Loading..." },
+            ]}
+            actions={
+              <Button
+                onClick={handleRun}
+                disabled={runningSkill}
+              >
+                {runningSkill ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span className="ml-1">{runProgress || 'Running...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    <span className="ml-1">Run Skill</span>
+                  </>
+                )}
+              </Button>
+            }
+          />
 
           {/* Error display */}
           {error && (

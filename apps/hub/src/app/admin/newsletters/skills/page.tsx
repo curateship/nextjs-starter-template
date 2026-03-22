@@ -3,20 +3,13 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Play, Settings, Wand2, Mail, Users, Filter, Zap, FileText, Shield, Clock, HomeIcon, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Trash2, Play, Settings, Wand2, Mail, Users, Filter, Zap, FileText, Shield, Clock, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getSkillsBySite,
@@ -163,52 +156,38 @@ export default function SkillsPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Create with AI</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {selectedIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                    </>
-                  )}
+          <DashboardSubheader
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Create with AI" },
+            ]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        <span className="hidden sm:inline">Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Button onClick={() => { setEditingSkill(null); setModalOpen(true) }}>
+                  Create Skill
                 </Button>
-              )}
-              <Button onClick={() => { setEditingSkill(null); setModalOpen(true) }}>
-                Create Skill
-              </Button>
-            </div>
-          </div>
+              </div>
+            }
+          />
 
           <Card className="shadow-sm">
             {/* Table Header */}

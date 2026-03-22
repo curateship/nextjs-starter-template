@@ -2,19 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { HomeIcon, User, Lock, Mail, AlertTriangle } from "lucide-react"
+import { User, Lock, Mail, AlertTriangle } from "lucide-react"
 import { updateProfile, updatePassword, getCurrentUser } from "@/lib/actions/auth/auth-actions"
 
 export default function SettingsPage() {
@@ -133,40 +126,27 @@ export default function SettingsPage() {
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="size-4" />
-                  <span className="sr-only">Home</span>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/users/settings">Settings</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Account</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <Button
-              disabled={saving}
-              onClick={() => {
-                if (!saving) {
-                  const form = document.getElementById('profile-form') as HTMLFormElement;
-                  if (form) form.requestSubmit();
-                }
-              }}
-            >
-              {saving ? 'Saving...' : 'Save Profile'}
-            </Button>
-          </div>
-        </div>
+        <DashboardSubheader
+          items={[
+            { label: "Settings", href: "/admin/users/settings" },
+            { label: "Account" },
+          ]}
+          actions={
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <Button
+                disabled={saving}
+                onClick={() => {
+                  if (!saving) {
+                    const form = document.getElementById('profile-form') as HTMLFormElement;
+                    if (form) form.requestSubmit();
+                  }
+                }}
+              >
+                {saving ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </div>
+          }
+        />
 
         {message && (
           <Alert className={`mb-6 ${message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>

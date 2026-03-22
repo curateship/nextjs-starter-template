@@ -2,19 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
-import { HomeIcon, Plus, List, Shield, Pencil, User, UserX } from "lucide-react"
+import { Plus, List, Shield, Pencil, User, UserX } from "lucide-react"
 import Link from "next/link"
 
 export default function UsersPage() {
@@ -93,39 +86,27 @@ export default function UsersPage() {
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="size-4" />
-                  <span className="sr-only">Home</span>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Users</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <Tabs defaultValue="all">
-              <TabsList className="h-9 p-1 gap-1">
-                <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
-                <TabsTrigger value="admin" className="px-2 sm:px-3"><Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">Admin</span></TabsTrigger>
-                <TabsTrigger value="editor" className="px-2 sm:px-3"><Pencil className="h-3.5 w-3.5" /><span className="hidden sm:inline">Editor</span></TabsTrigger>
-                <TabsTrigger value="user" className="px-2 sm:px-3"><User className="h-3.5 w-3.5" /><span className="hidden sm:inline">User</span></TabsTrigger>
-                <TabsTrigger value="guest" className="px-2 sm:px-3"><UserX className="h-3.5 w-3.5" /><span className="hidden sm:inline">Guest</span></TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button asChild>
-              <Link href="/admin/users/new">
-                <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add User</span>
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <DashboardSubheader
+          items={[{ label: "Users" }]}
+          actions={
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <Tabs defaultValue="all">
+                <TabsList className="h-9 p-1 gap-1">
+                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All</span></TabsTrigger>
+                  <TabsTrigger value="admin" className="px-2 sm:px-3"><Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">Admin</span></TabsTrigger>
+                  <TabsTrigger value="editor" className="px-2 sm:px-3"><Pencil className="h-3.5 w-3.5" /><span className="hidden sm:inline">Editor</span></TabsTrigger>
+                  <TabsTrigger value="user" className="px-2 sm:px-3"><User className="h-3.5 w-3.5" /><span className="hidden sm:inline">User</span></TabsTrigger>
+                  <TabsTrigger value="guest" className="px-2 sm:px-3"><UserX className="h-3.5 w-3.5" /><span className="hidden sm:inline">Guest</span></TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Button asChild>
+                <Link href="/admin/users/new">
+                  <Plus className="h-4 w-4" /><span className="hidden sm:inline">Add User</span>
+                </Link>
+              </Button>
+            </div>
+          }
+        />
 
         <Card className="shadow-sm">
           <div className="divide-y">

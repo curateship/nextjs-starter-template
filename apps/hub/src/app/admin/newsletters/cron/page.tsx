@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +19,7 @@ import {
   getCronJobRuns,
 } from "@/lib/actions/cron/cron-actions"
 import type { CronJob, CronJobRun } from "@/lib/actions/cron/cron-actions"
-import { Mail, Users, Filter, Zap, FileText, Shield, Clock, RefreshCw, CheckCircle, XCircle, HomeIcon } from "lucide-react"
+import { Mail, Users, Filter, Zap, FileText, Shield, Clock, RefreshCw, CheckCircle, XCircle } from "lucide-react"
 
 export default function CronJobsPage() {
   const [jobs, setJobs] = useState<CronJob[]>([])
@@ -116,34 +109,18 @@ export default function CronJobsPage() {
       />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Cron Jobs</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
+          <DashboardSubheader
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Cron Jobs" },
+            ]}
+            actions={
               <Button variant="outline" onClick={loadJobs} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-            </div>
-          </div>
+            }
+          />
 
           {loading ? (
             <div className="space-y-3">

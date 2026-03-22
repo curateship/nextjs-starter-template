@@ -2,15 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
-import { HomeIcon } from "lucide-react"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -699,101 +691,88 @@ export default function ContactsPage() {
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin/newsletters">Newsletters</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Contacts</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {selectedIds.size > 0 && (
-                <>
-                  {segments.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                        <SelectTrigger className="h-8 w-[180px] text-sm">
-                          <SelectValue placeholder="Select segment..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {segments.map(seg => (
-                            <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant={selectedSegmentId ? "default" : "outline"}
-                        className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
-                        onClick={handleAddToSegment}
-                        disabled={!selectedSegmentId || addingToSegment}
-                      >
-                        {addingToSegment ? "Adding..." : "Add to Segment"}
-                      </Button>
-                    </div>
-                  )}
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
+          <DashboardSubheader
+            items={[
+              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Contacts" },
+            ]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {selectedIds.size > 0 && (
+                  <>
+                    {segments.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                          <SelectTrigger className="h-8 w-[180px] text-sm">
+                            <SelectValue placeholder="Select segment..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {segments.map(seg => (
+                              <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant={selectedSegmentId ? "default" : "outline"}
+                          className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                          onClick={handleAddToSegment}
+                          disabled={!selectedSegmentId || addingToSegment}
+                        >
+                          {addingToSegment ? "Adding..." : "Add to Segment"}
+                        </Button>
+                      </div>
                     )}
-                  </Button>
-                </>
-              )}
-              {successMessage && (
-                <div className="p-2 px-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-green-800 text-sm">{successMessage}</p>
-                </div>
-              )}
-              <Button
-                variant="outline"
-                className="relative"
-                onClick={() => {
-                  setPendingFilters(filters)
-                  setDateFilterType("created")
-                  setCalendarRange(
-                    filters.createdAfter || filters.createdBefore
-                      ? { from: filters.createdAfter ? new Date(filters.createdAfter) : undefined, to: filters.createdBefore ? new Date(filters.createdBefore) : undefined }
-                      : undefined
-                  )
-                  setFilterModalOpen(true)
-                }}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-                <span className="hidden sm:inline">Filter</span>
-                {activeFilterCount > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                    {activeFilterCount}
-                  </span>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setMassDeleteConfirmOpen(true)}
+                      disabled={massDeleting}
+                    >
+                      {massDeleting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                          <span className="hidden sm:inline">Deleting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
-              </Button>
-              <Button onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4" /><span className="hidden sm:inline">Import CSV</span></Button>
-              <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Contact</span></Button>
-            </div>
-          </div>
+                {successMessage && (
+                  <div className="p-2 px-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-800 text-sm">{successMessage}</p>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  className="relative"
+                  onClick={() => {
+                    setPendingFilters(filters)
+                    setDateFilterType("created")
+                    setCalendarRange(
+                      filters.createdAfter || filters.createdBefore
+                        ? { from: filters.createdAfter ? new Date(filters.createdAfter) : undefined, to: filters.createdBefore ? new Date(filters.createdBefore) : undefined }
+                        : undefined
+                    )
+                    setFilterModalOpen(true)
+                  }}
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+                <Button onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4" /><span className="hidden sm:inline">Import CSV</span></Button>
+                <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Contact</span></Button>
+              </div>
+            }
+          />
 
           {/* Hidden file input for CSV */}
           <input

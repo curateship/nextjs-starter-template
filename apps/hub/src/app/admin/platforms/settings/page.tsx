@@ -5,15 +5,8 @@ import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertTriangle, Palette, LayoutGrid, HomeIcon } from "lucide-react"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
 
@@ -101,27 +94,17 @@ export default function PlatformSettingsPage() {
   return (
     <AdminLayout>
       <div className="w-full">
-        <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-          <Breadcrumb>
-            <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/admin">
-                  <HomeIcon className="h-4 w-4" />
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Platform Settings</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !hasChanges}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
+        <DashboardSubheader
+          items={[{ label: "Platform Settings" }]}
+          actions={
+            <Button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          }
+        />
 
         {message && (
           <Alert className={`mb-6 ${message.type === 'error' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}`}>

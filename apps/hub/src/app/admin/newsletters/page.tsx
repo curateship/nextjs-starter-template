@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -34,7 +27,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock, HomeIcon, Wand2 } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock, Wand2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -270,59 +263,47 @@ export default function NewslettersPage() {
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Newsletters</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {selectedIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                    </>
-                  )}
+          <DashboardSubheader
+            items={[{ label: "Newsletters" }]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        <span className="hidden sm:inline">Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+                  <TabsList className="h-9 p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Drafts ({statusCounts.draft})</span></TabsTrigger>
+                    <TabsTrigger value="sent" className="px-2 sm:px-3"><Send className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sent ({statusCounts.sent})</span></TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
+                  <Wand2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create with AI</span>
                 </Button>
-              )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                <TabsList className="h-9 p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Drafts ({statusCounts.draft})</span></TabsTrigger>
-                  <TabsTrigger value="sent" className="px-2 sm:px-3"><Send className="h-3.5 w-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sent ({statusCounts.sent})</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
-                <Wand2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Create with AI</span>
-              </Button>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Newsletter</span>
-              </Button>
-            </div>
-          </div>
+                <Button onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Newsletter</span>
+                </Button>
+              </div>
+            }
+          />
 
           <Card className="shadow-sm">
             {/* Table Header */}

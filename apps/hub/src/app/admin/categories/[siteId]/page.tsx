@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from "@/components/admin/layout/dashboard/breadcrumb"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,7 +15,7 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getCategoriesWithCountsAction, deleteCategoriesAction, getCategoryIdsAction, type Category } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, HomeIcon } from "lucide-react"
+import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const CreateCategoryModal = dynamic(() =>
@@ -259,69 +252,58 @@ export default function CategoriesPage({
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
-          <div className="flex items-center justify-between mb-6 mx-4 mt-2">
-            <Breadcrumb>
-              <BreadcrumbList className="h-8 gap-2 rounded-md border px-3 text-sm">
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="/admin">
-                    <HomeIcon className="size-4" />
-                    <span className="sr-only">Home</span>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Categories</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {depthLevels.length > 1 && (
-                <Select value={filterLevel} onValueChange={setFilterLevel}>
-                  <SelectTrigger size="sm">
-                    <SelectValue placeholder="All levels" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All levels</SelectItem>
-                    {depthLevels.map(level => (
-                      <SelectItem key={level} value={String(level)}>
-                        {level === 0 ? 'Top-level' : `Level ${level}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {selectedCategoryIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedCategoryIds.size})</span>
-                    </>
-                  )}
+          <DashboardSubheader
+            items={[{ label: "Categories" }]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {depthLevels.length > 1 && (
+                  <Select value={filterLevel} onValueChange={setFilterLevel}>
+                    <SelectTrigger size="sm">
+                      <SelectValue placeholder="All levels" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All levels</SelectItem>
+                      {depthLevels.map(level => (
+                        <SelectItem key={level} value={String(level)}>
+                          {level === 0 ? 'Top-level' : `Level ${level}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {selectedCategoryIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span className="hidden sm:inline">Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Delete ({selectedCategoryIds.size})</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
+                  <TabsList className="h-9 p-1 gap-1">
+                    <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
+                    <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
+                    <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Button onClick={() => setShowCreateModal(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Category</span>
                 </Button>
-              )}
-              <Tabs value={filterStatus} onValueChange={(value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) }}>
-                <TabsList className="h-9 p-1 gap-1">
-                  <TabsTrigger value="all" className="px-2 sm:px-3"><List className="h-3.5 w-3.5" /><span className="hidden sm:inline">All ({statusCounts.all})</span></TabsTrigger>
-                  <TabsTrigger value="published" className="px-2 sm:px-3"><Globe className="h-3.5 w-3.5" /><span className="hidden sm:inline">Published ({statusCounts.published})</span></TabsTrigger>
-                  <TabsTrigger value="draft" className="px-2 sm:px-3"><FileEdit className="h-3.5 w-3.5" /><span className="hidden sm:inline">Draft ({statusCounts.draft})</span></TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Category</span>
-              </Button>
-            </div>
-          </div>
+              </div>
+            }
+          />
 
           <Card className="shadow-sm">
             {/* Table Header */}
