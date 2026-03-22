@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { AdminLayout, AdminPageHeader, AdminCard } from "@/components/admin/layout/admin-layout"
+import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, createSiteAction } from "@/lib/actions/sites/site-actions"
@@ -528,19 +529,29 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
-          <AdminPageHeader
-            title="Site Settings"
-            subtitle={`Manage settings for ${site?.subdomain || 'your site'}`}
-            primaryAction={activeTab === 'themes'
-              ? { label: "Create Theme", onClick: () => { setCreateName(""); setCreateDialogOpen(true) } }
-              : { label: isSubmitting ? "Saving..." : "Save Changes", onClick: isSubmitting ? undefined : handleSaveClick }
-            }
-            extraContent={saveMessage && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
+          <DashboardSubheader
+            items={[
+              { label: "Sites", href: "/admin/sites" },
+              { label: "Settings" },
+            ]}
+            actions={
+              <div className="flex items-center gap-2">
+                {saveMessage && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
+                  </div>
+                )}
+                <Button
+                  onClick={activeTab === 'themes'
+                    ? () => { setCreateName(""); setCreateDialogOpen(true) }
+                    : isSubmitting ? undefined : handleSaveClick
+                  }
+                >
+                  {activeTab === 'themes' ? "Create Theme" : isSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
               </div>
-            )}
+            }
           />
 
           {error && (

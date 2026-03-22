@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock, SlidersHorizontal } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, Shield, Clock, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import {
@@ -718,6 +718,7 @@ export default function ContactsPage() {
                           onClick={handleAddToSegment}
                           disabled={!selectedSegmentId || addingToSegment}
                         >
+                          <ArrowLeft className="h-4 w-4" />
                           {addingToSegment ? "Adding..." : "Add to Segment"}
                         </Button>
                       </div>

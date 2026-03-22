@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -137,6 +138,8 @@ export default function SitesPage() {
   }
   
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         <DashboardSubheader
@@ -351,5 +354,6 @@ export default function SitesPage() {
         </div>
       )}
     </AdminLayout>
+    </>
   )
 }

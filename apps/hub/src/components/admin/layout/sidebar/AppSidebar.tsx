@@ -13,7 +13,6 @@ import {
   Calendar,
   Mail,
   Tag,
-  ExternalLink,
   Workflow,
   BarChart3,
 } from "lucide-react"
@@ -28,13 +27,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-  useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteContext } from "@/contexts/site-context"
-import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string }
@@ -42,7 +36,6 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const { currentSite } = useSiteContext()
-  const { state } = useSidebar()
 
   // Content creation items
   const enabledFeatures = currentSite?.settings?.enabled_features
@@ -171,32 +164,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
-        {state === "collapsed" ? (
-          <div className="flex flex-col items-center gap-2 py-2">
-            <Link
-              href={currentSite ? getSiteUrl(currentSite) : "/"}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 hover:bg-muted rounded-md transition-colors"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Link>
-            <AdminThemeToggle />
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2 px-2 py-2">
-            <Button asChild variant="outline" size="sm" className="h-8 px-3 flex-1">
-              <Link
-                href={currentSite ? getSiteUrl(currentSite) : "/"}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Visit site
-              </Link>
-            </Button>
-            <AdminThemeToggle />
-          </div>
-        )}
         <SidebarUserAdmin user={{ name: user.name, email: user.email, avatar: '' }} />
       </SidebarFooter>
       <SidebarRail />

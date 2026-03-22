@@ -6,6 +6,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { BasicBlock } from "@/components/admin/product-builder/blocks/basic/ProductBasicBlock"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 
 export default function NewProductPage() {
   const [title, setTitle] = useState("")
@@ -26,6 +27,8 @@ export default function NewProductPage() {
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
@@ -66,5 +69,6 @@ export default function NewProductPage() {
         </form>
       </div>
     </AdminLayout>
+    </>
   )
-} 
+}

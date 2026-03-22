@@ -5,6 +5,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { PanelLeft, type LucideIcon } from "lucide-react"
+import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
 
 interface NavLink {
   label: string
@@ -63,11 +64,11 @@ export function StickyHeader({
           )}
         </div>
 
-        {rightActions && (
-          <div className="flex items-center gap-2">
-            {rightActions}
-          </div>
-        )}
+        {/* Right side: page-specific actions + theme toggle */}
+        <div className="flex items-center gap-2 pr-3">
+          {rightActions}
+          <AdminThemeToggle />
+        </div>
       </div>
     </header>
   )

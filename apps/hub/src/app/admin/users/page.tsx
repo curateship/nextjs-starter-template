@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -83,6 +84,8 @@ export default function UsersPage() {
   }
   
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
@@ -154,5 +157,6 @@ export default function UsersPage() {
         </Card>
       </div>
     </AdminLayout>
+    </>
   )
 }

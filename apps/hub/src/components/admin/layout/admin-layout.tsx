@@ -1,6 +1,5 @@
 "use client"
 
-import { AdminPageHeader } from "@/components/admin/layout/dashboard/AdminPageHeader"
 import { AdminCard } from "@/components/admin/layout/dashboard/AdminCard"
 
 interface AdminLayoutProps {
@@ -32,4 +31,4 @@ export function AdminLayout({
 }
 
 // Re-export admin components
-export { AdminPageHeader, AdminCard }
+export { AdminCard }

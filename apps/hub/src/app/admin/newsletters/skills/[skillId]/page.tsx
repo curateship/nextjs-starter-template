@@ -289,7 +289,7 @@ export default function SkillOutputsPage() {
             items={[
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Create with AI", href: "/admin/newsletters/skills" },
-              { label: skill?.name || "Loading..." },
+              { label: skill?.name || <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" /> },
             ]}
             actions={
               <Button

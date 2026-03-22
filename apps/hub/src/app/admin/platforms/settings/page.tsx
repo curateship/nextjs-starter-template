@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
 import { getAdminSettingsAction, updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions"
@@ -92,6 +93,8 @@ export default function PlatformSettingsPage() {
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         <DashboardSubheader
@@ -248,5 +251,6 @@ export default function PlatformSettingsPage() {
         </div>
       </div>
     </AdminLayout>
+    </>
   )
 }

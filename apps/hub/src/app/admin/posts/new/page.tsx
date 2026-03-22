@@ -6,6 +6,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { PostBlock } from "@/components/ui/post-block"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 
 export default function NewPostPage() {
   const [title, setTitle] = useState("")
@@ -29,6 +30,8 @@ export default function NewPostPage() {
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
@@ -73,5 +76,6 @@ export default function NewPostPage() {
         </form>
       </div>
     </AdminLayout>
+    </>
   )
 }

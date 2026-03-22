@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 
 interface DashboardSubheaderProps {
   /** Breadcrumb trail — last item is rendered as the current page (no link) */
-  items: Array<{ label: string; href?: string }>
+  items: Array<{ label: React.ReactNode; href?: string }>
   /** Optional right-side content (buttons, tabs, filters, etc.) */
   actions?: React.ReactNode
   className?: string

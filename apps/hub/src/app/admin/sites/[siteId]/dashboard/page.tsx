@@ -5,7 +5,7 @@ import { Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
 import { ChartLineLabel } from '@/components/admin/dashboard/ChartLineLabel'
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
-import { AdminPageHeader } from '@/components/admin/layout/dashboard/AdminPageHeader'
+import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
 import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
@@ -59,10 +59,12 @@ export default async function SiteDashboard({ params }: PageProps) {
       />
       <AdminLayout>
         <div className="w-full">
-          <AdminPageHeader
-            title={`${siteName} Dashboard`}
-            subtitle={`Overview and analytics for ${siteName} (${siteUrl})`}
-            extraContent={
+          <DashboardSubheader
+            items={[
+              { label: "Sites", href: "/admin/sites" },
+              { label: siteName },
+            ]}
+            actions={
               <Badge className="bg-green-500 hover:bg-green-600 text-white">Live</Badge>
             }
           />

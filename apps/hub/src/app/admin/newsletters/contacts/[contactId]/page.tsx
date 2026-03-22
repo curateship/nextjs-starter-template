@@ -270,7 +270,7 @@ export default function ContactDashboardPage() {
             items={[
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Contacts", href: "/admin/newsletters/contacts" },
-              { label: loading ? "Loading..." : displayName },
+              { label: loading ? <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" /> : displayName },
             ]}
             actions={
               <Button

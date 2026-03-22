@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -111,6 +112,8 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
+      <>
+      <StickyHeader />
       <AdminLayout>
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -119,10 +122,13 @@ export default function SettingsPage() {
           </div>
         </div>
       </AdminLayout>
+      </>
     )
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
         {/* Breadcrumb navigation + action buttons */}
@@ -279,5 +285,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </AdminLayout>
+    </>
   )
 }

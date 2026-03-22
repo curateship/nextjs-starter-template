@@ -1,8 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { AdminLayout, AdminPageHeader } from "@/components/admin/layout/admin-layout"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { Button } from "@/components/ui/button"
 import { NewsletterBlock } from "@/components/ui/newsletter-block"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 
 export default function NewNewsletterPage() {
   const [title, setTitle] = useState("")
@@ -23,19 +26,25 @@ export default function NewNewsletterPage() {
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full">
-        <AdminPageHeader
-          title="Create Newsletter"
-          subtitle="Create new AI-powered newsletter content"
-          primaryAction={{
-            label: "Create Newsletter",
-            onClick: handleSaveClick
-          }}
-          secondaryAction={{
-            label: "Cancel",
-            href: "/admin/newsletters"
-          }}
+        <DashboardSubheader
+          items={[
+            { label: "Newsletters", href: "/admin/newsletters" },
+            { label: "New" },
+          ]}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" asChild>
+                <a href="/admin/newsletters">Cancel</a>
+              </Button>
+              <Button onClick={handleSaveClick}>
+                Create Newsletter
+              </Button>
+            </div>
+          }
         />
 
         <form onSubmit={handleSubmit}>
@@ -54,5 +63,6 @@ export default function NewNewsletterPage() {
         </form>
       </div>
     </AdminLayout>
+    </>
   )
 }

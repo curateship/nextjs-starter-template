@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Palette } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 
 export default function NewSitePage() {
   const router = useRouter()
@@ -103,6 +104,8 @@ export default function NewSitePage() {
   }
 
   return (
+    <>
+    <StickyHeader />
     <AdminLayout>
       <div className="w-full pb-8">
         <DashboardSubheader
@@ -184,5 +187,6 @@ export default function NewSitePage() {
         </form>
       </div>
     </AdminLayout>
+    </>
   )
 }

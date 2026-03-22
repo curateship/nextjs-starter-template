@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Plus, Globe } from "lucide-react"
+import { ChevronsUpDown, Plus, Globe, ExternalLink } from "lucide-react"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -11,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -119,7 +119,7 @@ export function SiteSwitcherMenu() {
               <DropdownMenuLabel className="text-muted-foreground text-xs">
                 Your Sites
               </DropdownMenuLabel>
-              {sites.map((site, index) => (
+              {sites.map((site) => (
                 <DropdownMenuItem
                   key={site.id}
                   onClick={() => {
@@ -130,8 +130,8 @@ export function SiteSwitcherMenu() {
                 >
                   <div className="flex size-6 items-center justify-center rounded-md overflow-hidden">
                     {site.settings?.favicon ? (
-                      <img 
-                        src={site.settings.favicon} 
+                      <img
+                        src={site.settings.favicon}
                         alt={`${site.name} favicon`}
                         className="size-6 object-cover rounded-md"
                       />
@@ -147,9 +147,16 @@ export function SiteSwitcherMenu() {
                       {site.custom_domain || `${site.subdomain}.domain.com`}
                     </div>
                   </div>
-                  {index < 9 && (
-                    <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-                  )}
+                  {/* Visit site link */}
+                  <a
+                    href={getSiteUrl(site)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex size-6 items-center justify-center rounded-md hover:bg-muted transition-colors"
+                  >
+                    <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                  </a>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
