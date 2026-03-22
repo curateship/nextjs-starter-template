@@ -9,10 +9,13 @@ import Link from "next/link"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/category-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
+import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/category-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/category-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { CATEGORY_BLOCK_TYPES } from "@/components/admin/category-builder/config/category-block-types"
 import { getCategoriesForSiteAction, updateCategoryAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
 
@@ -179,29 +182,47 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/categories/${siteId}`, label: "Categories" },
           { label: currentCategoryData?.title || "", isPage: true }
         ]}
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onCategoryChange={handleCategoryChange}
-        onCategoryCreated={(category) => {
-          setCategories(prev => [...prev, category])
-        }}
-        onCategoryUpdated={(updatedCategory) => {
-          setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c))
-        }}
+        items={categories}
+        selectedItemSlug={selectedCategory}
+        onItemChange={handleCategoryChange}
+        entityName="Category"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/categories/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
         onPublish={handlePublish}
         isPublishing={isPublishing}
-        site={site}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => show && site ? (
+          <CreateCategoryModal
+            siteId={site.id}
+            existingCategories={categories}
+            onCreated={(category) => {
+              setCategories(prev => [...prev, category])
+              handleCategoryChange(category.slug)
+              setShow(false)
+            }}
+            onClose={() => setShow(false)}
+          />
+        ) : null}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <CategorySettingsModal
+            open={show}
+            onOpenChange={setShow}
+            category={(currentItem ? currentCategoryData : null) || null}
+            existingCategories={categories}
+            onSuccess={(updatedCategory) => {
+              setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c))
+            }}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -232,12 +253,14 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
         {blockListOpen && (
           <BlockListPanel
-            currentCategory={currentCategory}
+            blocks={currentCategory.blocks}
+            blockTypes={CATEGORY_BLOCK_TYPES}
+            entityName="category"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewCategory={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}
@@ -249,6 +272,8 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentCategory.blocks.map(b => b.type)}
+          blockTypes={CATEGORY_BLOCK_TYPES}
+          entityName="category"
         />
       </div>
     </div>

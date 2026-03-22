@@ -1,5 +1,8 @@
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
+import { eq, and } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { sites } from '@/lib/db/schema'
 
 interface AuthUser {
   id: string
@@ -32,3 +35,19 @@ export async function requireAdmin(): Promise<AuthUser> {
   if (user.role !== 'super_admin') throw new Error('Not authorized')
   return user
 }
+
+/**
+ * Verify the authenticated user owns the given site.
+ * Throws on failure — use in try/catch action functions.
+ */
+export async function requireSiteOwnership(siteId: string): Promise<{ user: AuthUser; siteId: string }> {
+  const user = await requireAuth()
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+  if (!site) throw new Error('Site not found or unauthorized')
+  return { user, siteId: site.id }
+}
+
+export { type AuthUser }

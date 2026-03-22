@@ -12,6 +12,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 interface CreatePostData {
@@ -47,16 +48,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [showFeaturedImage, setShowFeaturedImage] = useState(true)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)

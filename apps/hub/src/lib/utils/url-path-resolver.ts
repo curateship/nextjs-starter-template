@@ -3,7 +3,7 @@
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, posts, products } from '@/lib/db/schema'
-import { convertContentBlocksToArray, type ProductBlock } from '@/lib/utils/product-block-utils'
+import { convertContentBlocksToArray, type ContentBlock as ProductBlock } from '@/lib/utils/block-utils'
 
 export interface PageContent {
   id: string

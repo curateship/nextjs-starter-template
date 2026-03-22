@@ -9,10 +9,20 @@ import Link from "next/link"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/event-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
+import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/event-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/event-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/event-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
 import { getSiteEventsAction, updateEventAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
@@ -201,17 +211,17 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/events", label: "Events" },
           { label: currentEventData?.title || "", isPage: true }
         ]}
-        events={events}
-        selectedEvent={selectedEvent}
-        onEventChange={handleEventChange}
-        onEventCreated={handleEventCreated}
-        onEventUpdated={handleEventUpdated}
+        items={events}
+        selectedItemSlug={selectedEvent}
+        onItemChange={handleEventChange}
+        entityName="Event"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/events/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
@@ -219,6 +229,29 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New Event</DialogTitle>
+                <DialogDescription>Add a new event to your site. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreateEventModal
+                onSuccess={(event) => { handleEventCreated(event); setShow(false); }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <EventSettingsModal
+            open={show}
+            onOpenChange={setShow}
+            event={(currentItem ? currentEventData : null) || null}
+            site={currentSite}
+            onSuccess={handleEventUpdated}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -249,12 +282,14 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
         {blockListOpen && (
           <BlockListPanel
-            currentEvent={currentEvent}
+            blocks={currentEvent.blocks}
+            blockTypes={EVENT_BLOCK_TYPES}
+            entityName="event"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewEvent={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}
@@ -266,6 +301,8 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentEvent.blocks.map(b => b.type)}
+          blockTypes={EVENT_BLOCK_TYPES}
+          entityName="event"
         />
       </div>
     </div>

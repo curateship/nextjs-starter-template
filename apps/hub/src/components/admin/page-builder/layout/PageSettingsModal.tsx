@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Page, UpdatePageData } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -39,16 +40,6 @@ export function PageSettingsModal({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {

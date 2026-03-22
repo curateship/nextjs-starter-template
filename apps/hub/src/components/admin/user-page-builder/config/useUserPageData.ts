@@ -4,7 +4,7 @@ import {
   type UserPage
 } from "@/lib/actions/user-pages/user-pages-actions"
 import { type Site } from "@/lib/actions/sites/site-actions"
-import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
+import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 import { useSiteContext } from "@/contexts/site-context"
 
 interface UseUserPagesDataReturn {
@@ -89,7 +89,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
         // Convert JSON content_blocks to blocks format for each page
         const blocksData: Record<string, any[]> = {}
         pagesResult.data.forEach(page => {
-          const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
+          const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
 
           // Add navigation and footer from site.settings.user_pages to each page
           // This maintains the UI illusion that nav/footer are page blocks
@@ -129,7 +129,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
       // Convert JSON content_blocks to blocks format for each page
       const blocksData: Record<string, any[]> = {}
       pagesResult.data.forEach(page => {
-        const pageBlocks = convertPageJsonToBlocks(page.content_blocks || {})
+        const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
 
         // Add navigation and footer from site.settings.user_pages to each page
         const configBlocks = buildUserPagesConfigBlocks(siteData)

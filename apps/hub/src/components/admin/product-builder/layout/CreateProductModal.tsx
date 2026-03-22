@@ -12,6 +12,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 interface CreateProductData {
@@ -41,16 +42,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)

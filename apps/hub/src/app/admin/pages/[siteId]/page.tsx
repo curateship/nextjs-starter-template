@@ -9,10 +9,20 @@ import Link from "next/link"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
 import { usePageBuilder } from "@/components/admin/page-builder/config/usePageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/page-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
+import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/page-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/page-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/page-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { PAGE_BLOCK_TYPES } from "@/components/admin/page-builder/config/page-block-types"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 
@@ -185,24 +195,46 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           Editing Theme: {site?.name}
         </div>
       )}
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
-        pages={pages}
-        selectedPage={selectedPage}
-        onPageChange={handlePageChange}
-        onPageCreated={handlePageCreated}
-        onPageUpdated={handlePageUpdated}
+        items={pages}
+        selectedItemSlug={selectedPage}
+        onItemChange={handlePageChange}
+        entityName="Page"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/${item.slug === 'home' ? '' : item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
-        onPreviewPage={() => builderState.setSelectedBlock(null)}
-        site={site}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New Page</DialogTitle>
+                <DialogDescription>Add a new page to your site. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreatePageModal
+                siteId={siteId}
+                onSuccess={(page) => { handlePageCreated(page); setShow(false); }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <PageSettingsModal
+            open={show}
+            onOpenChange={setShow}
+            page={(currentItem ? currentPageData : null) || null}
+            site={site}
+            onSuccess={handlePageUpdated}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -223,12 +255,14 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
 
         {blockListOpen && (
           <BlockListPanel
-            currentPage={currentPage}
+            blocks={currentPage.blocks}
+            blockTypes={PAGE_BLOCK_TYPES}
+            entityName="page"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewPage={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={builderState.deleting}
             blocksLoading={blocksLoading}
@@ -240,6 +274,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentPage.blocks.map(b => b.type)}
+          blockTypes={PAGE_BLOCK_TYPES}
+          entityName="page"
         />
       </div>
     </div>

@@ -17,6 +17,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -44,16 +45,6 @@ export function PostSettingsModal({
   const [extractedContent, setExtractedContent] = useState('')
   const [showFeaturedImage, setShowFeaturedImage] = useState(true)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {

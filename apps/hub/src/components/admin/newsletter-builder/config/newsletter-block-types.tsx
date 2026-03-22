@@ -1,12 +1,7 @@
-import { ImageIcon, FileText, Minus, Footprints, LucideIcon, Info } from "lucide-react"
+import { ImageIcon, FileText, Minus, Footprints, Info } from "lucide-react"
+import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
 
-export interface BlockTypeDefinition {
-  type: string
-  name: string
-  icon: LucideIcon
-  description: string
-  defaultContent: Record<string, any>
-}
+export type { BlockTypeDefinition }
 
 export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
@@ -61,15 +56,13 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
 ]
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
-  return NEWSLETTER_BLOCK_TYPES.find(block => block.type === type)
+  return findBlockType(NEWSLETTER_BLOCK_TYPES, type)
 }
 
-export function getBlockIcon(type: string): LucideIcon {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.icon || Info
+export function getBlockIcon(type: string) {
+  return _getBlockIcon(NEWSLETTER_BLOCK_TYPES, type, Info)
 }
 
 export function getBlockName(type: string): string {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.name || 'Block'
+  return _getBlockName(NEWSLETTER_BLOCK_TYPES, type)
 }

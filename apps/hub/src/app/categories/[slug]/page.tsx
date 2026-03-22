@@ -3,7 +3,7 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { db } from "@/lib/db"
 import { categories } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
-import { convertContentBlocksToArray } from '@/lib/utils/category-block-utils'
+import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 

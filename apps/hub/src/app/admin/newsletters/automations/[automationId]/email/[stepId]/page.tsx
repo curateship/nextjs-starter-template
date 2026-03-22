@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/config/useAutomationEmailBuilder"
 import { useSiteContext } from "@/contexts/site-context"
 import { Monitor, Tablet, Smartphone, Save, ArrowLeft } from "lucide-react"
@@ -185,6 +186,9 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
 
         {blockListOpen && (
           <BlockListPanel
+            blockTypes={NEWSLETTER_BLOCK_TYPES}
+            entityName="newsletter"
+            deleting={null}
             blocks={builder.blocks}
             selectedBlock={builder.selectedBlock}
             onSelectBlock={builder.setSelectedBlock}
@@ -200,6 +204,8 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
         open={blockModalOpen}
         onOpenChange={setBlockModalOpen}
         onAddBlocks={builder.handleAddBlocks}
+        blockTypes={NEWSLETTER_BLOCK_TYPES}
+        entityName="newsletter"
       />
     </div>
   )

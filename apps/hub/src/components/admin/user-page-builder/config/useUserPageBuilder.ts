@@ -4,7 +4,7 @@ import {
   updateUserPagesSettingsAction,
   type UserPage
 } from "@/lib/actions/user-pages/user-pages-actions"
-import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
+import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
 import { getBlockTypeDefinition } from "./user-page-block-types"
 
@@ -98,7 +98,7 @@ export function useUserPageBuilder({
       // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
-        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
+        const jsonBlocks = convertBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
         await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
       }
 
@@ -153,7 +153,7 @@ export function useUserPageBuilder({
     // Save to database
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
-      const jsonBlocks = convertPageBlocksToJson(finalBlocks)
+      const jsonBlocks = convertBlocksToJson(finalBlocks)
       const { data, error } = await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
 
       if (error) {
@@ -206,7 +206,7 @@ export function useUserPageBuilder({
 
       // Save page blocks to user pages table
       if (pageBlocks.length > 0) {
-        const jsonBlocks = convertPageBlocksToJson(pageBlocks)
+        const jsonBlocks = convertBlocksToJson(pageBlocks)
         savePromises.push(updateUserPageBlocksAction(currentPage.id, jsonBlocks))
       }
 
@@ -249,7 +249,7 @@ export function useUserPageBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const newBlock = {
-          id: generatePageBlockId(),
+          id: generateBlockId(),
           type: selection.type,
           content: { ...blockDefinition.defaultContent },
           display_order: 0,

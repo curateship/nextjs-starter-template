@@ -12,6 +12,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteContext } from "@/contexts/site-context"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface CreateEventModalProps {
@@ -36,16 +37,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({ ...prev, title }))

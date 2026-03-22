@@ -9,10 +9,20 @@ import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/directory-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
+import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/directory-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/directory-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/directory-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
 import { getSiteDirectoriesAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -201,17 +211,17 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/directories", label: "Directories" },
           { label: currentDirectoryData?.title || "", isPage: true }
         ]}
-        directories={directories}
-        selectedDirectory={selectedDirectory}
-        onDirectoryChange={handleDirectoryChange}
-        onDirectoryCreated={handleDirectoryCreated}
-        onDirectoryUpdated={handleDirectoryUpdated}
+        items={directories}
+        selectedItemSlug={selectedDirectory}
+        onItemChange={handleDirectoryChange}
+        entityName="Directory"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/directories/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
@@ -219,6 +229,29 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New Directory</DialogTitle>
+                <DialogDescription>Add a new directory to your site. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreateDirectoryModal
+                onSuccess={(directory) => { handleDirectoryCreated(directory); setShow(false); }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <DirectorySettingsModal
+            open={show}
+            onOpenChange={setShow}
+            directory={(currentItem ? currentDirectoryData : null) || null}
+            site={currentSite}
+            onSuccess={handleDirectoryUpdated}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -249,12 +282,14 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
         {blockListOpen && (
           <BlockListPanel
-            currentDirectory={currentDirectory}
+            blocks={currentDirectory.blocks}
+            blockTypes={DIRECTORY_BLOCK_TYPES}
+            entityName="directory"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewDirectory={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}
@@ -266,6 +301,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
+          blockTypes={DIRECTORY_BLOCK_TYPES}
+          entityName="directory"
         />
       </div>
     </div>

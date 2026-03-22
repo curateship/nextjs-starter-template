@@ -9,10 +9,14 @@ import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/post-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
+import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/post-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/post-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/post-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
 import { getSitePostsAction, updatePostAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
@@ -218,17 +222,17 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/posts", label: "Posts" },
           { label: currentPostData?.title || "", isPage: true }
         ]}
-        posts={posts}
-        selectedPost={selectedPost}
-        onPostChange={handlePostChange}
-        onPostCreated={handlePostCreated}
-        onPostUpdated={handlePostUpdated}
+        items={posts}
+        selectedItemSlug={selectedPost}
+        onItemChange={handlePostChange}
+        entityName="Post"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/posts/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={false}
         onSave={builderState.handleSaveAllBlocks}
@@ -236,6 +240,29 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New Post</DialogTitle>
+                <DialogDescription>Add a new post to your blog. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreatePostModal
+                onSuccess={(post) => { handlePostCreated(post); setShow(false); }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow) => (
+          <PostSettingsModal
+            open={show}
+            onOpenChange={setShow}
+            post={currentPostData || null}
+            site={currentSite}
+            onSuccess={handlePostUpdated}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -262,21 +289,17 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
         {blockListOpen && (
           <BlockListPanel
-            currentPost={currentPost}
+            blocks={currentPost.blocks}
+            blockTypes={POST_BLOCK_TYPES}
+            entityName="post"
             selectedBlock={builderState.selectedBlock as any}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewPost={() => builderState.setSelectedBlock(null)}
-            onCleanupCorrupted={builderState.handleCleanupCorrupted}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={loading}
-            postData={{
-              title: currentPostData?.title,
-              meta_description: currentPostData?.meta_description || undefined,
-              excerpt: currentPostData?.excerpt || undefined
-            }}
           />
         )}
 
@@ -285,6 +308,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={Object.values(builderState.blocks).map(b => b.type)}
+          blockTypes={POST_BLOCK_TYPES}
+          entityName="post"
         />
       </div>
     </div>

@@ -6,6 +6,7 @@ import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { generateSlug } from '@/lib/utils/slug'
 
 export interface Category {
   id: string
@@ -43,16 +44,6 @@ export interface UpdateCategoryData {
   meta_description?: string | null
   content_blocks?: Record<string, any>
   is_published?: boolean
-}
-
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 100)
 }
 
 /**

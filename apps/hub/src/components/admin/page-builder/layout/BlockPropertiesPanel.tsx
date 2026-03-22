@@ -12,7 +12,7 @@ import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
 import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
 import { PagePreview } from "./PagePreview"
-import type { PageBlock } from "@/lib/utils/page-block-utils"
+import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
 // Helper function to generate callback props dynamically
 const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {

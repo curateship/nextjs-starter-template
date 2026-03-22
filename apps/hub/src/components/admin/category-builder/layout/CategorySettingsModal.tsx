@@ -17,6 +17,7 @@ import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { updateCategoryAction, type Category, type UpdateCategoryData } from "@/lib/actions/categories/category-actions"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { generateSlug } from "@/lib/utils/slug"
 
 interface CategorySettingsModalProps {
   open: boolean
@@ -44,15 +45,6 @@ export function CategorySettingsModal({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
-
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   const handleTitleChange = (title: string) => {
     setIsSaved(false)

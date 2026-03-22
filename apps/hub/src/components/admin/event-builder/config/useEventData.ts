@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
-import { convertContentBlocksToArray, getEventBlockTitle } from "@/lib/utils/event-block-utils"
+import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
+import { getBlockName } from "./event-block-types"
 import { useSiteContext } from "@/contexts/site-context"
 
 interface EventBlock {
@@ -57,7 +58,7 @@ export function useEventData(siteId: string): UseEventDataReturn {
           // Add titles to blocks
           const blocksWithTitles = eventBlocks.map(block => ({
             ...block,
-            title: getEventBlockTitle(block.type)
+            title: getBlockName(block.type)
           }))
 
           convertedBlocks[event.slug] = blocksWithTitles
@@ -128,7 +129,7 @@ export function useEventData(siteId: string): UseEventDataReturn {
         // Add titles to blocks
         const blocksWithTitles = eventBlocks.map(block => ({
           ...block,
-          title: getEventBlockTitle(block.type)
+          title: getBlockName(block.type)
         }))
 
         convertedBlocks[event.slug] = blocksWithTitles

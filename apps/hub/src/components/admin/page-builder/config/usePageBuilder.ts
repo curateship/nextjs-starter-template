@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { updatePageBlocksAction, type Page } from "@/lib/actions/pages/page-actions"
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/sites/site-actions"
-import { convertPageBlocksToJson, generatePageBlockId } from "@/lib/utils/page-block-utils"
+import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
 import { getBlockTypeDefinition } from "./page-block-types"
 
@@ -94,7 +94,7 @@ export function usePageBuilder({
       // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
-        const jsonBlocks = convertPageBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
+        const jsonBlocks = convertBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
         await updatePageBlocksAction(currentPage.id, jsonBlocks)
       }
       
@@ -149,7 +149,7 @@ export function usePageBuilder({
     // Save to database
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
-      const jsonBlocks = convertPageBlocksToJson(finalBlocks)
+      const jsonBlocks = convertBlocksToJson(finalBlocks)
       const { success, error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
       
       if (error) {
@@ -203,7 +203,7 @@ export function usePageBuilder({
       
       // Save page blocks to pages table
       if (pageBlocks.length > 0) {
-        const jsonBlocks = convertPageBlocksToJson(pageBlocks)
+        const jsonBlocks = convertBlocksToJson(pageBlocks)
         savePromises.push(updatePageBlocksAction(currentPage.id, jsonBlocks))
       }
       
@@ -246,7 +246,7 @@ export function usePageBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const newBlock = {
-          id: generatePageBlockId(),
+          id: generateBlockId(),
           type: selection.type,
           content: { ...blockDefinition.defaultContent },
           display_order: 0,
@@ -316,7 +316,7 @@ export function usePageBuilder({
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
       const pageOnlyBlocks = newBlocks.filter(b => b.type !== 'navigation' && b.type !== 'footer')
-      const jsonBlocks = convertPageBlocksToJson(pageOnlyBlocks)
+      const jsonBlocks = convertBlocksToJson(pageOnlyBlocks)
       await updatePageBlocksAction(currentPage.id, jsonBlocks)
     }
 

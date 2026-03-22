@@ -4,7 +4,7 @@ import { useRef, useState, useEffect, useCallback } from "react"
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
-import type { PageBlock } from "@/lib/utils/page-block-utils"
+import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
 interface PagePreviewProps {
   blocks: PreviewBlock[]

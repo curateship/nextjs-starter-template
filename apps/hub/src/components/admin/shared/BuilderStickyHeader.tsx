@@ -21,12 +21,18 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, CheckCircle, ChevronDown, ExternalLink, PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
-import { useSiteContext } from "@/contexts/site-context"
-import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
-import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
-import type { Category } from "@/lib/actions/categories/category-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { Save, Plus, Settings, ChevronDown, ExternalLink, PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
+import { SaveStatusBadge } from "@/components/admin/shared/SaveStatusBadge"
+
+/** Generic item interface — all builders have items with at least these fields */
+export interface BuilderItem {
+  id: string
+  slug: string
+  title: string
+  is_published?: boolean
+  is_homepage?: boolean
+  is_default?: boolean
+}
 
 interface BreadcrumbItemType {
   href?: string
@@ -34,62 +40,94 @@ interface BreadcrumbItemType {
   isPage?: boolean
 }
 
-interface StickyHeaderProps {
+interface NavLink {
+  label: string
+  href: string
+  active?: boolean
+}
+
+interface BuilderStickyHeaderProps {
   className?: string
   breadcrumbItems?: BreadcrumbItemType[]
-  categories?: Category[]
-  selectedCategory?: string
-  onCategoryChange?: (category: string) => void
-  onCategoryCreated?: (category: Category) => void
-  onCategoryUpdated?: (category: Category) => void
+  navLinks?: NavLink[]
+  /** All items of this content type */
+  items?: BuilderItem[]
+  /** Currently selected item slug */
+  selectedItemSlug?: string
+  /** Callback when user selects a different item from the dropdown */
+  onItemChange?: (slug: string) => void
+  /** Entity type display name, e.g. "Product" */
+  entityName: string
+  /** URL path segment, e.g. "products". Used to build preview URLs. */
+  urlSegment?: string
+  /** Custom URL builder. If not provided, defaults to http://{subdomain}.localhost:3000/{urlSegment}/{slug} */
+  getItemUrl?: (item: BuilderItem) => string
   saveMessage?: string
   isSaving?: boolean
   onSave?: () => void
   onPublish?: () => void
   isPublishing?: boolean
-  site?: SiteWithTheme | null
   blockListOpen?: boolean
   onToggleBlockList?: () => void
+  /** Render the create modal/dialog. Receives show state and setter. */
+  renderCreateModal?: (show: boolean, setShow: (show: boolean) => void) => React.ReactNode
+  /** Render the settings modal/dialog. Receives show state and setter, plus the current item. */
+  renderSettingsModal?: (show: boolean, setShow: (show: boolean) => void, currentItem: BuilderItem | undefined) => React.ReactNode
+  /** Custom label renderer for dropdown items (e.g. to add emoji prefix) */
+  renderItemLabel?: (item: BuilderItem) => React.ReactNode
+  /** Whether to show the Save button with "outline" variant (default) or "default" variant */
+  saveVariant?: "outline" | "default"
 }
 
-export function StickyHeader({
+/**
+ * Shared builder StickyHeader used by product, post, event, directory, category, page, and user-page builders.
+ * Provides: sidebar toggle, breadcrumbs with item-selector dropdown, save/publish buttons, block list toggle,
+ * and render props for create/settings modals.
+ */
+export function BuilderStickyHeader({
   className,
   breadcrumbItems = [],
-  categories,
-  selectedCategory,
-  onCategoryChange,
-  onCategoryCreated,
-  onCategoryUpdated,
+  navLinks,
+  items,
+  selectedItemSlug,
+  onItemChange,
+  entityName,
+  urlSegment,
+  getItemUrl,
   saveMessage,
   isSaving = false,
   onSave,
   onPublish,
   isPublishing = false,
-  site,
   blockListOpen,
   onToggleBlockList,
-}: StickyHeaderProps) {
+  renderCreateModal,
+  renderSettingsModal,
+  renderItemLabel,
+  saveVariant = "outline",
+}: BuilderStickyHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const { currentSite } = useSiteContext()
   const { toggleSidebar } = useSidebar()
 
-  const isCategoryBuilder = categories !== undefined
-  const currentCategory = categories?.find(c => c.slug === selectedCategory)
+  const isBuilderMode = items !== undefined
+  const currentItem = items?.find(item => item.slug === selectedItemSlug)
 
-  const handleCreateCategory = () => {
+  const handleCreate = () => {
     setDropdownOpen(false)
-    setTimeout(() => {
-      setShowCreateDialog(true)
-    }, 100)
+    setTimeout(() => setShowCreateDialog(true), 100)
   }
 
-  const getCategoryUrl = (categorySlug?: string) => {
-    const slug = categorySlug || currentCategory?.slug
-    if (!slug || !currentSite?.subdomain) return '#'
-    return `http://${currentSite.subdomain}.localhost:3000/categories/${slug}`
-  }
+  /** Default item label: title + draft indicator */
+  const defaultItemLabel = (item: BuilderItem) => (
+    <>
+      {item.is_homepage && "\u{1F3E0} "}
+      {item.is_default && "\u{1F3E0} "}
+      {item.title}
+      {item.is_published === false && " (Draft)"}
+    </>
+  )
 
   return (
     <>
@@ -97,20 +135,23 @@ export function StickyHeader({
         "sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b bg-sidebar z-50",
         className
       )}>
-        <div className="flex items-center justify-between flex-1 px-4">
+        <div className="flex items-center justify-between flex-1 px-4 h-full">
           <div className="flex items-center gap-2">
+            {/* Sidebar toggle */}
             <button
               onClick={toggleSidebar}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
             >
               <PanelLeft className="h-3.5 w-3.5" />
             </button>
+
+            {/* Breadcrumbs with item-selector dropdown on the last item */}
             {breadcrumbItems.length > 0 && (
               <Breadcrumb className="w-fit rounded-md bg-muted px-3 py-1.5">
                 <BreadcrumbList>
                   {breadcrumbItems.map((item, index) => {
                     const isLastItem = index === breadcrumbItems.length - 1
-                    const shouldShowDropdown = isLastItem && isCategoryBuilder
+                    const shouldShowDropdown = isLastItem && isBuilderMode
 
                     return (
                       <React.Fragment key={index}>
@@ -132,45 +173,45 @@ export function StickyHeader({
                                   className="h-auto p-0 font-normal hover:bg-transparent hover:text-foreground inline-flex items-center"
                                 >
                                   <BreadcrumbPage className="cursor-pointer" style={{ paddingBottom: '1px' }}>
-                                    {currentCategory ? currentCategory.title : item.label}
+                                    {currentItem ? currentItem.title : item.label}
                                   </BreadcrumbPage>
                                   <ChevronDown className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start" className="w-[240px]">
-                                {categories?.map((category) => (
+                                {items?.map((listItem) => (
                                   <DropdownMenuItem
-                                    key={category.id}
+                                    key={listItem.id}
                                     onSelect={(e) => e.preventDefault()}
-                                    className={category.slug === selectedCategory ? "bg-accent" : ""}
+                                    className={listItem.slug === selectedItemSlug ? "bg-accent" : ""}
                                   >
                                     <div className="flex items-center justify-between flex-1">
                                       <span
                                         onClick={() => {
-                                          if (onCategoryChange) {
-                                            onCategoryChange(category.slug)
-                                          }
+                                          onItemChange?.(listItem.slug)
                                           setDropdownOpen(false)
                                         }}
                                         className="flex-1 cursor-pointer"
                                       >
-                                        {category.title}
+                                        {renderItemLabel ? renderItemLabel(listItem) : defaultItemLabel(listItem)}
                                       </span>
-                                      <Link
-                                        href={getCategoryUrl(category.slug)}
-                                        target="_blank"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="ml-2"
-                                      >
-                                        <ExternalLink className="w-3 h-3" />
-                                      </Link>
+                                      {(getItemUrl || urlSegment) && (
+                                        <Link
+                                          href={getItemUrl ? getItemUrl(listItem) : `#`}
+                                          target="_blank"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="ml-2"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </Link>
+                                      )}
                                     </div>
                                   </DropdownMenuItem>
                                 ))}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={handleCreateCategory}>
+                                <DropdownMenuItem onClick={handleCreate}>
                                   <Plus className="mr-2 h-4 w-4" />
-                                  Create Category
+                                  Create {entityName}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -202,40 +243,42 @@ export function StickyHeader({
             )}
           </div>
 
-          {isCategoryBuilder && (
+          {/* Nav Links (used by page/user-page builders) */}
+          {navLinks && navLinks.length > 0 && (
+            <div className="flex items-center gap-8 h-full pr-14">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "text-sm font-medium h-full flex items-center border-b-[3px] transition-colors",
+                    link.active
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Builder Action Buttons */}
+          {isBuilderMode && (
             <div className="flex items-center space-x-2">
-              {saveMessage && (
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${
-                  saveMessage.includes('Error') || saveMessage.includes('Failed')
-                    ? 'bg-red-50 border border-red-200'
-                    : 'bg-green-50 border border-green-200'
-                }`}>
-                  <CheckCircle className={`w-4 h-4 ${
-                    saveMessage.includes('Error') || saveMessage.includes('Failed')
-                      ? 'text-red-600'
-                      : 'text-green-600'
-                  }`} />
-                  <span className={`text-sm font-medium ${
-                    saveMessage.includes('Error') || saveMessage.includes('Failed')
-                      ? 'text-red-800'
-                      : 'text-green-700'
-                  }`}>
-                    {saveMessage}
-                  </span>
-                </div>
-              )}
+              <SaveStatusBadge message={saveMessage} />
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowEditDialog(true)}
-                disabled={!currentCategory}
+                disabled={!currentItem}
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Edit Settings
               </Button>
               <Button
                 size="sm"
-                variant="outline"
+                variant={saveVariant}
                 onClick={onSave}
                 disabled={isSaving}
               >
@@ -248,7 +291,7 @@ export function StickyHeader({
                   onClick={onPublish}
                   disabled={isPublishing || isSaving}
                 >
-                  {isPublishing ? 'Publishing...' : currentCategory?.is_published ? 'Published' : 'Publish'}
+                  {isPublishing ? 'Publishing...' : currentItem?.is_published ? 'Published' : 'Publish'}
                 </Button>
               )}
               {onToggleBlockList && (
@@ -264,36 +307,11 @@ export function StickyHeader({
         </div>
       </header>
 
-      {isCategoryBuilder && (
+      {/* Modals — provided by the consumer via render props */}
+      {isBuilderMode && (
         <>
-          {showCreateDialog && site && (
-            <CreateCategoryModal
-              siteId={site.id}
-              existingCategories={categories || []}
-              onCreated={(category: Category) => {
-                if (onCategoryCreated) {
-                  onCategoryCreated(category)
-                }
-                setShowCreateDialog(false)
-                if (onCategoryChange) {
-                  onCategoryChange(category.slug)
-                }
-              }}
-              onClose={() => setShowCreateDialog(false)}
-            />
-          )}
-
-          <CategorySettingsModal
-            open={showEditDialog}
-            onOpenChange={setShowEditDialog}
-            category={currentCategory || null}
-            existingCategories={categories || []}
-            onSuccess={(updatedCategory: Category) => {
-              if (onCategoryUpdated) {
-                onCategoryUpdated(updatedCategory)
-              }
-            }}
-          />
+          {renderCreateModal?.(showCreateDialog, setShowCreateDialog)}
+          {renderSettingsModal?.(showEditDialog, setShowEditDialog, currentItem)}
         </>
       )}
     </>

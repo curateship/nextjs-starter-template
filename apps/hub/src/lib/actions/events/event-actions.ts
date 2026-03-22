@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { events, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { generateSlug } from '@/lib/utils/slug'
 
 
 
@@ -30,14 +31,6 @@ export interface UpdateEventData {
   featured_image?: string | null
   description?: string | null
   meta_description?: string | null
-}
-
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 100)
 }
 
 export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number }) {

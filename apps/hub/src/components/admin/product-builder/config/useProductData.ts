@@ -2,8 +2,8 @@ import { useState, useEffect } from "react"
 import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
-import { convertContentBlocksToArray, getProductBlockTitle } from "@/lib/utils/product-block-utils"
-import { convertPageJsonToBlocks } from "@/lib/utils/page-block-utils"
+import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
+import { getBlockName } from "./product-block-types"
 import { useSiteContext } from "@/contexts/site-context"
 
 interface ProductBlock {
@@ -63,7 +63,7 @@ export function useProductData(siteId: string): UseProductDataReturn {
           // Add titles to blocks
           const blocksWithTitles = productBlocks.map(block => ({
             ...block,
-            title: getProductBlockTitle(block.type)
+            title: getBlockName(block.type)
           }))
           
           convertedBlocks[product.slug] = blocksWithTitles
@@ -134,7 +134,7 @@ export function useProductData(siteId: string): UseProductDataReturn {
         // Add titles to blocks
         const blocksWithTitles = productBlocks.map(block => ({
           ...block,
-          title: getProductBlockTitle(block.type)
+          title: getBlockName(block.type)
         }))
         
         convertedBlocks[product.slug] = blocksWithTitles

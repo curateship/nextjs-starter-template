@@ -9,10 +9,20 @@ import Link from "next/link"
 import { useUserPageData } from "@/components/admin/user-page-builder/config/useUserPageData"
 import { useUserPageBuilder } from "@/components/admin/user-page-builder/config/useUserPageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/user-page-builder/layout/StickyHeader"
+import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
+import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/user-page-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/user-page-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/user-page-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { USER_PAGE_BLOCK_TYPES } from "@/components/admin/user-page-builder/config/user-page-block-types"
 import {
   getUserPagesAction,
   createUserPageAction,
@@ -199,37 +209,62 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/user-pages/${siteId}`, label: "User Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
-        pages={pages}
-        selectedPage={selectedPage}
-        onPageChange={handlePageChange}
-        onPageCreated={(pageData) => handlePageCreated({
-          title: pageData.title,
-          slug: pageData.slug,
-          meta_description: pageData.meta_description ?? undefined
-        })}
-        onPageUpdated={(updatedPage) => {
-          const dashboardPage = pages.find(p => p.id === updatedPage.id)
-          if (dashboardPage) {
-            handlePageUpdated(updatedPage.id, {
-              title: updatedPage.title,
-              slug: updatedPage.slug,
-              meta_description: updatedPage.meta_description ?? undefined
-            })
-          }
-        }}
+        items={pages}
+        selectedItemSlug={selectedPage}
+        onItemChange={handlePageChange}
+        entityName="User Page"
+        getItemUrl={(item) => `/user-dashboard${item.slug === 'home' ? '' : '/' + item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
-        onPreviewPage={() => builderState.setSelectedBlock(null)}
-        site={undefined}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New User Page</DialogTitle>
+                <DialogDescription>Add a new user page to your dashboard. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreateUserPageModal
+                siteId={siteId}
+                onSuccess={(page) => {
+                  handlePageCreated({
+                    title: page.title,
+                    slug: page.slug,
+                    meta_description: page.meta_description ?? undefined
+                  })
+                  setShow(false)
+                }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <UserPageSettingsModal
+            open={show}
+            onOpenChange={setShow}
+            page={(currentItem ? currentPageData : null) || null}
+            site={null}
+            onSuccess={(updatedPage) => {
+              const dashboardPage = pages.find(p => p.id === updatedPage.id)
+              if (dashboardPage) {
+                handlePageUpdated(updatedPage.id, {
+                  title: updatedPage.title,
+                  slug: updatedPage.slug,
+                  meta_description: updatedPage.meta_description ?? undefined
+                })
+              }
+            }}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -248,12 +283,14 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
 
         {blockListOpen && (
           <BlockListPanel
-            currentPage={currentPage}
+            blocks={currentPage.blocks}
+            blockTypes={USER_PAGE_BLOCK_TYPES}
+            entityName="user page"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewPage={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={builderState.deleting}
             blocksLoading={blocksLoading}
@@ -265,6 +302,8 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentPage.blocks.map(b => b.type)}
+          blockTypes={USER_PAGE_BLOCK_TYPES}
+          entityName="user page"
         />
       </div>
     </div>

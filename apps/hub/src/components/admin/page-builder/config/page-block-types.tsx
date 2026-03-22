@@ -1,13 +1,7 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, Quote, Navigation, PanelBottom, LucideIcon } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, Quote, Navigation, PanelBottom } from "lucide-react"
+import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
 
-export interface BlockTypeDefinition {
-  type: string
-  name: string
-  icon: LucideIcon
-  description: string
-  defaultContent: Record<string, any>
-  conflictsWith?: string[]
-}
+export type { BlockTypeDefinition }
 
 export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
@@ -211,15 +205,13 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
 ]
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
-  return PAGE_BLOCK_TYPES.find(block => block.type === type)
+  return findBlockType(PAGE_BLOCK_TYPES, type)
 }
 
-export function getBlockIcon(type: string): LucideIcon {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.icon || FileText
+export function getBlockIcon(type: string) {
+  return _getBlockIcon(PAGE_BLOCK_TYPES, type, FileText)
 }
 
 export function getBlockName(type: string): string {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.name || 'Block'
+  return _getBlockName(PAGE_BLOCK_TYPES, type)
 }

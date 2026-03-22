@@ -1,3 +1,5 @@
+"use client"
+
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { USER_PAGE_BLOCK_TYPES } from "../config/user-page-block-types"
+import type { BlockTypeDefinition } from "@/components/admin/shared/block-types"
 import { Plus, Minus, Info } from "lucide-react"
 import {
   Tooltip,
@@ -17,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-interface BlockSelection {
+export interface BlockSelection {
   type: string
   quantity: number
 }
@@ -26,22 +28,28 @@ interface BlockSelectionModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAddBlocks: (selections: BlockSelection[]) => void
-  existingBlockTypes: string[]
+  existingBlockTypes?: string[]
+  blockTypes: BlockTypeDefinition[]
+  entityName?: string
 }
 
+/**
+ * Shared block selection modal used by all builders.
+ * Shows a grid of available block types with quantity selectors and conflict detection.
+ */
 export function BlockSelectionModal({
   open,
   onOpenChange,
   onAddBlocks,
-  existingBlockTypes
+  existingBlockTypes = [],
+  blockTypes,
+  entityName = "content",
 }: BlockSelectionModalProps) {
   const [selections, setSelections] = useState<Record<string, number>>({})
 
-  // Determine which blocks are disabled due to conflicts
   const disabledBlocks = useMemo(() => {
     const disabled = new Set<string>()
-
-    USER_PAGE_BLOCK_TYPES.forEach(blockType => {
+    blockTypes.forEach(blockType => {
       if (blockType.conflictsWith) {
         blockType.conflictsWith.forEach(conflictType => {
           if (existingBlockTypes.includes(conflictType)) {
@@ -50,9 +58,8 @@ export function BlockSelectionModal({
         })
       }
     })
-
     return disabled
-  }, [existingBlockTypes])
+  }, [existingBlockTypes, blockTypes])
 
   const handleToggleBlock = (type: string) => {
     setSelections(prev => {
@@ -74,10 +81,7 @@ export function BlockSelectionModal({
         delete newSelections[type]
         return newSelections
       }
-      return {
-        ...prev,
-        [type]: Math.min(newQuantity, 10) // Max 10 blocks of same type
-      }
+      return { ...prev, [type]: Math.min(newQuantity, 10) }
     })
   }
 
@@ -85,7 +89,6 @@ export function BlockSelectionModal({
     const blockSelections: BlockSelection[] = Object.entries(selections).map(
       ([type, quantity]) => ({ type, quantity })
     )
-
     if (blockSelections.length > 0) {
       onAddBlocks(blockSelections)
       setSelections({})
@@ -100,16 +103,14 @@ export function BlockSelectionModal({
 
   const totalBlocksToAdd = Object.values(selections).reduce((sum, qty) => sum + qty, 0)
 
-  const getConflictMessage = (blockType: typeof USER_PAGE_BLOCK_TYPES[0]): string | null => {
+  const getConflictMessage = (blockType: BlockTypeDefinition): string | null => {
     if (!blockType.conflictsWith) return null
-
     for (const conflictType of blockType.conflictsWith) {
       if (existingBlockTypes.includes(conflictType)) {
-        const conflictBlock = USER_PAGE_BLOCK_TYPES.find(b => b.type === conflictType)
+        const conflictBlock = blockTypes.find(b => b.type === conflictType)
         return `Cannot add ${blockType.name} when ${conflictBlock?.name || 'conflicting block'} exists`
       }
     }
-
     return null
   }
 
@@ -117,14 +118,14 @@ export function BlockSelectionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[900px] max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Dashboard Blocks</DialogTitle>
+          <DialogTitle>Add Blocks</DialogTitle>
           <DialogDescription>
-            Select the blocks you want to add to your dashboard page. You can add multiple blocks at once and specify quantities.
+            Select the blocks you want to add to your {entityName}. You can add multiple blocks at once and specify quantities.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-4 py-4">
-          {USER_PAGE_BLOCK_TYPES.map((blockType) => {
+          {blockTypes.map((blockType) => {
             const Icon = blockType.icon
             const isSelected = !!selections[blockType.type]
             const isDisabled = disabledBlocks.has(blockType.type)

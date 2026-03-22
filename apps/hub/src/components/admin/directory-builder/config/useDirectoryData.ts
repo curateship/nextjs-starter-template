@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
-import { convertContentBlocksToArray, getDirectoryBlockTitle } from "@/lib/utils/directory-block-utils"
+import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
+import { getBlockName } from "./directory-block-types"
 import { useSiteContext } from "@/contexts/site-context"
 
 interface DirectoryBlock {
@@ -57,7 +58,7 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
           // Add titles to blocks
           const blocksWithTitles = directoryBlocks.map(block => ({
             ...block,
-            title: getDirectoryBlockTitle(block.type)
+            title: getBlockName(block.type)
           }))
 
           convertedBlocks[directory.slug] = blocksWithTitles
@@ -128,7 +129,7 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
         // Add titles to blocks
         const blocksWithTitles = directoryBlocks.map(block => ({
           ...block,
-          title: getDirectoryBlockTitle(block.type)
+          title: getBlockName(block.type)
         }))
 
         convertedBlocks[directory.slug] = blocksWithTitles

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { generateSlug } from "@/lib/utils/slug"
 import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 
 interface CreateUserUserPageData {
@@ -34,16 +35,6 @@ export function CreateUserPageModal({ siteId, onSuccess, onCancel }: CreateUserP
   const [error, setError] = useState<string | null>(null)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)

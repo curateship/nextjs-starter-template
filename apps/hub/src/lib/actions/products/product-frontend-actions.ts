@@ -3,7 +3,7 @@
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
-import { convertContentBlocksToArray, type ProductBlock as UtilProductBlock } from '@/lib/utils/product-block-utils'
+import { convertContentBlocksToArray, type ContentBlock as UtilProductBlock } from '@/lib/utils/block-utils'
 
 export interface ProductBlock extends UtilProductBlock {}
 

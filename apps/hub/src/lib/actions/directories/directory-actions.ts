@@ -7,6 +7,7 @@ import { directories } from '@/lib/db/schema/directories'
 import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { generateSlug } from '@/lib/utils/slug'
 
 
 
@@ -39,14 +40,6 @@ export interface UpdateDirectoryData {
   featured_image?: string | null
   description?: string | null
   meta_description?: string | null
-}
-
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 100)
 }
 
 function toDirectory(row: typeof directories.$inferSelect): Directory {

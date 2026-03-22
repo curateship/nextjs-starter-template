@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 import { getCategoriesForSiteAction, type Category } from '@/lib/actions/categories/category-actions'
-import { convertContentBlocksToArray, getCategoryBlockTitle } from '@/lib/utils/category-block-utils'
+import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import { getBlockName } from './category-block-types'
 
 interface CategoryBlock {
   id: string
@@ -57,7 +58,7 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
 
           const blocksWithTitles = categoryBlocks.map(block => ({
             ...block,
-            title: getCategoryBlockTitle(block.type)
+            title: getBlockName(block.type)
           }))
 
           convertedBlocks[category.slug] = blocksWithTitles
@@ -123,7 +124,7 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
 
         const blocksWithTitles = categoryBlocks.map(block => ({
           ...block,
-          title: getCategoryBlockTitle(block.type)
+          title: getBlockName(block.type)
         }))
 
         convertedBlocks[category.slug] = blocksWithTitles

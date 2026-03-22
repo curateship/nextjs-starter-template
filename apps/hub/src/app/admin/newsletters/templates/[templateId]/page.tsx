@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
@@ -268,6 +269,9 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
         {blockListOpen && (
           <BlockListPanel
+            blockTypes={NEWSLETTER_BLOCK_TYPES}
+            entityName="newsletter"
+            deleting={null}
             blocks={blockEditor.blocks}
             selectedBlock={blockEditor.selectedBlock}
             onSelectBlock={blockEditor.setSelectedBlock}
@@ -283,6 +287,8 @@ export default function TemplateEditorPage({ params }: PageProps) {
         open={blockModalOpen}
         onOpenChange={setBlockModalOpen}
         onAddBlocks={blockEditor.handleAddBlocks}
+        blockTypes={NEWSLETTER_BLOCK_TYPES}
+        entityName="newsletter"
       />
     </div>
   )

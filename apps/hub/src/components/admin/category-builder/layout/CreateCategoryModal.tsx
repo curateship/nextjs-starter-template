@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import { generateSlug } from "@/lib/utils/slug"
 
 interface CreateCategoryModalProps {
   siteId: string
@@ -41,15 +42,6 @@ export function CreateCategoryModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
-
-  const generateSlug = (value: string) => {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   const handleTitleChange = (value: string) => {
     setTitle(value)

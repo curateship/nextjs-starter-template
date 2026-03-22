@@ -9,10 +9,20 @@ import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
 import { useSiteContext } from "@/contexts/site-context"
-import { StickyHeader } from "@/components/admin/product-builder/layout/StickyHeader"
+import { BuilderStickyHeader, type BuilderItem } from "@/components/admin/shared/BuilderStickyHeader"
+import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
+import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BlockPropertiesPanel } from "@/components/admin/product-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/product-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/product-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { PRODUCT_BLOCK_TYPES } from "@/components/admin/product-builder/config/product-block-types"
 import { getSiteProductsAction, updateProductAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
 
@@ -214,17 +224,17 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <BuilderStickyHeader
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/products", label: "Products" },
           { label: currentProductData?.title || "", isPage: true }
         ]}
-        products={products}
-        selectedProduct={selectedProduct}
-        onProductChange={handleProductChange}
-        onProductCreated={handleProductCreated}
-        onProductUpdated={handleProductUpdated}
+        items={products}
+        selectedItemSlug={selectedProduct}
+        onItemChange={handleProductChange}
+        entityName="Product"
+        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/products/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
@@ -232,6 +242,29 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        renderCreateModal={(show, setShow) => (
+          <Dialog open={show} onOpenChange={setShow}>
+            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+              <DialogHeader>
+                <DialogTitle>Create New Product</DialogTitle>
+                <DialogDescription>Add a new product to your catalog. You can customize the content after creation.</DialogDescription>
+              </DialogHeader>
+              <CreateProductModal
+                onSuccess={(product) => { handleProductCreated(product); setShow(false); }}
+                onCancel={() => setShow(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+        renderSettingsModal={(show, setShow, currentItem) => (
+          <ProductSettingsModal
+            open={show}
+            onOpenChange={setShow}
+            product={(currentItem ? currentProductData : null) || null}
+            site={currentSite}
+            onSuccess={handleProductUpdated}
+          />
+        )}
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
@@ -264,12 +297,14 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
         {blockListOpen && (
           <BlockListPanel
-            currentProduct={currentProduct}
+            blocks={currentProduct.blocks}
+            blockTypes={PRODUCT_BLOCK_TYPES}
+            entityName="product"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreviewProduct={() => builderState.setSelectedBlock(null)}
+            onPreview={() => builderState.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}
@@ -281,6 +316,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentProduct.blocks.map(b => b.type)}
+          blockTypes={PRODUCT_BLOCK_TYPES}
+          entityName="product"
         />
       </div>
     </div>

@@ -1,13 +1,7 @@
-import { FileText, LucideIcon } from "lucide-react"
+import { FileText } from "lucide-react"
+import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
 
-export interface BlockTypeDefinition {
-  type: string
-  name: string
-  icon: LucideIcon
-  description: string
-  defaultContent: Record<string, any>
-  conflictsWith?: string[]
-}
+export type { BlockTypeDefinition }
 
 export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
@@ -24,15 +18,13 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
 ]
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
-  return DIRECTORY_BLOCK_TYPES.find(block => block.type === type)
+  return findBlockType(DIRECTORY_BLOCK_TYPES, type)
 }
 
-export function getBlockIcon(type: string): LucideIcon {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.icon || FileText
+export function getBlockIcon(type: string) {
+  return _getBlockIcon(DIRECTORY_BLOCK_TYPES, type, FileText)
 }
 
 export function getBlockName(type: string): string {
-  const definition = getBlockTypeDefinition(type)
-  return definition?.name || 'Block'
+  return _getBlockName(DIRECTORY_BLOCK_TYPES, type)
 }

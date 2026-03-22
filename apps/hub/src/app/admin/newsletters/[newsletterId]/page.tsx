@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/newsletter-builder/layout/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/newsletter-builder/layout/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/layout/PublishNewsletterModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
@@ -283,6 +284,9 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
 
         {blockListOpen && (
           <BlockListPanel
+            blockTypes={NEWSLETTER_BLOCK_TYPES}
+            entityName="newsletter"
+            deleting={null}
             blocks={builder.blocks}
             selectedBlock={builder.selectedBlock}
             onSelectBlock={builder.setSelectedBlock}
@@ -298,6 +302,8 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         open={blockModalOpen}
         onOpenChange={setBlockModalOpen}
         onAddBlocks={builder.handleAddBlocks}
+        blockTypes={NEWSLETTER_BLOCK_TYPES}
+        entityName="newsletter"
       />
 
       <NewsletterSettingsModal

@@ -17,6 +17,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { generateSlug } from "@/lib/utils/slug"
 import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
@@ -46,16 +47,6 @@ export function ProductSettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-
-  // Generate slug from title
-  const generateSlug = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  }
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
