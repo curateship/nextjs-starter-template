@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -16,14 +18,12 @@ interface DirectoryPageProps {
 export default async function DirectoryPage({ params }: DirectoryPageProps) {
   const { slug } = await params
 
-  // Get site data from headers
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
   if (!siteSuccess || !site) {
     notFound()
   }
 
-  // Direct query to directory table
   const [directory] = await db
     .select()
     .from(directories)
@@ -40,7 +40,6 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     notFound()
   }
 
-  // Convert directory blocks to array format
   let blocks: any[] = []
   try {
     blocks = convertContentBlocksToArray((directory.contentBlocks as any) || {}, directory.id)
@@ -54,17 +53,21 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks
   } as any
 
-  return <DirectoryBlockRenderer
-    site={site}
-    directory={directoryWithBlocks}
-  />
+  return (
+    <>
+      <JsonLd site={site} content={directoryWithBlocks} contentType="directory" />
+      <DirectoryBlockRenderer
+        site={site}
+        directory={directoryWithBlocks}
+      />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: DirectoryPageProps) {
   const { slug } = await params
 
   try {
-    // Get site data from headers
     const { success: siteSuccess, site } = await getSiteFromHeaders()
 
     if (!siteSuccess || !site) {
@@ -74,7 +77,6 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
       }
     }
 
-    // Direct query to directory table
     const [directory] = await db
       .select()
       .from(directories)
@@ -97,6 +99,7 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
     return {
       title: `${directory.title} | ${site.name}`,
       description: directory.metaDescription || directory.description || `${directory.title} on ${site.name}`,
+      ...buildSeoMetadata(site, directory as any, 'directory', `/directories/${slug}`),
     }
   } catch (error) {
     return {

@@ -4,6 +4,8 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { toCdnUrl } from "@/lib/utils/cdn"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -44,6 +46,7 @@ export default async function SiteHomePage() {
       {lcpImageUrl && (
         <link rel="preload" as="image" href={lcpImageUrl} fetchPriority="high" />
       )}
+      <JsonLd site={site} contentType="home" />
       <BlockRenderer site={site} />
     </>
   )
@@ -65,9 +68,13 @@ export async function generateMetadata() {
     const pageTitle = heroBlock?.content?.title || 'Welcome'
     const pageDescription = heroBlock?.content?.subtitle || ''
 
+    const title = `${pageTitle} | ${site.name}`
+    const description = pageDescription || `Welcome to ${site.name}`
+
     return {
-      title: `${pageTitle} | ${site.name}`,
-      description: pageDescription || `Welcome to ${site.name}`,
+      title,
+      description,
+      ...buildSeoMetadata(site, { title: pageTitle, description }, 'home', '/'),
     }
   } catch (error) {
     return {

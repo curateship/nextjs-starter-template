@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface CategoryPageProps {
   params: Promise<{
@@ -22,7 +24,6 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     notFound()
   }
 
-  // Direct query to categories table
   const [category] = await db
     .select()
     .from(categories)
@@ -39,7 +40,6 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     notFound()
   }
 
-  // Convert category blocks to array format
   let blocks: any[] = []
   try {
     blocks = convertContentBlocksToArray((category.contentBlocks as any) || {}, category.id)
@@ -53,10 +53,15 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     blocks
   } as any
 
-  return <CategoryBlockRenderer
-    site={site}
-    category={categoryWithBlocks}
-  />
+  return (
+    <>
+      <JsonLd site={site} content={categoryWithBlocks} contentType="category" />
+      <CategoryBlockRenderer
+        site={site}
+        category={categoryWithBlocks}
+      />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: CategoryPageProps) {
@@ -94,6 +99,7 @@ export async function generateMetadata({ params }: CategoryPageProps) {
     return {
       title: `${category.title} | ${site.name}`,
       description: category.metaDescription || category.description || `${category.title} on ${site.name}`,
+      ...buildSeoMetadata(site, category as any, 'category', `/categories/${slug}`),
     }
   } catch (error) {
     return {

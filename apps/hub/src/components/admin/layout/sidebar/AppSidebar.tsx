@@ -15,6 +15,7 @@ import {
   Tag,
   Workflow,
   BarChart3,
+  Search,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -121,6 +122,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       name: "Media Library",
       url: "/admin/media",
       icon: Image,
+    },
+    {
+      name: "SEO",
+      url: currentSite ? `/admin/sites/${currentSite.id}/seo` : "/admin/sites",
+      icon: Search,
     },
     {
       name: "Site Settings",

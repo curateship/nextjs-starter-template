@@ -1,0 +1,255 @@
+'use client'
+
+import { use, useEffect, useState, useCallback } from 'react'
+import { AdminLayout } from '@/components/admin/layout/admin-layout'
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Search,
+} from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getSiteForSeo, getSeoAuditData } from '@/lib/actions/seo/seo-actions'
+
+interface PageProps {
+  params: Promise<{ siteId: string }>
+}
+
+export default function ContentAuditPage({ params }: PageProps) {
+  const { siteId } = use(params)
+
+  const [loading, setLoading] = useState(true)
+  const [site, setSite] = useState<any>(null)
+  const [auditData, setAuditData] = useState<any[]>([])
+  const [auditFilter, setAuditFilter] = useState('all')
+  const [issueFilter, setIssueFilter] = useState('all')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [siteData, contentData] = await Promise.all([
+        getSiteForSeo(siteId),
+        getSeoAuditData(siteId),
+      ])
+      if (siteData) setSite(siteData)
+      setAuditData(contentData)
+    } catch (err) {
+      console.error('Error loading audit data:', err)
+    }
+    setLoading(false)
+  }, [siteId])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const filteredContent = auditData.filter(item => {
+    if (auditFilter !== 'all' && item.type !== auditFilter) return false
+    if (issueFilter === 'missing_meta' && item.meta_description) return false
+    if (issueFilter === 'missing_image' && item.featured_image) return false
+    return true
+  })
+
+  // Summary stats
+  const totalContent = auditData.length
+  const missingMeta = auditData.filter(i => !i.meta_description).length
+  const missingImage = auditData.filter(i => !i.featured_image).length
+  const badTitles = auditData.filter(i => {
+    const len = (i.title || '').length
+    return len < 30 || len > 60
+  }).length
+
+  return (
+    <>
+      <StickyHeader navLinks={[
+        { label: 'Overview', href: `/admin/sites/${siteId}/seo` },
+        { label: 'Content Audit', href: `/admin/sites/${siteId}/seo/audit`, active: true },
+        { label: 'Internal Links', href: `/admin/sites/${siteId}/seo/links` },
+      ]} />
+      <AdminLayout>
+        <DashboardSubheader
+          items={[
+            { label: 'SEO', href: `/admin/sites/${siteId}/seo` },
+            { label: 'Content Audit' },
+          ]}
+        />
+
+        {loading ? (
+          <div className="pb-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <Skeleton className="h-4 w-24" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-16" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <Card>
+              <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
+              <CardContent className="space-y-3">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="pb-8">
+            {/* Summary stats */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Content</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalContent}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Missing Meta Desc</CardTitle>
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{missingMeta}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Missing Image</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{missingImage}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Bad Title Length</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{badTitles}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Audit table */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="h-5 w-5" />
+                    Content Audit
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Select value={auditFilter} onValueChange={setAuditFilter}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="page">Pages</SelectItem>
+                        <SelectItem value="post">Posts</SelectItem>
+                        <SelectItem value="product">Products</SelectItem>
+                        <SelectItem value="category">Categories</SelectItem>
+                        <SelectItem value="directory">Directories</SelectItem>
+                        <SelectItem value="event">Events</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Tabs value={issueFilter} onValueChange={setIssueFilter}>
+                      <TabsList>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="missing_meta">Missing Meta Desc</TabsTrigger>
+                        <TabsTrigger value="missing_image">Missing Image</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">Name</th>
+                        <th className="pb-2 font-medium">Type</th>
+                        <th className="pb-2 font-medium">Title Length</th>
+                        <th className="pb-2 font-medium">Meta Desc</th>
+                        <th className="pb-2 font-medium">Image</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredContent.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                            No content matches the current filters.
+                          </td>
+                        </tr>
+                      )}
+                      {filteredContent.slice(0, 50).map((item) => {
+                        const titleLen = (item.title || '').length
+                        const titleOk = titleLen >= 30 && titleLen <= 60
+                        const hasMeta = !!item.meta_description
+                        const hasImage = !!item.featured_image
+
+                        return (
+                          <tr key={item.id} className="border-b last:border-0">
+                            <td className="py-2 pr-4">
+                              <span className="font-medium">{item.title}</span>
+                            </td>
+                            <td className="py-2 pr-4">
+                              <Badge variant="outline" className="text-xs capitalize">{item.type}</Badge>
+                            </td>
+                            <td className="py-2 pr-4">
+                              <span className={titleOk ? 'text-green-600' : 'text-yellow-600'}>
+                                {titleLen} chars
+                              </span>
+                            </td>
+                            <td className="py-2 pr-4">
+                              {hasMeta ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <AlertCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </td>
+                            <td className="py-2">
+                              {hasImage ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {filteredContent.length > 50 && (
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Showing 50 of {filteredContent.length} items
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </AdminLayout>
+    </>
+  )
+}

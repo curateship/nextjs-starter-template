@@ -10,10 +10,13 @@ export async function generateMetadata(): Promise<Metadata> {
   try {
     const { success, site } = await getSiteFromHeaders();
 
-    if (success && site && site.settings?.favicon) {
-      const favicon = toCdnUrl(site.settings.favicon)
-      return {
-        icons: {
+    if (success && site) {
+      const metadata: any = {}
+
+      // Favicon
+      if (site.settings?.favicon) {
+        const favicon = toCdnUrl(site.settings.favicon)
+        metadata.icons = {
           icon: favicon,
           apple: favicon,
           other: [
@@ -24,7 +27,16 @@ export async function generateMetadata(): Promise<Metadata> {
             }
           ]
         }
-      };
+      }
+
+      // Google site verification meta tag
+      if (site.settings?.seo_google_verification) {
+        metadata.verification = {
+          google: site.settings.seo_google_verification,
+        }
+      }
+
+      return metadata;
     }
   } catch (error) {
     // Fallback to default

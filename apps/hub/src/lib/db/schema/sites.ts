@@ -2,6 +2,34 @@ import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp, index, uniqueI
 import { relations } from 'drizzle-orm'
 import { users } from './users'
 
+// SEO-related fields stored in site settings JSONB
+export interface SiteSeoSettings {
+  seo_site_description?: string        // Default meta description fallback
+  seo_default_og_image?: string         // Default OG image URL
+  seo_twitter_card_type?: 'summary' | 'summary_large_image'  // Twitter card type
+  seo_twitter_handle?: string           // @handle for twitter:site
+  seo_google_verification?: string      // google-site-verification value
+  seo_canonical_domain?: 'custom' | 'subdomain'  // Which domain is canonical
+  seo_org_name?: string                 // Organization name for structured data
+  seo_org_logo?: string                 // Organization logo URL
+  seo_org_social_links?: string[]       // Social profile URLs
+}
+
+// Full site settings shape (extends existing settings)
+export interface SiteSettings extends SiteSeoSettings {
+  favicon?: string
+  font_family?: string
+  secondary_font_family?: string
+  default_theme?: string
+  enabled_features?: Record<string, boolean>
+  feature_order?: string[]
+  maintenance?: { enabled?: boolean }
+  tracking_scripts?: string
+  custom_analytics_enabled?: boolean
+  public_pages?: any
+  [key: string]: any  // Allow other dynamic settings
+}
+
 export const sites = pgTable('sites', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

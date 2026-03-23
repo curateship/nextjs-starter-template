@@ -4,6 +4,8 @@ import { db } from "@/lib/db"
 import { pages } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface PagePageProps {
   params: Promise<{
@@ -14,23 +16,24 @@ interface PagePageProps {
 export default async function PagePage({ params }: PagePageProps) {
   const { slug } = await params
 
-  // Get site data from headers with page slug
   const { success: siteSuccess, site } = await getSiteFromHeaders(slug)
 
   if (!siteSuccess || !site) {
     notFound()
   }
 
-  // The getSiteFromHeaders with slug should already load the page data
-  // This uses the existing system for pages
-  return <BlockRenderer site={site} />
+  return (
+    <>
+      <JsonLd site={site} contentType="page" />
+      <BlockRenderer site={site} />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: PagePageProps) {
   const { slug } = await params
 
   try {
-    // Get site data from headers
     const { success: siteSuccess, site } = await getSiteFromHeaders()
 
     if (!siteSuccess || !site) {
@@ -40,7 +43,6 @@ export async function generateMetadata({ params }: PagePageProps) {
       }
     }
 
-    // Direct query to pages table
     const [page] = await db
       .select()
       .from(pages)
@@ -63,6 +65,7 @@ export async function generateMetadata({ params }: PagePageProps) {
     return {
       title: `${page.title} | ${site.name}`,
       description: page.metaDescription || `Visit ${page.title} on ${site.name}`,
+      ...buildSeoMetadata(site, page as any, 'page', `/pages/${slug}`),
     }
   } catch (error) {
     return {

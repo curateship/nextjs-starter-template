@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface PostPageProps {
   params: Promise<{
@@ -16,14 +18,12 @@ interface PostPageProps {
 export default async function PostPage({ params }: PostPageProps) {
   const { slug } = await params
 
-  // Get site data from headers
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
   if (!siteSuccess || !site) {
     notFound()
   }
 
-  // Direct query to posts table
   const [post] = await db
     .select()
     .from(posts)
@@ -40,14 +40,11 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound()
   }
 
-  // Convert post blocks to array format like products
   let blocks: any[] = []
-  let showFeaturedImage = true // Default to true
+  let showFeaturedImage = true
   try {
     const contentBlocks = (post.contentBlocks as any) || {}
-    // Extract show_featured_image setting
     showFeaturedImage = contentBlocks.show_featured_image !== false
-    // Filter out the show_featured_image setting and get only actual blocks
     const blockValues = Object.values(contentBlocks).filter((block: any) =>
       block && typeof block === 'object' && block.type
     )
@@ -65,7 +62,6 @@ export default async function PostPage({ params }: PostPageProps) {
     show_featured_image: showFeaturedImage
   } as any
 
-  // Pre-fetch related posts if any block uses the related-posts type
   let preloadedRelatedPosts = null
   const relatedPostsBlock = blocks.find((b: any) => b.type === 'related-posts')
   if (relatedPostsBlock) {
@@ -82,18 +78,22 @@ export default async function PostPage({ params }: PostPageProps) {
     }
   }
 
-  return <PostBlockRenderer
-    site={site}
-    post={postWithBlocks}
-    preloadedRelatedPosts={preloadedRelatedPosts}
-  />
+  return (
+    <>
+      <JsonLd site={site} content={postWithBlocks} contentType="post" />
+      <PostBlockRenderer
+        site={site}
+        post={postWithBlocks}
+        preloadedRelatedPosts={preloadedRelatedPosts}
+      />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: PostPageProps) {
   const { slug } = await params
 
   try {
-    // Get site data from headers
     const { success: siteSuccess, site } = await getSiteFromHeaders()
 
     if (!siteSuccess || !site) {
@@ -103,7 +103,6 @@ export async function generateMetadata({ params }: PostPageProps) {
       }
     }
 
-    // Direct query to posts table
     const [post] = await db
       .select()
       .from(posts)
@@ -126,6 +125,7 @@ export async function generateMetadata({ params }: PostPageProps) {
     return {
       title: `${post.title} | ${site.name}`,
       description: post.metaDescription || post.excerpt || `Read ${post.title} on ${site.name}`,
+      ...buildSeoMetadata(site, post as any, 'post', `/posts/${slug}`),
     }
   } catch (error) {
     return {

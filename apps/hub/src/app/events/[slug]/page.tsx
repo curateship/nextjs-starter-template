@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface EventPageProps {
   params: Promise<{
@@ -16,14 +18,12 @@ interface EventPageProps {
 export default async function EventPage({ params }: EventPageProps) {
   const { slug } = await params
 
-  // Get site data from headers
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
   if (!siteSuccess || !site) {
     notFound()
   }
 
-  // Direct query to events table
   const [event] = await db
     .select()
     .from(events)
@@ -40,7 +40,6 @@ export default async function EventPage({ params }: EventPageProps) {
     notFound()
   }
 
-  // Convert event blocks to array format
   let blocks: any[] = []
   try {
     blocks = convertContentBlocksToArray((event.contentBlocks as any) || {}, event.id)
@@ -54,17 +53,21 @@ export default async function EventPage({ params }: EventPageProps) {
     blocks
   } as any
 
-  return <EventBlockRenderer
-    site={site}
-    event={eventWithBlocks}
-  />
+  return (
+    <>
+      <JsonLd site={site} content={eventWithBlocks} contentType="event" />
+      <EventBlockRenderer
+        site={site}
+        event={eventWithBlocks}
+      />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: EventPageProps) {
   const { slug } = await params
 
   try {
-    // Get site data from headers
     const { success: siteSuccess, site } = await getSiteFromHeaders()
 
     if (!siteSuccess || !site) {
@@ -74,7 +77,6 @@ export async function generateMetadata({ params }: EventPageProps) {
       }
     }
 
-    // Direct query to events table
     const [event] = await db
       .select()
       .from(events)
@@ -97,6 +99,7 @@ export async function generateMetadata({ params }: EventPageProps) {
     return {
       title: `${event.title} | ${site.name}`,
       description: event.metaDescription || event.description || `${event.title} on ${site.name}`,
+      ...buildSeoMetadata(site, event as any, 'event', `/events/${slug}`),
     }
   } catch (error) {
     return {

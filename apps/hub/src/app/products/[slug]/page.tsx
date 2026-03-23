@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
+import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
+import { JsonLd } from "@/components/seo/JsonLd"
 
 interface ProductPageProps {
   params: Promise<{
@@ -16,14 +18,12 @@ interface ProductPageProps {
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params
 
-  // Get site data from headers
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
   if (!siteSuccess || !site) {
     notFound()
   }
 
-  // Direct query to products table
   const [product] = await db
     .select()
     .from(products)
@@ -40,7 +40,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound()
   }
 
-  // Convert product blocks
   let blocks: any[] = []
   try {
     blocks = convertContentBlocksToArray((product.contentBlocks as any) || {}, product.id)
@@ -54,17 +53,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
     blocks
   } as any
 
-  return <ProductBlockRenderer
-    site={site}
-    product={productWithBlocks}
-  />
+  return (
+    <>
+      <JsonLd site={site} content={productWithBlocks} contentType="product" />
+      <ProductBlockRenderer
+        site={site}
+        product={productWithBlocks}
+      />
+    </>
+  )
 }
 
 export async function generateMetadata({ params }: ProductPageProps) {
   const { slug } = await params
 
   try {
-    // Get site data from headers
     const { success: siteSuccess, site } = await getSiteFromHeaders()
 
     if (!siteSuccess || !site) {
@@ -74,7 +77,6 @@ export async function generateMetadata({ params }: ProductPageProps) {
       }
     }
 
-    // Direct query to products table
     const [product] = await db
       .select()
       .from(products)
@@ -94,7 +96,6 @@ export async function generateMetadata({ params }: ProductPageProps) {
       }
     }
 
-    // Strip HTML tags from description for meta tags
     const cleanDescription = (product as any).description
       ? (product as any).description.replace(/<[^>]*>/g, '').trim()
       : `${product.title} from ${site.name}`
@@ -102,6 +103,7 @@ export async function generateMetadata({ params }: ProductPageProps) {
     return {
       title: `${product.title} | ${site.name}`,
       description: cleanDescription,
+      ...buildSeoMetadata(site, product as any, 'product', `/products/${slug}`),
     }
   } catch (error) {
     return {
