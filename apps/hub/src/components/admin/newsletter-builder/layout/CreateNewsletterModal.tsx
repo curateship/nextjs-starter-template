@@ -37,7 +37,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   // Template picker state
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('blank')
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
   // Segment picker state
   const [segments, setSegments] = useState<Segment[]>([])
@@ -60,11 +61,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     getTemplatesBySite(currentSite.id).then(({ data }) => {
       const loaded = data || []
       setTemplates(loaded)
-      // Preselect the default template
+      // Preselect the default template, or fall back to 'blank'
       const defaultTemplate = loaded.find(t => t.is_default)
-      if (defaultTemplate) {
-        setSelectedTemplateId(defaultTemplate.id)
-      }
+      setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+      setTemplatesLoading(false)
     })
   }, [currentSite?.id])
 
@@ -180,17 +180,19 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
       <div>
         <Label htmlFor="newsletter-template">Start from template</Label>
-        <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-          <SelectTrigger id="newsletter-template">
-            <SelectValue placeholder="Select template" />
-          </SelectTrigger>
-          <SelectContent className="z-[60]">
-            <SelectItem value="blank">Blank</SelectItem>
-            {templates.map(t => (
-              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!templatesLoading && (
+          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+            <SelectTrigger id="newsletter-template">
+              <SelectValue placeholder="Select template" />
+            </SelectTrigger>
+            <SelectContent className="z-[60]">
+              <SelectItem value="blank">Blank</SelectItem>
+              {templates.map(t => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div>

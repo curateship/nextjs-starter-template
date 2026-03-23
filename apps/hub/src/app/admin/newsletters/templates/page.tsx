@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Shield, Clock, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getTemplatesBySite,
   createTemplate,
   deleteTemplates,
   getTemplateIdsAction,
+  setDefaultTemplate,
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -189,6 +190,14 @@ export default function TemplatesPage() {
     if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+
+  async function handleSetDefault(templateId: string) {
+    const { error: defaultError } = await setDefaultTemplate(templateId)
+    if (defaultError) {
+      setError(defaultError)
+    }
+    loadTemplates()
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -365,7 +374,19 @@ export default function TemplatesPage() {
                       <div>
                         <span className="text-sm text-muted-foreground">{formatDate(template.updated_at)}</span>
                       </div>
-                      <div>
+                      <div className="flex items-center gap-1">
+                        {/* Set as default */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn("h-8 w-8 p-0", template.is_default && "text-yellow-500 hover:text-yellow-500")}
+                          onClick={() => handleSetDefault(template.id)}
+                          title={template.is_default ? "Default template" : "Set as default"}
+                          disabled={template.is_default}
+                        >
+                          <Star className={cn("h-4 w-4", template.is_default && "fill-current")} />
+                          <span className="sr-only">{template.is_default ? "Default" : "Set as default"}</span>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

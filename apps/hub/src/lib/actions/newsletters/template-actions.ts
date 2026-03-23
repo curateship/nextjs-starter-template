@@ -259,6 +259,45 @@ export async function getDefaultTemplate(
   }
 }
 
+/** Set a template as the default for its site — unsets the previous default */
+export async function setDefaultTemplate(templateId: string): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(templateId)) return { success: false, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const [template] = await db
+      .select({ siteId: newsletterTemplates.siteId })
+      .from(newsletterTemplates)
+      .where(eq(newsletterTemplates.id, templateId))
+      .limit(1)
+
+    if (!template) return { success: false, error: 'Template not found' }
+
+    if (!await verifySiteOwnership(template.siteId, user.id)) {
+      return { success: false, error: 'Access denied' }
+    }
+
+    // Unset current default for this site
+    await db
+      .update(newsletterTemplates)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(and(eq(newsletterTemplates.siteId, template.siteId), eq(newsletterTemplates.isDefault, true)))
+
+    // Set new default
+    await db
+      .update(newsletterTemplates)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(newsletterTemplates.id, templateId))
+
+    return { success: true, error: null }
+  } catch (err) {
+    console.error('setDefaultTemplate error:', err)
+    return { success: false, error: 'Server error' }
+  }
+}
+
 export async function deleteTemplates(ids: string[]): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!ids.length) return { success: false, error: 'No items selected' }
