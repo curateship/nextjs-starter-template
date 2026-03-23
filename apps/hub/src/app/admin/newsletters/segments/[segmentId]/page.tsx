@@ -164,7 +164,6 @@ export default function SegmentDashboardPage() {
     e.preventDefault()
     if (!segment) return
     setSaving(true)
-    setSaveSuccess(false)
 
     const { data, error } = await updateSegment(segment.id, {
       name: editForm.name,
