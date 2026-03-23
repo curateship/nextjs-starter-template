@@ -13,9 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle } from "lucide-react"
-import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
+import { getAllSitesAction, type Site } from "@/lib/actions/sites/site-actions"
 import { applyThemeToSiteAction } from "@/lib/actions/themes/user-theme-actions"
-import type { Site } from "@/lib/actions/sites/site-actions"
 
 interface ApplyThemeDialogProps {
   templateId: string

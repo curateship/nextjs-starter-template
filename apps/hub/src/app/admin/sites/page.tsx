@@ -10,8 +10,7 @@ import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus,
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils"
-import { getAllSitesAction, deleteSiteAction } from "@/lib/actions/sites/site-actions"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { getAllSitesAction, deleteSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteContext } from "@/contexts/site-context"
 

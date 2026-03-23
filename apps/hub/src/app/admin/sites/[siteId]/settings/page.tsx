@@ -7,8 +7,7 @@ import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
-import { updateSiteAction, createSiteAction } from "@/lib/actions/sites/site-actions"
-import type { Site } from "@/lib/actions/sites/site-actions"
+import { updateSiteAction, createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import {
   getSiteIntegrations,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"

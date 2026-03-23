@@ -21,6 +21,22 @@ export interface Site {
 
 export type SiteWithTheme = Site
 
+// Maps Drizzle's camelCase output to the snake_case Site interface
+function normalizeSite(row: Record<string, any>): Site {
+  return {
+    id: row.id,
+    user_id: row.userId ?? row.user_id,
+    name: row.name,
+    subdomain: row.subdomain,
+    custom_domain: row.customDomain ?? row.custom_domain ?? null,
+    status: row.status,
+    is_template: row.isTemplate ?? row.is_template ?? false,
+    settings: row.settings ?? {},
+    created_at: row.createdAt ?? row.created_at,
+    updated_at: row.updatedAt ?? row.updated_at,
+  }
+}
+
 export interface CreateSiteData {
   name: string
   subdomain?: string
@@ -61,7 +77,7 @@ export async function getAllSitesAction(): Promise<{ data: Site[] | null; error:
       .where(and(eq(sites.userId, user.id), eq(sites.isTemplate, false)))
       .orderBy(desc(sites.createdAt))
 
-    return { data: result as unknown as Site[], error: null }
+    return { data: result.map(normalizeSite), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -121,7 +137,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       .returning()
 
     if (!created) return { data: null, error: 'Failed to create site' }
-    return { data: created as unknown as Site, error: null }
+    return { data: normalizeSite(created), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -192,7 +208,7 @@ export async function updateSiteAction(
     revalidateTag('all')
     revalidatePath('/', 'layout')
 
-    return { data: updated as unknown as Site, error: null }
+    return { data: normalizeSite(updated), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -230,7 +246,7 @@ export async function getSiteByIdAction(siteId: string): Promise<{ data: Site | 
     })
 
     if (!result) return { data: null, error: 'Site not found or access denied' }
-    return { data: result as unknown as Site, error: null }
+    return { data: normalizeSite(result), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }

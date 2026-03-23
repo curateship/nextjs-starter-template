@@ -7,6 +7,22 @@ import { db } from '@/lib/db'
 import { sites, pages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
+// Maps Drizzle's camelCase output to the snake_case Site interface
+function normalizeSite(row: Record<string, any>): Site {
+  return {
+    id: row.id,
+    user_id: row.userId ?? row.user_id,
+    name: row.name,
+    subdomain: row.subdomain,
+    custom_domain: row.customDomain ?? row.custom_domain ?? null,
+    status: row.status,
+    is_template: row.isTemplate ?? row.is_template ?? false,
+    settings: row.settings ?? {},
+    created_at: row.createdAt ?? row.created_at,
+    updated_at: row.updatedAt ?? row.updated_at,
+  }
+}
+
 /**
  * Save a site as a reusable theme template.
  * Creates a new site with is_template=true, copying settings and all pages.
@@ -78,7 +94,7 @@ export async function saveAsThemeAction(
     }
 
     revalidatePath('/admin/themes')
-    return { data: templateSite as unknown as Site, error: null }
+    return { data: normalizeSite(templateSite), error: null }
   } catch (error) {
     return {
       data: null,
@@ -101,7 +117,7 @@ export async function getTemplateSitesAction(): Promise<{ data: Site[] | null; e
       .where(and(eq(sites.userId, user.id), eq(sites.isTemplate, true)))
       .orderBy(desc(sites.createdAt))
 
-    return { data: result as unknown as Site[], error: null }
+    return { data: result.map(normalizeSite), error: null }
   } catch (error) {
     return {
       data: null,
@@ -212,7 +228,7 @@ export async function updateTemplateAction(
     }
 
     revalidatePath('/admin/themes')
-    return { data: updated as unknown as Site, error: null }
+    return { data: normalizeSite(updated), error: null }
   } catch (error) {
     return {
       data: null,

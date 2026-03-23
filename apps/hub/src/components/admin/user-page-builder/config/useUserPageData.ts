@@ -3,7 +3,7 @@ import {
   getUserPagesAction,
   type UserPage
 } from "@/lib/actions/user-pages/user-pages-actions"
-import { type Site } from "@/lib/actions/sites/site-actions"
+import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 import { useSiteContext } from "@/contexts/site-context"
 

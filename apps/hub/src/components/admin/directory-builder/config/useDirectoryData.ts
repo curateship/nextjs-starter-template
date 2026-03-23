@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./directory-block-types"

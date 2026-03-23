@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./event-block-types"
