@@ -1,8 +1,8 @@
 'use server'
 
-import { eq, and, sql, desc, inArray } from 'drizzle-orm'
+import { eq, and, sql, desc, inArray, or, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, sites } from '@/lib/db/schema'
+import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Segment {
@@ -387,5 +387,314 @@ export async function removeContactsFromSegment(
   } catch (err) {
     console.error('removeContactsFromSegment error:', err)
     return { removed: 0, error: 'Server error' }
+  }
+}
+
+/** Aggregate stats for a segment: contact count, event counts, rates, avg engagement */
+export async function getSegmentStats(
+  segmentId: string
+): Promise<{ data: { totalContacts: number; totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number; unsubscribeRate: number; avgEngagementScore: number } | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { data: null, error: 'Segment not found' }
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { data: null, error: 'Access denied' }
+    }
+
+    // Query 1: contact count + avg engagement score from segment contacts
+    // Query 2: event type counts for all contacts in the segment
+    const [contactStats, eventStats] = await Promise.all([
+      db
+        .select({
+          totalContacts: sql<number>`count(*)::int`,
+          unsubscribedCount: sql<number>`count(*) filter (where ${newsletterContacts.status} = 'unsubscribed')::int`,
+          avgEngagementScore: sql<number>`coalesce(round(avg(${newsletterContacts.engagementScore}))::int, 0)`,
+        })
+        .from(newsletterSegmentContacts)
+        .innerJoin(newsletterContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+        .where(eq(newsletterSegmentContacts.segmentId, segmentId)),
+      db
+        .select({
+          eventType: newsletterEvents.eventType,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(newsletterSegmentContacts)
+        .innerJoin(newsletterEvents, eq(newsletterSegmentContacts.contactId, newsletterEvents.contactId))
+        .where(eq(newsletterSegmentContacts.segmentId, segmentId))
+        .groupBy(newsletterEvents.eventType),
+    ])
+
+    const totalContacts = contactStats[0]?.totalContacts ?? 0
+    const unsubscribedCount = contactStats[0]?.unsubscribedCount ?? 0
+    const unsubscribeRate = totalContacts > 0 ? Math.round((unsubscribedCount / totalContacts) * 100) : 0
+    const avgEngagementScore = contactStats[0]?.avgEngagementScore ?? 0
+
+    // Sum up event counts by type
+    const counts: Record<string, number> = {}
+    for (const r of eventStats) counts[r.eventType] = r.count
+
+    const totalSent = counts['sent'] || 0
+    const totalOpened = counts['opened'] || 0
+    const totalClicked = counts['clicked'] || 0
+    const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
+    const clickRate = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0
+
+    return { data: { totalContacts, totalSent, totalOpened, totalClicked, openRate, clickRate, unsubscribeRate, avgEngagementScore }, error: null }
+  } catch (err) {
+    console.error('getSegmentStats error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
+/** Paginated contacts in a segment */
+export async function getSegmentContacts(
+  segmentId: string,
+  page = 1,
+  pageSize = 20
+): Promise<{ data: { id: string; email: string; status: string; engagementScore: number; metadata: any; createdAt: string }[] | null; total: number; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(segmentId)) return { data: null, total: 0, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { data: null, total: 0, error: 'Segment not found' }
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { data: null, total: 0, error: 'Access denied' }
+    }
+
+    const safePage = Math.max(1, Math.floor(page))
+    const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
+    const offset = (safePage - 1) * safePageSize
+
+    const [rows, countResult] = await Promise.all([
+      db
+        .select({
+          id: newsletterContacts.id,
+          email: newsletterContacts.email,
+          status: newsletterContacts.status,
+          engagementScore: newsletterContacts.engagementScore,
+          metadata: newsletterContacts.metadata,
+          createdAt: newsletterContacts.createdAt,
+        })
+        .from(newsletterSegmentContacts)
+        .innerJoin(newsletterContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+        .where(eq(newsletterSegmentContacts.segmentId, segmentId))
+        .orderBy(desc(newsletterContacts.createdAt))
+        .limit(safePageSize)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterSegmentContacts)
+        .where(eq(newsletterSegmentContacts.segmentId, segmentId)),
+    ])
+
+    return {
+      data: rows.map(r => ({
+        id: r.id,
+        email: r.email,
+        status: r.status ?? 'active',
+        engagementScore: r.engagementScore ?? 0,
+        metadata: r.metadata,
+        createdAt: r.createdAt?.toISOString() ?? '',
+      })),
+      total: countResult[0]?.count ?? 0,
+      error: null,
+    }
+  } catch (err) {
+    console.error('getSegmentContacts error:', err)
+    return { data: null, total: 0, error: 'Server error' }
+  }
+}
+
+/** Monthly engagement over time for all contacts in a segment */
+export async function getSegmentEngagementOverTime(
+  segmentId: string
+): Promise<{ data: { month: string; opens: number; clicks: number }[] | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { data: null, error: 'Segment not found' }
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { data: null, error: 'Access denied' }
+    }
+
+    // Group opens and clicks by month across all segment contacts
+    const rows = await db
+      .select({
+        month: sql<string>`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`,
+        eventType: newsletterEvents.eventType,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(newsletterSegmentContacts)
+      .innerJoin(newsletterEvents, eq(newsletterSegmentContacts.contactId, newsletterEvents.contactId))
+      .where(and(
+        eq(newsletterSegmentContacts.segmentId, segmentId),
+        or(
+          eq(newsletterEvents.eventType, 'opened'),
+          eq(newsletterEvents.eventType, 'clicked'),
+        ),
+      ))
+      .groupBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`, newsletterEvents.eventType)
+      .orderBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`)
+
+    // Merge into { month, opens, clicks } format
+    const byMonth: Record<string, { opens: number; clicks: number }> = {}
+    for (const r of rows) {
+      if (!byMonth[r.month]) byMonth[r.month] = { opens: 0, clicks: 0 }
+      if (r.eventType === 'opened') byMonth[r.month].opens = r.count
+      if (r.eventType === 'clicked') byMonth[r.month].clicks = r.count
+    }
+
+    const data = Object.entries(byMonth).map(([month, counts]) => ({
+      month,
+      opens: counts.opens,
+      clicks: counts.clicks,
+    }))
+
+    return { data, error: null }
+  } catch (err) {
+    console.error('getSegmentEngagementOverTime error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
+/** Newsletters that targeted this segment via audience_filter */
+export async function getSegmentNewsletters(
+  segmentId: string
+): Promise<{ data: { id: string; name: string; subject: string; status: string; sentAt: string | null; totalSent: number; totalOpened: number; totalClicked: number }[] | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { data: null, error: 'Segment not found' }
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { data: null, error: 'Access denied' }
+    }
+
+    // Find newsletters where audience_filter->>'segment_id' matches this segment
+    const rows = await db
+      .select({
+        id: newsletters.id,
+        name: newsletters.name,
+        subject: newsletters.subject,
+        status: newsletters.status,
+        sentAt: newsletters.sentAt,
+        totalSent: newsletters.totalSent,
+        totalOpened: newsletters.totalOpened,
+        totalClicked: newsletters.totalClicked,
+      })
+      .from(newsletters)
+      .where(and(
+        eq(newsletters.siteId, segment.siteId),
+        sql`${newsletters.audienceFilter}->>'segment_id' = ${segmentId}`,
+      ))
+      .orderBy(desc(newsletters.sentAt))
+
+    return {
+      data: rows.map(r => ({
+        id: r.id,
+        name: r.name ?? '',
+        subject: r.subject ?? '',
+        status: r.status ?? 'draft',
+        sentAt: r.sentAt?.toISOString() ?? null,
+        totalSent: r.totalSent ?? 0,
+        totalOpened: r.totalOpened ?? 0,
+        totalClicked: r.totalClicked ?? 0,
+      })),
+      error: null,
+    }
+  } catch (err) {
+    console.error('getSegmentNewsletters error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
+/** Search contacts NOT already in this segment — for the "Add Contact" autocomplete */
+export async function searchContactsForSegment(
+  segmentId: string,
+  query: string
+): Promise<{ data: { id: string; email: string; metadata: any }[] | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
+    if (!query || query.length < 2) return { data: [], error: null }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [segment] = await db
+      .select({ siteId: newsletterSegments.siteId })
+      .from(newsletterSegments)
+      .where(eq(newsletterSegments.id, segmentId))
+      .limit(1)
+
+    if (!segment) return { data: null, error: 'Segment not found' }
+    if (!await verifySiteOwnership(segment.siteId, user.id)) {
+      return { data: null, error: 'Access denied' }
+    }
+
+    // Find contacts matching the email query that are NOT already in this segment
+    const rows = await db
+      .select({
+        id: newsletterContacts.id,
+        email: newsletterContacts.email,
+        metadata: newsletterContacts.metadata,
+      })
+      .from(newsletterContacts)
+      .where(and(
+        eq(newsletterContacts.siteId, segment.siteId),
+        ilike(newsletterContacts.email, `%${query}%`),
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${newsletterSegmentContacts}
+          WHERE ${newsletterSegmentContacts.segmentId} = ${segmentId}
+          AND ${newsletterSegmentContacts.contactId} = ${newsletterContacts.id}
+        )`,
+      ))
+      .limit(10)
+
+    return {
+      data: rows.map(r => ({
+        id: r.id,
+        email: r.email,
+        metadata: r.metadata,
+      })),
+      error: null,
+    }
+  } catch (err) {
+    console.error('searchContactsForSegment error:', err)
+    return { data: null, error: 'Server error' }
   }
 }

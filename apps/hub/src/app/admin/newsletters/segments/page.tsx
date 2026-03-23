@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
@@ -379,16 +380,15 @@ export default function SegmentsPage() {
                           onCheckedChange={() => toggleSelect(segment.id)}
                           aria-label={`Select ${segment.name}`}
                         />
-                        <a
-                          onClick={(e) => { e.preventDefault(); openEditModal(segment) }}
-                          href="#"
+                        <Link
+                          href={`/admin/newsletters/segments/${segment.id}`}
                           className="hover:opacity-80 transition-opacity"
                         >
                           <h4 className="font-medium text-sm hover:underline">{segment.name}</h4>
                           {segment.description && (
                             <p className="text-xs text-muted-foreground">{segment.description}</p>
                           )}
-                        </a>
+                        </Link>
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
