@@ -374,6 +374,27 @@ export default function ImagesPage() {
                 { value: "video", label: "Videos", icon: VideoIcon, count: typeCounts.video },
               ],
             }}
+            preActions={
+              /* View Mode Toggle */
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-r-none h-9"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'gallery' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('gallery')}
+                  className="rounded-l-none h-9"
+                >
+                  <Grid className="w-4 h-4" />
+                </Button>
+              </div>
+            }
             actions={
               <>
                 {/* Bulk Actions */}
@@ -387,26 +408,6 @@ export default function ImagesPage() {
                     {isDeleting ? <span className="hidden sm:inline">Deleting...</span> : <span className="hidden sm:inline">Delete {selectedIds.size}</span>}
                   </Button>
                 )}
-
-                {/* View Mode Toggle */}
-                <div className="flex items-center border rounded-md">
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="rounded-r-none"
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'gallery' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('gallery')}
-                    className="rounded-l-none"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </Button>
-                </div>
 
                 <Button
                   onClick={isUploading ? undefined : () => document.getElementById('image-upload-input')?.click()}

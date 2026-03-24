@@ -34,7 +34,7 @@ export function CardLeadMagnetConfig({ config, onConfigChange }: LeadMagnetStyle
               value={accentColor}
               onValueChange={(v) => onConfigChange('accentColor', v)}
             >
-              <SelectTrigger className="h-9 w-40">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

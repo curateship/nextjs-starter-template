@@ -30,8 +30,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useSiteContext } from "@/contexts/site-context"
 import {
   getOrdersWithProducts,
@@ -108,6 +116,9 @@ function OrdersContent() {
       : "all"
   )
 
+  // Product filter — "all" means no filter
+  const [selectedProduct, setSelectedProduct] = useState<string>("all")
+
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
@@ -156,13 +167,18 @@ function OrdersContent() {
     }
   }, [deleteIds])
 
-  const filteredOrders = useMemo(
-    () =>
-      activeTab === "all"
-        ? orders
-        : orders.filter((o) => o.order_type === activeTab),
-    [orders, activeTab]
-  )
+  const filteredOrders = useMemo(() => {
+    let result = orders
+    // Filter by order type tab
+    if (activeTab !== "all") {
+      result = result.filter((o) => o.order_type === activeTab)
+    }
+    // Filter by selected product
+    if (selectedProduct !== "all") {
+      result = result.filter((o) => o.product_id === selectedProduct)
+    }
+    return result
+  }, [orders, activeTab, selectedProduct])
 
   const tabCounts = useMemo(
     () => ({
@@ -304,6 +320,34 @@ function OrdersContent() {
                 { value: "paid_purchase", label: "Paid", icon: CreditCard, count: tabCounts.paid_purchase },
               ],
             }}
+            preActions={
+              /* Product filter dropdown — skeleton while loading */
+              loading ? (
+                <Skeleton className="w-[180px] h-9 rounded-md" />
+              ) : Object.keys(productMap).length > 0 ? (
+                <Select
+                  value={selectedProduct}
+                  onValueChange={(v) => {
+                    setSelectedProduct(v)
+                    setCurrentPage(1)
+                    setSelectedIds(new Set())
+                    setAllSelected(false)
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All Products" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Products</SelectItem>
+                    {Object.entries(productMap).map(([id, name]) => (
+                      <SelectItem key={id} value={id}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : undefined
+            }
             actions={
               <>
                 {selectedIds.size > 0 && (

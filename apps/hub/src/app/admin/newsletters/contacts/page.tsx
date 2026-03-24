@@ -703,7 +703,7 @@ export default function ContactsPage() {
                     {segments.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                          <SelectTrigger className="h-8 w-[180px] text-sm">
+                          <SelectTrigger className="w-[180px] text-sm">
                             <SelectValue placeholder="Select segment..." />
                           </SelectTrigger>
                           <SelectContent>

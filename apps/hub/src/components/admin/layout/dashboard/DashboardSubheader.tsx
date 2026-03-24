@@ -30,6 +30,8 @@ interface DashboardSubheaderProps {
   items: Array<{ label: React.ReactNode; href?: string }>
   /** Filter tabs rendered between breadcrumbs and actions */
   tabs?: SubheaderTabsConfig
+  /** Optional content rendered before tabs (e.g. filter dropdowns) */
+  preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
   className?: string
@@ -40,7 +42,7 @@ interface DashboardSubheaderProps {
  * Renders Home icon automatically as the first breadcrumb item.
  * Optionally renders filter tabs (All/Draft/Published etc.) and action buttons.
  */
-export function DashboardSubheader({ items, tabs, actions, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({ items, tabs, preActions, actions, className }: DashboardSubheaderProps) {
   return (
     <div className={cn("flex items-center justify-between mb-6 mx-4 mt-2", className)}>
       {/* Left side: breadcrumbs */}
@@ -73,9 +75,12 @@ export function DashboardSubheader({ items, tabs, actions, className }: Dashboar
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Right side: filter tabs + action buttons */}
-      {(tabs || actions) && (
+      {/* Right side: pre-actions + filter tabs + action buttons */}
+      {(tabs || preActions || actions) && (
         <div className="flex items-center gap-1 sm:gap-3">
+          {/* Pre-actions (e.g. filter dropdowns) */}
+          {preActions}
+
           {/* Filter tabs */}
           {tabs && (
             <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>

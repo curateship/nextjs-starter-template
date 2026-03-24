@@ -300,7 +300,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                 value={backgroundPattern || 'none'}
                 onValueChange={(v) => onConfigChange('backgroundPattern', v)}
               >
-                <SelectTrigger className="h-9">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -319,7 +319,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                     value={backgroundPatternSize || 'medium'}
                     onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
