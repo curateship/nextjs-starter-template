@@ -126,8 +126,7 @@ export function Combobox({
               <CommandGroup>
                 {filteredOptions.map((option) => {
                   const handleItemSelect = () => {
-                    const newValue = option.value === value ? "" : option.value
-                    onValueChange?.(newValue)
+                    onValueChange?.(option.value)
                     setOpen(false)
                     setSearchQuery("")
                   }

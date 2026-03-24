@@ -271,27 +271,29 @@ export default function NewslettersPage() {
                 { value: "sent", label: "Sent", icon: Send, count: statusCounts.sent },
               ],
             }}
+            preActions={
+              selectedIds.size > 0 ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                    </>
+                  )}
+                </Button>
+              ) : undefined
+            }
             actions={
               <>
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
                 <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
                   <Wand2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Create with AI</span>

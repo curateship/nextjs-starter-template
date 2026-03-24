@@ -94,7 +94,7 @@ export function CategorySettingsModal({
       }
 
       const path = ancestors.length > 0
-        ? ancestors.reverse().map(a => a.title).join(' > ')
+        ? ancestors.map(a => a.title).join(' > ')
         : undefined
 
       options.push({

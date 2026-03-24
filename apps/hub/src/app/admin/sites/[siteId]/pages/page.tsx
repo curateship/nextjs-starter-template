@@ -353,32 +353,32 @@ export default function SitePagesPage({ params }: PageProps) {
               { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
             ],
           }}
-          actions={
-            <>
-              {selectedPageIds.size > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              )}
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" />
-                Create Page
+          preActions={
+            selectedPageIds.size > 0 ? (
+              <Button
+                variant="destructive"
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span className="hidden sm:inline">Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
+                  </>
+                )}
               </Button>
-            </>
+            ) : undefined
+          }
+          actions={
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4" />
+              Create Page
+            </Button>
           }
         />
 

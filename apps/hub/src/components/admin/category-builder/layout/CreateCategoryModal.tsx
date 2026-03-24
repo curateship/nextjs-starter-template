@@ -65,7 +65,7 @@ export function CreateCategoryModal({
 
     const addCategory = (category: Category, ancestors: Category[] = []) => {
       const path = ancestors.length > 0
-        ? ancestors.reverse().map(a => a.title).join(' > ')
+        ? ancestors.map(a => a.title).join(' > ')
         : undefined
 
       options.push({

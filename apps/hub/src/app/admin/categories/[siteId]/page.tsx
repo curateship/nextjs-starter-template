@@ -263,23 +263,8 @@ export default function CategoriesPage({
                 { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
               ],
             }}
-            actions={
+            preActions={
               <>
-                {depthLevels.length > 1 && (
-                  <Select value={filterLevel} onValueChange={setFilterLevel}>
-                    <SelectTrigger size="sm">
-                      <SelectValue placeholder="All levels" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All levels</SelectItem>
-                      {depthLevels.map(level => (
-                        <SelectItem key={level} value={String(level)}>
-                          {level === 0 ? 'Top-level' : `Level ${level}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
                 {selectedCategoryIds.size > 0 && (
                   <Button
                     variant="destructive"
@@ -299,11 +284,28 @@ export default function CategoriesPage({
                     )}
                   </Button>
                 )}
-                <Button onClick={() => setShowCreateModal(true)}>
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create Category</span>
-                </Button>
+                {depthLevels.length > 1 && (
+                  <Select value={filterLevel} onValueChange={setFilterLevel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All levels" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All levels</SelectItem>
+                      {depthLevels.map(level => (
+                        <SelectItem key={level} value={String(level)}>
+                          {level === 0 ? 'Top-level' : `Level ${level + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </>
+            }
+            actions={
+              <Button onClick={() => setShowCreateModal(true)}>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Category</span>
+              </Button>
             }
           />
 
