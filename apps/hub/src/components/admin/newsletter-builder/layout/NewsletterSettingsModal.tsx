@@ -61,6 +61,10 @@ export function NewsletterSettingsModal({
   const [dripIntervalMin, setDripIntervalMin] = useState('30')
   const [dripIntervalMax, setDripIntervalMax] = useState('60')
   const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
+  const [dripSendWindowStart, setDripSendWindowStart] = useState('08:00')
+  const [dripSendWindowEnd, setDripSendWindowEnd] = useState('15:00')
+  const [dripSendWindowTimezone, setDripSendWindowTimezone] = useState('America/New_York')
+  const [dripSendWindowEnabled, setDripSendWindowEnabled] = useState(false)
 
   useEffect(() => {
     if (newsletter) {
@@ -74,6 +78,10 @@ export function NewsletterSettingsModal({
       setDripIntervalMin(String(drip?.interval_min_minutes ?? 30))
       setDripIntervalMax(String(drip?.interval_max_minutes ?? 60))
       setDripBounceThreshold(String(drip?.bounce_threshold_percent ?? 5))
+      setDripSendWindowEnabled(!!drip?.send_window_start)
+      setDripSendWindowStart(drip?.send_window_start || '08:00')
+      setDripSendWindowEnd(drip?.send_window_end || '15:00')
+      setDripSendWindowTimezone(drip?.send_window_timezone || 'America/New_York')
       setError(null)
       setSuccessMsg(null)
 
@@ -153,6 +161,15 @@ export function NewsletterSettingsModal({
         interval_min_minutes: parseInt(dripIntervalMin) || 30,
         interval_max_minutes: parseInt(dripIntervalMax) || 60,
         bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
+        ...(dripSendWindowEnabled ? {
+          send_window_start: dripSendWindowStart,
+          send_window_end: dripSendWindowEnd,
+          send_window_timezone: dripSendWindowTimezone,
+        } : {
+          send_window_start: null,
+          send_window_end: null,
+          send_window_timezone: null,
+        }),
       }
     } else {
       metadata.drip_config = { ...(newsletter.metadata?.drip_config || {}), enabled: false }
@@ -369,6 +386,60 @@ export function NewsletterSettingsModal({
                       <p className="text-xs text-muted-foreground mt-1">
                         Auto-pause and notify you if bounce rate exceeds this percentage
                       </p>
+                    </div>
+
+                    {/* Send Window */}
+                    <div className="pt-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Checkbox
+                          id="send-window-toggle"
+                          checked={dripSendWindowEnabled}
+                          onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)}
+                        />
+                        <Label htmlFor="send-window-toggle">Limit sending to specific hours</Label>
+                      </div>
+                      {dripSendWindowEnabled && (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label htmlFor="send-window-start">Start time</Label>
+                              <Input
+                                id="send-window-start"
+                                type="time"
+                                value={dripSendWindowStart}
+                                onChange={(e) => setDripSendWindowStart(e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="send-window-end">End time</Label>
+                              <Input
+                                id="send-window-end"
+                                type="time"
+                                value={dripSendWindowEnd}
+                                onChange={(e) => setDripSendWindowEnd(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="send-window-tz">Timezone</Label>
+                            <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone}>
+                              <SelectTrigger id="send-window-tz">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-[60]">
+                                <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                                <SelectItem value="America/Chicago">Central Time</SelectItem>
+                                <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                                <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                                <SelectItem value="UTC">UTC</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Emails will only be sent between {dripSendWindowStart} and {dripSendWindowEnd} in the selected timezone
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

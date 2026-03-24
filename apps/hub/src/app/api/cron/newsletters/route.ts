@@ -62,6 +62,18 @@ export async function GET(request: NextRequest) {
           if (new Date(dripConfig.next_batch_at) > new Date()) continue
         }
 
+        // For drip mode, skip if current time is outside the send window
+        if (isDrip && dripConfig.send_window_start && dripConfig.send_window_end) {
+          const tz = dripConfig.send_window_timezone || 'America/New_York'
+          const nowInTz = new Date().toLocaleString('en-US', { timeZone: tz })
+          const currentMinutes = new Date(nowInTz).getHours() * 60 + new Date(nowInTz).getMinutes()
+          const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
+          const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
+          const windowStart = startH * 60 + startM
+          const windowEnd = endH * 60 + endM
+          if (currentMinutes < windowStart || currentMinutes >= windowEnd) continue
+        }
+
         // Get contacts that have already been sent to
         const sentEvents = await db
           .select({ contactId: newsletterEvents.contactId })
