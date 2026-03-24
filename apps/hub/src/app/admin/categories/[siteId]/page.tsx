@@ -284,21 +284,19 @@ export default function CategoriesPage({
                     )}
                   </Button>
                 )}
-                {depthLevels.length > 1 && (
-                  <Select value={filterLevel} onValueChange={setFilterLevel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All levels" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All levels</SelectItem>
-                      {depthLevels.map(level => (
-                        <SelectItem key={level} value={String(level)}>
-                          {level === 0 ? 'Top-level' : `Level ${level + 1}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <Select value={filterLevel} onValueChange={setFilterLevel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All levels" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All levels</SelectItem>
+                    {depthLevels.map(level => (
+                      <SelectItem key={level} value={String(level)}>
+                        {level === 0 ? 'Top-level' : `Level ${level + 1}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </>
             }
             actions={
