@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { useSiteContext } from "@/contexts/site-context"
-import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw, Mail, Users, Filter, Zap, FileText, Clock } from "lucide-react"
+import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 
 export default function EmailHealthPage() {
   const { currentSite } = useSiteContext()
@@ -52,20 +52,16 @@ export default function EmailHealthPage() {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
-          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
-          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
-          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
-          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield, active: true },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
+          { label: "Overview", href: "/admin/site-health" },
+          { label: "Email Health", href: "/admin/site-health/email", active: true },
+          { label: "Cron Jobs", href: "/admin/site-health/cron" },
         ]}
       />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
             items={[
-              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Site Health", href: "/admin/site-health" },
               { label: "Email Health" },
             ]}
             actions={

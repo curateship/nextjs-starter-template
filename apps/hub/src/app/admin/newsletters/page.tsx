@@ -26,7 +26,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Shield, Clock, Wand2 } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Wand2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteContext } from "@/contexts/site-context"
@@ -255,8 +255,6 @@ export default function NewslettersPage() {
           { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

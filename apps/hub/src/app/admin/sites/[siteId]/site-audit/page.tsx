@@ -31,8 +31,8 @@ import {
   Save,
   Settings,
 } from 'lucide-react'
-import { getSiteForSeo, getSeoAuditData, saveSeoSettings } from '@/lib/actions/seo/seo-actions'
-import { calculateSeoScore } from '@/lib/utils/seo-scoring'
+import { getSiteForAudit, getSiteAuditData, saveSiteAuditSettings } from '@/lib/actions/site-audit/site-audit-actions'
+import { calculateAuditScore } from '@/lib/utils/site-audit-scoring'
 
 interface PageProps {
   params: Promise<{ siteId: string }>
@@ -63,8 +63,8 @@ function ScoreGauge({ score, label, maxScore }: { score: number; label: string; 
   )
 }
 
-// Main SEO Dashboard
-export default function SeoPage({ params }: PageProps) {
+// Main Site Audit Dashboard
+export default function SiteAuditPage({ params }: PageProps) {
   const { siteId } = use(params)
 
   const [loading, setLoading] = useState(true)
@@ -92,8 +92,8 @@ export default function SeoPage({ params }: PageProps) {
     setLoading(true)
     try {
       const [siteData, contentData] = await Promise.all([
-        getSiteForSeo(siteId),
-        getSeoAuditData(siteId),
+        getSiteForAudit(siteId),
+        getSiteAuditData(siteId),
       ])
 
       if (siteData) {
@@ -113,11 +113,11 @@ export default function SeoPage({ params }: PageProps) {
       setAuditData(contentData)
 
       if (siteData) {
-        const seoScore = calculateSeoScore(siteData, contentData)
-        setScore(seoScore)
+        const auditScore = calculateAuditScore(siteData, contentData)
+        setScore(auditScore)
       }
     } catch (err) {
-      console.error('Error loading SEO data:', err)
+      console.error('Error loading site audit data:', err)
     }
     setLoading(false)
   }, [siteId])
@@ -126,7 +126,7 @@ export default function SeoPage({ params }: PageProps) {
 
   const handleSave = async () => {
     setSaving(true)
-    const result = await saveSeoSettings(siteId, {
+    const result = await saveSiteAuditSettings(siteId, {
       seo_site_description: seoDesc || undefined,
       seo_default_og_image: ogImage || undefined,
       seo_twitter_card_type: (twitterCardType as any) || undefined,
@@ -152,12 +152,12 @@ export default function SeoPage({ params }: PageProps) {
     return (
       <>
         <StickyHeader navLinks={[
-          { label: 'Overview', href: `/admin/sites/${siteId}/seo`, active: true },
-          { label: 'Content Audit', href: `/admin/sites/${siteId}/seo/audit` },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/seo/links` },
+          { label: 'Overview', href: `/admin/sites/${siteId}/site-audit`, active: true },
+          { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit` },
+        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
         ]} />
         <AdminLayout>
-          <DashboardSubheader items={[{ label: 'SEO Overview' }]} />
+          <DashboardSubheader items={[{ label: 'Site Audit Overview' }]} />
           <div className="pb-8">
             <div className="grid md:grid-cols-2 lg:grid-cols-4">
               {[...Array(4)].map((_, i) => (
@@ -190,23 +190,23 @@ export default function SeoPage({ params }: PageProps) {
   return (
     <>
       <StickyHeader navLinks={[
-        { label: 'Overview', href: `/admin/sites/${siteId}/seo`, active: true },
-        { label: 'Content Audit', href: `/admin/sites/${siteId}/seo/audit` },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/seo/links` },
+        { label: 'Overview', href: `/admin/sites/${siteId}/site-audit`, active: true },
+        { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit` },
+        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
       ]} />
       <AdminLayout>
         <DashboardSubheader
-          items={[{ label: 'SEO Overview' }]}
+          items={[{ label: 'Site Audit Overview' }]}
           actions={
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings className="h-4 w-4 mr-2" />
-              SEO Settings
+              Audit Settings
             </Button>
           }
         />
 
         <div className="pb-8">
-          {/* SEO Score */}
+          {/* Audit Score */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -247,7 +247,7 @@ export default function SeoPage({ params }: PageProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
-                SEO Issues
+                Issues
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -299,11 +299,11 @@ export default function SeoPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
-          {/* SEO Settings Modal */}
+          {/* Audit Settings Modal */}
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>SEO Settings</DialogTitle>
+                <DialogTitle>Site Audit Settings</DialogTitle>
               </DialogHeader>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="md:col-span-2 space-y-1">
@@ -371,7 +371,7 @@ export default function SeoPage({ params }: PageProps) {
               </div>
               <Button onClick={handleSave} disabled={saving} className="h-10 w-full">
                 <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Saving...' : 'Save SEO Settings'}
+                {saving ? 'Saving...' : 'Save Settings'}
               </Button>
             </DialogContent>
           </Dialog>

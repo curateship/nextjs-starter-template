@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Globe, AlertTriangle } from "lucide-react"
 
-interface SEOSettingsCardProps {
+interface UrlPrefixSettingsCardProps {
   productPrefix?: string
   postPrefix?: string
   siteDomain?: string
@@ -14,13 +14,13 @@ interface SEOSettingsCardProps {
   onPostPrefixChange?: (value: string) => void
 }
 
-export function SEOSettingsCard({
+export function UrlPrefixSettingsCard({
   productPrefix = "",
   postPrefix = "",
   siteDomain = "yoursite.com",
   onProductPrefixChange,
   onPostPrefixChange,
-}: SEOSettingsCardProps) {
+}: UrlPrefixSettingsCardProps) {
   const [tempProductPrefix, setTempProductPrefix] = useState(productPrefix)
   const [tempPostPrefix, setTempPostPrefix] = useState(postPrefix)
   const [validationErrors, setValidationErrors] = useState<{
@@ -136,7 +136,7 @@ export function SEOSettingsCard({
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Globe className="w-5 h-5" />
-          <span>SEO Settings</span>
+          <span>URL Prefix Settings</span>
         </CardTitle>
         <p className="text-sm text-muted-foreground">
           Customize URL structure for different content types. Leave empty for no prefix.

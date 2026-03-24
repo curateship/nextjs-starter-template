@@ -13,7 +13,7 @@ import {
   CheckCircle2,
   Link2,
 } from 'lucide-react'
-import { getSiteForSeo, getInternalLinkAnalysis } from '@/lib/actions/seo/seo-actions'
+import { getSiteForAudit, getInternalLinkAnalysis } from '@/lib/actions/site-audit/site-audit-actions'
 
 interface PageProps {
   params: Promise<{ siteId: string }>
@@ -30,7 +30,7 @@ export default function InternalLinksPage({ params }: PageProps) {
     setLoading(true)
     try {
       const [siteData, linkData] = await Promise.all([
-        getSiteForSeo(siteId),
+        getSiteForAudit(siteId),
         getInternalLinkAnalysis(siteId),
       ])
       if (siteData) setSite(siteData)
@@ -46,14 +46,14 @@ export default function InternalLinksPage({ params }: PageProps) {
   return (
     <>
       <StickyHeader navLinks={[
-        { label: 'Overview', href: `/admin/sites/${siteId}/seo` },
-        { label: 'Content Audit', href: `/admin/sites/${siteId}/seo/audit` },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/seo/links`, active: true },
+        { label: 'Overview', href: `/admin/sites/${siteId}/site-audit` },
+        { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit` },
+        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links`, active: true },
       ]} />
       <AdminLayout>
         <DashboardSubheader
           items={[
-            { label: 'SEO', href: `/admin/sites/${siteId}/seo` },
+            { label: 'Site Audit', href: `/admin/sites/${siteId}/site-audit` },
             { label: 'Internal Links' },
           ]}
         />

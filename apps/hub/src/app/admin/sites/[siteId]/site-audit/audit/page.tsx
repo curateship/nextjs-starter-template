@@ -18,10 +18,10 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
-  Search,
+  ClipboardCheck,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getSiteForSeo, getSeoAuditData } from '@/lib/actions/seo/seo-actions'
+import { getSiteForAudit, getSiteAuditData } from '@/lib/actions/site-audit/site-audit-actions'
 
 interface PageProps {
   params: Promise<{ siteId: string }>
@@ -40,8 +40,8 @@ export default function ContentAuditPage({ params }: PageProps) {
     setLoading(true)
     try {
       const [siteData, contentData] = await Promise.all([
-        getSiteForSeo(siteId),
-        getSeoAuditData(siteId),
+        getSiteForAudit(siteId),
+        getSiteAuditData(siteId),
       ])
       if (siteData) setSite(siteData)
       setAuditData(contentData)
@@ -72,14 +72,14 @@ export default function ContentAuditPage({ params }: PageProps) {
   return (
     <>
       <StickyHeader navLinks={[
-        { label: 'Overview', href: `/admin/sites/${siteId}/seo` },
-        { label: 'Content Audit', href: `/admin/sites/${siteId}/seo/audit`, active: true },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/seo/links` },
+        { label: 'Overview', href: `/admin/sites/${siteId}/site-audit` },
+        { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit`, active: true },
+        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
       ]} />
       <AdminLayout>
         <DashboardSubheader
           items={[
-            { label: 'SEO', href: `/admin/sites/${siteId}/seo` },
+            { label: 'Site Audit', href: `/admin/sites/${siteId}/site-audit` },
             { label: 'Content Audit' },
           ]}
         />
@@ -153,7 +153,7 @@ export default function ContentAuditPage({ params }: PageProps) {
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="flex items-center gap-2">
-                    <Search className="h-5 w-5" />
+                    <ClipboardCheck className="h-5 w-5" />
                     Content Audit
                   </CardTitle>
                   <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 /**
- * SEO scoring engine — calculates a 0-100 score from site + content data.
+ * Site audit scoring engine — calculates a 0-100 score from site + content data.
  * No DB queries — receives all data as arguments.
  */
 
@@ -24,7 +24,7 @@ interface ContentItem {
   isPublished?: boolean
 }
 
-interface SeoIssue {
+interface AuditIssue {
   severity: 'critical' | 'warning' | 'info'
   message: string
   category: 'site_settings' | 'content' | 'technical'
@@ -38,23 +38,23 @@ interface InternalLinkData {
   totalLinks: number
 }
 
-interface SeoScoreResult {
+interface AuditScoreResult {
   totalScore: number
   siteSettingsScore: number
   contentScore: number
   technicalScore: number
-  issues: SeoIssue[]
+  issues: AuditIssue[]
 }
 
 /**
- * Calculate the full SEO score for a site
+ * Calculate the full audit score for a site
  */
-export function calculateSeoScore(
+export function calculateAuditScore(
   site: SiteData,
   publishedContent: ContentItem[],
   linkData?: InternalLinkData
-): SeoScoreResult {
-  const issues: SeoIssue[] = []
+): AuditScoreResult {
+  const issues: AuditIssue[] = []
   const settings = site.settings || {}
 
   // === Site Settings Score (30 points max) ===
@@ -64,14 +64,14 @@ export function calculateSeoScore(
   if (settings.seo_site_description) {
     siteSettingsScore += 5
   } else {
-    issues.push({ severity: 'warning', message: 'No default site description set', category: 'site_settings', fixAction: 'Set a site-wide meta description in SEO settings' })
+    issues.push({ severity: 'warning', message: 'No default site description set', category: 'site_settings', fixAction: 'Set a site-wide meta description in Site Audit settings' })
   }
 
   // Default OG image set (5pt)
   if (settings.seo_default_og_image) {
     siteSettingsScore += 5
   } else {
-    issues.push({ severity: 'critical', message: 'No default Open Graph image configured', category: 'site_settings', fixAction: 'Upload a default OG image in SEO settings' })
+    issues.push({ severity: 'critical', message: 'No default Open Graph image configured', category: 'site_settings', fixAction: 'Upload a default OG image in Site Audit settings' })
   }
 
   // Favicon configured (3pt)
@@ -85,35 +85,35 @@ export function calculateSeoScore(
   if (settings.seo_google_verification) {
     siteSettingsScore += 2
   } else {
-    issues.push({ severity: 'info', message: 'Google Search Console not verified', category: 'site_settings', fixAction: 'Add Google verification code in SEO settings' })
+    issues.push({ severity: 'info', message: 'Google Search Console not verified', category: 'site_settings', fixAction: 'Add Google verification code in Site Audit settings' })
   }
 
   // Canonical domain configured (3pt)
   if (settings.seo_canonical_domain) {
     siteSettingsScore += 3
   } else {
-    issues.push({ severity: 'warning', message: 'Canonical domain not configured', category: 'site_settings', fixAction: 'Set your preferred canonical domain in SEO settings' })
+    issues.push({ severity: 'warning', message: 'Canonical domain not configured', category: 'site_settings', fixAction: 'Set your preferred canonical domain in Site Audit settings' })
   }
 
   // Organization name + logo set (4pt)
   if (settings.seo_org_name) siteSettingsScore += 2
   if (settings.seo_org_logo) siteSettingsScore += 2
   if (!settings.seo_org_name && !settings.seo_org_logo) {
-    issues.push({ severity: 'warning', message: 'Organization name and logo not set for structured data', category: 'site_settings', fixAction: 'Set organization info in SEO settings' })
+    issues.push({ severity: 'warning', message: 'Organization name and logo not set for structured data', category: 'site_settings', fixAction: 'Set organization info in Site Audit settings' })
   }
 
   // Twitter handle set (3pt)
   if (settings.seo_twitter_handle) {
     siteSettingsScore += 3
   } else {
-    issues.push({ severity: 'info', message: 'Twitter handle not configured', category: 'site_settings', fixAction: 'Add your Twitter handle in SEO settings' })
+    issues.push({ severity: 'info', message: 'Twitter handle not configured', category: 'site_settings', fixAction: 'Add your Twitter handle in Site Audit settings' })
   }
 
   // Social links configured (3pt)
   if (settings.seo_org_social_links?.length > 0) {
     siteSettingsScore += 3
   } else {
-    issues.push({ severity: 'info', message: 'No social profile links configured', category: 'site_settings', fixAction: 'Add social links in SEO settings' })
+    issues.push({ severity: 'info', message: 'No social profile links configured', category: 'site_settings', fixAction: 'Add social links in Site Audit settings' })
   }
 
   // Custom domain set (2pt)
@@ -181,7 +181,7 @@ export function calculateSeoScore(
     issues.push({ severity: 'info', message: 'No published content found', category: 'content' })
   }
 
-  // === Technical SEO Score (30 points max) ===
+  // === Technical Score (30 points max) ===
   let technicalScore = 0
 
   // Sitemap exists (5pt) — always true in our setup
@@ -201,7 +201,7 @@ export function calculateSeoScore(
   if (settings.seo_canonical_domain || site.custom_domain) {
     technicalScore += 4
   } else {
-    issues.push({ severity: 'warning', message: 'Canonical URLs not fully configured', category: 'technical', fixAction: 'Set canonical domain preference in SEO settings' })
+    issues.push({ severity: 'warning', message: 'Canonical URLs not fully configured', category: 'technical', fixAction: 'Set canonical domain preference in Site Audit settings' })
   }
 
   // No orphan pages (4pt, scaled)

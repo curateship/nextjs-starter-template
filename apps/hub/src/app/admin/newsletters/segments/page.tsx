@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText, Shield, Clock } from "lucide-react"
+import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getSegmentsWithCounts,
@@ -231,8 +231,6 @@ export default function SegmentsPage() {
           { label: "Segments", href: "/admin/newsletters/segments", icon: Filter, active: true },
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

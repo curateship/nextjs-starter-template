@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Mail, Users, Filter, Zap, FileText, Shield, Clock, Trash2, ExternalLink } from "lucide-react"
+import { Mail, Users, Filter, Zap, FileText, Trash2, ExternalLink } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -256,8 +256,6 @@ export default function ContactDashboardPage() {
     { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
     { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
     { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-    { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-    { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
   ]
 
   return (

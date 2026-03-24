@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   Play, Check, X, Pencil, ExternalLink, Wand2, Settings,
-  Mail, Users, Filter, Zap, FileText, Shield, Clock
+  Mail, Users, Filter, Zap, FileText
 } from "lucide-react"
 import {
   getSkillById,
@@ -279,8 +279,6 @@ export default function SkillOutputsPage() {
           { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

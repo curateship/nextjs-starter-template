@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Play, Settings, Wand2, Mail, Users, Filter, Zap, FileText, Shield, Clock, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Trash2, Play, Settings, Wand2, Mail, Users, Filter, Zap, FileText, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getSkillsBySite,
@@ -150,8 +150,6 @@ export default function SkillsPage() {
           { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

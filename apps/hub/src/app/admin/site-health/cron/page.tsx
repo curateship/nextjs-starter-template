@@ -19,7 +19,7 @@ import {
   getCronJobRuns,
 } from "@/lib/actions/cron/cron-actions"
 import type { CronJob, CronJobRun } from "@/lib/actions/cron/cron-actions"
-import { Mail, Users, Filter, Zap, FileText, Shield, Clock, RefreshCw, CheckCircle, XCircle } from "lucide-react"
+import { RefreshCw, CheckCircle, XCircle } from "lucide-react"
 
 export default function CronJobsPage() {
   const [jobs, setJobs] = useState<CronJob[]>([])
@@ -40,6 +40,7 @@ export default function CronJobsPage() {
   }
 
   async function handleToggle(jobId: string, enabled: boolean) {
+    // Optimistic update
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, enabled } : j))
     const { success } = await toggleCronJob(jobId, enabled)
     if (!success) {
@@ -98,20 +99,16 @@ export default function CronJobsPage() {
     <>
       <StickyHeader
         navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
-          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
-          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
-          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
-          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock, active: true },
+          { label: "Overview", href: "/admin/site-health" },
+          { label: "Email Health", href: "/admin/site-health/email" },
+          { label: "Cron Jobs", href: "/admin/site-health/cron", active: true },
         ]}
       />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
             items={[
-              { label: "Newsletters", href: "/admin/newsletters" },
+              { label: "Site Health", href: "/admin/site-health" },
               { label: "Cron Jobs" },
             ]}
             actions={

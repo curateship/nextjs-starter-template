@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Mail, Users, Filter, Zap, FileText, Shield, Clock, Trash2, Plus, X, Search, Settings } from "lucide-react"
+import { Mail, Users, Filter, Zap, FileText, Trash2, Plus, X, Search, Settings } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -249,8 +249,6 @@ export default function SegmentDashboardPage() {
     { label: "Segments", href: "/admin/newsletters/segments", icon: Filter, active: true },
     { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
     { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-    { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-    { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
   ]
 
   return (

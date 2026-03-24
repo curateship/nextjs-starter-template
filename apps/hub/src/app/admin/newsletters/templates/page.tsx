@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Shield, Clock, Star } from "lucide-react"
+import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getTemplatesBySite,
@@ -213,8 +213,6 @@ export default function TemplatesPage() {
           { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
           { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
           { label: "Templates", href: "/admin/newsletters/templates", icon: FileText, active: true },
-          { label: "Email Health", href: "/admin/newsletters/email-health", icon: Shield },
-          { label: "Cron Jobs", href: "/admin/newsletters/cron", icon: Clock },
         ]}
       />
       <AdminLayout>

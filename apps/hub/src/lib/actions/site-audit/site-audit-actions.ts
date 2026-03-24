@@ -41,10 +41,10 @@ interface InternalLinkAnalysis {
 }
 
 // ============================================================
-// getSeoAuditData — fetches all published content with SEO fields
+// getSiteAuditData — fetches all published content with metadata fields
 // ============================================================
 
-export async function getSeoAuditData(siteId: string): Promise<ContentAuditItem[]> {
+export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem[]> {
   const user = await getAuthenticatedUser()
   if (!user) return []
 
@@ -275,10 +275,10 @@ export async function getInternalLinkAnalysis(siteId: string): Promise<InternalL
 }
 
 // ============================================================
-// saveSeoSettings — updates site SEO settings
+// saveSiteAuditSettings — updates site audit/metadata settings
 // ============================================================
 
-export async function saveSeoSettings(siteId: string, seoSettings: SiteSeoSettings) {
+export async function saveSiteAuditSettings(siteId: string, seoSettings: SiteSeoSettings) {
   const user = await getAuthenticatedUser()
   if (!user) return { error: 'Authentication required' }
 
@@ -293,7 +293,7 @@ export async function saveSeoSettings(siteId: string, seoSettings: SiteSeoSettin
     return { error: 'Invalid Google verification code format' }
   }
 
-  // Merge SEO settings into existing settings
+  // Merge settings into existing settings
   const currentSettings = (site.settings as any) || {}
   const updatedSettings = {
     ...currentSettings,
@@ -308,10 +308,10 @@ export async function saveSeoSettings(siteId: string, seoSettings: SiteSeoSettin
 }
 
 // ============================================================
-// getSiteForSeo — lightweight site fetch for SEO dashboard
+// getSiteForAudit — lightweight site fetch for site audit dashboard
 // ============================================================
 
-export async function getSiteForSeo(siteId: string) {
+export async function getSiteForAudit(siteId: string) {
   const user = await getAuthenticatedUser()
   if (!user) return null
 

@@ -15,7 +15,8 @@ import {
   Tag,
   Workflow,
   BarChart3,
-  Search,
+  ClipboardCheck,
+  HeartPulse,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -77,7 +78,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         { title: "Segments", url: "/admin/newsletters/segments" },
         { title: "Automations", url: "/admin/newsletters/automations" },
         { title: "Templates", url: "/admin/newsletters/templates" },
-        { title: "Email Health", url: "/admin/newsletters/email-health" },
       ],
     },
     {
@@ -109,11 +109,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       ],
     },
     {
-      name: "Analytics",
-      url: currentSite ? `/admin/sites/${currentSite.id}/analytics` : "/admin/sites",
-      icon: BarChart3,
-    },
-    {
       name: "Categories",
       url: currentSite ? `/admin/categories/${currentSite.id}` : "/admin/sites",
       icon: Tag,
@@ -124,14 +119,28 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: Image,
     },
     {
-      name: "SEO",
-      url: currentSite ? `/admin/sites/${currentSite.id}/seo` : "/admin/sites",
-      icon: Search,
-    },
-    {
       name: "Site Settings",
       url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
       icon: Settings,
+    },
+  ]
+
+  // Tools items
+  const toolsProjects = [
+    {
+      name: "Analytics",
+      url: currentSite ? `/admin/sites/${currentSite.id}/analytics` : "/admin/sites",
+      icon: BarChart3,
+    },
+    {
+      name: "Site Audit",
+      url: currentSite ? `/admin/sites/${currentSite.id}/site-audit` : "/admin/sites",
+      icon: ClipboardCheck,
+    },
+    {
+      name: "Site Health",
+      url: "/admin/site-health",
+      icon: HeartPulse,
     },
   ]
 
@@ -167,6 +176,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarContent>
         <SidebarMain items={contentNavItems} />
         <SidebarDropdown title="Site Management" projects={siteManagementProjects} />
+        <SidebarDropdown title="Tools" projects={toolsProjects} />
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
