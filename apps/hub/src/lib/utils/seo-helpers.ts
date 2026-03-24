@@ -90,7 +90,7 @@ function getContentImage(site: SeoSite, content: SeoContent | null): string | nu
 function getOgType(contentType: ContentType): string {
   switch (contentType) {
     case 'post': return 'article'
-    case 'product': return 'product'
+    case 'product': return 'website'
     default: return 'website'
   }
 }
