@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react"
 import Link from "next/link"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -559,7 +560,7 @@ export default function SitePagesPage({ params }: PageProps) {
                         className="h-8 w-8 p-0"
                         asChild
                       >
-                        <a href={site ? `http://${site.subdomain}.localhost:3000/${page.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                        <a href={site ? `${getSiteUrl(site)}/${page.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
                           <Eye className="h-4 w-4" />
                           <span className="sr-only">Preview</span>
                         </a>

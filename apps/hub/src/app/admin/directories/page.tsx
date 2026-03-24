@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -569,7 +570,7 @@ export default function DirectoriesPage() {
                           className="h-8 w-8 p-0"
                           asChild
                         >
-                          <a href={currentSite ? `http://${currentSite.subdomain}.localhost:3000/directories/${directory.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                          <a href={currentSite ? `${getSiteUrl(currentSite)}/directories/${directory.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
                             <Eye className="h-4 w-4" />
                             <span className="sr-only">Preview</span>
                           </a>

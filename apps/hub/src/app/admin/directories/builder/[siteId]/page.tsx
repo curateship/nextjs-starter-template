@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
 import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
@@ -221,7 +222,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         selectedItemSlug={selectedDirectory}
         onItemChange={handleDirectoryChange}
         entityName="Directory"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/directories/${item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/directories/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}

@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
@@ -192,7 +193,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         selectedItemSlug={selectedCategory}
         onItemChange={handleCategoryChange}
         entityName="Category"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/categories/${item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/categories/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}

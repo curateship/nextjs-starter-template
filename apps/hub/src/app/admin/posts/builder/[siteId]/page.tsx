@@ -9,6 +9,7 @@ import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
@@ -232,7 +233,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         selectedItemSlug={selectedPost}
         onItemChange={handlePostChange}
         entityName="Post"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/posts/${item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/posts/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={false}
         onSave={builderState.handleSaveAllBlocks}

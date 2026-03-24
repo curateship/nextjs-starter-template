@@ -9,6 +9,7 @@ import Link from "next/link"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
 import { usePageBuilder } from "@/components/admin/page-builder/config/usePageBuilder"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
@@ -205,7 +206,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         selectedItemSlug={selectedPage}
         onItemChange={handlePageChange}
         entityName="Page"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/${item.slug === 'home' ? '' : item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/${item.slug === 'home' ? '' : item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}

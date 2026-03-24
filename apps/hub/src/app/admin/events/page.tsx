@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
@@ -566,7 +567,7 @@ export default function EventsPage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
-                            onClick={() => window.open(currentSite ? `http://${currentSite.subdomain}.localhost:3000/events/${event.slug}` : '#', '_blank')}
+                            onClick={() => window.open(currentSite ? `${getSiteUrl(currentSite)}/events/${event.slug}` : '#', '_blank')}
                             title="Preview"
                           >
                             <Eye className="h-4 w-4" />

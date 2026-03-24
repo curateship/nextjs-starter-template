@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
 import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
@@ -221,7 +222,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         selectedItemSlug={selectedEvent}
         onItemChange={handleEventChange}
         entityName="Event"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/events/${item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/events/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}

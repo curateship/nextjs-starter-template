@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
 import { useSiteContext } from "@/contexts/site-context"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader, type BuilderItem } from "@/components/admin/shared/BuilderStickyHeader"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
 import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
@@ -234,7 +235,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         selectedItemSlug={selectedProduct}
         onItemChange={handleProductChange}
         entityName="Product"
-        getItemUrl={(item) => `http://${currentSite?.subdomain}.localhost:3000/products/${item.slug}`}
+        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/products/${item.slug}`}
         saveMessage={builderState.saveMessage}
         isSaving={builderState.isSaving}
         onSave={builderState.handleSaveAllBlocks}
