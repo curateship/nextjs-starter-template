@@ -12,6 +12,7 @@ import {
   Magnet,
   CreditCard,
   Package,
+  BarChart3,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -299,6 +300,7 @@ function OrdersContent() {
         navLinks={[
           { label: "Products", href: "/admin/products", icon: Package },
           { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: true },
+          { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3 },
         ]}
       />
       <AdminLayout>
