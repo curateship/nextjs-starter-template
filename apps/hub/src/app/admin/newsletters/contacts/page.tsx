@@ -58,7 +58,7 @@ export default function ContactsPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
-  const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | null>(null)
+  const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [total, setTotal] = useState(0)
 
@@ -153,7 +153,7 @@ export default function ContactsPage() {
     }
   }
 
-  const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added') => {
+  const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged') => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
         setSortColumn(null)
@@ -167,7 +167,7 @@ export default function ContactsPage() {
     }
   }
 
-  const getSortIcon = (column: 'contact' | 'source' | 'status' | 'tags' | 'added') => {
+  const getSortIcon = (column: 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged') => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
     if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
@@ -189,6 +189,11 @@ export default function ContactsPage() {
       return aTag.localeCompare(bTag) * dir
     }
     if (sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (sortColumn === 'engaged') {
+      const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
+      const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
+      return (aTime - bTime) * dir
+    }
     return 0
   })
 
@@ -424,17 +429,28 @@ export default function ContactsPage() {
     if (!contacts.length) return
     setImporting(true)
     try {
-      const result = await bulkImportContacts({
-        siteId: currentSite.id,
-        contacts,
-      })
-      if (result.error) {
-        setErrorMessage(result.error)
-        setErrorDialogOpen(true)
-        setImporting(false)
-        return
+      // Send in chunks of 2000 to avoid server action body size limits
+      const chunkSize = 2000
+      let totalImported = 0
+      let totalSkipped = 0
+
+      for (let i = 0; i < contacts.length; i += chunkSize) {
+        const chunk = contacts.slice(i, i + chunkSize)
+        const result = await bulkImportContacts({
+          siteId: currentSite.id,
+          contacts: chunk,
+        })
+        if (result.error) {
+          setErrorMessage(result.error)
+          setErrorDialogOpen(true)
+          setImporting(false)
+          return
+        }
+        totalImported += result.imported
+        totalSkipped += result.skipped
       }
-      setImportResult({ imported: result.imported, skipped: result.skipped })
+
+      setImportResult({ imported: totalImported, skipped: totalSkipped })
       setImporting(false)
       loadContacts()
     } catch {
@@ -552,6 +568,21 @@ export default function ContactsPage() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  }
+
+  /* Format a date as relative time (e.g. "3d ago", "2h ago") */
+  const formatRelativeTime = (dateString: string | null) => {
+    if (!dateString) return "—"
+    const diff = Date.now() - new Date(dateString).getTime()
+    const minutes = Math.floor(diff / 60000)
+    if (minutes < 1) return "Just now"
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    if (days < 30) return `${days}d ago`
+    const months = Math.floor(days / 30)
+    return `${months}mo ago`
   }
 
   const activeFilterCount =
@@ -819,7 +850,7 @@ export default function ContactsPage() {
             )}
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-8 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
                     checked={contacts.length > 0 && selectedIds.size === contacts.length}
@@ -887,6 +918,18 @@ export default function ContactsPage() {
                   <span>Added</span>
                   <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('added')}</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort('engaged')}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Last Engaged</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('engaged')}</span>
+                </button>
                 <div>Actions</div>
               </div>
             </div>
@@ -907,7 +950,7 @@ export default function ContactsPage() {
                 <div className="space-y-0">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-7 gap-4 items-center">
+                      <div className="grid grid-cols-8 gap-4 items-center">
                         <div className="col-span-2 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div>
@@ -919,6 +962,7 @@ export default function ContactsPage() {
                         <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
                         <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
                         <div><div className="h-8 w-8 bg-muted rounded animate-pulse" /></div>
                       </div>
                     </div>
@@ -943,7 +987,7 @@ export default function ContactsPage() {
               ) : (
                 sortedContacts.map((contact) => (
                   <div key={contact.id} className={`p-6 transition-colors ${selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-7 gap-4 items-center">
+                    <div className="grid grid-cols-8 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
                           checked={selectedIds.has(contact.id)}
@@ -980,6 +1024,9 @@ export default function ContactsPage() {
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">{formatDate(contact.created_at)}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">{formatRelativeTime(contact.last_engaged_at)}</span>
                       </div>
                       <div>
                         <Button
