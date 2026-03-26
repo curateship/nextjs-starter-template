@@ -4,16 +4,11 @@ import { db } from "@/lib/db"
 import { pages } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { notFound, redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 
 async function checkAuth() {
-  // Check for Supabase auth cookie without hitting the database
-  // This is much faster than calling getUser()
-  const cookieStore = await cookies()
-  const authCookies = cookieStore.getAll().filter(cookie =>
-    cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
-  )
-  return authCookies.length > 0 && authCookies.some(c => c.value && c.value.length > 0)
+  return !!getSessionCookie(await headers())
 }
 
 interface CatchAllPageProps {

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Fallback: proxy external URLs (Supabase, R2 CDN only)
+    // Fallback: proxy external URLs from the current media hosts only
     // SSRF protection: only allow known media hosts
     let parsedUrl: URL
     try {
@@ -81,8 +81,6 @@ export async function GET(request: NextRequest) {
     }
 
     const allowedHosts = [
-      '.supabase.co',
-      '.supabase.in',
       '.r2.dev',
       '.cloudflare.com',
     ]

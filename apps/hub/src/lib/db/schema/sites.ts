@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
-import { users } from './users'
+import { authUsers } from './auth-users'
 
 // SEO-related fields stored in site settings JSONB
 export interface SiteSeoSettings {
@@ -32,7 +32,7 @@ export interface SiteSettings extends SiteSeoSettings {
 
 export const sites = pgTable('sites', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
   subdomain: varchar('subdomain', { length: 100 }).notNull().unique(),
@@ -50,8 +50,8 @@ export const sites = pgTable('sites', {
 ])
 
 export const sitesRelations = relations(sites, ({ one }) => ({
-  user: one(users, {
+  user: one(authUsers, {
     fields: [sites.userId],
-    references: [users.id],
+    references: [authUsers.id],
   }),
 }))

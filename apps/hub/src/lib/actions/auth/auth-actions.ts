@@ -3,10 +3,9 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
-import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { users } from '@/lib/db/schema'
+import { authUsers } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export async function getCurrentUser() {
@@ -35,6 +34,7 @@ export async function registerUser({
         email: email.toLowerCase(),
         password,
         name: displayName || email.split('@')[0],
+        displayName: displayName || email.split('@')[0],
       },
     })
 
@@ -64,11 +64,12 @@ export async function updateProfile(formData: FormData) {
       }
       const sanitizedDisplayName = displayName.replace(/<[^>]*>?/gm, '').replace(/[<>\"']/g, '')
       updates.name = sanitizedDisplayName
+      updates.displayName = sanitizedDisplayName
     }
 
     if (email && email !== authUser.email) {
-      const existing = await db.query.users.findFirst({
-        where: eq(users.email, email),
+      const existing = await db.query.authUsers.findFirst({
+        where: eq(authUsers.email, email),
       })
       if (existing) return { error: 'Email already in use' }
       updates.email = email

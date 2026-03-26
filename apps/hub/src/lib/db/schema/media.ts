@@ -1,11 +1,11 @@
 import { pgTable, uuid, text, bigint, timestamp, index } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
-import { users } from './users'
+import { authUsers } from './auth-users'
 import { sites } from './sites'
 
 export const media = pgTable('media', {
   id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
   siteId: uuid('site_id').references(() => sites.id, { onDelete: 'cascade' }),
   filename: text('filename').notNull(),
   originalName: text('original_name').notNull(),
@@ -24,9 +24,9 @@ export const media = pgTable('media', {
 ])
 
 export const mediaRelations = relations(media, ({ one }) => ({
-  user: one(users, {
+  user: one(authUsers, {
     fields: [media.userId],
-    references: [users.id],
+    references: [authUsers.id],
   }),
   site: one(sites, {
     fields: [media.siteId],

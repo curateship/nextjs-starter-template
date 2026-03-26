@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { newsletters, newsletterContacts, newsletterEvents, sites, users } from '@/lib/db/schema'
+import { newsletters, newsletterContacts, newsletterEvents, sites, authUsers } from '@/lib/db/schema'
 import { eq, and, lte, inArray, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
@@ -306,9 +306,9 @@ async function sendBounceAlertEmail(
     if (!site?.userId) return
 
     const [user] = await db
-      .select({ email: users.email })
-      .from(users)
-      .where(eq(users.id, site.userId))
+      .select({ email: authUsers.email })
+      .from(authUsers)
+      .where(eq(authUsers.id, site.userId))
 
     const adminEmail = user?.email
     if (!adminEmail) return

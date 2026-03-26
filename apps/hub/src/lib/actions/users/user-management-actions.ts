@@ -1,7 +1,7 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { users } from '@/lib/db/schema'
+import { authUsers } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { eq, sql, desc } from 'drizzle-orm'
 
@@ -38,14 +38,28 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
 
     const [userRows, countResult] = await Promise.all([
       db
-        .select()
-        .from(users)
-        .orderBy(desc(users.createdAt))
+        .select({
+          id: authUsers.id,
+          name: authUsers.name,
+          email: authUsers.email,
+          createdAt: authUsers.createdAt,
+          updatedAt: authUsers.updatedAt,
+          role: authUsers.role,
+          displayName: authUsers.displayName,
+          emailVerified: authUsers.emailVerified,
+          lastSignInAt: sql<string | null>`(
+            select max("updatedAt")::text
+            from session
+            where "userId" = ${authUsers.id}
+          )`,
+        })
+        .from(authUsers)
+        .orderBy(desc(authUsers.createdAt))
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)` })
-        .from(users),
+        .from(authUsers),
     ])
 
     const total = Number(countResult[0]?.count ?? 0)
@@ -54,10 +68,10 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
       id: row.id,
       email: row.email,
       created_at: row.createdAt.toISOString(),
-      last_sign_in_at: null,
+      last_sign_in_at: row.lastSignInAt,
       role: row.role || 'end_user',
-      display_name: row.displayName || null,
-      email_confirmed_at: row.emailVerifiedAt?.toISOString() || null,
+      display_name: row.displayName || row.name || null,
+      email_confirmed_at: row.emailVerified ? row.updatedAt.toISOString() : null,
     }))
 
     return {
@@ -92,9 +106,23 @@ export async function getUserById(userId: string) {
     }
 
     const row = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
+      .select({
+        id: authUsers.id,
+        name: authUsers.name,
+        email: authUsers.email,
+        createdAt: authUsers.createdAt,
+        updatedAt: authUsers.updatedAt,
+        role: authUsers.role,
+        displayName: authUsers.displayName,
+        emailVerified: authUsers.emailVerified,
+        lastSignInAt: sql<string | null>`(
+          select max("updatedAt")::text
+          from session
+          where "userId" = ${authUsers.id}
+        )`,
+      })
+      .from(authUsers)
+      .where(eq(authUsers.id, userId))
       .then((rows) => rows[0])
 
     if (!row) {
@@ -107,12 +135,12 @@ export async function getUserById(userId: string) {
         id: row.id,
         email: row.email,
         created_at: row.createdAt.toISOString(),
-        last_sign_in_at: null,
+        last_sign_in_at: row.lastSignInAt,
         role: row.role || 'end_user',
-        display_name: row.displayName || null,
-        email_confirmed_at: row.emailVerifiedAt?.toISOString() || null,
+        display_name: row.displayName || row.name || null,
+        email_confirmed_at: row.emailVerified ? row.updatedAt.toISOString() : null,
         user_metadata: {
-          display_name: row.displayName,
+          display_name: row.displayName || row.name || null,
         },
         app_metadata: {
           role: row.role,

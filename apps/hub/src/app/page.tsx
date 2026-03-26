@@ -2,7 +2,8 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { JsonLd } from "@/components/seo/JsonLd"
@@ -12,11 +13,7 @@ async function getHomePageSite() {
 }
 
 async function checkAuth() {
-  const cookieStore = await cookies()
-  const authCookies = cookieStore.getAll().filter(cookie =>
-    cookie.name.includes('sb-') && cookie.name.includes('-auth-token')
-  )
-  return authCookies.length > 0 && authCookies.some(c => c.value && c.value.length > 0)
+  return !!getSessionCookie(await headers())
 }
 
 export default async function SiteHomePage() {

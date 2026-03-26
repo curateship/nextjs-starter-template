@@ -1,4 +1,4 @@
-export * from './users'
+export * from './auth-users'
 export * from './sites'
 export * from './pages'
 export * from './posts'
