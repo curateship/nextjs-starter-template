@@ -21,7 +21,7 @@ export const categories = pgTable('categories', {
   index('idx_categories_parent_id').on(table.parentId),
 ])
 
-export const contentCategoryRelationships = pgTable('content_category_relationships', {
+export const contentCategoryRelationships = pgTable('category_relationships', {
   id: uuid('id').defaultRandom().primaryKey(),
   contentId: uuid('content_id').notNull(),
   contentType: varchar('content_type', { length: 50 }).notNull(),
