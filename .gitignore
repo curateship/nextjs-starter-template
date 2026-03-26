@@ -25,6 +25,7 @@ out/
 
 # production
 build/
+dist/
 .cursor/
 
 # misc
@@ -37,6 +38,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 *.log
+__pycache__/
+.pytest_cache/
+.venv/
 
 # env files
 .env*

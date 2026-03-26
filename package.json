@@ -4,7 +4,11 @@
   "workspaces": ["apps/*", "packages/*", "services/*"],
   "scripts": {
     "dev": "turbo dev",
+    "dev:hub": "npm run dev --workspace=@repo/hub",
+    "dev:seo": "npm run dev --workspace=@repo/seo",
+    "dev:seo-api": "cd services/seo-api && uvicorn app.main:app --reload",
     "build": "turbo build",
+    "build:seo": "npm run build --workspace=@repo/seo",
     "lint": "turbo lint"
   },
   "packageManager": "npm@11.3.0",

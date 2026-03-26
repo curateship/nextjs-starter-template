@@ -2,7 +2,10 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "dev": { "persistent": true, "cache": false },
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
     "lint": { "dependsOn": ["^build"] }
   }
 }
