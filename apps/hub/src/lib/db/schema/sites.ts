@@ -21,6 +21,12 @@ export interface SiteSettings extends SiteSeoSettings {
   font_family?: string
   secondary_font_family?: string
   default_theme?: string
+  quick_links?: Array<{
+    id: string
+    label: string
+    href: string
+    icon?: string
+  }>
   enabled_features?: Record<string, boolean>
   feature_order?: string[]
   maintenance?: { enabled?: boolean }

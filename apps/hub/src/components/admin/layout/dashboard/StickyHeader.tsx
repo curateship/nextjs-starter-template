@@ -6,12 +6,15 @@ import { cn } from "@/lib/utils/tailwind-class-merger"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { PanelLeft, type LucideIcon } from "lucide-react"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
+import { getQuickLinkIcon } from "@/lib/utils/site-quick-links"
 
 interface NavLink {
   label: string
   href: string
   active?: boolean
   icon?: LucideIcon
+  iconName?: string
+  external?: boolean
 }
 
 interface StickyHeaderProps {
@@ -45,21 +48,41 @@ export function StickyHeader({
           {/* NavLinks as tab pills */}
           {navLinks && navLinks.length > 0 && (
             <div className="inline-flex h-8 items-center rounded-md gap-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
-                    link.active
-                      ? "bg-muted text-foreground rounded-md"
-                      : "hover:bg-muted/50 rounded-md"
-                  )}
-                >
-                  {link.icon && <link.icon className="h-3.5 w-3.5 mr-1.5" />}
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const Icon = link.icon ?? (link.iconName ? getQuickLinkIcon(link.iconName) : null)
+
+                return link.external ? (
+                  <a
+                    key={`${link.href}-${link.label}`}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
+                      link.active
+                        ? "bg-muted text-foreground rounded-md"
+                        : "hover:bg-muted/50 rounded-md"
+                    )}
+                  >
+                    {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={`${link.href}-${link.label}`}
+                    href={link.href}
+                    className={cn(
+                      "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
+                      link.active
+                        ? "bg-muted text-foreground rounded-md"
+                        : "hover:bg-muted/50 rounded-md"
+                    )}
+                  >
+                    {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
+                    {link.label}
+                  </Link>
+                )
+              })}
             </div>
           )}
         </div>

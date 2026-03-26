@@ -10,6 +10,7 @@ import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
 import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
 import { ChartBarVisitors } from '@/components/admin/dashboard/ChartBarVisitors'
+import { isExternalQuickLinkHref, normalizeSiteQuickLinks, resolveSiteQuickLinkHref } from '@/lib/utils/site-quick-links'
 
 interface PageProps {
   params: Promise<{
@@ -36,10 +37,22 @@ export default async function SiteDashboard({ params }: PageProps) {
   ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
+  const quickLinks = normalizeSiteQuickLinks(site?.settings?.quick_links).flatMap((link) => {
+    const href = resolveSiteQuickLinkHref(link, siteId)
+    if (!href) return []
+
+    return [{
+      label: link.label,
+      href,
+      iconName: link.icon,
+      external: isExternalQuickLinkHref(link.href),
+    }]
+  })
 
   return (
     <>
       <StickyHeader
+        navLinks={quickLinks}
         rightActions={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">

@@ -42,6 +42,8 @@ import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
 import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { ContentTypesSettingsCard } from "@/components/admin/layout/dashboard/ContentTypesSettingsCard"
 import { FeatureTogglesCard } from "@/components/admin/layout/dashboard/FeatureTogglesCard"
+import { QuickLinksSettingsCard } from "@/components/admin/layout/dashboard/QuickLinksSettingsCard"
+import { normalizeSiteQuickLinks, type SiteQuickLink } from "@/lib/utils/site-quick-links"
 
 // --- IntegrationCard ---
 
@@ -302,6 +304,7 @@ interface SiteEditPageProps {
 
 const TABS = [
   { id: 'general', label: 'General Settings' },
+  { id: 'quick-links', label: 'Quick Links' },
   { id: 'style', label: 'Style' },
   { id: 'content-types', label: 'Content Types' },
   { id: 'payments', label: 'Payments' },
@@ -334,6 +337,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
   const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>(contextSite?.settings?.default_blocks || {})
+  const [quickLinks, setQuickLinks] = useState<SiteQuickLink[]>(normalizeSiteQuickLinks(contextSite?.settings?.quick_links))
   const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>(contextSite?.settings?.enabled_features || {})
   const [featureOrder, setFeatureOrder] = useState<string[]>(contextSite?.settings?.feature_order || [])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -451,7 +455,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       setError(null)
       setSaveMessage(null)
 
-      if (activeTab === 'general' || activeTab === 'style' || activeTab === 'content-types') {
+      const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinks)
+
+      if (activeTab === 'general' || activeTab === 'quick-links' || activeTab === 'style' || activeTab === 'content-types') {
         if (!siteName.trim()) {
           setError('Site name is required')
           return
@@ -477,6 +483,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             custom_width: customWidth,
             default_theme: defaultTheme,
             default_blocks: defaultBlocks,
+            quick_links: normalizedQuickLinks,
             enabled_features: enabledFeatures,
             feature_order: featureOrder
           }
@@ -488,6 +495,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         }
 
         if (data) {
+          setQuickLinks(normalizedQuickLinks)
           setSite(prev => prev ? { ...prev, ...data } : null)
           if (currentSite?.id === siteId) {
             setCurrentSite({ ...currentSite, ...data })
@@ -601,6 +609,13 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onMaintenanceChange={setMaintenanceEnabled}
                   />
                 </form>
+              )}
+
+              {activeTab === 'quick-links' && (
+                <QuickLinksSettingsCard
+                  quickLinks={quickLinks}
+                  onQuickLinksChange={setQuickLinks}
+                />
               )}
 
               {activeTab === 'style' && (

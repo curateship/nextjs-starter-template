@@ -120,10 +120,20 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
  */
 export async function getSiteForDashboard(siteId: string) {
   const result = await db
-    .select({ id: sites.id, name: sites.name, subdomain: sites.subdomain })
+    .select({
+      id: sites.id,
+      name: sites.name,
+      subdomain: sites.subdomain,
+      settings: sites.settings,
+    })
     .from(sites)
     .where(eq(sites.id, siteId))
     .limit(1)
 
-  return (result[0] as { id: string; name: string; subdomain: string } | undefined) ?? null
+  return (result[0] as {
+    id: string
+    name: string
+    subdomain: string
+    settings: Record<string, unknown>
+  } | undefined) ?? null
 }
