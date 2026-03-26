@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { SeoSessionUser } from '@/lib/session'
+import type { SeoUser } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
 export function AppShell({
@@ -7,8 +7,8 @@ export function AppShell({
   onSignOut,
   children,
 }: {
-  user: SeoSessionUser
-  onSignOut: () => void
+  user: SeoUser
+  onSignOut: () => void | Promise<void>
   children: ReactNode
 }) {
   return (
@@ -43,7 +43,7 @@ export function AppShell({
               </div>
             </div>
             <Button variant="ghost" className="w-full justify-start" onClick={onSignOut}>
-              Clear SEO Session
+              Sign Out Of SEO
             </Button>
           </div>
         </aside>

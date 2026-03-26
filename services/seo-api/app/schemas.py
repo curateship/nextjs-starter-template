@@ -22,12 +22,7 @@ class WorkspaceOut(BaseModel):
 
 
 class SsoExchangeRequest(BaseModel):
-    token: str
-
-
-class SeoSessionOut(BaseModel):
-    token: str
-    user: SeoUserOut
+    code: str
 
 
 class AuthMeOut(BaseModel):

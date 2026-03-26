@@ -1,6 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { ApiError, createWorkspace, getSeoUser, listWorkspaces } from '@/lib/api'
-import { clearSeoSession, getSeoSession, type SeoSessionUser } from '@/lib/session'
+import { ApiError, createWorkspace, getSeoUser, listWorkspaces, logoutSeoSession, type SeoUser } from '@/lib/api'
 import { config } from '@/lib/config'
 import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -14,8 +13,7 @@ interface Workspace {
 }
 
 export function HomePage() {
-  const [sessionToken, setSessionToken] = useState<string | null>(null)
-  const [user, setUser] = useState<SeoSessionUser | null>(null)
+  const [user, setUser] = useState<SeoUser | null>(null)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [workspaceName, setWorkspaceName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -23,18 +21,6 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const session = getSeoSession()
-    setSessionToken(session?.token ?? null)
-    setUser(session?.user ?? null)
-  }, [])
-
-  useEffect(() => {
-    if (!sessionToken) {
-      setIsLoading(false)
-      return
-    }
-
-    const activeSessionToken = sessionToken
     let isMounted = true
 
     async function load() {
@@ -42,10 +28,8 @@ export function HomePage() {
         setIsLoading(true)
         setError(null)
 
-        const [meResponse, workspacesResponse] = await Promise.all([
-          getSeoUser(activeSessionToken),
-          listWorkspaces(activeSessionToken),
-        ])
+        const meResponse = await getSeoUser()
+        const workspacesResponse = await listWorkspaces()
 
         if (!isMounted) {
           return
@@ -59,9 +43,10 @@ export function HomePage() {
         }
 
         if (caughtError instanceof ApiError && caughtError.status === 401) {
-          clearSeoSession()
-          setSessionToken(null)
           setUser(null)
+          setWorkspaces([])
+          setError(null)
+          return
         }
 
         setError(caughtError instanceof Error ? caughtError.message : 'Failed to load the SEO app')
@@ -77,12 +62,12 @@ export function HomePage() {
     return () => {
       isMounted = false
     }
-  }, [sessionToken])
+  }, [])
 
   async function handleCreateWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!sessionToken) {
+    if (!user) {
       setError('SEO session missing. Launch again from Hub.')
       return
     }
@@ -96,7 +81,7 @@ export function HomePage() {
     try {
       setIsCreating(true)
       setError(null)
-      const response = await createWorkspace(sessionToken, name)
+      const response = await createWorkspace(name)
       setWorkspaces((current) => [response.workspace, ...current])
       setWorkspaceName('')
     } catch (caughtError) {
@@ -106,15 +91,37 @@ export function HomePage() {
     }
   }
 
-  function handleSignOut() {
-    clearSeoSession()
-    setSessionToken(null)
+  async function handleSignOut() {
+    try {
+      await logoutSeoSession()
+    } catch {
+      // The local session should still be cleared even if the API call fails.
+    }
+
     setUser(null)
     setWorkspaces([])
     setError(null)
   }
 
-  if (!sessionToken || !user) {
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-5xl items-center px-4 py-8">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>Loading SEO Session</CardTitle>
+            <CardDescription>Checking the SEO cookie session and loading your workspace data.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-2xl border border-border/80 bg-secondary/70 p-4 text-sm text-muted-foreground">
+              Loading...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!user) {
     return (
       <div className="mx-auto flex min-h-screen max-w-5xl items-center px-4 py-8">
         <Card className="w-full overflow-hidden">
@@ -124,7 +131,7 @@ export function HomePage() {
             </div>
             <CardTitle className="text-4xl">Hub SSO Required</CardTitle>
             <CardDescription className="max-w-2xl text-base">
-              This app only accepts a short-lived Hub token. Open the SEO app from Hub so the backend can mirror your user and start an SEO session.
+              This app only accepts a single-use Hub launch code. Open the SEO app from Hub so the backend can mirror your user and start an SEO session cookie.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 md:grid-cols-[1.2fr_0.8fr]">
@@ -135,16 +142,21 @@ export function HomePage() {
                   No SEO session is stored in this browser.
                 </p>
               </div>
-              <Button onClick={() => window.location.assign(`${config.hubAppUrl}/admin/seo`)}>
+              {error ? (
+                <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+              <Button onClick={() => window.location.assign(`${config.hubAppUrl}/admin/apps-integration`)}>
                 Open Hub Launch Page
               </Button>
             </div>
             <div className="rounded-3xl border border-border/80 bg-card/90 p-5">
               <p className="text-sm font-semibold">First slice shipped</p>
               <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <li>Hub-issued signed SSO token</li>
-                <li>SEO API token exchange and local user mirror</li>
-                <li>SEO session persistence</li>
+                <li>Hub-issued one-time launch code</li>
+                <li>SEO API redeem flow and local user mirror</li>
+                <li>SEO cookie session</li>
                 <li>Workspace creation and listing</li>
               </ul>
             </div>

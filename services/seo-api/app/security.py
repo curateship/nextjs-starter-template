@@ -5,10 +5,12 @@ import json
 from time import time
 from typing import Any
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Response, status
 
 from app.config import get_settings
 from app.models import SeoUser
+
+SESSION_COOKIE_NAME = "whateverseo_session"
 
 
 def _base64url_encode(raw: bytes) -> str:
@@ -52,31 +54,35 @@ def verify_token(token: str, secret: str) -> dict[str, Any]:
     return payload
 
 
-def verify_hub_sso_token(token: str) -> dict[str, Any]:
-    claims = verify_token(token, get_settings().hub_sso_secret)
-
-    required_fields = ["hub_user_id", "email", "role", "seo_access", "exp"]
-    missing = [field for field in required_fields if field not in claims]
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Hub token missing fields: {', '.join(missing)}",
-        )
-
-    return claims
-
-
 def create_session_token(user: SeoUser) -> str:
     settings = get_settings()
 
     return sign_token(
         {
             "seo_user_id": user.id,
-            "hub_user_id": user.hub_user_id,
-            "email": user.email,
-            "role": user.role,
-            "seo_access": user.seo_access,
             "exp": int(time()) + settings.session_ttl_hours * 3600,
         },
         settings.session_secret,
+    )
+
+
+def set_session_cookie(response: Response, token: str, secure: bool) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=get_settings().session_ttl_hours * 3600,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path="/",
+    )
+
+
+def clear_session_cookie(response: Response, secure: bool) -> None:
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path="/",
     )

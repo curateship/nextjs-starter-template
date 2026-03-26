@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.dependencies import get_current_user, require_super_admin
+from app.dependencies import get_current_user, require_seo_app_origin, require_super_admin
 from app.models import SeoUser, SeoWorkspace
 from app.schemas import WorkspaceCreateIn, WorkspaceCreateOut, WorkspaceListOut
 
@@ -25,6 +25,7 @@ def list_workspaces(
 @router.post("", response_model=WorkspaceCreateOut)
 def create_workspace(
     payload: WorkspaceCreateIn,
+    _: None = Depends(require_seo_app_origin),
     current_user: SeoUser = Depends(require_super_admin),
     db: Session = Depends(get_db),
 ) -> WorkspaceCreateOut:

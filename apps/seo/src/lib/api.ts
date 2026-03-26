@@ -1,10 +1,17 @@
 import { config } from '@/lib/config'
-import type { SeoSession, SeoSessionUser } from '@/lib/session'
 
 export interface ApiWorkspace {
   id: string
   name: string
   created_at: string
+}
+
+export interface SeoUser {
+  id: string
+  hub_user_id: string
+  email: string
+  role: string
+  seo_access: boolean
 }
 
 class ApiError extends Error {
@@ -19,6 +26,7 @@ class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(`${config.seoApiUrl}${path}`, {
+    credentials: 'include',
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -26,9 +34,10 @@ async function request<T>(path: string, init?: RequestInit) {
     },
   })
 
-  const body = (await response.json().catch(() => null)) as
-    | { detail?: string; [key: string]: unknown }
-    | null
+  const text = await response.text()
+  const body = text
+    ? ((JSON.parse(text) as { detail?: string; [key: string]: unknown }))
+    : null
 
   if (!response.ok) {
     throw new ApiError(body?.detail ?? 'Request failed', response.status)
@@ -37,35 +46,23 @@ async function request<T>(path: string, init?: RequestInit) {
   return body as T
 }
 
-export async function exchangeHubSsoToken(token: string) {
-  return request<SeoSession>('/api/v1/auth/sso/exchange', {
+export async function getSeoUser() {
+  return request<{ user: SeoUser }>('/api/v1/auth/me')
+}
+
+export async function logoutSeoSession() {
+  await request<void>('/api/v1/auth/logout', {
     method: 'POST',
-    body: JSON.stringify({ token }),
   })
 }
 
-export async function getSeoUser(token: string) {
-  return request<{ user: SeoSessionUser }>('/api/v1/auth/me', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+export async function listWorkspaces() {
+  return request<{ workspaces: ApiWorkspace[] }>('/api/v1/workspaces')
 }
 
-export async function listWorkspaces(token: string) {
-  return request<{ workspaces: ApiWorkspace[] }>('/api/v1/workspaces', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-}
-
-export async function createWorkspace(token: string, name: string) {
+export async function createWorkspace(name: string) {
   return request<{ workspace: ApiWorkspace }>('/api/v1/workspaces', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
     body: JSON.stringify({ name }),
   })
 }
