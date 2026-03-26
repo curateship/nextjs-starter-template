@@ -21,6 +21,9 @@ export const auth = betterAuth({
       },
     },
   },
+  account: {
+    modelName: 'users_auth_path',
+  },
   session: {
     cookieCache: {
       enabled: true,

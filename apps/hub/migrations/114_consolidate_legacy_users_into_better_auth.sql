@@ -71,34 +71,58 @@ WHERE ba.id = u.id::text
    OR ba.email = u.email;
 
 -- Preserve existing password hashes for migrated credential accounts.
-INSERT INTO account (
-  "id",
-  "accountId",
-  "providerId",
-  "userId",
-  "password",
-  "createdAt",
-  "updatedAt"
-)
-SELECT
-  gen_random_uuid()::text,
-  ba.id,
-  'credential',
-  ba.id,
-  u.password_hash,
-  COALESCE(u.created_at, now()),
-  COALESCE(u.updated_at, now())
-FROM users_legacy u
-JOIN "user" ba
-  ON ba.id = u.id::text
-  OR ba.email = u.email
-WHERE u.password_hash IS NOT NULL
-  AND NOT EXISTS (
+DO $$
+DECLARE auth_account_table text;
+BEGIN
+  IF EXISTS (
     SELECT 1
-    FROM account a
-    WHERE a."providerId" = 'credential'
-      AND a."userId" = ba.id
-  );
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'users_auth_path'
+  ) THEN
+    auth_account_table := 'users_auth_path';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'account'
+  ) THEN
+    auth_account_table := 'account';
+  ELSE
+    RAISE EXCEPTION 'Expected Better Auth account table to exist before migration';
+  END IF;
+
+  EXECUTE format($migration$
+    INSERT INTO %1$I (
+      "id",
+      "accountId",
+      "providerId",
+      "userId",
+      "password",
+      "createdAt",
+      "updatedAt"
+    )
+    SELECT
+      gen_random_uuid()::text,
+      ba.id,
+      'credential',
+      ba.id,
+      u.password_hash,
+      COALESCE(u.created_at, now()),
+      COALESCE(u.updated_at, now())
+    FROM users_legacy u
+    JOIN "user" ba
+      ON ba.id = u.id::text
+      OR ba.email = u.email
+    WHERE u.password_hash IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM %1$I a
+        WHERE a."providerId" = 'credential'
+          AND a."userId" = ba.id
+      );
+  $migration$, auth_account_table);
+END $$;
 
 DO $$
 DECLARE constraint_name text;

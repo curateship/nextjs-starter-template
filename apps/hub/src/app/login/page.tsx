@@ -42,16 +42,24 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      await fetch('/api/auth/forget-password', {
+      const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, redirectTo: '/login/reset-password' }),
       })
+
+      const data = await response.json().catch(() => null)
+      if (data?.resetUrl) {
+        window.location.href = data.resetUrl
+        return
+      }
     } catch {
       // ignore to not leak email existence
+    } finally {
+      setLoading(false)
     }
+
     setView('sent')
-    setLoading(false)
   }
 
   if (view === 'sent') {

@@ -154,16 +154,24 @@ export function AuthBlock({
     setResetError(null)
 
     try {
-      await fetch('/api/auth/forget-password', {
+      const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail, redirectTo: '/auth/reset-password' }),
+        body: JSON.stringify({ email: resetEmail, redirectTo: '/login/reset-password' }),
       })
+
+      const data = await response.json().catch(() => null)
+      if (data?.resetUrl) {
+        window.location.href = data.resetUrl
+        return
+      }
     } catch {
       // Ignore errors to not leak email existence
+    } finally {
+      setResetLoading(false)
     }
+
     setResetSuccess(true)
-    setResetLoading(false)
   }
 
   if (registerSuccess && view === 'auth') {
