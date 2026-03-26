@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { db } from '@/lib/db'
 
 const DEFAULT_REDIRECT_PATH = '/login/reset-password'
+const VERIFICATION_TABLE = 'users_verification'
 const GENERIC_RESPONSE = {
   status: true,
   message: 'If this email exists in our system, check your email for the reset link',
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     randomBytes(24).toString('hex')
     await db.execute(sql`
       select id
-      from verification
+      from ${sql.raw(VERIFICATION_TABLE)}
       where identifier = 'dummy-verification-token'
       limit 1
     `)
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
   await db.execute(sql`
-    insert into verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+    insert into ${sql.raw(VERIFICATION_TABLE)} (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
     values (
       ${randomBytes(16).toString('hex')},
       ${`reset-password:${token}`},
