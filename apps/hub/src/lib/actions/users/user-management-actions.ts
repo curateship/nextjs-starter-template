@@ -49,7 +49,7 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
           emailVerified: authUsers.emailVerified,
           lastSignInAt: sql<string | null>`(
             select max("updatedAt")::text
-            from users_session
+            from user_sessions
             where "userId" = ${authUsers.id}
           )`,
         })
@@ -117,7 +117,7 @@ export async function getUserById(userId: string) {
         emailVerified: authUsers.emailVerified,
         lastSignInAt: sql<string | null>`(
           select max("updatedAt")::text
-          from users_session
+          from user_sessions
           where "userId" = ${authUsers.id}
         )`,
       })

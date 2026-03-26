@@ -22,13 +22,13 @@ export const auth = betterAuth({
     },
   },
   account: {
-    modelName: 'users_auth_path',
+    modelName: 'user_auth_paths',
   },
   verification: {
-    modelName: 'users_verification',
+    modelName: 'user_verifications',
   },
   session: {
-    modelName: 'users_session',
+    modelName: 'user_sessions',
     cookieCache: {
       enabled: true,
       maxAge: 5 * 60, // 5 minutes

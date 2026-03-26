@@ -78,6 +78,13 @@ BEGIN
     SELECT 1
     FROM information_schema.tables
     WHERE table_schema = 'public'
+      AND table_name = 'user_auth_paths'
+  ) THEN
+    auth_account_table := 'user_auth_paths';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
       AND table_name = 'users_auth_path'
   ) THEN
     auth_account_table := 'users_auth_path';

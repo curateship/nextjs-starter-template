@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 import { db } from '@/lib/db'
 
 const DEFAULT_REDIRECT_PATH = '/login/reset-password'
-const VERIFICATION_TABLE = 'users_verification'
+const VERIFICATION_TABLE = 'user_verifications'
 const GENERIC_RESPONSE = {
   status: true,
   message: 'If this email exists in our system, check your email for the reset link',
