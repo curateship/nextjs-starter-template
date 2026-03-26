@@ -28,6 +28,7 @@ export const auth = betterAuth({
     modelName: 'users_verification',
   },
   session: {
+    modelName: 'users_session',
     cookieCache: {
       enabled: true,
       maxAge: 5 * 60, // 5 minutes
