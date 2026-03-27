@@ -51,34 +51,36 @@ export default async function SiteDashboard({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        navLinks={quickLinks}
-        rightActions={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/admin/sites/${siteId}/settings`}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href={`/admin/pages/${siteId}`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Site Builder
-              </Link>
-            </Button>
-          </div>
-        }
-      />
+      <StickyHeader navLinks={quickLinks} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
             items={[
               { label: "Sites", href: "/admin/sites" },
-              { label: siteName },
+              {
+                label: (
+                  <span className="inline-flex items-center gap-2">
+                    <span>{siteName}</span>
+                    <Badge className="bg-green-500 hover:bg-green-600 text-white">Live</Badge>
+                  </span>
+                ),
+              },
             ]}
             actions={
-              <Badge className="bg-green-500 hover:bg-green-600 text-white">Live</Badge>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/admin/sites/${siteId}/settings`}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={`/admin/pages/${siteId}`}>
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Site Builder
+                  </Link>
+                </Button>
+              </div>
             }
           />
 

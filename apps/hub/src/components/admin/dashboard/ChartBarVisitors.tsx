@@ -23,11 +23,17 @@ import {
 const chartConfig = {
   visitors: {
     label: "Visitors",
-    color: "var(--chart-1)",
+    theme: {
+      light: "oklch(0.32 0 0)",
+      dark: "oklch(0.82 0 0)",
+    },
   },
   views: {
     label: "Page Views",
-    color: "var(--chart-2)",
+    theme: {
+      light: "oklch(0.86 0 0)",
+      dark: "oklch(0.46 0 0)",
+    },
   },
 } satisfies ChartConfig
 

@@ -93,7 +93,7 @@ export default function AnalyticsPage({ params }: PageProps) {
               onValueChange: (v) => setPeriod(v as Period),
               items: PERIODS.map(p => ({ value: p.id, label: p.label })),
             }}
-            actions={
+            preActions={
               <span className="text-sm text-muted-foreground">
                 {period === 'today' && new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 {period === 'yesterday' && new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
