@@ -123,6 +123,7 @@ export async function getSiteForDashboard(siteId: string) {
     .select({
       id: sites.id,
       name: sites.name,
+      status: sites.status,
       subdomain: sites.subdomain,
       settings: sites.settings,
     })
@@ -133,6 +134,7 @@ export async function getSiteForDashboard(siteId: string) {
   return (result[0] as {
     id: string
     name: string
+    status: string
     subdomain: string
     settings: Record<string, unknown>
   } | undefined) ?? null

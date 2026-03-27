@@ -25,6 +25,20 @@ function formatDuration(seconds: number): string {
   return `${mins}m ${secs}s`
 }
 
+function getSiteStatusBadge(status?: string) {
+  switch (status) {
+    case 'active':
+      return { label: 'Active', className: 'bg-green-500 hover:bg-green-600 text-white' }
+    case 'inactive':
+      return { label: 'Inactive', className: 'bg-red-500 hover:bg-red-600 text-white' }
+    case 'suspended':
+      return { label: 'Suspended', className: 'bg-gray-500 hover:bg-gray-600 text-white' }
+    case 'draft':
+    default:
+      return { label: 'Draft', className: 'bg-yellow-500 hover:bg-yellow-600 text-white' }
+  }
+}
+
 export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
 
@@ -37,7 +51,13 @@ export default async function SiteDashboard({ params }: PageProps) {
   ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
-  const quickLinks = normalizeSiteQuickLinks(site?.settings?.quick_links).flatMap((link) => {
+  const siteSettings = (site?.settings ?? {}) as {
+    maintenance?: { enabled?: boolean }
+    quick_links?: unknown
+  }
+  const siteStatusBadge = getSiteStatusBadge(site?.status)
+  const isMaintenanceMode = siteSettings.maintenance?.enabled === true
+  const quickLinks = normalizeSiteQuickLinks(siteSettings.quick_links).flatMap((link) => {
     const href = resolveSiteQuickLinkHref(link, siteId)
     if (!href) return []
 
@@ -61,7 +81,10 @@ export default async function SiteDashboard({ params }: PageProps) {
                 label: (
                   <span className="inline-flex items-center gap-2">
                     <span>{siteName}</span>
-                    <Badge className="bg-green-500 hover:bg-green-600 text-white">Live</Badge>
+                    <Badge className={siteStatusBadge.className}>{siteStatusBadge.label}</Badge>
+                    {isMaintenanceMode && (
+                      <Badge className="bg-amber-500 hover:bg-amber-600 text-white">Maintenance</Badge>
+                    )}
                   </span>
                 ),
               },
