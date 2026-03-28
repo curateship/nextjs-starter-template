@@ -1,10 +1,18 @@
 'use server'
 
-import { eq, and, or, sql, desc, inArray, gte, lte } from 'drizzle-orm'
+import { eq, and, or, sql, desc, inArray, gte, lte, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterEvents, newsletters, newsletterSegments, newsletterSegmentContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { verifyUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
+import {
+  CONTACT_RELATIVE_DAY_OPTIONS,
+  CONTACT_SOURCE_OPTIONS,
+  CONTACT_STATUS_OPTIONS,
+  type ContactDateFilterValue,
+  type ContactFilterGroup,
+  type ContactFilterRule,
+} from '@/lib/newsletters/contact-filters'
 
 export interface CrmContact {
   id: string
@@ -29,6 +37,9 @@ export interface CrmContact {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_STATUSES = ['active', 'unsubscribed', 'bounced', 'complained'] as const
 const MAX_IMPORT_SIZE = 50000
+const VALID_SOURCES = CONTACT_SOURCE_OPTIONS.map((option) => option.value)
+const VALID_STATUS_VALUES = CONTACT_STATUS_OPTIONS.map((option) => option.value)
+const VALID_RELATIVE_DAYS = CONTACT_RELATIVE_DAY_OPTIONS.map((option) => option.value)
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -52,6 +63,240 @@ function rowToContact(row: any): CrmContact {
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
+}
+
+function startOfDay(value: string): Date {
+  const date = new Date(value)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0))
+}
+
+function endOfDay(value: string): Date {
+  const date = new Date(value)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
+}
+
+function normalizeDateFilterValue(value: unknown): ContactDateFilterValue | null {
+  if (!value || typeof value !== 'object') return null
+
+  const mode = (value as { mode?: unknown }).mode
+  if (mode === 'relative') {
+    const days = Number((value as { days?: unknown }).days)
+    return VALID_RELATIVE_DAYS.includes(days as 7 | 30 | 60 | 90)
+      ? { mode: 'relative', days: days as 7 | 30 | 60 | 90 }
+      : null
+  }
+
+  if (mode === 'range') {
+    const rawFrom = (value as { from?: unknown }).from
+    const rawTo = (value as { to?: unknown }).to
+    const from = typeof rawFrom === 'string' && rawFrom ? rawFrom : null
+    const to = typeof rawTo === 'string' && rawTo ? rawTo : null
+
+    if (from && Number.isNaN(new Date(from).getTime())) return null
+    if (to && Number.isNaN(new Date(to).getTime())) return null
+
+    return { mode: 'range', from, to }
+  }
+
+  return null
+}
+
+function normalizeContactFilterRule(rule: unknown): ContactFilterRule | null {
+  if (!rule || typeof rule !== 'object') return null
+
+  const id = typeof (rule as { id?: unknown }).id === 'string' ? (rule as { id: string }).id : ''
+  const type = typeof (rule as { type?: unknown }).type === 'string' ? (rule as { type: string }).type : ''
+
+  if (!id) return null
+
+  if (type === 'status') {
+    const values = Array.isArray((rule as { value?: unknown }).value)
+      ? (rule as { value: unknown[] }).value.filter((value): value is string => typeof value === 'string' && VALID_STATUS_VALUES.includes(value as typeof VALID_STATUS_VALUES[number]))
+      : []
+    return values.length ? { id, type, value: [...new Set(values)] } : null
+  }
+
+  if (type === 'source') {
+    const values = Array.isArray((rule as { value?: unknown }).value)
+      ? (rule as { value: unknown[] }).value.filter((value): value is string => typeof value === 'string' && VALID_SOURCES.includes(value as typeof VALID_SOURCES[number]))
+      : []
+    return values.length ? { id, type, value: [...new Set(values)] } : null
+  }
+
+  if (type === 'dataField') {
+    const field = (rule as { field?: unknown }).field
+    const operator = (rule as { operator?: unknown }).operator
+    const value = typeof (rule as { value?: unknown }).value === 'string'
+      ? (rule as { value: string }).value.trim()
+      : ''
+
+    if (field !== 'tag') return null
+    if (
+      operator !== 'matchesExact' &&
+      operator !== 'notMatchesExact' &&
+      operator !== 'contains' &&
+      operator !== 'notContains' &&
+      operator !== 'isEmpty' &&
+      operator !== 'isNotEmpty'
+    ) {
+      return null
+    }
+    return { id, type, field, operator, value }
+  }
+
+  if (type === 'lastEngaged' || type === 'dateAdded') {
+    const operator = (rule as { operator?: unknown }).operator
+    const value = normalizeDateFilterValue((rule as { value?: unknown }).value)
+    if ((operator !== 'is' && operator !== 'isnt') || !value) return null
+    return { id, type, operator, value }
+  }
+
+  return null
+}
+
+function normalizeContactFilterGroup(group: unknown): ContactFilterGroup | null {
+  if (!group || typeof group !== 'object') return null
+
+  const match = (group as { match?: unknown }).match === 'any' ? 'any' : 'all'
+  const rawRules = Array.isArray((group as { rules?: unknown }).rules) ? (group as { rules: unknown[] }).rules : []
+  const rules = rawRules
+    .map(normalizeContactFilterRule)
+    .filter((rule): rule is ContactFilterRule => rule !== null)
+
+  return { match, rules }
+}
+
+function buildRelativeDateCondition(
+  column: typeof newsletterContacts.lastEngagedAt | typeof newsletterContacts.createdAt,
+  operator: 'is' | 'isnt',
+  days: number,
+  includeNullForNegative: boolean
+): SQL {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  if (operator === 'is') {
+    return gte(column, cutoff)
+  }
+
+  const comparisons: SQL[] = [sql`${column} < ${cutoff}`]
+  if (includeNullForNegative) {
+    comparisons.push(sql`${column} IS NULL`)
+  }
+  return or(...comparisons)!
+}
+
+function buildRangeDateCondition(
+  column: typeof newsletterContacts.lastEngagedAt | typeof newsletterContacts.createdAt,
+  operator: 'is' | 'isnt',
+  value: Extract<ContactDateFilterValue, { mode: 'range' }>,
+  includeNullForNegative: boolean
+): SQL | null {
+  const conditions: SQL[] = []
+
+  if (value.from) {
+    conditions.push(gte(column, startOfDay(value.from)))
+  }
+  if (value.to) {
+    conditions.push(lte(column, endOfDay(value.to)))
+  }
+
+  if (!conditions.length) return null
+
+  if (operator === 'is') {
+    return conditions.length === 1 ? conditions[0] : and(...conditions)!
+  }
+
+  const outsideRange: SQL[] = []
+  if (value.from) {
+    outsideRange.push(sql`${column} < ${startOfDay(value.from)}`)
+  }
+  if (value.to) {
+    outsideRange.push(sql`${column} > ${endOfDay(value.to)}`)
+  }
+  if (includeNullForNegative) {
+    outsideRange.push(sql`${column} IS NULL`)
+  }
+
+  return outsideRange.length === 1 ? outsideRange[0] : or(...outsideRange)!
+}
+
+function buildRuleCondition(rule: ContactFilterRule): SQL | null {
+  if (rule.type === 'status') {
+    return rule.value.length ? inArray(newsletterContacts.status, rule.value) : null
+  }
+
+  if (rule.type === 'source') {
+    return rule.value.length
+      ? or(...rule.value.map((value) => sql`${newsletterContacts.metadata}->>'source' = ${value}`))!
+      : null
+  }
+
+  if (rule.type === 'dataField') {
+    const tagArray = sql`CASE WHEN jsonb_typeof(${newsletterContacts.metadata}->'tags') = 'array' THEN ${newsletterContacts.metadata}->'tags' ELSE '[]'::jsonb END`
+
+    if (rule.operator === 'isEmpty') {
+      return sql`jsonb_array_length(${tagArray}) = 0`
+    }
+
+    if (rule.operator === 'isNotEmpty') {
+      return sql`jsonb_array_length(${tagArray}) > 0`
+    }
+
+    if (!rule.value.trim()) return null
+
+    if (rule.operator === 'matchesExact') {
+      return sql`exists (
+        select 1
+        from jsonb_array_elements_text(${tagArray}) as tag(value)
+        where lower(tag.value) = lower(${rule.value})
+      )`
+    }
+
+    if (rule.operator === 'notMatchesExact') {
+      return sql`not exists (
+        select 1
+        from jsonb_array_elements_text(${tagArray}) as tag(value)
+        where lower(tag.value) = lower(${rule.value})
+      )`
+    }
+
+    const likeValue = `%${rule.value}%`
+    if (rule.operator === 'contains') {
+      return sql`exists (
+        select 1
+        from jsonb_array_elements_text(${tagArray}) as tag(value)
+        where tag.value ilike ${likeValue}
+      )`
+    }
+
+    return sql`not exists (
+      select 1
+      from jsonb_array_elements_text(${tagArray}) as tag(value)
+      where tag.value ilike ${likeValue}
+    )`
+  }
+
+  const column = rule.type === 'lastEngaged' ? newsletterContacts.lastEngagedAt : newsletterContacts.createdAt
+  const includeNullForNegative = rule.type === 'lastEngaged'
+
+  if (rule.value.mode === 'relative') {
+    return buildRelativeDateCondition(column, rule.operator, rule.value.days, includeNullForNegative)
+  }
+
+  return buildRangeDateCondition(column, rule.operator, rule.value, includeNullForNegative)
+}
+
+function buildContactFilterWhere(siteId: string, group?: ContactFilterGroup | null): SQL {
+  const baseCondition = eq(newsletterContacts.siteId, siteId)
+  if (!group || group.rules.length === 0) return baseCondition
+
+  const ruleConditions = group.rules
+    .map(buildRuleCondition)
+    .filter((condition): condition is SQL => condition !== null)
+
+  if (!ruleConditions.length) return baseCondition
+
+  const combinedRules = group.match === 'any' ? or(...ruleConditions)! : and(...ruleConditions)!
+  return and(baseCondition, combinedRules)!
 }
 
 export async function createOrUpsertContact(input: {
@@ -288,12 +533,7 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
 export async function getContactIdsAction(
   siteId: string,
   options?: {
-    sources?: string[]
-    statuses?: string[]
-    createdAfter?: string
-    createdBefore?: string
-    engagedAfter?: string
-    engagedBefore?: string
+    filterGroup?: ContactFilterGroup
   }
 ): Promise<{ ids: string[]; error: string | null }> {
   try {
@@ -306,30 +546,13 @@ export async function getContactIdsAction(
       return { ids: [], error: 'Access denied' }
     }
 
-    const conditions = [eq(newsletterContacts.siteId, siteId)]
-    if (options?.sources?.length) {
-      conditions.push(or(...options.sources.map(s => sql`${newsletterContacts.metadata}->>'source' = ${s}`))!)
-    }
-    if (options?.statuses?.length) {
-      conditions.push(inArray(newsletterContacts.status, options.statuses))
-    }
-    if (options?.createdAfter) {
-      conditions.push(gte(newsletterContacts.createdAt, new Date(options.createdAfter)))
-    }
-    if (options?.createdBefore) {
-      conditions.push(lte(newsletterContacts.createdAt, new Date(options.createdBefore)))
-    }
-    if (options?.engagedAfter) {
-      conditions.push(gte(newsletterContacts.lastEngagedAt, new Date(options.engagedAfter)))
-    }
-    if (options?.engagedBefore) {
-      conditions.push(lte(newsletterContacts.lastEngagedAt, new Date(options.engagedBefore)))
-    }
+    const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
+    const whereClause = buildContactFilterWhere(siteId, normalizedGroup)
 
     const rows = await db
       .select({ id: newsletterContacts.id })
       .from(newsletterContacts)
-      .where(and(...conditions))
+      .where(whereClause)
 
     return { ids: rows.map(r => r.id), error: null }
   } catch (err) {
@@ -340,14 +563,7 @@ export async function getContactIdsAction(
 export async function getContactsWithStats(
   siteId: string,
   options?: {
-    source?: string
-    status?: string
-    sources?: string[]
-    statuses?: string[]
-    createdAfter?: string
-    createdBefore?: string
-    engagedAfter?: string
-    engagedBefore?: string
+    filterGroup?: ContactFilterGroup
     page?: number
     pageSize?: number
   }
@@ -371,36 +587,8 @@ export async function getContactsWithStats(
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const offset = (page - 1) * pageSize
 
-    // Build where conditions for contacts query
-    const conditions = [eq(newsletterContacts.siteId, siteId)]
-    if (options?.source && options.source !== 'all') {
-      conditions.push(sql`${newsletterContacts.metadata}->>'source' = ${options.source}`)
-    }
-    if (options?.status && options.status !== 'all') {
-      conditions.push(eq(newsletterContacts.status, options.status))
-    }
-
-    // Multi-select filters
-    if (options?.sources?.length) {
-      conditions.push(or(...options.sources.map(s => sql`${newsletterContacts.metadata}->>'source' = ${s}`))!)
-    }
-    if (options?.statuses?.length) {
-      conditions.push(inArray(newsletterContacts.status, options.statuses))
-    }
-    if (options?.createdAfter) {
-      conditions.push(gte(newsletterContacts.createdAt, new Date(options.createdAfter)))
-    }
-    if (options?.createdBefore) {
-      conditions.push(lte(newsletterContacts.createdAt, new Date(options.createdBefore)))
-    }
-    if (options?.engagedAfter) {
-      conditions.push(gte(newsletterContacts.lastEngagedAt, new Date(options.engagedAfter)))
-    }
-    if (options?.engagedBefore) {
-      conditions.push(lte(newsletterContacts.lastEngagedAt, new Date(options.engagedBefore)))
-    }
-
-    const whereClause = and(...conditions)
+    const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
+    const whereClause = buildContactFilterWhere(siteId, normalizedGroup)
 
     const [contactsResult, countResult, statsResult] = await Promise.all([
       db

@@ -7,8 +7,6 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
-import type { DateRange } from "react-day-picker"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -23,10 +21,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar as CalendarPicker } from "@/components/ui/calendar"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
 import Link from "next/link"
+import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import {
   getContactsWithStats,
@@ -41,6 +49,90 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteContext } from "@/contexts/site-context"
+import {
+  cloneContactFilterGroup,
+  type ContactDataField,
+  type ContactDataFieldOperator,
+  CONTACT_DATA_FIELD_OPERATOR_OPTIONS,
+  CONTACT_DATA_FIELD_OPTIONS,
+  CONTACT_FILTER_TYPE_OPTIONS,
+  CONTACT_RELATIVE_DAY_OPTIONS,
+  CONTACT_SOURCE_OPTIONS,
+  CONTACT_STATUS_OPTIONS,
+  createContactFilterRule,
+  emptyContactFilterGroup,
+  formatContactFilterRule,
+  getContactFilterTypeLabel,
+  pruneContactFilterGroup,
+  type ContactFilterGroup,
+  type ContactFilterRule,
+  type ContactFilterType,
+} from "@/lib/newsletters/contact-filters"
+
+function makeFilterRuleId() {
+  return `filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function toCalendarDate(value: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
+function fromCalendarDate(value: Date | undefined) {
+  return value
+    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
+    : null
+}
+
+function formatDatePickerLabel(value: string | null, placeholder: string) {
+  const date = toCalendarDate(value)
+  return date ? format(date, "MMM d, yyyy") : placeholder
+}
+
+function normalizeDataFieldInputValue(value: string) {
+  return value.trim()
+}
+
+function buildPendingDataFieldInputs(group: ContactFilterGroup) {
+  return group.rules.reduce<Record<string, string>>((acc, rule) => {
+    if (rule.type === "dataField") {
+      acc[rule.id] = rule.value
+    }
+    return acc
+  }, {})
+}
+
+function isDateRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'lastEngaged' | 'dateAdded' }> {
+  return rule.type === "lastEngaged" || rule.type === "dateAdded"
+}
+
+function isValueRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'status' | 'source' }> {
+  return rule.type === "status" || rule.type === "source"
+}
+
+function shouldShowDataFieldValueInput(
+  operator: ContactDataFieldOperator
+) {
+  return operator !== "isEmpty" && operator !== "isNotEmpty"
+}
+
+function buildNormalizedFilterGroup(
+  group: ContactFilterGroup,
+  dataFieldInputs: Record<string, string>
+) {
+  return pruneContactFilterGroup({
+    ...cloneContactFilterGroup(group),
+    rules: group.rules.map((rule) => {
+      if (rule.type !== "dataField") return rule
+      return {
+        ...rule,
+        value: normalizeDataFieldInputValue(dataFieldInputs[rule.id] ?? rule.value),
+      }
+    }),
+  })
+}
 
 export default function ContactsPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteContext()
@@ -89,21 +181,11 @@ export default function ContactsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Filter state
-  interface ContactFilters {
-    sources: string[]
-    statuses: string[]
-    createdAfter: string | null
-    createdBefore: string | null
-    engagedAfter: string | null
-    engagedBefore: string | null
-  }
-  const emptyFilters: ContactFilters = { sources: [], statuses: [], createdAfter: null, createdBefore: null, engagedAfter: null, engagedBefore: null }
-  const [filters, setFilters] = useState<ContactFilters>(emptyFilters)
-  const [pendingFilters, setPendingFilters] = useState<ContactFilters>(emptyFilters)
+  const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
+  const [pendingFilters, setPendingFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
+  const [pendingDataFieldInputs, setPendingDataFieldInputs] = useState<Record<string, string>>({})
+  const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
-  const [dateFilterType, setDateFilterType] = useState<"created" | "engaged">("created")
-  const [calendarRange, setCalendarRange] = useState<DateRange | undefined>()
-  const [activePreset, setActivePreset] = useState<number | string | null>(null)
 
   useEffect(() => {
     loadContacts()
@@ -114,6 +196,36 @@ export default function ContactsPage() {
       getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
     }
   }, [currentSite?.id])
+
+  useEffect(() => {
+    if (!filterModalOpen || !currentSite?.id) {
+      setPendingFilteredTotal(0)
+      return
+    }
+
+    const previewFilters = buildNormalizedFilterGroup(pendingFilters, pendingDataFieldInputs)
+    if (!previewFilters.rules.length) {
+      setPendingFilteredTotal(0)
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(async () => {
+      const result = await getContactsWithStats(currentSite.id, {
+        filterGroup: previewFilters,
+        page: 1,
+        pageSize,
+      })
+
+      if (cancelled) return
+      setPendingFilteredTotal(result.error ? 0 : result.total)
+    }, 200)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentSite?.id, filterModalOpen, pageSize, pendingFilters, pendingDataFieldInputs])
 
   async function loadContacts() {
     if (!currentSite?.id) {
@@ -127,12 +239,7 @@ export default function ContactsPage() {
       setError(null)
 
       const result = await getContactsWithStats(currentSite.id, {
-        sources: filters.sources.length ? filters.sources : undefined,
-        statuses: filters.statuses.length ? filters.statuses : undefined,
-        createdAfter: filters.createdAfter || undefined,
-        createdBefore: filters.createdBefore || undefined,
-        engagedAfter: filters.engagedAfter || undefined,
-        engagedBefore: filters.engagedBefore || undefined,
+        filterGroup: filters.rules.length ? filters : undefined,
         page: currentPage,
         pageSize,
       })
@@ -223,12 +330,7 @@ export default function ContactsPage() {
   const handleSelectAll = async () => {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getContactIdsAction(currentSite.id, {
-      sources: filters.sources.length ? filters.sources : undefined,
-      statuses: filters.statuses.length ? filters.statuses : undefined,
-      createdAfter: filters.createdAfter || undefined,
-      createdBefore: filters.createdBefore || undefined,
-      engagedAfter: filters.engagedAfter || undefined,
-      engagedBefore: filters.engagedBefore || undefined,
+      filterGroup: filters.rules.length ? filters : undefined,
     })
     if (ids) {
       setSelectedIds(new Set(ids))
@@ -585,125 +687,142 @@ export default function ContactsPage() {
     return `${months}mo ago`
   }
 
-  const activeFilterCount =
-    filters.sources.length +
-    filters.statuses.length +
-    (filters.createdAfter || filters.createdBefore ? 1 : 0) +
-    (filters.engagedAfter || filters.engagedBefore ? 1 : 0)
-
-  const SOURCE_OPTIONS = [
-    { value: "lead_magnet", label: "Lead Magnet" },
-    { value: "paid_purchase", label: "Purchase" },
-    { value: "import", label: "Import" },
-    { value: "manual", label: "Manual" },
-  ]
-
-  const STATUS_OPTIONS = [
-    { value: "active", label: "Active" },
-    { value: "unsubscribed", label: "Unsubscribed" },
-    { value: "bounced", label: "Bounced" },
-    { value: "complained", label: "Complained" },
-  ]
-
-  const DATE_PRESETS: { label: string; value: number | "ytd" }[] = [
-    { label: "Today", value: 0 },
-    { label: "Last 7 days", value: 7 },
-    { label: "Last 30 days", value: 30 },
-    { label: "Last 90 days", value: 90 },
-    { label: "YTD", value: "ytd" },
-    { label: "Last year", value: 365 },
-  ]
-
-  function applyDatePreset(value: number | "ytd") {
-    const now = new Date()
-    const from = value === "ytd"
-      ? new Date(now.getFullYear(), 0, 1)
-      : value === 0
-        ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        : new Date(now.getTime() - value * 24 * 60 * 60 * 1000)
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-    setCalendarRange({ from, to })
-    setActivePreset(value)
-    if (dateFilterType === "created") {
-      setPendingFilters(prev => ({ ...prev, createdAfter: from.toISOString(), createdBefore: to.toISOString() }))
-    } else {
-      setPendingFilters(prev => ({ ...prev, engagedAfter: from.toISOString(), engagedBefore: to.toISOString() }))
-    }
-  }
-
-  function switchDateFilterType(type: "created" | "engaged") {
-    setDateFilterType(type)
-    // Clear the other type's values and sync calendar to the selected type
-    if (type === "created") {
-      setPendingFilters(prev => ({ ...prev, engagedAfter: null, engagedBefore: null }))
-      setCalendarRange(
-        pendingFilters.createdAfter || pendingFilters.createdBefore
-          ? { from: pendingFilters.createdAfter ? new Date(pendingFilters.createdAfter) : undefined, to: pendingFilters.createdBefore ? new Date(pendingFilters.createdBefore) : undefined }
-          : undefined
-      )
-    } else {
-      setPendingFilters(prev => ({ ...prev, createdAfter: null, createdBefore: null }))
-      setCalendarRange(
-        pendingFilters.engagedAfter || pendingFilters.engagedBefore
-          ? { from: pendingFilters.engagedAfter ? new Date(pendingFilters.engagedAfter) : undefined, to: pendingFilters.engagedBefore ? new Date(pendingFilters.engagedBefore) : undefined }
-          : undefined
-      )
-    }
-  }
-
-  function getDateChipLabel(after: string | null, before: string | null, prefix: string): string {
-    if (!after && !before) return ""
-    const fromDate = after ? new Date(after) : null
-    const toDate = before ? new Date(before) : null
-    // Check if matches a preset
-    if (fromDate && toDate) {
-      const now = new Date()
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const diffMs = todayStart.getTime() - fromDate.getTime()
-      const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000))
-      if (diffDays === 0) return `${prefix}: Today`
-      if (diffDays === 7) return `${prefix}: Last 7 days`
-      if (diffDays === 30) return `${prefix}: Last 30 days`
-      if (diffDays === 90) return `${prefix}: Last 90 days`
-      if (diffDays === 365) return `${prefix}: Last year`
-      // Check YTD: from is Jan 1 of current year
-      const jan1 = new Date(now.getFullYear(), 0, 1)
-      if (fromDate.getTime() === jan1.getTime()) return `${prefix}: YTD`
-    }
-    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-    if (fromDate && toDate) return `${prefix}: ${fmt(fromDate)} - ${fmt(toDate)}`
-    if (fromDate) return `${prefix}: After ${fmt(fromDate)}`
-    if (toDate) return `${prefix}: Before ${fmt(toDate)}`
-    return ""
-  }
-
-  function removeFilter(type: string, value?: string) {
-    setFilters(prev => {
-      const next = { ...prev }
-      if (type === "source" && value) next.sources = prev.sources.filter(s => s !== value)
-      if (type === "status" && value) next.statuses = prev.statuses.filter(s => s !== value)
-      if (type === "created") { next.createdAfter = null; next.createdBefore = null }
-      if (type === "engaged") { next.engagedAfter = null; next.engagedBefore = null }
-      return next
-    })
+  const activeFilterCount = filters.rules.length
+  function resetSelectionForFilteredView() {
     setCurrentPage(1)
     setSelectedIds(new Set())
     setAllSelected(false)
+  }
+
+  function openFilterModal() {
+    const clonedFilters = cloneContactFilterGroup(filters)
+    setPendingFilters(clonedFilters)
+    setPendingDataFieldInputs(buildPendingDataFieldInputs(clonedFilters))
+    setPendingFilteredTotal(clonedFilters.rules.length ? total : 0)
+    setFilterModalOpen(true)
+  }
+
+  function addPendingFilter(type: ContactFilterType) {
+    const rule = createContactFilterRule(makeFilterRuleId(), type)
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: [...prev.rules, rule],
+    }))
+    if (type === "dataField") {
+      setPendingDataFieldInputs((prev) => ({ ...prev, [rule.id]: "" }))
+    }
+  }
+
+  function updatePendingRule(ruleId: string, updater: (rule: ContactFilterRule) => ContactFilterRule) {
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.map((rule) => (rule.id === ruleId ? updater(rule) : rule)),
+    }))
+  }
+
+  function removePendingRule(ruleId: string) {
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+    }))
+    setPendingDataFieldInputs((prev) => {
+      if (!(ruleId in prev)) return prev
+      const next = { ...prev }
+      delete next[ruleId]
+      return next
+    })
+  }
+
+  function removeAppliedRule(ruleId: string) {
+    setFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+    }))
+    resetSelectionForFilteredView()
+  }
+
+  function togglePendingValue(ruleId: string, value: string) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isValueRule(rule)) return rule
+      return {
+        ...rule,
+        value: rule.value.includes(value)
+          ? rule.value.filter((item) => item !== value)
+          : [...rule.value, value],
+      }
+    })
+  }
+
+  function updatePendingDataFieldOperator(
+    ruleId: string,
+    operator: ContactDataFieldOperator
+  ) {
+    updatePendingRule(ruleId, (rule) => {
+      if (rule.type !== "dataField") return rule
+      return { ...rule, operator }
+    })
+  }
+
+  function updatePendingDataFieldField(ruleId: string, field: ContactDataField) {
+    updatePendingRule(ruleId, (rule) => {
+      if (rule.type !== "dataField") return rule
+      return { ...rule, field }
+    })
+  }
+
+  function updatePendingDataFieldValues(ruleId: string, inputValue: string) {
+    setPendingDataFieldInputs((prev) => ({ ...prev, [ruleId]: inputValue }))
+  }
+
+  function updatePendingDateOperator(ruleId: string, operator: "is" | "isnt") {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      return { ...rule, operator }
+    })
+  }
+
+  function updatePendingDateValue(ruleId: string, nextValue: string) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      if (nextValue === "custom") {
+        return {
+          ...rule,
+          value: { mode: "range", from: null, to: null },
+        }
+      }
+
+      const days = Number(nextValue) as 7 | 30 | 60 | 90
+      return {
+        ...rule,
+        value: { mode: "relative", days },
+      }
+    })
+  }
+
+  function updatePendingDateRange(ruleId: string, boundary: "from" | "to", selectedDate: Date | undefined) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      const currentRange = rule.value.mode === "range" ? rule.value : { mode: "range" as const, from: null, to: null }
+      return {
+        ...rule,
+        value: {
+          ...currentRange,
+          [boundary]: fromCalendarDate(selectedDate),
+        },
+      }
+    })
   }
 
   function clearAllFilters() {
-    setFilters(emptyFilters)
-    setCurrentPage(1)
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    setFilters(emptyContactFilterGroup())
+    resetSelectionForFilteredView()
   }
 
   function applyFilters() {
-    setFilters(pendingFilters)
+    const nextFilters = buildNormalizedFilterGroup(pendingFilters, pendingDataFieldInputs)
+    setFilters(nextFilters)
     setFilterModalOpen(false)
-    setCurrentPage(1)
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    resetSelectionForFilteredView()
   }
 
   return (
@@ -779,16 +898,7 @@ export default function ContactsPage() {
                 <Button
                   variant="outline"
                   className="relative"
-                  onClick={() => {
-                    setPendingFilters(filters)
-                    setDateFilterType("created")
-                    setCalendarRange(
-                      filters.createdAfter || filters.createdBefore
-                        ? { from: filters.createdAfter ? new Date(filters.createdAfter) : undefined, to: filters.createdBefore ? new Date(filters.createdBefore) : undefined }
-                        : undefined
-                    )
-                    setFilterModalOpen(true)
-                  }}
+                  onClick={openFilterModal}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>
@@ -817,32 +927,19 @@ export default function ContactsPage() {
             {/* Active filter chips */}
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap items-center gap-2 px-6 py-4 border-b">
-                {filters.sources.map(s => (
-                  <Badge key={`src-${s}`} variant="secondary" className="gap-1 pr-1">
-                    Source: {SOURCE_OPTIONS.find(o => o.value === s)?.label || s}
-                    <button type="button" onClick={() => removeFilter("source", s)} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
+                <Badge variant="outline" className="font-medium">
+                  Matching {filters.match === "all" ? "all" : "any"}
+                </Badge>
+                {filters.rules.map((rule) => (
+                  <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
+                    {formatContactFilterRule(rule)}
+                    <button type="button" onClick={() => removeAppliedRule(rule.id)} className="ml-1 hover:bg-muted rounded-full p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
                   </Badge>
                 ))}
-                {filters.statuses.map(s => (
-                  <Badge key={`st-${s}`} variant="secondary" className="gap-1 pr-1">
-                    Status: {STATUS_OPTIONS.find(o => o.value === s)?.label || s}
-                    <button type="button" onClick={() => removeFilter("status", s)} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
-                  </Badge>
-                ))}
-                {(filters.createdAfter || filters.createdBefore) && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    {getDateChipLabel(filters.createdAfter, filters.createdBefore, "Added")}
-                    <button type="button" onClick={() => removeFilter("created")} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
-                  </Badge>
-                )}
-                {(filters.engagedAfter || filters.engagedBefore) && (
-                  <Badge variant="secondary" className="gap-1 pr-1">
-                    {getDateChipLabel(filters.engagedAfter, filters.engagedBefore, "Last Active")}
-                    <button type="button" onClick={() => removeFilter("engaged")} className="ml-1 hover:bg-muted rounded-full p-0.5"><X className="h-3 w-3" /></button>
-                  </Badge>
-                )}
                 <button type="button" onClick={clearAllFilters} className="text-sm text-muted-foreground hover:text-foreground underline">
-                  Clear all
+                  Clear all ({total})
                 </button>
               </div>
             )}
@@ -1077,112 +1174,242 @@ export default function ContactsPage() {
                 <DialogTitle>Filter Contacts</DialogTitle>
               </DialogHeader>
               <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-6">
-                {/* Source */}
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Source</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SOURCE_OPTIONS.map(opt => (
-                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          checked={pendingFilters.sources.includes(opt.value)}
-                          onCheckedChange={(checked) => {
-                            setPendingFilters(prev => ({
-                              ...prev,
-                              sources: checked
-                                ? [...prev.sources, opt.value]
-                                : prev.sources.filter(s => s !== opt.value),
-                            }))
-                          }}
-                        />
-                        <span className="text-sm">{opt.label}</span>
-                      </label>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-3 text-sm font-medium">
+                  <span>Matching</span>
+                  <Tabs
+                    value={pendingFilters.match}
+                    onValueChange={(match) => {
+                      if (match === "all" || match === "any") {
+                        setPendingFilters((prev) => ({ ...prev, match }))
+                      }
+                    }}
+                  >
+                    <TabsList className="h-11 rounded-lg bg-muted/70 p-1">
+                      <TabsTrigger value="all" className="rounded-md px-4 py-2">
+                        all
+                      </TabsTrigger>
+                      <TabsTrigger value="any" className="rounded-md px-4 py-2">
+                        any
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <span>of these:</span>
                 </div>
 
-                {/* Status */}
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Status</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {STATUS_OPTIONS.map(opt => (
-                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          checked={pendingFilters.statuses.includes(opt.value)}
-                          onCheckedChange={(checked) => {
-                            setPendingFilters(prev => ({
-                              ...prev,
-                              statuses: checked
-                                ? [...prev.statuses, opt.value]
-                                : prev.statuses.filter(s => s !== opt.value),
-                            }))
-                          }}
-                        />
-                        <span className="text-sm">{opt.label}</span>
-                      </label>
-                    ))}
+                {pendingFilters.rules.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    No filters added yet.
                   </div>
-                </div>
-
-                {/* Date Range — single calendar with radio selection */}
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Filter Type</Label>
-                  <div className="grid grid-cols-2 gap-2 mb-8">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        checked={dateFilterType === "created"}
-                        onCheckedChange={() => switchDateFilterType("created")}
-                      />
-                      <span className="text-sm">Date Added</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        checked={dateFilterType === "engaged"}
-                        onCheckedChange={() => switchDateFilterType("engaged")}
-                      />
-                      <span className="text-sm">Last Active</span>
-                    </label>
-                  </div>
-                  {/* Presets */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {DATE_PRESETS.map(preset => {
-                      const isActive = activePreset === preset.value
-                      return (
-                        <Button
-                          key={preset.label}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "text-xs",
-                            isActive && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-                          )}
-                          onClick={() => applyDatePreset(preset.value)}
-                        >
-                          {preset.label}
+                ) : (
+                  pendingFilters.rules.map((rule) => (
+                    <div key={rule.id} className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-medium">{getContactFilterTypeLabel(rule.type)}</h3>
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removePendingRule(rule.id)}>
+                          <X className="h-4 w-4" />
                         </Button>
-                      )
-                    })}
-                  </div>
-                  <div>
-                    <Calendar
-                      mode="range"
-                      numberOfMonths={2}
-                      defaultMonth={calendarRange?.from || undefined}
-                      key={calendarRange?.from?.toISOString() || "empty"}
-                      selected={calendarRange}
-                      onSelect={(range) => {
-                        setCalendarRange(range)
-                        setActivePreset(null)
-                        const afterISO = range?.from ? range.from.toISOString() : null
-                        const beforeISO = range?.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59, 999).toISOString() : null
-                        if (dateFilterType === "created") {
-                          setPendingFilters(prev => ({ ...prev, createdAfter: afterISO, createdBefore: beforeISO }))
-                        } else {
-                          setPendingFilters(prev => ({ ...prev, engagedAfter: afterISO, engagedBefore: beforeISO }))
-                        }
-                      }}
-                    />
-                  </div>
+                      </div>
+
+                      {rule.type === "status" && (
+                        <div className="flex flex-wrap gap-3">
+                          {CONTACT_STATUS_OPTIONS.map((option) => {
+                            const isActive = rule.value.includes(option.value)
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => togglePendingValue(rule.id, option.value)}
+                                className={cn(
+                                  "rounded-full border px-5 py-3 text-sm transition-colors",
+                                  isActive
+                                    ? "border-foreground text-foreground shadow-sm"
+                                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {option.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {rule.type === "source" && (
+                        <div className="flex flex-wrap gap-3">
+                          {CONTACT_SOURCE_OPTIONS.map((option) => {
+                            const isActive = rule.value.includes(option.value)
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => togglePendingValue(rule.id, option.value)}
+                                className={cn(
+                                  "rounded-full border px-5 py-3 text-sm transition-colors",
+                                  isActive
+                                    ? "border-foreground text-foreground shadow-sm"
+                                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {option.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {rule.type === "dataField" && (
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Select value={rule.field} onValueChange={(value: ContactDataField) => updatePendingDataFieldField(rule.id, value)}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_DATA_FIELD_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={rule.operator}
+                              onValueChange={(value: ContactDataFieldOperator) =>
+                                updatePendingDataFieldOperator(rule.id, value)
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_DATA_FIELD_OPERATOR_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {shouldShowDataFieldValueInput(rule.operator) && (
+                            <Input
+                              value={pendingDataFieldInputs[rule.id] ?? rule.value}
+                              onChange={(event) => updatePendingDataFieldValues(rule.id, event.target.value)}
+                              placeholder="Type any value"
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {isDateRule(rule) && (
+                        <div className="space-y-3">
+                          <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                            <Select value={rule.operator} onValueChange={(value: "is" | "isnt") => updatePendingDateOperator(rule.id, value)}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="is">Is</SelectItem>
+                                <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={rule.value.mode === "relative" ? String(rule.value.days) : "custom"}
+                              onValueChange={(value) => updatePendingDateValue(rule.id, value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_RELATIVE_DAY_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={String(option.value)}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="custom">Custom range</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {rule.value.mode === "range" && (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      id={`${rule.id}-from`}
+                                      type="button"
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full justify-between font-normal",
+                                        !rule.value.from && "text-muted-foreground"
+                                      )}
+                                    >
+                                      {formatDatePickerLabel(rule.value.from, "Pick a start date")}
+                                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarPicker
+                                      mode="single"
+                                      selected={toCalendarDate(rule.value.from)}
+                                      onSelect={(date) => updatePendingDateRange(rule.id, "from", date)}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      id={`${rule.id}-to`}
+                                      type="button"
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full justify-between font-normal",
+                                        !rule.value.to && "text-muted-foreground"
+                                      )}
+                                    >
+                                      {formatDatePickerLabel(rule.value.to, "Pick an end date")}
+                                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarPicker
+                                      mode="single"
+                                      selected={toCalendarDate(rule.value.to)}
+                                      onSelect={(date) => updatePendingDateRange(rule.id, "to", date)}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                <div className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline">
+                        Add filter
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {CONTACT_FILTER_TYPE_OPTIONS.map((option) => (
+                        <DropdownMenuItem key={option.value} onSelect={() => addPendingFilter(option.value)}>
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
@@ -1192,11 +1419,12 @@ export default function ContactsPage() {
                   type="button"
                   variant="ghost"
                   onClick={() => {
-                    setPendingFilters(emptyFilters)
-                    setCalendarRange(undefined)
+                    setPendingFilters(emptyContactFilterGroup())
+                    setPendingDataFieldInputs({})
+                    setPendingFilteredTotal(0)
                   }}
                 >
-                  Reset
+                  Clear all ({pendingFilteredTotal})
                 </Button>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={() => setFilterModalOpen(false)}>
