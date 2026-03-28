@@ -2,8 +2,9 @@
 
 import { eq, and, sql, desc, inArray, or, ilike } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites } from '@/lib/db/schema'
+import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { findActiveAutomations } from './automation-actions'
 
 export interface Segment {
   id: string
@@ -340,7 +341,31 @@ export async function addContactsToSegment(
       .insert(newsletterSegmentContacts)
       .values(values)
       .onConflictDoNothing()
-      .returning({ id: newsletterSegmentContacts.id })
+      .returning({ contactId: newsletterSegmentContacts.contactId })
+
+    if (result.length > 0) {
+      const automations = await findActiveAutomations(segment.siteId, 'segment_added', segmentId)
+
+      if (automations.length > 0) {
+        const enrollmentValues = automations.flatMap(automation =>
+          result.map(entry => ({
+            automationId: automation.id,
+            contactId: entry.contactId,
+            metadata: {
+              source: 'segment_added',
+              segment_id: segmentId,
+            },
+          }))
+        )
+
+        if (enrollmentValues.length > 0) {
+          await db
+            .insert(emailAutomationEnrollments)
+            .values(enrollmentValues)
+            .onConflictDoNothing()
+        }
+      }
+    }
 
     return { added: result.length, error: null }
   } catch (err) {

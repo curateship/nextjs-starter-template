@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,19 @@ import {
   reorderSteps,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
-import { Plus, Trash2, Clock, Zap, Mail, Layers } from "lucide-react"
+import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
+import type { Product } from "@/lib/actions/products/product-actions"
+import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
+import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import {
+  getAutomationTriggerNodes,
+  isAutomationTriggerConfigured,
+  serializeAutomationTriggerNodes,
+  type AutomationTriggerNode,
+  type AutomationTriggerType,
+} from "@/lib/newsletters/automation-triggers"
+import { cn } from "@/lib/utils"
+import { Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -47,11 +60,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-
-  // Add node picker
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [loadingSegments, setLoadingSegments] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [triggerNodes, setTriggerNodes] = useState<AutomationTriggerNode[]>([])
+  const [selectedTriggerIndex, setSelectedTriggerIndex] = useState(0)
+  const [triggerEditorOpen, setTriggerEditorOpen] = useState(false)
+  const [editingTriggerIndex, setEditingTriggerIndex] = useState<number | null>(null)
+  const [draftTriggerType, setDraftTriggerType] = useState<AutomationTriggerType>("none")
+  const [draftSegmentId, setDraftSegmentId] = useState("")
+  const [draftProductId, setDraftProductId] = useState("")
+  const [savingTrigger, setSavingTrigger] = useState(false)
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null)
-
-  // Edit delay node
   const [editingDelay, setEditingDelay] = useState<AutomationStep | null>(null)
   const [delayType, setDelayType] = useState("amount_of_time")
   const [delayValue, setDelayValue] = useState("1")
@@ -60,72 +81,152 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayTime, setDelayTime] = useState("09:00")
   const [delayDate, setDelayDate] = useState("")
   const [savingNode, setSavingNode] = useState(false)
-
-  // Pending insert state
-  const [pendingNodeType, setPendingNodeType] = useState<'email' | 'delay' | null>(null)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
 
-  useEffect(() => { loadAutomation() }, [automationId])
+  useEffect(() => {
+    let cancelled = false
 
-  async function loadAutomation() {
-    setLoading(true)
-    const { data, steps, error } = await getAutomationById(automationId)
-    if (error || !data) { setError(error || "Not found"); setLoading(false); return }
-    setAutomation(data)
-    setNodes(steps || [])
-    setLoading(false)
+    async function loadAutomation() {
+      setLoading(true)
+      const { data, steps, error } = await getAutomationById(automationId)
+
+      if (cancelled) return
+
+      if (error || !data) {
+        setError(error || "Not found")
+        setLoading(false)
+        return
+      }
+
+      setAutomation(data)
+      setTriggerNodes(getAutomationTriggerNodes(data.trigger_type, data.trigger_config))
+      setSelectedTriggerIndex(0)
+      setNodes(steps || [])
+      setLoading(false)
+    }
+
+    loadAutomation()
+
+    return () => {
+      cancelled = true
+    }
+  }, [automationId])
+
+  useEffect(() => {
+    if (!automation?.site_id) {
+      setSegments([])
+      setLoadingSegments(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadSegments() {
+      setLoadingSegments(true)
+      const { data } = await getSegmentsBySite(automation.site_id, { page: 1, pageSize: 100 })
+      if (cancelled) return
+      setSegments(data || [])
+      setLoadingSegments(false)
+    }
+
+    loadSegments()
+
+    return () => {
+      cancelled = true
+    }
+  }, [automation?.site_id])
+
+  useEffect(() => {
+    if (!automation?.site_id) {
+      setProducts([])
+      setLoadingProducts(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadProducts() {
+      setLoadingProducts(true)
+      const { data } = await getSiteProductsAction(automation.site_id, { page: 1, pageSize: 100 })
+      if (cancelled) return
+      setProducts(data || [])
+      setLoadingProducts(false)
+    }
+
+    loadProducts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [automation?.site_id])
+
+  const configuredTriggerNodes = triggerNodes.filter(node => isAutomationTriggerConfigured(node.type, node.config))
+  const triggerConfigured = configuredTriggerNodes.length > 0
+  const displayedTriggerNodes = triggerNodes.length ? triggerNodes : [{ type: "none", config: {} }]
+  const leadMagnetProducts = products.filter(product => Boolean(product.content_blocks?.["product-lead-magnet"]))
+  const purchaseProducts = products.filter(product => Boolean(product.content_blocks?.["product-checkout"]))
+  const productTriggerOptions = draftTriggerType === "lead_magnet_signup" ? leadMagnetProducts : purchaseProducts
+  const productTriggerLabel = draftTriggerType === "lead_magnet_signup" ? "Lead magnet" : "Product"
+  const centerAxisStyle = { transform: "translateX(1.5px)" }
+
+  const flash = (message: string) => {
+    setSaveMessage(message)
+    setTimeout(() => setSaveMessage(null), 3000)
   }
 
   const handleStatusToggle = async () => {
     if (!automation) return
+
     setSaving(true)
-    const newStatus = automation.status === 'active' ? 'paused' : 'active'
-    const { data } = await updateAutomation(automation.id, { status: newStatus })
+    const newStatus = automation.status === "active" ? "paused" : "active"
+    const { data, error } = await updateAutomation(automation.id, { status: newStatus })
+
+    if (error) setError(error)
     if (data) setAutomation(data)
+
     setSaving(false)
   }
 
-  const handleAddNode = async (nodeType: 'email' | 'delay', afterIndex: number) => {
+  const handleAddNode = async (nodeType: "email" | "delay", afterIndex: number) => {
     setAddAfterIndex(null)
     setPendingInsertIndex(afterIndex)
 
-    if (nodeType === 'email') {
-      // Create email node and navigate to editor
+    if (nodeType === "email") {
       if (!automation) return
+
       const tempOrder = 99999 + Math.floor(Math.random() * 1000)
       const { data, error: createError } = await createStep({
         automationId: automation.id,
         stepOrder: tempOrder,
-        nodeType: 'email',
-        subject: 'New Email',
+        nodeType: "email",
+        subject: "New Email",
       })
+
       if (createError || !data) {
-        setError(createError || 'Failed to create node')
+        setError(createError || "Failed to create node")
         return
       }
-      // Insert at position and reorder
+
       const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
       const newOrder = [...sorted.slice(0, afterIndex), data, ...sorted.slice(afterIndex)]
-      await reorderSteps(automation.id, newOrder.map(n => n.id))
-      // Navigate to email editor
+      await reorderSteps(automation.id, newOrder.map(node => node.id))
       router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
-    } else {
-      setPendingNodeType('delay')
-      setEditingDelay(null)
-      setDelayType('amount_of_time')
-      setDelayValue('1')
-      setDelayUnit('days')
-      setDelayDay('1')
-      setDelayTime('09:00')
-      setDelayDate('')
-      setEditingDelay({ id: '__new__' } as AutomationStep)
+      return
     }
+
+    setEditingDelay({ id: "__new__" } as AutomationStep)
+    setDelayType("amount_of_time")
+    setDelayValue("1")
+    setDelayUnit("days")
+    setDelayDay("1")
+    setDelayTime("09:00")
+    setDelayDate("")
   }
 
-  const createAndInsertNode = async (nodeType: 'email' | 'delay', nodeData: Partial<AutomationStep>) => {
+  const createAndInsertNode = async (nodeType: "email" | "delay", nodeData: Partial<AutomationStep>) => {
     if (!automation) return null
-    const tempOrder = 99999 + Math.floor(Math.random() * 1000)
 
+    const tempOrder = 99999 + Math.floor(Math.random() * 1000)
     const { data, error: createError } = await createStep({
       automationId: automation.id,
       stepOrder: tempOrder,
@@ -137,56 +238,55 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     })
 
     if (createError || !data) {
-      setError(createError || 'Failed to create node')
+      setError(createError || "Failed to create node")
       return null
     }
 
-    // Insert at position and reorder
     const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
     const newOrder = [...sorted.slice(0, pendingInsertIndex), data, ...sorted.slice(pendingInsertIndex)]
     setNodes(newOrder)
-    await reorderSteps(automation.id, newOrder.map(n => n.id))
+    await reorderSteps(automation.id, newOrder.map(node => node.id))
 
     return data
   }
 
-  // --- Delay Editor ---
   const openDelayEditor = (node: AutomationStep) => {
     setEditingDelay(node)
-    const cfg = node.node_config || {}
-    setDelayType(cfg.delay_type || "amount_of_time")
-    setDelayValue(String(cfg.delay_value || 1))
-    setDelayUnit(cfg.delay_unit || "days")
-    setDelayDay(String(cfg.day ?? 1))
-    setDelayTime(cfg.time || "09:00")
-    setDelayDate(cfg.date || "")
+    const config = node.node_config || {}
+    setDelayType(config.delay_type || "amount_of_time")
+    setDelayValue(String(config.delay_value || 1))
+    setDelayUnit(config.delay_unit || "days")
+    setDelayDay(String(config.day ?? 1))
+    setDelayTime(config.time || "09:00")
+    setDelayDate(config.date || "")
   }
 
   const saveDelayNode = async () => {
     if (!editingDelay) return
+
     setSavingNode(true)
 
     const config: Record<string, any> = { delay_type: delayType }
     let minutes = 0
 
-    if (delayType === 'amount_of_time') {
-      const val = parseInt(delayValue) || 1
-      config.delay_value = val
+    if (delayType === "amount_of_time") {
+      const value = parseInt(delayValue) || 1
+      config.delay_value = value
       config.delay_unit = delayUnit
-      minutes = delayUnit === 'days' ? val * 1440 : delayUnit === 'hours' ? val * 60 : val
-    } else if (delayType === 'day_of_week') {
+      minutes = delayUnit === "days" ? value * 1440 : delayUnit === "hours" ? value * 60 : value
+    } else if (delayType === "day_of_week") {
       config.day = parseInt(delayDay)
       minutes = 1440
-    } else if (delayType === 'time_of_day') {
+    } else if (delayType === "time_of_day") {
       config.time = delayTime
       minutes = 60
-    } else if (delayType === 'specific_date') {
+    } else if (delayType === "specific_date") {
       config.date = delayDate
       minutes = 1440
     }
 
-    if (editingDelay.id === '__new__') {
-      const data = await createAndInsertNode('delay', {
+    if (editingDelay.id === "__new__") {
+      const data = await createAndInsertNode("delay", {
         node_config: config,
         delay_minutes: minutes,
       })
@@ -196,43 +296,158 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         node_config: config,
         delay_minutes: minutes,
       })
+
+      if (error) setError(error)
       if (data) {
-        setNodes(prev => prev.map(n => n.id === data.id ? data : n))
+        setNodes(prev => prev.map(node => node.id === data.id ? data : node))
         flash("Saved")
       }
-      if (error) setError(error)
     }
 
     setEditingDelay(null)
-    setPendingNodeType(null)
     setSavingNode(false)
   }
 
   const handleDeleteNode = async (nodeId: string) => {
     const { success } = await deleteStep(nodeId)
-    if (success) {
-      setNodes(prev => prev.filter(n => n.id !== nodeId))
-      if (editingDelay?.id === nodeId) setEditingDelay(null)
-    }
+    if (!success) return
+
+    setNodes(prev => prev.filter(node => node.id !== nodeId))
+    if (editingDelay?.id === nodeId) setEditingDelay(null)
   }
 
-  const flash = (msg: string) => { setSaveMessage(msg); setTimeout(() => setSaveMessage(null), 3000) }
+  const openTriggerEditor = (index: number) => {
+    const triggerNode = displayedTriggerNodes[index] ?? { type: "none" as const, config: {} }
+    setSelectedTriggerIndex(index)
+    setEditingTriggerIndex(index)
+    setDraftTriggerType(triggerNode.type)
+    setDraftSegmentId(typeof triggerNode.config?.segment_id === "string" ? triggerNode.config.segment_id : "")
+    setDraftProductId(typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : "")
+    setTriggerEditorOpen(true)
+  }
+
+  const buildTriggerConfig = (triggerType: AutomationTriggerType) => {
+    if (triggerType === "segment_added") {
+      return { segment_id: draftSegmentId }
+    }
+
+    if (triggerType === "lead_magnet_signup" || triggerType === "paid_purchase") {
+      return { product_id: draftProductId }
+    }
+
+    return {}
+  }
+
+  const persistTriggerNodes = async (nextTriggerNodes: AutomationTriggerNode[]) => {
+    if (!automation) return null
+
+    const serializedTriggers = serializeAutomationTriggerNodes(nextTriggerNodes)
+    const { data, error } = await updateAutomation(automation.id, {
+      ...(serializedTriggers.triggerType === "none" && automation.status === "active" ? { status: "draft" } : {}),
+      trigger_type: serializedTriggers.triggerType,
+      trigger_config: serializedTriggers.triggerConfig,
+    })
+
+    if (error) {
+      setError(error)
+      return null
+    }
+
+    if (!data) return null
+
+    const nextPersistedNodes = getAutomationTriggerNodes(data.trigger_type, data.trigger_config)
+    setAutomation(data)
+    setTriggerNodes(nextPersistedNodes)
+    return nextPersistedNodes
+  }
+
+  const saveTrigger = async () => {
+    if (draftTriggerType === "segment_added" && !draftSegmentId) {
+      setError("Choose a segment before saving this trigger.")
+      return
+    }
+    if ((draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase") && !draftProductId) {
+      setError(`Choose a ${draftTriggerType === "lead_magnet_signup" ? "lead magnet" : "product"} before saving this trigger.`)
+      return
+    }
+
+    setSavingTrigger(true)
+
+    const nextTriggerNodes = [...triggerNodes]
+    const nextTriggerNode: AutomationTriggerNode = {
+      type: draftTriggerType,
+      config: buildTriggerConfig(draftTriggerType),
+    }
+
+    if (draftTriggerType === "none") {
+      if (editingTriggerIndex !== null && editingTriggerIndex < nextTriggerNodes.length) {
+        nextTriggerNodes.splice(editingTriggerIndex, 1)
+      }
+    } else if (editingTriggerIndex !== null && editingTriggerIndex < nextTriggerNodes.length) {
+      nextTriggerNodes[editingTriggerIndex] = nextTriggerNode
+    } else {
+      nextTriggerNodes.push(nextTriggerNode)
+    }
+
+    const persistedTriggerNodes = await persistTriggerNodes(nextTriggerNodes)
+    if (persistedTriggerNodes) {
+      setSelectedTriggerIndex(
+        persistedTriggerNodes.length
+          ? Math.min(editingTriggerIndex ?? persistedTriggerNodes.length - 1, persistedTriggerNodes.length - 1)
+          : 0
+      )
+      setEditingTriggerIndex(null)
+      setTriggerEditorOpen(false)
+      flash("Trigger saved")
+    }
+
+    setSavingTrigger(false)
+  }
+
+  const removeTrigger = async () => {
+    if (editingTriggerIndex === null || editingTriggerIndex >= triggerNodes.length) return
+
+    await removeTriggerAtIndex(editingTriggerIndex)
+  }
+
+  const removeTriggerAtIndex = async (index: number) => {
+    if (index < 0 || index >= triggerNodes.length) return
+
+    setSavingTrigger(true)
+    const nextTriggerNodes = [...triggerNodes]
+    nextTriggerNodes.splice(index, 1)
+
+    const persistedTriggerNodes = await persistTriggerNodes(nextTriggerNodes)
+    if (persistedTriggerNodes) {
+      setSelectedTriggerIndex(
+        persistedTriggerNodes.length
+          ? Math.min(index, persistedTriggerNodes.length - 1)
+          : 0
+      )
+      setEditingTriggerIndex(null)
+      setTriggerEditorOpen(false)
+      flash("Trigger removed")
+    }
+
+    setSavingTrigger(false)
+  }
 
   const formatDelay = (node: AutomationStep) => {
-    const cfg = node.node_config || {}
-    const type = cfg.delay_type || 'amount_of_time'
-    if (type === 'amount_of_time') {
-      const v = cfg.delay_value || 0
-      const u = cfg.delay_unit || 'minutes'
-      return `Wait ${v} ${u}`
+    const config = node.node_config || {}
+    const type = config.delay_type || "amount_of_time"
+
+    if (type === "amount_of_time") {
+      return `Wait ${config.delay_value || 0} ${config.delay_unit || "minutes"}`
     }
-    if (type === 'day_of_week') {
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      return `Wait until ${days[cfg.day as number] || 'Monday'}`
+
+    if (type === "day_of_week") {
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+      return `Wait until ${days[config.day as number] || "Monday"}`
     }
-    if (type === 'time_of_day') return `Wait until ${cfg.time || '09:00'}`
-    if (type === 'specific_date') return `Wait until ${cfg.date || 'date'}`
-    return 'Wait'
+
+    if (type === "time_of_day") return `Wait until ${config.time || "09:00"}`
+    if (type === "specific_date") return `Wait until ${config.date || "date"}`
+    return "Wait"
   }
 
   const getBlockCount = (node: AutomationStep) => {
@@ -240,28 +455,105 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return Object.keys(blocks).length
   }
 
+  const getTriggerDetails = (triggerNode: AutomationTriggerNode) => {
+    if (triggerNode.type === "segment_added") {
+      return {
+        title: "Added to segment",
+        description: "Starts when a contact is newly added to a segment.",
+      }
+    }
+
+    if (triggerNode.type === "lead_magnet_signup") {
+      return {
+        title: "Lead magnet signup",
+        description: "Starts when someone signs up for a lead magnet.",
+      }
+    }
+
+    if (triggerNode.type === "paid_purchase") {
+      return {
+        title: "Paid purchase",
+        description: "Starts when someone completes a purchase.",
+      }
+    }
+
+    return {
+      title: "Choose trigger",
+      description: "Select how contacts should enter this automation.",
+    }
+  }
+
+  const getTriggerChip = (triggerNode: AutomationTriggerNode) => {
+    if (triggerNode.type === "segment_added") {
+      const segmentId = typeof triggerNode.config?.segment_id === "string" ? triggerNode.config.segment_id : ""
+      const segmentName = segments.find(segment => segment.id === segmentId)?.name
+
+      return {
+        label: segmentName || "Choose segment",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+      }
+    }
+
+    if (triggerNode.type === "lead_magnet_signup") {
+      const productId = typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : ""
+      const productName = leadMagnetProducts.find(product => product.id === productId)?.title
+
+      return {
+        label: productName || "Choose lead magnet",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+      }
+    }
+
+    if (triggerNode.type === "paid_purchase") {
+      const productId = typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : ""
+      const productName = purchaseProducts.find(product => product.id === productId)?.title
+
+      return {
+        label: productName || "Choose product",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+      }
+    }
+
+    return null
+  }
+
   const AddNodeButton = ({ afterIndex }: { afterIndex: number }) => (
-    <div className="flex flex-col items-center">
-      <div className="w-px h-6 bg-border" />
+    <div className="my-6 flex justify-center">
       {addAfterIndex === afterIndex ? (
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => handleAddNode('delay', afterIndex)}>
-            <Clock className="h-3 w-3 mr-1" /> Time Delay
+        <div className="flex gap-2" style={centerAxisStyle}>
+          <Button size="sm" variant="outline" onClick={() => handleAddNode("delay", afterIndex)}>
+            <Clock className="mr-1 h-3 w-3" /> Time Delay
           </Button>
-          <Button size="sm" variant="outline" onClick={() => handleAddNode('email', afterIndex)}>
-            <Mail className="h-3 w-3 mr-1" /> Email
+          <Button size="sm" variant="outline" onClick={() => handleAddNode("email", afterIndex)}>
+            <Mail className="mr-1 h-3 w-3" /> Email
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setAddAfterIndex(null)}>✕</Button>
         </div>
       ) : (
         <button
+          type="button"
           onClick={() => setAddAfterIndex(afterIndex)}
-          className="w-6 h-6 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary hover:text-primary transition-colors"
+          style={centerAxisStyle}
+          className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30 transition-colors hover:border-primary hover:text-primary"
         >
           <Plus className="h-3 w-3" />
         </button>
       )}
-      <div className="w-px h-6 bg-border" />
+    </div>
+  )
+
+  const AddTriggerButton = () => (
+    <div className="my-6 flex justify-center">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => openTriggerEditor(triggerNodes.length)}
+        style={centerAxisStyle}
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Add Trigger
+      </Button>
     </div>
   )
 
@@ -269,35 +561,53 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return (
       <>
         <StickyHeader
-          breadcrumbItems={[{ href: "/admin", label: "Dashboard" }, { href: "/admin/newsletters/automations", label: "Automations" }, { label: "Loading...", isPage: true }]}
+          breadcrumbItems={[
+            { href: "/admin", label: "Dashboard" },
+            { href: "/admin/newsletters/automations", label: "Automations" },
+            { label: "Loading...", isPage: true },
+          ]}
           rightActions={
             <>
-              <div className="h-6 w-16 bg-muted rounded-full animate-pulse" />
-              <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+              <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+              <div className="h-8 w-20 animate-pulse rounded bg-muted" />
             </>
           }
         />
         <AdminLayout>
-          <div className="w-full max-w-2xl mx-auto px-6 py-8">
+          <div className="mx-auto w-full max-w-2xl px-6 py-8">
             <div className="flex flex-col items-center">
-              <div className="h-10 w-48 bg-muted rounded-xl animate-pulse" />
-              <div className="w-px h-6 bg-border" />
-              <div className="w-6 h-6 rounded-full bg-muted animate-pulse" />
-              <div className="w-px h-6 bg-border" />
-              {[1, 2, 3].map(i => (
-                <div key={i} className="w-full flex flex-col items-center">
+              <div className="w-full">
+                {[1, 2].map(index => (
+                  <div key={index} className="flex flex-col items-center">
+                    <Card className="w-full p-4 border-l-4 border-l-muted">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
+                        <div className="flex-1">
+                          <div className="mb-2 h-3 w-16 animate-pulse rounded bg-muted" />
+                          <div className="h-4 w-36 animate-pulse rounded bg-muted" />
+                        </div>
+                      </div>
+                    </Card>
+                    <div className="h-6 w-px bg-border" />
+                  </div>
+                ))}
+              </div>
+              <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
+              <div className="h-6 w-px bg-border" />
+              {[1, 2, 3].map(index => (
+                <div key={index} className="flex w-full flex-col items-center">
                   <Card className="w-full p-4 border-l-4 border-l-muted">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-muted animate-pulse" />
+                      <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
                       <div className="flex-1">
-                        <div className="h-3 w-16 bg-muted rounded animate-pulse mb-2" />
-                        <div className="h-4 w-40 bg-muted rounded animate-pulse" />
+                        <div className="mb-2 h-3 w-16 animate-pulse rounded bg-muted" />
+                        <div className="h-4 w-40 animate-pulse rounded bg-muted" />
                       </div>
                     </div>
                   </Card>
-                  <div className="w-px h-6 bg-border" />
-                  <div className="w-6 h-6 rounded-full bg-muted animate-pulse" />
-                  <div className="w-px h-6 bg-border" />
+                  <div className="h-6 w-px bg-border" />
+                  <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
+                  <div className="h-6 w-px bg-border" />
                 </div>
               ))}
             </div>
@@ -310,11 +620,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   if (!automation) {
     return (
       <>
-        <StickyHeader breadcrumbItems={[{ href: "/admin", label: "Dashboard" }, { href: "/admin/newsletters/automations", label: "Automations" }, { label: "Error", isPage: true }]} />
-        <AdminLayout><div className="w-full p-8 text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">Back</Button>
-        </div></AdminLayout>
+        <StickyHeader
+          breadcrumbItems={[
+            { href: "/admin", label: "Dashboard" },
+            { href: "/admin/newsletters/automations", label: "Automations" },
+            { label: "Error", isPage: true },
+          ]}
+        />
+        <AdminLayout>
+          <div className="w-full p-8 text-center">
+            <p className="mb-4 text-red-600">{error}</p>
+            <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">Back</Button>
+          </div>
+        </AdminLayout>
       </>
     )
   }
@@ -330,111 +648,325 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         rightActions={
           <>
             {saveMessage && <span className="text-sm text-green-600">{saveMessage}</span>}
-            <Badge variant={automation.status === 'active' ? "default" : "secondary"} className={automation.status === 'active' ? "bg-green-100 text-green-800" : ""}>
-              {automation.status === 'active' ? 'Active' : automation.status === 'paused' ? 'Paused' : 'Draft'}
+            <Badge
+              variant={automation.status === "active" ? "default" : "secondary"}
+              className={automation.status === "active" ? "bg-green-100 text-green-800" : ""}
+            >
+              {automation.status === "active" ? "Active" : automation.status === "paused" ? "Paused" : "Draft"}
             </Badge>
             <Button
               size="sm"
-              variant={automation.status === 'active' ? "destructive" : "default"}
+              variant={automation.status === "active" ? "destructive" : "default"}
               onClick={handleStatusToggle}
-              disabled={saving || nodes.filter(n => n.node_type === 'email').length === 0}
+              disabled={saving || (automation.status !== "active" && (!triggerConfigured || nodes.filter(node => node.node_type === "email").length === 0))}
             >
-              {automation.status === 'active' ? 'Pause' : 'Activate'}
+              {automation.status === "active" ? "Pause" : "Activate"}
             </Button>
           </>
         }
       />
       <AdminLayout>
-        <div className="w-full max-w-2xl mx-auto px-6 py-8">
+        <div className="mx-auto w-full max-w-2xl px-6 py-8">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg mb-6">
-              <p className="text-red-800 text-sm">{error}</p>
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
 
-          {/* Trigger Node */}
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-2 px-5 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
-              <Zap className="h-4 w-4 text-blue-600" />
-              <span className="font-medium text-blue-800">
-                {automation.trigger_type === 'lead_magnet_signup' ? 'Lead Magnet Signup' : 'Paid Purchase'}
-              </span>
+          <div className="relative mx-auto w-full pb-6">
+            <div className="pointer-events-none absolute inset-0 flex justify-center">
+              <div className="h-full w-px bg-border" style={centerAxisStyle} />
             </div>
-          </div>
 
-          {/* Add first node */}
-          <AddNodeButton afterIndex={0} />
+            <div className="relative z-10">
+              {displayedTriggerNodes.map((triggerNode, index) => {
+                const isSelected = selectedTriggerIndex === index
+                const triggerDetails = getTriggerDetails(triggerNode)
+                const triggerChip = getTriggerChip(triggerNode)
+                const isPlaceholder = triggerNode.type === "none"
 
-          {/* Node List */}
-          {nodes.map((node, i) => (
-            <div key={node.id} className="flex flex-col items-center">
-              {/* Node Card */}
-              {node.node_type === 'delay' ? (
-                <Card
-                  className="w-full p-4 cursor-pointer hover:border-primary/50 transition-colors border-l-4 border-l-yellow-400"
-                  onClick={() => openDelayEditor(node)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-yellow-50 flex items-center justify-center">
-                        <Clock className="h-4 w-4 text-yellow-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase">Time Delay</p>
-                        <p className="text-sm font-medium">{formatDelay(node)}</p>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id) }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </Card>
-              ) : (
-                <Card
-                  className="w-full p-4 cursor-pointer hover:border-primary/50 transition-colors border-l-4 border-l-blue-400"
-                  onClick={() => router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <Mail className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase">Send Email</p>
-                        <p className="text-sm font-medium">{node.subject || "No subject"}</p>
-                        {getBlockCount(node) > 0 && (
-                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                            <Layers className="h-3 w-3" />
-                            {getBlockCount(node)} block{getBlockCount(node) !== 1 ? 's' : ''}
-                          </p>
+                return (
+                  <div key={`${triggerNode.type}-${index}`} className="w-full">
+                    <Card
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openTriggerEditor(index)}
+                      onKeyDown={event => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          openTriggerEditor(index)
+                        }
+                      }}
+                      className={cn(
+                        "w-full cursor-pointer border-l-4 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        isPlaceholder ? "border-dashed border-l-muted" : "border-l-black",
+                        isSelected && !isPlaceholder ? "ring-1 ring-blue-500/15" : "",
+                        isSelected && isPlaceholder ? "ring-1 ring-border" : ""
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className={cn(
+                                "flex h-9 w-9 items-center justify-center rounded-lg",
+                                isPlaceholder ? "bg-muted" : "bg-zinc-100"
+                              )}>
+                                <Zap className={cn("h-4 w-4", isPlaceholder ? "text-muted-foreground" : "text-zinc-950")} />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Trigger</TooltipContent>
+                          </Tooltip>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{triggerDetails.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{triggerDetails.description}</p>
+                            {triggerChip && (
+                              <Badge className={cn("mt-3 rounded-md px-2.5 py-1 text-xs font-medium shadow-none", triggerChip.className)}>
+                                {triggerChip.label}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {!isPlaceholder && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Remove trigger"
+                            disabled={savingTrigger}
+                            className="h-8 w-8 shrink-0 p-0 text-red-600 hover:text-red-600"
+                            onClick={event => {
+                              event.stopPropagation()
+                              void removeTriggerAtIndex(index)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id) }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    </Card>
                   </div>
-                </Card>
+                )
+              })}
+
+              {triggerNodes.length > 0 && <AddTriggerButton />}
+              <AddNodeButton afterIndex={0} />
+
+              {nodes.map((node, index) => (
+                <div key={node.id} className="w-full">
+                  {node.node_type === "delay" ? (
+                    <Card
+                      className="w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50"
+                      onClick={() => openDelayEditor(node)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-50">
+                                <Clock className="h-4 w-4 text-yellow-600" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Time Delay</TooltipContent>
+                          </Tooltip>
+                          <div>
+                            <p className="text-sm font-medium">{formatDelay(node)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={event => {
+                            event.stopPropagation()
+                            handleDeleteNode(node.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Card>
+                  ) : (
+                    <Card
+                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50"
+                      onClick={() => router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                                <Mail className="h-4 w-4 text-blue-600" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Send Email</TooltipContent>
+                          </Tooltip>
+                          <div>
+                            <p className="text-sm font-medium">{node.subject || "No subject"}</p>
+                            {getBlockCount(node) > 0 && (
+                              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                <Layers className="h-3 w-3" />
+                                {getBlockCount(node)} block{getBlockCount(node) !== 1 ? "s" : ""}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={event => {
+                            event.stopPropagation()
+                            handleDeleteNode(node.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  <AddNodeButton afterIndex={index + 1} />
+                </div>
+              ))}
+
+              {nodes.length === 0 && (
+                <div className="py-4 text-center text-sm text-muted-foreground">
+                  Add your first node to start building the sequence.
+                </div>
               )}
-
-              {/* Add node between */}
-              <AddNodeButton afterIndex={i + 1} />
             </div>
-          ))}
-
-          {/* Empty state */}
-          {nodes.length === 0 && (
-            <div className="text-center text-sm text-muted-foreground py-4">
-              Add your first node to start building the sequence.
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Delay Editor Modal */}
-        <Dialog open={editingDelay !== null} onOpenChange={(open) => { if (!open) { setEditingDelay(null); setPendingNodeType(null) } }}>
-          <DialogContent className="w-[540px] max-w-[95vw] p-10" style={{ width: '540px', maxWidth: '95vw' }}>
+        <Dialog
+          open={triggerEditorOpen}
+          onOpenChange={open => {
+            setTriggerEditorOpen(open)
+            if (!open) {
+              setEditingTriggerIndex(null)
+              if (selectedTriggerIndex >= displayedTriggerNodes.length) {
+                setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
+              }
+            }
+          }}
+        >
+          <DialogContent className="w-[540px] max-w-[95vw] p-10">
+            <DialogHeader className="mb-6">
+              <DialogTitle>Trigger</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6">
+              <div>
+                <Label>When should this automation start?</Label>
+                <Select
+                  value={draftTriggerType}
+                  onValueChange={value => {
+                    const nextTriggerType = value as AutomationTriggerType
+                    setDraftTriggerType(nextTriggerType)
+                    if (nextTriggerType !== "segment_added") setDraftSegmentId("")
+                    if (nextTriggerType !== "lead_magnet_signup" && nextTriggerType !== "paid_purchase") {
+                      setDraftProductId("")
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="segment_added">Added to segment</SelectItem>
+                    <SelectItem value="lead_magnet_signup">Lead magnet signup</SelectItem>
+                    <SelectItem value="paid_purchase">Paid purchase</SelectItem>
+                    <SelectItem value="none">Remove trigger</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {draftTriggerType === "segment_added" && (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Segment</Label>
+                    <Select value={draftSegmentId} onValueChange={setDraftSegmentId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={loadingSegments ? "Loading segments..." : "Choose a segment"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {segments.map(segment => (
+                          <SelectItem key={segment.id} value={segment.id}>{segment.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!loadingSegments && segments.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Create a segment first, then come back here to use a segment trigger.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {(draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase") && (
+                <div className="space-y-3">
+                  <div>
+                    <Label>{productTriggerLabel}</Label>
+                    <Select value={draftProductId} onValueChange={setDraftProductId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productTriggerOptions.map(product => (
+                          <SelectItem key={product.id} value={product.id}>{product.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!loadingProducts && productTriggerOptions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {draftTriggerType === "lead_magnet_signup"
+                        ? "Create a product with a lead magnet block first, then come back here to use a lead magnet trigger."
+                        : "Create a product with a checkout block first, then come back here to use a paid purchase trigger."}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <div className="flex gap-2">
+                  {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
+                    <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                      Remove
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTriggerEditorOpen(false)
+                      setEditingTriggerIndex(null)
+                      if (selectedTriggerIndex >= displayedTriggerNodes.length) {
+                        setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
+                      }
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <Button
+                  onClick={saveTrigger}
+                  disabled={
+                    savingTrigger
+                    || (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0))
+                    || (
+                      (draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase")
+                      && (!draftProductId || productTriggerOptions.length === 0)
+                    )
+                  }
+                >
+                  {savingTrigger ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editingDelay !== null} onOpenChange={open => { if (!open) setEditingDelay(null) }}>
+          <DialogContent className="w-[540px] max-w-[95vw] p-10">
             <DialogHeader className="mb-6">
               <DialogTitle>Time Delay</DialogTitle>
             </DialogHeader>
@@ -452,11 +984,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </Select>
               </div>
 
-              {delayType === 'amount_of_time' && (
+              {delayType === "amount_of_time" && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Amount</Label>
-                    <Input type="number" min="1" value={delayValue} onChange={e => setDelayValue(e.target.value)} />
+                    <Input type="number" min="1" value={delayValue} onChange={event => setDelayValue(event.target.value)} />
                   </div>
                   <div>
                     <Label>Unit</Label>
@@ -472,7 +1004,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </div>
               )}
 
-              {delayType === 'day_of_week' && (
+              {delayType === "day_of_week" && (
                 <div>
                   <Label>Day</Label>
                   <Select value={delayDay} onValueChange={setDelayDay}>
@@ -490,17 +1022,17 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </div>
               )}
 
-              {delayType === 'time_of_day' && (
+              {delayType === "time_of_day" && (
                 <div>
                   <Label>Time</Label>
-                  <Input type="time" value={delayTime} onChange={e => setDelayTime(e.target.value)} />
+                  <Input type="time" value={delayTime} onChange={event => setDelayTime(event.target.value)} />
                 </div>
               )}
 
-              {delayType === 'specific_date' && (
+              {delayType === "specific_date" && (
                 <div>
                   <Label>Date</Label>
-                  <Input type="date" value={delayDate} onChange={e => setDelayDate(e.target.value)} />
+                  <Input type="date" value={delayDate} onChange={event => setDelayDate(event.target.value)} />
                 </div>
               )}
 

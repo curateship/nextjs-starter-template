@@ -5,6 +5,12 @@ import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateEmailHtml } from './email-html'
+import {
+  getAutomationTriggerNodes,
+  isAutomationTriggerType,
+  matchesAutomationTrigger,
+  type AutomationTriggerType,
+} from '@/lib/newsletters/automation-triggers'
 
 export interface EmailAutomation {
   id: string
@@ -12,7 +18,7 @@ export interface EmailAutomation {
   name: string
   description: string | null
   status: 'draft' | 'active' | 'paused'
-  trigger_type: 'lead_magnet_signup' | 'paid_purchase'
+  trigger_type: AutomationTriggerType
   trigger_config: Record<string, any>
   goal_type: string | null
   goal_config: Record<string, any>
@@ -223,7 +229,7 @@ export async function createAutomation(input: {
   siteId: string
   name: string
   description?: string
-  triggerType: 'lead_magnet_signup' | 'paid_purchase'
+  triggerType: AutomationTriggerType
   triggerConfig?: Record<string, any>
 }): Promise<{ data: EmailAutomation | null; error: string | null }> {
   try {
@@ -232,6 +238,7 @@ export async function createAutomation(input: {
     if (!user) return { data: null, error: 'Not authenticated' }
     if (!await verifySiteOwnership(input.siteId, user.id)) return { data: null, error: 'Access denied' }
     if (!input.name?.trim()) return { data: null, error: 'Name is required' }
+    if (!isAutomationTriggerType(input.triggerType)) return { data: null, error: 'Invalid trigger type' }
 
     const [data] = await db
       .insert(emailAutomations)
@@ -256,7 +263,15 @@ export async function createAutomation(input: {
 
 export async function updateAutomation(
   automationId: string,
-  updates: { name?: string; description?: string; status?: string; trigger_config?: Record<string, any>; goal_type?: string; goal_config?: Record<string, any> }
+  updates: {
+    name?: string
+    description?: string
+    status?: string
+    trigger_type?: AutomationTriggerType
+    trigger_config?: Record<string, any>
+    goal_type?: string
+    goal_config?: Record<string, any>
+  }
 ): Promise<{ data: EmailAutomation | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(automationId)) return { data: null, error: 'Invalid ID' }
@@ -275,11 +290,15 @@ export async function updateAutomation(
     if (updates.status !== undefined && !['draft', 'active', 'paused'].includes(updates.status)) {
       return { data: null, error: 'Invalid status' }
     }
+    if (updates.trigger_type !== undefined && !isAutomationTriggerType(updates.trigger_type)) {
+      return { data: null, error: 'Invalid trigger type' }
+    }
 
     const fields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) fields.name = updates.name
     if (updates.description !== undefined) fields.description = updates.description
     if (updates.status !== undefined) fields.status = updates.status
+    if (updates.trigger_type !== undefined) fields.triggerType = updates.trigger_type
     if (updates.trigger_config !== undefined) fields.triggerConfig = updates.trigger_config
     if (updates.goal_type !== undefined) fields.goalType = updates.goal_type
     if (updates.goal_config !== undefined) fields.goalConfig = updates.goal_config
@@ -333,27 +352,31 @@ export async function deleteAutomations(ids: string[]): Promise<{ success: boole
 
 /** Internal -- called from API routes only. Returns just IDs for enrollment. */
 export async function findActiveAutomations(
-  siteId: string, triggerType: string, productId?: string
+  siteId: string,
+  triggerType: AutomationTriggerType,
+  filterId?: string
 ): Promise<{ id: string }[]> {
   if (!UUID_REGEX.test(siteId)) return []
+  if (!isAutomationTriggerType(triggerType) || triggerType === 'none') return []
 
   const rows = await db
-    .select({ id: emailAutomations.id, triggerConfig: emailAutomations.triggerConfig })
+    .select({
+      id: emailAutomations.id,
+      triggerType: emailAutomations.triggerType,
+      triggerConfig: emailAutomations.triggerConfig,
+    })
     .from(emailAutomations)
     .where(and(
       eq(emailAutomations.siteId, siteId),
       eq(emailAutomations.status, 'active'),
-      eq(emailAutomations.triggerType, triggerType),
     ))
 
-  const filtered = productId
-    ? rows.filter(a => {
-        const cfg = a.triggerConfig as Record<string, any> | null
-        return !cfg?.product_id || cfg.product_id === productId
-      })
-    : rows
-
-  return filtered.map(a => ({ id: a.id }))
+  return rows
+    .filter(automation => {
+      const triggerNodes = getAutomationTriggerNodes(automation.triggerType, automation.triggerConfig)
+      return triggerNodes.some(node => matchesAutomationTrigger(node, triggerType, filterId))
+    })
+    .map(automation => ({ id: automation.id }))
 }
 
 // --- Steps ---

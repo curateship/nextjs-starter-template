@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -19,13 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -37,6 +30,7 @@ import {
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { AUTOMATION_TRIGGER_SHORT_LABELS, getAutomationTriggerNodes } from "@/lib/newsletters/automation-triggers"
 
 export default function EmailAutomationsPage() {
   const router = useRouter()
@@ -55,7 +49,6 @@ export default function EmailAutomationsPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState("")
-  const [createTrigger, setCreateTrigger] = useState<string>("lead_magnet_signup")
   const [creating, setCreating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -63,9 +56,7 @@ export default function EmailAutomationsPage() {
   const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'steps' | 'enrolled' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  useEffect(() => { loadAutomations() }, [currentSite?.id, currentPage])
-
-  async function loadAutomations() {
+  const loadAutomations = useCallback(async () => {
     if (!currentSite?.id) { setLoading(true); setAutomations([]); return }
     setLoading(true)
     const { data, total: t, error } = await getAutomationsBySite(currentSite.id, { page: currentPage, pageSize })
@@ -73,7 +64,9 @@ export default function EmailAutomationsPage() {
     setAutomations(data ?? [])
     setTotal(t)
     setLoading(false)
-  }
+  }, [currentPage, currentSite?.id, pageSize])
+
+  useEffect(() => { loadAutomations() }, [loadAutomations])
 
   const handleDelete = (id: string) => { setPendingDeleteId(id); setConfirmDialogOpen(true) }
 
@@ -127,10 +120,14 @@ export default function EmailAutomationsPage() {
     const { data, error } = await createAutomation({
       siteId: currentSite.id,
       name: createName.trim(),
-      triggerType: createTrigger as 'lead_magnet_signup' | 'paid_purchase',
+      triggerType: 'none',
     })
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
-    if (data) { setAutomations(prev => [data, ...prev]); setCreateOpen(false); setCreateName("") }
+    if (data) {
+      setCreateOpen(false)
+      setCreateName("")
+      router.push(`/admin/newsletters/automations/${data.id}`)
+    }
     setCreating(false)
   }
 
@@ -165,7 +162,7 @@ export default function EmailAutomationsPage() {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'trigger') return a.trigger_type.localeCompare(b.trigger_type) * dir
+    if (sortColumn === 'trigger') return getTriggerBadgeLabel(a).localeCompare(getTriggerBadgeLabel(b)) * dir
     if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
     if (sortColumn === 'steps') return ((a.steps_count ?? 0) - (b.steps_count ?? 0)) * dir
     if (sortColumn === 'enrolled') return ((a.enrollments_count ?? 0) - (b.enrollments_count ?? 0)) * dir
@@ -185,9 +182,11 @@ export default function EmailAutomationsPage() {
     return <Badge variant="secondary">Draft</Badge>
   }
 
-  const formatDate = (d: string) => {
-    const date = new Date(d)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  const getTriggerBadgeLabel = (automation: EmailAutomation) => {
+    const triggerNodes = getAutomationTriggerNodes(automation.trigger_type, automation.trigger_config)
+    if (triggerNodes.length === 0) return AUTOMATION_TRIGGER_SHORT_LABELS.none
+    if (triggerNodes.length === 1) return AUTOMATION_TRIGGER_SHORT_LABELS[triggerNodes[0].type]
+    return `${triggerNodes.length} Triggers`
   }
 
   return (
@@ -348,7 +347,7 @@ export default function EmailAutomationsPage() {
                     </div>
                     <div>
                       <Badge variant="outline" className="text-xs">
-                        {automation.trigger_type === 'lead_magnet_signup' ? 'Lead Magnet' : 'Purchase'}
+                        {getTriggerBadgeLabel(automation)}
                       </Badge>
                     </div>
                     <div>{getStatusBadge(automation.status)}</div>
@@ -385,16 +384,9 @@ export default function EmailAutomationsPage() {
                   <Label>Name *</Label>
                   <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Fitness Lead Magnet Sequence" required />
                 </div>
-                <div>
-                  <Label>Trigger</Label>
-                  <Select value={createTrigger} onValueChange={setCreateTrigger}>
-                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lead_magnet_signup">Lead Magnet Signup</SelectItem>
-                      <SelectItem value="paid_purchase">Paid Purchase</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  Create the automation first, then choose one or more triggers in the builder.
+                </p>
                 <div className="flex justify-between pt-4">
                   <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={creating || !createName.trim()}>{creating ? "Creating..." : "Create Automation"}</Button>
