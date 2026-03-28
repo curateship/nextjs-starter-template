@@ -12,12 +12,12 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 
 export default function SitesPage() {
-  const { refreshSites } = useSiteContext()
+  const { refreshSites } = useSiteSwitcher()
   const [sites, setSites] = useState<SiteWithTheme[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

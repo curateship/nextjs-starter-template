@@ -34,13 +34,13 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 export default function ProductsPage() {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

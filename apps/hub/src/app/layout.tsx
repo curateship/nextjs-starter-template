@@ -3,7 +3,7 @@ import "./globals.css";
 import { DeferredScripts } from "@/components/frontend/layout/deferred-scripts";
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
-import { AnalyticsTracker } from "@/components/analytics/tracker";
+import { AnalyticsTracker } from "@/components/admin/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
 
 export async function generateMetadata(): Promise<Metadata> {

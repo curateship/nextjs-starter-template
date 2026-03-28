@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
@@ -25,7 +25,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [posts, setPosts] = useState<Post[]>([])
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [loading, setLoading] = useState(true)

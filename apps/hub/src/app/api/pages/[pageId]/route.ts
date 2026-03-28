@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth/server'
 
 export async function GET(
   request: NextRequest,

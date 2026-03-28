@@ -1,7 +1,7 @@
 'use server'
 
 import { getAIConfig } from '@/lib/actions/integrations/config-helpers'
-import { getDefaultAIModel, type AIProvider } from '@/lib/ai/models'
+import { getDefaultAIModel, type AIProvider } from '@/lib/utils/ai-models'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'

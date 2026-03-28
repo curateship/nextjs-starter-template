@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
-import { getEmailProvider } from '@/lib/email/provider'
+import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { generateEmailHtml } from './email-html'
 

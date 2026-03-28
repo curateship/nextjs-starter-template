@@ -48,7 +48,7 @@ import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
   cloneContactFilterGroup,
   type ContactDataField,
@@ -135,7 +135,7 @@ function buildNormalizedFilterGroup(
 }
 
 export default function ContactsPage() {
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [contacts, setContacts] = useState<CrmContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

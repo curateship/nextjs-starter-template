@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
@@ -24,7 +24,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [categories, setCategories] = useState<Category[]>([])
 
   // Get category from URL params

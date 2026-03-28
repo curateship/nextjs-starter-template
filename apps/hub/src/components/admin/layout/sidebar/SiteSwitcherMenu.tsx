@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 const SiteFavicon = React.memo(function SiteFavicon({ favicon, name }: { favicon?: string; name?: string }) {
   if (favicon) {
@@ -44,7 +44,7 @@ const SiteFavicon = React.memo(function SiteFavicon({ favicon, name }: { favicon
 export function SiteSwitcherMenu() {
   const { isMobile } = useSidebar()
   const router = useRouter()
-  const { currentSite, sites, loading, setCurrentSite } = useSiteContext()
+  const { currentSite, sites, loading, setCurrentSite } = useSiteSwitcher()
 
   if (loading) {
     return (

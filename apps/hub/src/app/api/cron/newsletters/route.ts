@@ -4,7 +4,7 @@ import { newsletters, newsletterContacts, newsletterEvents, sites, authUsers } f
 import { eq, and, lte, inArray, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { getEmailProvider, type EmailProvider } from '@/lib/email/provider'
+import { getEmailProvider, type EmailProvider } from '@/lib/actions/email/provider'
 
 const BATCH_SIZE = 50
 

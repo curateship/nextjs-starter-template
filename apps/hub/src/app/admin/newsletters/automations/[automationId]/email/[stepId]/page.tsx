@@ -9,7 +9,7 @@ import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/config/useAutomationEmailBuilder"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Monitor, Tablet, Smartphone, Save, ArrowLeft } from "lucide-react"
 
 interface PageProps {
@@ -25,7 +25,7 @@ const PREVIEW_WIDTHS = {
 export default function AutomationEmailEditorPage({ params }: PageProps) {
   const { automationId, stepId } = use(params)
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
 
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)

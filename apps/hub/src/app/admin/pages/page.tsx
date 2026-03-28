@@ -2,11 +2,11 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 export default function PageBuilderPage() {
   const router = useRouter()
-  const { currentSite, sites } = useSiteContext()
+  const { currentSite, sites } = useSiteSwitcher()
 
   useEffect(() => {
     // Immediately redirect to first available site or sites page

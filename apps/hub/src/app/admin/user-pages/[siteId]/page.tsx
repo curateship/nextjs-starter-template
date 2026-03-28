@@ -32,7 +32,7 @@ const UserPageSettingsModal = dynamic(() =>
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getUserPagesAction, deleteUserPageAction, deleteUserPagesAction, duplicateUserPageAction, getUserPageIdsAction } from "@/lib/actions/user-pages/user-pages-actions"
 import type { UserPage } from "@/lib/actions/user-pages/user-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -45,7 +45,7 @@ interface PageProps {
 
 export default function UserUserPagesPage({ params }: PageProps) {
   const { siteId } = use(params)
-  const { pageSize: contextPageSize } = useSiteContext()
+  const { pageSize: contextPageSize } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [pages, setPages] = useState<UserPage[]>([])
   const [loading, setLoading] = useState(true)

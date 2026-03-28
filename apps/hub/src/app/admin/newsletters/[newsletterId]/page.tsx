@@ -13,7 +13,7 @@ import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/la
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { SaveAsTemplateModal } from "@/components/admin/newsletter-builder/layout/SaveAsTemplateModal"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send, FileText } from "lucide-react"
 
 interface PageProps {
@@ -29,7 +29,7 @@ const PREVIEW_WIDTHS = {
 export default function NewsletterBuilderPage({ params }: PageProps) {
   const { newsletterId } = use(params)
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
 
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)

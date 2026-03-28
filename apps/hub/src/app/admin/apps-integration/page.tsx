@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { getSeoAppUrl, isUsingSeoDevDefaults } from '@/lib/seo/sso'
+import { getSeoAppUrl, isUsingSeoDevDefaults } from '@/lib/actions/seo/sso'
 import { AlertTriangle } from 'lucide-react'
 
 type LinkedApp = {

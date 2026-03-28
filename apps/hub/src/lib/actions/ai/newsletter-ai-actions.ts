@@ -1,7 +1,7 @@
 'use server'
 
 import { generateAIContent, type GenerateAIContentResult } from '@/lib/actions/ai/ai-actions'
-import { type AIProvider } from '@/lib/ai/models'
+import { type AIProvider } from '@/lib/utils/ai-models'
 
 export interface GenerateNewsletterBatchContentParams {
   prompt: string

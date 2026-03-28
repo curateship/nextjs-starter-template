@@ -35,12 +35,12 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction, getDirectoryIdsAction } from "@/lib/actions/directories/directory-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 export default function DirectoriesPage() {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [directories, setDirectories] = useState<Directory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
@@ -31,7 +31,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [directories, setDirectories] = useState<Directory[]>([])
   const [directoriesLoading, setDirectoriesLoading] = useState(true)
   const [directoriesError, setDirectoriesError] = useState<string | null>(null)

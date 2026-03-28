@@ -10,7 +10,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post } from "@/lib/actions/posts/post-actions"
@@ -31,7 +31,7 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [formData, setFormData] = useState<CreatePostData>({
     title: '',
     slug: '',

@@ -5,7 +5,7 @@ import {
 } from "@/lib/actions/user-pages/user-pages-actions"
 import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 interface UseUserPagesDataReturn {
   site: Site | null
@@ -59,7 +59,7 @@ function buildUserPagesConfigBlocks(siteData: Site | null): Array<{
 }
 
 export function useUserPageData(siteId: string): UseUserPagesDataReturn {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<Site | null>(currentSite)
   const [pages, setPages] = useState<UserPage[]>([])
   const [configLoading, setConfigLoading] = useState(!currentSite)

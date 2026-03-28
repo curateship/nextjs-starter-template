@@ -12,7 +12,7 @@ import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/co
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Monitor, Tablet, Smartphone, Save, Pencil, Check, X } from "lucide-react"
 
 interface PageProps {
@@ -28,7 +28,7 @@ const PREVIEW_WIDTHS = {
 export default function TemplateEditorPage({ params }: PageProps) {
   const { templateId } = use(params)
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
 
   const [template, setTemplate] = useState<NewsletterTemplate | null>(null)
   const [loading, setLoading] = useState(true)

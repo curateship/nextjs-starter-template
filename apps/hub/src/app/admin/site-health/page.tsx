@@ -12,7 +12,7 @@ import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverabilit
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { getCronJobs } from "@/lib/actions/cron/cron-actions"
 import type { CronJob } from "@/lib/actions/cron/cron-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
   Shield,
   CheckCircle,
@@ -32,7 +32,7 @@ const siteHealthNavLinks = [
 ]
 
 export default function SiteHealthOverviewPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [report, setReport] = useState<DeliverabilityReport | null>(null)
   const [jobs, setJobs] = useState<CronJob[]>([])
   const [loading, setLoading] = useState(true)

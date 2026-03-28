@@ -3,12 +3,12 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Package } from "lucide-react"
 
 export default function ProductBuilderRootPage() {
   const router = useRouter()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
 
   // Redirect to current site product builder if site is available
   useEffect(() => {

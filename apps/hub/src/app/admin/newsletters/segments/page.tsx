@@ -28,10 +28,10 @@ import {
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 export default function SegmentsPage() {
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

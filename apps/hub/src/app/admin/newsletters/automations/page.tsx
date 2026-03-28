@@ -36,11 +36,11 @@ import {
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 export default function EmailAutomationsPage() {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [automations, setAutomations] = useState<EmailAutomation[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")

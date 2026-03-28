@@ -21,7 +21,7 @@ import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Users } from "lucide-react"
 
 interface CreateNewsletterModalProps {
@@ -30,7 +30,7 @@ interface CreateNewsletterModalProps {
 }
 
 export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterModalProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [subject, setSubject] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

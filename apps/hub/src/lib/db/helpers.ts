@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth/server'
 import { headers } from 'next/headers'
 import { eq, and } from 'drizzle-orm'
 import { db } from '@/lib/db'

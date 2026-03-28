@@ -3,7 +3,7 @@ import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./event-block-types"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 interface EventBlock {
   id: string
@@ -23,7 +23,7 @@ interface UseEventDataReturn {
 }
 
 export function useEventData(siteId: string): UseEventDataReturn {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")

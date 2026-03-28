@@ -3,11 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import type { CategoryContentStyleAdminProps } from "./index"
 
 export function DefaultCategoryContentConfig({ config, onConfigChange }: CategoryContentStyleAdminProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const siteDefaultWidth = currentSite?.settings?.custom_width
   const alignment = config.alignment || 'center'
   const titleSize = config.titleSize || 'large'

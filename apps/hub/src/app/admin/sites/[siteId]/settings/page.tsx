@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,
@@ -319,7 +319,7 @@ type TabId = (typeof TABS)[number]['id']
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
   const { siteId } = use(params)
-  const { sites, currentSite, setCurrentSite } = useSiteContext()
+  const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const contextSite = sites.find(s => s.id === siteId) || currentSite
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)

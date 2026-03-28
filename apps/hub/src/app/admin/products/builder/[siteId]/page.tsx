@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { BuilderStickyHeader, type BuilderItem } from "@/components/admin/shared/BuilderStickyHeader"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
@@ -31,7 +31,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [products, setProducts] = useState<Product[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)

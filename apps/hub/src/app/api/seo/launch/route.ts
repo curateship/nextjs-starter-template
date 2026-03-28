@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth/server'
 import { db } from '@/lib/db'
 import { seoLaunchCodes } from '@/lib/db/schema'
-import { createSeoLaunchCode, createSeoLaunchExpiresAt, createSeoLaunchSnapshot, getSeoApiUrl } from '@/lib/seo/sso'
+import { createSeoLaunchCode, createSeoLaunchExpiresAt, createSeoLaunchSnapshot, getSeoApiUrl } from '@/lib/actions/seo/sso'
 
 export const runtime = 'nodejs'
 

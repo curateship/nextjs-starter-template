@@ -41,7 +41,7 @@ import {
 
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
   getOrdersWithProducts,
   deleteOrders,
@@ -97,7 +97,7 @@ export default function OrdersPage() {
 }
 
 function OrdersContent() {
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const searchParams = useSearchParams()
 
   const [orders, setOrders] = useState<ProductOrder[]>([])

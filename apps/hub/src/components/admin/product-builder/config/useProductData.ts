@@ -4,7 +4,7 @@ import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./product-block-types"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 interface ProductBlock {
   id: string
@@ -24,7 +24,7 @@ interface UseProductDataReturn {
 }
 
 export function useProductData(siteId: string): UseProductDataReturn {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")

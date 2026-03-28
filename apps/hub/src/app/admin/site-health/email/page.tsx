@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 
 export default function EmailHealthPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [report, setReport] = useState<DeliverabilityReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

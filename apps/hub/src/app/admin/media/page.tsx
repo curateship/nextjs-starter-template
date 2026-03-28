@@ -13,7 +13,7 @@ import { getPaginatedMediaAction, deleteImageAction, updateImageAction, getMedia
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { 
   Dialog,
   DialogContent,
@@ -28,7 +28,7 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 
 
 export default function ImagesPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('list')
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)

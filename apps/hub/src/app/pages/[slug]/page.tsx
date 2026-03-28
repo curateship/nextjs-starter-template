@@ -5,7 +5,7 @@ import { pages } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/seo/JsonLd"
+import { JsonLd } from "@/components/admin/seo/JsonLd"
 
 interface PagePageProps {
   params: Promise<{

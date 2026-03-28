@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { newsletterSkills, newsletterSkillOutputs, newsletters, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateNewsletterBatchContent } from '@/lib/actions/ai/newsletter-ai-actions'
-import { isAIProvider } from '@/lib/ai/models'
+import { isAIProvider } from '@/lib/utils/ai-models'
 import { getDefaultTemplate } from '@/lib/actions/newsletters/template-actions'
 
 // --- Types ---

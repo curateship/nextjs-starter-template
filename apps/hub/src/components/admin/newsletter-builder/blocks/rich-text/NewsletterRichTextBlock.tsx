@@ -11,7 +11,7 @@ import {
   getDefaultAIModel,
   isAIProvider,
   type AIProvider,
-} from "@/lib/ai/models"
+} from "@/lib/utils/ai-models"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Button } from "@/components/ui/button"

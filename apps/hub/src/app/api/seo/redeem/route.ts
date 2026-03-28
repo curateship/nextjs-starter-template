@@ -2,7 +2,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm'
 import { NextResponse, type NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { seoLaunchCodes } from '@/lib/db/schema'
-import { getSeoServiceTokenHeader, isValidSeoServiceToken } from '@/lib/seo/sso'
+import { getSeoServiceTokenHeader, isValidSeoServiceToken } from '@/lib/actions/seo/sso'
 
 export const runtime = 'nodejs'
 

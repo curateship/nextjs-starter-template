@@ -1,7 +1,7 @@
 'use server'
 
 import { getSiteIntegration } from './integration-actions'
-import type { AIProvider } from '@/lib/ai/models'
+import type { AIProvider } from '@/lib/utils/ai-models'
 
 /**
  * Get Stripe config for a site from site integrations.

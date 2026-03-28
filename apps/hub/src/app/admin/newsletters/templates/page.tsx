@@ -28,10 +28,10 @@ import {
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 export default function TemplatesPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const router = useRouter()
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
   const [loading, setLoading] = useState(true)

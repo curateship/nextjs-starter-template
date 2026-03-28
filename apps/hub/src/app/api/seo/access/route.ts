@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { authUsers } from '@/lib/db/schema'
-import { getSeoAccessSnapshot } from '@/lib/seo/access'
-import { getSeoServiceTokenHeader, isValidSeoServiceToken } from '@/lib/seo/sso'
+import { getSeoAccessSnapshot } from '@/lib/actions/seo/access'
+import { getSeoServiceTokenHeader, isValidSeoServiceToken } from '@/lib/actions/seo/sso'
 
 export const runtime = 'nodejs'
 

@@ -1,10 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { getAllSitesAction, getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
+import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 
-
-interface SiteContextType {
+interface SiteSwitcherState {
   currentSite: SiteWithTheme | null
   sites: SiteWithTheme[]
   loading: boolean
@@ -14,15 +13,19 @@ interface SiteContextType {
   refreshSites: () => Promise<void>
 }
 
-const SiteContext = createContext<SiteContextType | undefined>(undefined)
+const SiteSwitcherContext = createContext<SiteSwitcherState | undefined>(undefined)
 
-interface SiteProviderProps {
+interface SiteSwitcherProviderProps {
   children: ReactNode
   initialSites?: SiteWithTheme[]
   pageSize?: number
 }
 
-export function SiteProvider({ children, initialSites, pageSize: initialPageSize }: SiteProviderProps) {
+export function SiteSwitcherProvider({
+  children,
+  initialSites,
+  pageSize: initialPageSize,
+}: SiteSwitcherProviderProps) {
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(
     initialSites && initialSites.length > 0 ? initialSites[0] : null
   )
@@ -31,12 +34,11 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
   const [error, setError] = useState<string | null>(null)
   const [pageSize] = useState(initialPageSize ?? 50)
 
-  // Restore saved site from localStorage on mount (client-only, after hydration)
   useEffect(() => {
     if (initialSites && initialSites.length > 0) {
       const savedId = localStorage.getItem('selectedSiteId')
       if (savedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedId)) {
-        const found = initialSites.find(s => s.id === savedId)
+        const found = initialSites.find(site => site.id === savedId)
         if (found) {
           setCurrentSite(found)
           return
@@ -47,7 +49,6 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
       localStorage.removeItem('selectedSiteId')
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
 
   const refreshSites = async () => {
     try {
@@ -66,16 +67,14 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
 
         const savedSiteId = localStorage.getItem('selectedSiteId')
         if (savedSiteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedSiteId)) {
-          const savedSite = data.find(s => s.id === savedSiteId)
+          const savedSite = data.find(site => site.id === savedSiteId)
           if (savedSite) {
             setCurrentSite(savedSite)
           } else {
-            // Saved site no longer exists, select first
             setCurrentSite(data[0])
             localStorage.setItem('selectedSiteId', data[0].id)
           }
         } else {
-          // No saved site, select first
           setCurrentSite(data[0])
           localStorage.setItem('selectedSiteId', data[0].id)
         }
@@ -84,14 +83,13 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
         setCurrentSite(null)
         localStorage.removeItem('selectedSiteId')
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load sites')
     } finally {
       setLoading(false)
     }
   }
 
-  // Only fetch on mount if no initialSites were provided
   useEffect(() => {
     if (!initialSites) {
       refreshSites()
@@ -108,7 +106,7 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
   }
 
   return (
-    <SiteContext.Provider
+    <SiteSwitcherContext.Provider
       value={{
         currentSite,
         sites,
@@ -116,18 +114,18 @@ export function SiteProvider({ children, initialSites, pageSize: initialPageSize
         error,
         pageSize,
         setCurrentSite: handleSetCurrentSite,
-        refreshSites
+        refreshSites,
       }}
     >
       {children}
-    </SiteContext.Provider>
+    </SiteSwitcherContext.Provider>
   )
 }
 
-export function useSiteContext() {
-  const context = useContext(SiteContext)
+export function useSiteSwitcher() {
+  const context = useContext(SiteSwitcherContext)
   if (context === undefined) {
-    throw new Error('useSiteContext must be used within a SiteProvider')
+    throw new Error('useSiteSwitcher must be used within a SiteSwitcherProvider')
   }
   return context
 }

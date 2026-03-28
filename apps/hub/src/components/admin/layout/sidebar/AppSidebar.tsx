@@ -31,14 +31,14 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/admin/layout/sidebar/Sidebar"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string }
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
 
   // Content creation items
   const enabledFeatures = currentSite?.settings?.enabled_features

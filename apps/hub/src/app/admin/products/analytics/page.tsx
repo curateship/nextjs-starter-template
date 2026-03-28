@@ -7,7 +7,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, Users, ShoppingCart, DollarSign, Package, BarChart3, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
   getProductAnalyticsOverview,
   getProductTrafficOverTime,
@@ -36,7 +36,7 @@ const PERIODS = [
 type Period = (typeof PERIODS)[number]["id"]
 
 export default function ProductAnalyticsPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [period, setPeriod] = useState<Period>("7d")
   const [loading, setLoading] = useState(true)
 

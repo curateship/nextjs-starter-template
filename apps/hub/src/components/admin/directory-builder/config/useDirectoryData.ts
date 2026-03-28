@@ -3,7 +3,7 @@ import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./directory-block-types"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 interface DirectoryBlock {
   id: string
@@ -23,7 +23,7 @@ interface UseDirectoryDataReturn {
 }
 
 export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")

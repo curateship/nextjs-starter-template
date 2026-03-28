@@ -17,7 +17,7 @@ import {
   generateOneOutput,
 } from "@/lib/actions/newsletters/skill-actions"
 import type { NewsletterSkill } from "@/lib/actions/newsletters/skill-actions"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import Link from "next/link"
 import { SkillModal } from "@/components/admin/newsletter-skills/SkillModal"
 
@@ -25,7 +25,7 @@ import { SkillModal } from "@/components/admin/newsletter-skills/SkillModal"
 type SkillWithCounts = NewsletterSkill & { pending_count: number; approved_count: number }
 
 export default function SkillsPage() {
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const router = useRouter()
   const [skills, setSkills] = useState<SkillWithCounts[]>([])
   const [loading, setLoading] = useState(true)

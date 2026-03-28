@@ -4,7 +4,7 @@ import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, new
 import { eq, and } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { getEmailProvider } from '@/lib/email/provider'
+import { getEmailProvider } from '@/lib/actions/email/provider'
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')

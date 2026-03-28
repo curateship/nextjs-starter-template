@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useUserPageData } from "@/components/admin/user-page-builder/config/useUserPageData"
 import { useUserPageBuilder } from "@/components/admin/user-page-builder/config/useUserPageBuilder"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
 import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
 import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
@@ -34,7 +34,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteContext()
+  const { currentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<UserPage[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
   const [pagesError, setPagesError] = useState<string | null>(null)

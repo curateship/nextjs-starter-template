@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { auth } from '@/lib/auth'
+import { auth } from '@/lib/auth/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { authUsers } from '@/lib/db/schema'

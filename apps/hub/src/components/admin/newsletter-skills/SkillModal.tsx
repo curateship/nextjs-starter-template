@@ -32,7 +32,7 @@ import {
   getDefaultAIModel,
   isAIProvider,
   type AIProvider,
-} from "@/lib/ai/models"
+} from "@/lib/utils/ai-models"
 
 // Available block types the AI can generate
 const BLOCK_TYPE_OPTIONS = [

@@ -6,7 +6,7 @@ import { headers } from "next/headers"
 import { getSessionCookie } from "better-auth/cookies"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/seo/JsonLd"
+import { JsonLd } from "@/components/admin/seo/JsonLd"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')

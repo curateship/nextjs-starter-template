@@ -2,11 +2,11 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const { currentSite, loading } = useSiteContext()
+  const { currentSite, loading } = useSiteSwitcher()
 
   useEffect(() => {
     if (!loading) {

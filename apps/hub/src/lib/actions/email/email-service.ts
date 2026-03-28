@@ -1,4 +1,4 @@
-import { getEmailProvider } from '@/lib/email/provider'
+import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateProductEmail } from './templates/product-delivery'
 
 /**

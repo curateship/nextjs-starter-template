@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Copy, Trash2, Settings, Calendar, X, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { useSiteContext } from "@/contexts/site-context"
+import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import dynamic from "next/dynamic"
 
 const CreateEventModal = dynamic(() =>
@@ -40,7 +40,7 @@ import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
 
 export default function EventsPage() {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteContext()
+  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
