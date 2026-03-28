@@ -67,7 +67,7 @@ import {
   type ContactFilterGroup,
   type ContactFilterRule,
   type ContactFilterType,
-} from "@/lib/newsletters/contact-filters"
+} from "@/lib/actions/newsletters/contact-filters"
 
 function makeFilterRuleId() {
   return `filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`

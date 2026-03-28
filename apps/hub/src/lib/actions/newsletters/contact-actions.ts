@@ -12,7 +12,7 @@ import {
   type ContactDateFilterValue,
   type ContactFilterGroup,
   type ContactFilterRule,
-} from '@/lib/newsletters/contact-filters'
+} from '@/lib/actions/newsletters/contact-filters'
 
 export interface CrmContact {
   id: string
