@@ -50,6 +50,8 @@ interface PageProps {
   params: Promise<{ automationId: string }>
 }
 
+const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
+
 export default function AutomationBuilderPage({ params }: PageProps) {
   const { automationId } = use(params)
   const router = useRouter()
@@ -82,6 +84,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDate, setDelayDate] = useState("")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
+  const siteId = automation?.site_id ?? null
 
   useEffect(() => {
     let cancelled = false
@@ -113,17 +116,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }, [automationId])
 
   useEffect(() => {
-    if (!automation?.site_id) {
+    if (!siteId) {
       setSegments([])
       setLoadingSegments(false)
       return
     }
 
+    const currentSiteId = siteId
     let cancelled = false
 
     async function loadSegments() {
       setLoadingSegments(true)
-      const { data } = await getSegmentsBySite(automation.site_id, { page: 1, pageSize: 100 })
+      const { data } = await getSegmentsBySite(currentSiteId, { page: 1, pageSize: 100 })
       if (cancelled) return
       setSegments(data || [])
       setLoadingSegments(false)
@@ -134,20 +138,21 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return () => {
       cancelled = true
     }
-  }, [automation?.site_id])
+  }, [siteId])
 
   useEffect(() => {
-    if (!automation?.site_id) {
+    if (!siteId) {
       setProducts([])
       setLoadingProducts(false)
       return
     }
 
+    const currentSiteId = siteId
     let cancelled = false
 
     async function loadProducts() {
       setLoadingProducts(true)
-      const { data } = await getSiteProductsAction(automation.site_id, { page: 1, pageSize: 100 })
+      const { data } = await getSiteProductsAction(currentSiteId, { page: 1, pageSize: 100 })
       if (cancelled) return
       setProducts(data || [])
       setLoadingProducts(false)
@@ -158,11 +163,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return () => {
       cancelled = true
     }
-  }, [automation?.site_id])
+  }, [siteId])
 
   const configuredTriggerNodes = triggerNodes.filter(node => isAutomationTriggerConfigured(node.type, node.config))
   const triggerConfigured = configuredTriggerNodes.length > 0
-  const displayedTriggerNodes = triggerNodes.length ? triggerNodes : [{ type: "none", config: {} }]
+  const displayedTriggerNodes: AutomationTriggerNode[] = triggerNodes.length ? triggerNodes : [EMPTY_TRIGGER_NODE]
   const leadMagnetProducts = products.filter(product => Boolean(product.content_blocks?.["product-lead-magnet"]))
   const purchaseProducts = products.filter(product => Boolean(product.content_blocks?.["product-checkout"]))
   const productTriggerOptions = draftTriggerType === "lead_magnet_signup" ? leadMagnetProducts : purchaseProducts
@@ -317,7 +322,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const openTriggerEditor = (index: number) => {
-    const triggerNode = displayedTriggerNodes[index] ?? { type: "none" as const, config: {} }
+    const triggerNode = displayedTriggerNodes[index] ?? EMPTY_TRIGGER_NODE
     setSelectedTriggerIndex(index)
     setEditingTriggerIndex(index)
     setDraftTriggerType(triggerNode.type)

@@ -373,7 +373,10 @@ export async function findActiveAutomations(
 
   return rows
     .filter(automation => {
-      const triggerNodes = getAutomationTriggerNodes(automation.triggerType, automation.triggerConfig)
+      const triggerNodes = getAutomationTriggerNodes(
+        automation.triggerType,
+        automation.triggerConfig as Record<string, any> | null | undefined
+      )
       return triggerNodes.some(node => matchesAutomationTrigger(node, triggerType, filterId))
     })
     .map(automation => ({ id: automation.id }))
