@@ -4,7 +4,8 @@ import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterSkills, newsletterSkillOutputs, newsletters, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateAIContent } from '@/lib/actions/ai/ai-actions'
+import { generateNewsletterBatchContent } from '@/lib/actions/ai/newsletter-ai-actions'
+import { isAIProvider } from '@/lib/ai/models'
 import { getDefaultTemplate } from '@/lib/actions/newsletters/template-actions'
 
 // --- Types ---
@@ -345,11 +346,11 @@ export async function generateOneOutput(
         : skill.prompt
     }
 
-    const result = await generateAIContent(skill.siteId, {
-      type: 'newsletter-batch',
+    const result = await generateNewsletterBatchContent(skill.siteId, {
       prompt: iterationPrompt,
       voiceGuide: skill.referenceText || undefined,
       referenceText: undefined,
+      provider: isAIProvider(settings.provider) ? settings.provider : undefined,
       model: settings.model,
       temperature: settings.temperature,
       allowedBlockTypes,
@@ -373,6 +374,7 @@ export async function generateOneOutput(
       contentBlocks: parsed.contentBlocks!,
       status: 'pending',
       metadata: {
+        provider: isAIProvider(settings.provider) ? settings.provider : 'default',
         model: settings.model || 'default',
         generated_at: new Date().toISOString(),
         iteration,

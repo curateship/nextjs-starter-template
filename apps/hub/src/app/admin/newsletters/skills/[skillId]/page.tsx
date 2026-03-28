@@ -29,7 +29,8 @@ import {
   updateOutput,
   generateOneOutput,
 } from "@/lib/actions/newsletters/skill-actions"
-import { generateOutline } from "@/lib/actions/ai/ai-actions"
+import { generateOutline } from "@/lib/actions/ai/newsletter-ai-actions"
+import { isAIProvider } from "@/lib/ai/models"
 import type { NewsletterSkill, NewsletterSkillOutput } from "@/lib/actions/newsletters/skill-actions"
 import { useSiteContext } from "@/contexts/site-context"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
@@ -121,6 +122,7 @@ export default function SkillOutputsPage() {
       {
         prompt: skill.prompt,
         voiceGuide: skill.reference_text || undefined,
+        provider: isAIProvider(skill.settings?.provider) ? skill.settings.provider : undefined,
         model: skill.settings?.model,
         temperature: skill.settings?.temperature,
       }

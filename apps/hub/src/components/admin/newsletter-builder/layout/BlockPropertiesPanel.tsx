@@ -45,6 +45,9 @@ export function BlockPropertiesPanel({
               content={selectedBlock.content}
               onContentChange={handleContentChange}
               onBack={() => onSelectBlock(null)}
+              siteId={siteId}
+              subject={subject}
+              onSubjectChange={onSubjectChange}
             />
           )}
 

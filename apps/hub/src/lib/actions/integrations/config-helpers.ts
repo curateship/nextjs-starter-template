@@ -1,6 +1,7 @@
 'use server'
 
 import { getSiteIntegration } from './integration-actions'
+import type { AIProvider } from '@/lib/ai/models'
 
 /**
  * Get Stripe config for a site from site integrations.
@@ -87,13 +88,16 @@ export async function getResendConfig(siteId: string) {
 }
 
 /**
- * Get AI provider config for a site. Checks anthropic → openai → google_ai in order.
+ * Get AI provider config for a site. Checks anthropic → openai → google_ai in order,
+ * or a specific provider when requested.
  */
-export async function getAIConfig(siteId: string): Promise<{
+export async function getAIConfig(siteId: string, preferredProvider?: AIProvider): Promise<{
   apiKey: string
-  provider: 'anthropic' | 'openai' | 'google_ai'
+  provider: AIProvider
 } | null> {
-  const providerTypes = ['anthropic', 'openai', 'google_ai'] as const
+  const providerTypes = preferredProvider
+    ? [preferredProvider]
+    : ['anthropic', 'openai', 'google_ai'] as const
 
   for (const providerType of providerTypes) {
     const integration = await getSiteIntegration(siteId, providerType)

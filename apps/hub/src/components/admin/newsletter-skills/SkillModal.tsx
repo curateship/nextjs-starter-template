@@ -26,7 +26,13 @@ import { X, Upload } from "lucide-react"
 import { createSkill, updateSkill } from "@/lib/actions/newsletters/skill-actions"
 import type { NewsletterSkill } from "@/lib/actions/newsletters/skill-actions"
 import { getSiteIntegrations } from "@/lib/actions/integrations/integration-actions"
-import type { SiteIntegration } from "@/lib/actions/integrations/integration-actions"
+import {
+  getAIModelOptions,
+  getAIProviderLabel,
+  getDefaultAIModel,
+  isAIProvider,
+  type AIProvider,
+} from "@/lib/ai/models"
 
 // Available block types the AI can generate
 const BLOCK_TYPE_OPTIONS = [
@@ -35,22 +41,6 @@ const BLOCK_TYPE_OPTIONS = [
   { value: 'newsletter-divider', label: 'Divider', description: 'Section separator' },
   { value: 'newsletter-footer', label: 'Footer', description: 'Footer with unsubscribe' },
 ]
-
-// Default models per provider
-const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
-  anthropic: [
-    { label: 'Claude Sonnet 4', value: 'claude-sonnet-4-20250514' },
-    { label: 'Claude Haiku 3.5', value: 'claude-haiku-4-5-20251001' },
-  ],
-  openai: [
-    { label: 'GPT-4o', value: 'gpt-4o' },
-    { label: 'GPT-4o Mini', value: 'gpt-4o-mini' },
-  ],
-  google_ai: [
-    { label: 'Gemini 2.0 Flash', value: 'gemini-2.0-flash' },
-    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro-preview-05-06' },
-  ],
-}
 
 interface SkillModalProps {
   open: boolean
@@ -73,7 +63,7 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
   const [showMediaPicker, setShowMediaPicker] = useState(false)
 
   // Tab 3 — Settings
-  const [provider, setProvider] = useState('')
+  const [provider, setProvider] = useState<AIProvider | ''>('')
   const [model, setModel] = useState('')
   const [temperature, setTemperature] = useState(0.7)
   const [allowedBlockTypes, setAllowedBlockTypes] = useState<string[]>(['newsletter-rich-text'])
@@ -84,7 +74,7 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
   // State
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [aiIntegrations, setAiIntegrations] = useState<SiteIntegration[]>([])
+  const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
 
   // Load AI integrations when modal opens
   useEffect(() => {
@@ -103,7 +93,7 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
         setReferenceText(skill.reference_text || '')
         setReferenceFileIds(skill.settings?.reference_file_ids || [])
         setReferenceFileUrls(skill.settings?.reference_file_urls || [])
-        setProvider(skill.settings?.provider || '')
+        setProvider(isAIProvider(skill.settings?.provider) ? skill.settings.provider : '')
         setModel(skill.settings?.model || '')
         setTemperature(skill.settings?.temperature ?? 0.7)
         setAllowedBlockTypes(skill.settings?.allowed_block_types || ['newsletter-rich-text'])
@@ -129,29 +119,38 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
   async function loadIntegrations() {
     try {
       const integrations = await getSiteIntegrations(siteId)
-      // Filter to only AI providers that are enabled
-      const aiProviders = integrations.filter(
-        (i) => ['anthropic', 'openai', 'google_ai'].includes(i.integrationType) && i.isEnabled
-      )
-      setAiIntegrations(aiProviders)
+      const availableProviders = integrations.reduce<AIProvider[]>((providers, integration) => {
+        if (integration.isEnabled && isAIProvider(integration.integrationType)) {
+          providers.push(integration.integrationType)
+        }
+        return providers
+      }, [])
 
-      // Auto-select first provider if none selected
-      if (!provider && aiProviders.length > 0) {
-        setProvider(aiProviders[0].integrationType)
-        const models = PROVIDER_MODELS[aiProviders[0].integrationType]
-        if (models?.length) setModel(models[0].value)
-      }
+      setAiProviders(availableProviders)
     } catch {
       // Integrations are optional — skill can still work if AI config is set
     }
   }
 
+  useEffect(() => {
+    if (!aiProviders.length) return
+
+    if (!provider || !aiProviders.includes(provider)) {
+      const nextProvider = aiProviders[0]
+      setProvider(nextProvider)
+      setModel(getDefaultAIModel(nextProvider))
+      return
+    }
+
+    if (!getAIModelOptions(provider).some((option) => option.value === model)) {
+      setModel(getDefaultAIModel(provider))
+    }
+  }, [aiProviders, provider, model])
+
   // Handle provider change — reset model to first option
-  function handleProviderChange(newProvider: string) {
+  function handleProviderChange(newProvider: AIProvider) {
     setProvider(newProvider)
-    const models = PROVIDER_MODELS[newProvider]
-    if (models?.length) setModel(models[0].value)
-    else setModel('')
+    setModel(getDefaultAIModel(newProvider))
   }
 
   // Toggle a block type in the allowed list
@@ -231,7 +230,7 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
   }
 
   // Available models for the selected provider
-  const availableModels = provider ? (PROVIDER_MODELS[provider] || []) : []
+  const availableModels = provider ? getAIModelOptions(provider) : []
 
   return (
     <>
@@ -331,22 +330,19 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
               {/* AI Provider */}
               <div>
                 <Label>AI Provider</Label>
-                {aiIntegrations.length === 0 ? (
+                {aiProviders.length === 0 ? (
                   <p className="text-sm text-muted-foreground mt-1">
                     No AI providers configured. Add an API key in Site Settings → Integrations.
                   </p>
                 ) : (
-                  <Select value={provider} onValueChange={handleProviderChange}>
+                  <Select value={provider} onValueChange={(value) => handleProviderChange(value as AIProvider)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select AI provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      {aiIntegrations.map((integration) => (
-                        <SelectItem key={integration.integrationType} value={integration.integrationType}>
-                          {integration.integrationType === 'anthropic' ? 'Anthropic (Claude)' :
-                           integration.integrationType === 'openai' ? 'OpenAI (GPT)' :
-                           integration.integrationType === 'google_ai' ? 'Google AI (Gemini)' :
-                           integration.integrationType}
+                      {aiProviders.map((aiProvider) => (
+                        <SelectItem key={aiProvider} value={aiProvider}>
+                          {getAIProviderLabel(aiProvider)}
                         </SelectItem>
                       ))}
                     </SelectContent>

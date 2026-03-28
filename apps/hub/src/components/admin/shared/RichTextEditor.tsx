@@ -40,9 +40,18 @@ export interface RichTextEditorProps {
   inline?: boolean
   placeholder?: string
   children?: React.ReactNode
+  toolbarContent?: React.ReactNode
 }
 
-export function RichTextEditor({ content, onContentChange, compact = false, inline = false, placeholder, children }: RichTextEditorProps) {
+export function RichTextEditor({
+  content,
+  onContentChange,
+  compact = false,
+  inline = false,
+  placeholder,
+  children,
+  toolbarContent,
+}: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   
   const editor = useEditor({
@@ -306,6 +315,11 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
           {/* Toolbar */}
           <div className="flex flex-wrap gap-1 p-2 bg-muted/20 border-b">
             {toolbarButtons}
+            {toolbarContent && (
+              <div className="flex items-center gap-1">
+                {toolbarContent}
+              </div>
+            )}
           </div>
           {/* Editor */}
           <div
@@ -355,6 +369,11 @@ export function RichTextEditor({ content, onContentChange, compact = false, inli
                 {/* Toolbar */}
                 <div className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? '' : 'border rounded-md'}`}>
                   {toolbarButtons}
+                  {toolbarContent && (
+                    <div className="flex items-center gap-1">
+                      {toolbarContent}
+                    </div>
+                  )}
                 </div>
 
                 {/* Editor */}
