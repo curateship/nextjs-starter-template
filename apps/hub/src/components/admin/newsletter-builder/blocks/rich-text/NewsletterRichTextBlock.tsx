@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { normalizeNewsletterRichTextHtml } from "@/lib/newsletters/render"
 
 const ALLOWED_HTML_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote']
 const ALLOWED_HTML_ATTR = ['href', 'target', 'rel']
@@ -47,6 +48,7 @@ export function NewsletterRichTextBlock({
   subject,
   onSubjectChange,
 }: NewsletterRichTextBlockProps) {
+  const normalizedHtmlContent = normalizeNewsletterRichTextHtml(content.htmlContent || '')
   const [localSubject, setLocalSubject] = useState('')
   const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
   const [aiError, setAiError] = useState<string | null>(null)
@@ -171,14 +173,15 @@ export function NewsletterRichTextBlock({
         ALLOWED_ATTR: ALLOWED_HTML_ATTR,
         ALLOW_DATA_ATTR: false,
       }).trim()
+      const normalizedHtml = normalizeNewsletterRichTextHtml(sanitizedHtml)
 
-      if (!sanitizedHtml) {
+      if (!normalizedHtml) {
         setAiError('AI returned empty newsletter content.')
         return
       }
 
       onContentChange('aiPrompt', prompt)
-      onContentChange('htmlContent', sanitizedHtml)
+      onContentChange('htmlContent', normalizedHtml)
     } finally {
       setIsGenerating(false)
     }
@@ -195,10 +198,11 @@ export function NewsletterRichTextBlock({
             <Card className="shadow-sm">
               <CardContent className="p-0">
                 <RichTextEditor
-                  content={{ content: content.htmlContent || '', hideHeader: true, hideEditorHeader: true }}
-                  onContentChange={(c) => onContentChange('htmlContent', c.content)}
+                  content={{ content: normalizedHtmlContent, hideHeader: true, hideEditorHeader: true }}
+                  onContentChange={(c) => onContentChange('htmlContent', normalizeNewsletterRichTextHtml(c.content))}
                   inline
                   placeholder="Write your content here..."
+                  contentClassName="newsletter-email-rich-text"
                   toolbarContent={
                     <Button
                       variant="ghost"

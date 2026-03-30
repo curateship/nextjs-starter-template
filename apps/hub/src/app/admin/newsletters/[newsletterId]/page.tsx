@@ -275,6 +275,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           selectedBlock={builder.selectedBlock}
           blocks={builder.blocks}
           previewWidth={PREVIEW_WIDTHS[previewWidth]}
+          emailWidth={builder.newsletter?.metadata?.maxWidth || 600}
           updateBlockContent={builder.updateBlockContent}
           onSelectBlock={builder.setSelectedBlock}
           siteId={currentSite?.id || ''}

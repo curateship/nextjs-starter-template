@@ -12,6 +12,7 @@ interface BlockPropertiesPanelProps {
   selectedBlock: NewsletterBlock | null
   blocks: NewsletterBlock[]
   previewWidth: number
+  emailWidth?: number
   updateBlockContent: (blockId: string, field: string, value: any) => void
   onSelectBlock: (block: NewsletterBlock | null) => void
   siteId: string
@@ -24,6 +25,7 @@ export function BlockPropertiesPanel({
   selectedBlock,
   blocks,
   previewWidth,
+  emailWidth = 600,
   updateBlockContent,
   onSelectBlock,
   siteId,
@@ -81,6 +83,7 @@ export function BlockPropertiesPanel({
           <NewsletterCanvas
             blocks={blocks}
             previewWidth={previewWidth}
+            emailWidth={emailWidth}
             onSelectBlock={onSelectBlock}
             selectedBlock={selectedBlock}
             subject={subject}

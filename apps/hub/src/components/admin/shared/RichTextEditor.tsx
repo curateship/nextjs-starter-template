@@ -41,6 +41,7 @@ export interface RichTextEditorProps {
   placeholder?: string
   children?: React.ReactNode
   toolbarContent?: React.ReactNode
+  contentClassName?: string
 }
 
 export function RichTextEditor({
@@ -51,6 +52,7 @@ export function RichTextEditor({
   placeholder,
   children,
   toolbarContent,
+  contentClassName,
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   
@@ -76,7 +78,7 @@ export function RichTextEditor({
       transformPastedText(text) {
         // Convert single newlines to double so Tiptap creates
         // separate <p> tags instead of <br> within one <p>
-        return text.replace(/\n/g, '\n\n')
+        return text.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
       },
       transformPastedHTML(html) {
         // Convert <br> sequences and <div>s into paragraph breaks
@@ -332,7 +334,7 @@ export function RichTextEditor({
           >
             <EditorContent
               editor={editor}
-              className={`prose prose-sm max-w-none [&_p]:!my-1.5 ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
+              className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:!my-1.5'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
             />
           </div>
         </div>
@@ -387,7 +389,7 @@ export function RichTextEditor({
                 >
                   <EditorContent
                     editor={editor}
-                    className={`prose prose-sm max-w-none [&_p]:!my-1.5 ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                    className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:!my-1.5'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
                   />
                 </div>
               </>
@@ -406,7 +408,7 @@ export function RichTextEditor({
                     </p>
                   )}
                   <div
-                    className="prose prose-sm max-w-none [&_p]:!my-1.5"
+                    className={contentClassName || "prose prose-sm max-w-none [&_p]:!my-1.5"}
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(content.content, {
                         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],

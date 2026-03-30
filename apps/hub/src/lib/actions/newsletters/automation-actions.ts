@@ -4,7 +4,7 @@ import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateEmailHtml } from './email-html'
+import { generateEmailHtml } from '@/lib/newsletters/render'
 import {
   getAutomationTriggerNodes,
   isAutomationTriggerType,
