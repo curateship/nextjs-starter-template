@@ -95,13 +95,23 @@ export function PageEmbeddedBlock({
           content: (
             <div className="space-y-4">
               {onVisibilityChange && (
-                <VisibilitySettings
-                  visibility={visibility}
-                  onChange={onVisibilityChange}
-                  fields={[
-                    { key: 'embed', label: 'Show on Frontend' },
-                  ]}
-                />
+                <>
+                  <VisibilitySettings
+                    title="Element Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    includeHideBlock={false}
+                    fields={[
+                      { key: 'embed', label: 'Show on Frontend' },
+                    ]}
+                  />
+                  <VisibilitySettings
+                    title="Block Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    fields={[]}
+                  />
+                </>
               )}
             </div>
           ),

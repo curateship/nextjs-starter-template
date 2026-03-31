@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 interface VisibilityField {
   key: string
   label: string
+  mode?: 'show' | 'hide'
 }
 
 interface VisibilitySettingsProps {
@@ -12,24 +13,35 @@ interface VisibilitySettingsProps {
   onChange: (visibility: Record<string, boolean>) => void
   fields: VisibilityField[]
   title?: string
+  includeHideBlock?: boolean
 }
 
-export function VisibilitySettings({ visibility, onChange, fields, title = "Header Visibility" }: VisibilitySettingsProps) {
+export function VisibilitySettings({
+  visibility,
+  onChange,
+  fields,
+  title = "Visibility",
+  includeHideBlock = true,
+}: VisibilitySettingsProps) {
+  const resolvedFields = includeHideBlock && !fields.some((field) => field.key === 'hideBlock')
+    ? [...fields, { key: 'hideBlock', label: 'Hide Block', mode: 'hide' as const }]
+    : fields
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {fields.map((field) => (
+        {resolvedFields.map((field) => (
           <div key={field.key} className="flex items-center space-x-2">
             <Checkbox
               id={`visibility-${field.key}`}
-              checked={visibility?.[field.key] !== false}
+              checked={field.mode === 'hide' ? visibility?.[field.key] === true : visibility?.[field.key] !== false}
               onCheckedChange={(checked) => {
                 onChange({
-                  ...visibility,
-                  [field.key]: !!checked,
+                  ...(visibility ?? {}),
+                  [field.key]: checked === true,
                 })
               }}
             />
@@ -37,7 +49,7 @@ export function VisibilitySettings({ visibility, onChange, fields, title = "Head
           </div>
         ))}
         <p className="text-xs text-muted-foreground">
-          Toggle elements on or off without deleting their content.
+          Toggle elements on or off, or hide the entire block, without deleting content.
         </p>
       </CardContent>
     </Card>

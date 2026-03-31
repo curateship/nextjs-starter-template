@@ -592,11 +592,20 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
               </div>
 
               <VisibilitySettings
+                title="Element Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
+                includeHideBlock={false}
                 fields={[
                   { key: 'ctaButtons', label: 'CTA Buttons' },
                 ]}
+              />
+
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(v) => onContentChange('visibility', v)}
+                fields={[]}
               />
 
               {/* Navigation Width */}

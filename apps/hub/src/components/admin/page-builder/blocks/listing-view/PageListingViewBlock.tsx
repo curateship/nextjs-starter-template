@@ -6,6 +6,7 @@ import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -357,38 +358,30 @@ export function PageListingViewBlock({
                     </span>
                   </div>
 
-                  {onVisibilityChange && (
-                    <>
-                      <div className="pt-4">
-                        <Label className="text-base font-semibold">Header Visibility</Label>
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Toggle elements on or off without deleting their content.
-                        </p>
-                        <div className="space-y-4">
-                          {[
-                            { key: 'title', label: 'Title' },
-                            { key: 'subtitle', label: 'Subtitle' },
-                          ].map((field) => (
-                            <div key={field.key} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`visibility-${field.key}`}
-                                checked={visibility?.[field.key] !== false}
-                                onCheckedChange={(checked) => {
-                                  onVisibilityChange({
-                                    ...visibility,
-                                    [field.key]: !!checked,
-                                  })
-                                }}
-                              />
-                              <Label htmlFor={`visibility-${field.key}`} className="cursor-pointer">{field.label}</Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </CardContent>
               </Card>
+
+              {onVisibilityChange && (
+                <>
+                  <VisibilitySettings
+                    title="Header Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    includeHideBlock={false}
+                    fields={[
+                      { key: 'title', label: 'Title' },
+                      { key: 'subtitle', label: 'Subtitle' },
+                    ]}
+                  />
+                  <VisibilitySettings
+                    title="Block Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    fields={[]}
+                  />
+                </>
+              )}
+
             </div>
           ),
         },

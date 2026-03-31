@@ -143,7 +143,8 @@ export function BlockPropertiesPanel({
                 {...selectedBlock.content}
                 {...(createCallbacks(updateBlockContent, [
                   'spacingTop', 'spacingBottom', 'dividerStyle',
-                  'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth'
+                  'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth',
+                  'visibility'
                 ]) as any)}
                 onBack={onBack}
               />
@@ -158,7 +159,7 @@ export function BlockPropertiesPanel({
                   'loginButtonText', 'registerButtonText', 'resetButtonText',
                   'loginTitle', 'loginDescription',
                   'registerTitle', 'registerDescription',
-                  'resetTitle', 'resetDescription'
+                  'resetTitle', 'resetDescription', 'visibility'
                 ]) as any)}
                 onBack={onBack}
               />

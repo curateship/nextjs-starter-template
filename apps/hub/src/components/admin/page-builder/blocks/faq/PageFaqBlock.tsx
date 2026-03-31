@@ -311,14 +311,24 @@ export function PageFaqBlock({
           content: (
             <div className="space-y-4">
               {onVisibilityChange && (
-                <VisibilitySettings
-                  visibility={visibility}
-                  onChange={onVisibilityChange}
-                  fields={[
-                    { key: 'title', label: 'Title' },
-                    { key: 'subtitle', label: 'Subtitle' },
-                  ]}
-                />
+                <>
+                  <VisibilitySettings
+                    title="Element Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    includeHideBlock={false}
+                    fields={[
+                      { key: 'title', label: 'Title' },
+                      { key: 'subtitle', label: 'Subtitle' },
+                    ]}
+                  />
+                  <VisibilitySettings
+                    title="Block Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    fields={[]}
+                  />
+                </>
               )}
             </div>
           ),

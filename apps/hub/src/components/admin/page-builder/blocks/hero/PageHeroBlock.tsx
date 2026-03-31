@@ -328,12 +328,20 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                 title="Element Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
+                includeHideBlock={false}
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },
                   { key: 'ctaButtons', label: 'CTA Buttons' },
                   { key: 'emailForm', label: 'Email Form' },
                 ]}
+              />
+
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(v) => onContentChange('visibility', v)}
+                fields={[]}
               />
 
               <Card className="shadow-sm">

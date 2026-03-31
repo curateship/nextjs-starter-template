@@ -19,17 +19,21 @@ interface BlockRendererProps {
 
 export function BlockRenderer({ site }: BlockRendererProps) {
   const { blocks = [] } = site
-  
+
+  const isBlockHidden = (block: typeof blocks[number]) => block.content?.visibility?.hideBlock === true
+
   // Sort blocks by display_order with proper type handling
-  const sortedBlocks = blocks.sort((a, b) => {
+  const sortedBlocks = [...blocks].sort((a, b) => {
     const orderA = typeof a.display_order === 'number' ? a.display_order : 0
     const orderB = typeof b.display_order === 'number' ? b.display_order : 0
     return orderA - orderB
   })
-  
+
+  const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
+
   // Find navigation and footer blocks for layout
-  const navigationBlock = blocks.find(block => block.type === 'navigation')
-  const footerBlock = blocks.find(block => block.type === 'footer')
+  const navigationBlock = visibleBlocks.find(block => block.type === 'navigation')
+  const footerBlock = visibleBlocks.find(block => block.type === 'footer')
 
   // Convert R2 URLs to cached /cdn/ paths for navigation logo
   if (navigationBlock?.content?.logo) {
@@ -46,7 +50,7 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         footer={footerBlock?.content}
         site={site}
       >
-      {sortedBlocks.map((block) => {
+      {visibleBlocks.map((block) => {
         // Skip navigation and footer blocks as they're handled by SiteLayout
         if (block.type === 'navigation' || block.type === 'footer') {
           return null

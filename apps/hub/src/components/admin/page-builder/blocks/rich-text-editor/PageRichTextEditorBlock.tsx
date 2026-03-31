@@ -14,13 +14,23 @@ export function PageRichTextEditorBlock({ content, onContentChange, onVisibility
   return (
     <RichTextEditor content={content} onContentChange={onContentChange} compact={compact} inline={inline}>
       {onVisibilityChange && (
-        <VisibilitySettings
-          visibility={content.visibility}
-          onChange={onVisibilityChange}
-          fields={[
-            { key: 'header', label: 'Section Header' },
-          ]}
-        />
+        <>
+          <VisibilitySettings
+            title="Element Visibility"
+            visibility={content.visibility}
+            onChange={onVisibilityChange}
+            includeHideBlock={false}
+            fields={[
+              { key: 'header', label: 'Section Header' },
+            ]}
+          />
+          <VisibilitySettings
+            title="Block Visibility"
+            visibility={content.visibility}
+            onChange={onVisibilityChange}
+            fields={[]}
+          />
+        </>
       )}
     </RichTextEditor>
   )

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface PageAuthBlockProps {
   defaultTab?: 'login' | 'register'
@@ -23,6 +24,7 @@ interface PageAuthBlockProps {
   registerDescription?: string
   resetTitle?: string
   resetDescription?: string
+  visibility?: Record<string, boolean>
   onDefaultTabChange: (value: 'login' | 'register') => void
   onShowLoginTabChange: (value: boolean) => void
   onShowRegisterTabChange: (value: boolean) => void
@@ -38,6 +40,7 @@ interface PageAuthBlockProps {
   onRegisterDescriptionChange: (value: string) => void
   onResetTitleChange: (value: string) => void
   onResetDescriptionChange: (value: string) => void
+  onVisibilityChange?: (value: Record<string, boolean>) => void
   onBack?: () => void
 }
 
@@ -57,6 +60,7 @@ export function PageAuthBlock({
   registerDescription = 'Enter your details to get started',
   resetTitle = 'Reset your password',
   resetDescription = 'Enter your email to receive a reset link',
+  visibility,
   onDefaultTabChange,
   onShowLoginTabChange,
   onShowRegisterTabChange,
@@ -72,6 +76,7 @@ export function PageAuthBlock({
   onRegisterDescriptionChange,
   onResetTitleChange,
   onResetDescriptionChange,
+  onVisibilityChange,
   onBack,
 }: PageAuthBlockProps) {
   return (
@@ -297,6 +302,15 @@ export function PageAuthBlock({
                   </div>
                 </CardContent>
               </Card>
+
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[]}
+                />
+              )}
             </div>
           ),
         },

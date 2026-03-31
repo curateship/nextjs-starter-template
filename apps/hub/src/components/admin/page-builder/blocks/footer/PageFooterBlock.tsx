@@ -634,14 +634,24 @@ export function PageFooterBlock({
           content: (
             <div className="space-y-4">
               {onVisibilityChange && (
-                <VisibilitySettings
-                  visibility={visibility}
-                  onChange={onVisibilityChange}
-                  fields={[
-                    { key: 'footerLinks', label: 'Footer Links' },
-                    { key: 'socialLinks', label: 'Social Links' },
-                  ]}
-                />
+                <>
+                  <VisibilitySettings
+                    title="Element Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    includeHideBlock={false}
+                    fields={[
+                      { key: 'footerLinks', label: 'Footer Links' },
+                      { key: 'socialLinks', label: 'Social Links' },
+                    ]}
+                  />
+                  <VisibilitySettings
+                    title="Block Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    fields={[]}
+                  />
+                </>
               )}
             </div>
           ),

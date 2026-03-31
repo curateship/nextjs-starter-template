@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedDividerBlockProps {
   spacingTop?: number
@@ -16,6 +17,8 @@ interface SharedDividerBlockProps {
   icon?: string
   containerWidth?: string
   customWidth?: number
+  visibility?: Record<string, boolean>
+  onVisibilityChange?: (value: Record<string, boolean>) => void
   onSpacingTopChange: (value: number) => void
   onSpacingBottomChange: (value: number) => void
   onDividerStyleChange: (value: 'none' | 'line' | 'dots' | 'icon') => void
@@ -40,6 +43,8 @@ export function PageDividerBlock({
   icon = 'dots',
   containerWidth = 'full',
   customWidth = 1200,
+  visibility,
+  onVisibilityChange,
   onSpacingTopChange,
   onSpacingBottomChange,
   onDividerStyleChange,
@@ -325,6 +330,22 @@ export function PageDividerBlock({
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <div className="space-y-4">
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[]}
+                />
+              )}
             </div>
           ),
         },

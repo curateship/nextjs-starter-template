@@ -394,12 +394,20 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                   </div>
                 </div>
                 <VisibilitySettings
+                  title="Element Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
+                  includeHideBlock={false}
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
                   ]}
+                />
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={content.visibility}
+                  onChange={(v) => onContentChange('visibility', v)}
+                  fields={[]}
                 />
               </>
             ),
