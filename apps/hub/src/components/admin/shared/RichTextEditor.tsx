@@ -183,7 +183,7 @@ export function RichTextEditor({
       </Button>
       <div className="w-px h-6 bg-border mx-1" />
       {/* Headings */}
-      {[1, 2, 3, 4, 5, 6].map((level) => (
+      {([1, 2, 3, 4, 5, 6] as const).map((level) => (
         <Button
           key={level}
           variant="ghost"
