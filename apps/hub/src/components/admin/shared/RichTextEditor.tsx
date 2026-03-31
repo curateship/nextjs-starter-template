@@ -183,24 +183,18 @@ export function RichTextEditor({
       </Button>
       <div className="w-px h-6 bg-border mx-1" />
       {/* Headings */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn("h-8 px-2 text-xs font-semibold", editor.isActive('heading', { level: 2 }) && "bg-primary/20")}
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        title="Heading 2"
-      >
-        H2
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn("h-8 px-2 text-xs font-semibold", editor.isActive('heading', { level: 3 }) && "bg-primary/20")}
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        title="Heading 3"
-      >
-        H3
-      </Button>
+      {[1, 2, 3, 4, 5, 6].map((level) => (
+        <Button
+          key={level}
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 px-2 text-xs font-semibold", editor.isActive('heading', { level }) && "bg-primary/20")}
+          onClick={() => editor.chain().focus().toggleHeading({ level }).run()}
+          title={`Heading ${level}`}
+        >
+          {`H${level}`}
+        </Button>
+      ))}
       <div className="w-px h-6 bg-border mx-1" />
       {/* Lists */}
       <Button
