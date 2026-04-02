@@ -165,7 +165,7 @@ function SortableTestimonialItem({
                 target.style.height = 'auto'
                 target.style.height = `${target.scrollHeight}px`
               }}
-              className="w-full px-3 py-2 border rounded-md min-h-[2.5rem] resize-none overflow-hidden mt-1"
+              className="w-full px-3 py-2 border rounded-md min-h-10 resize-none overflow-hidden mt-1"
               placeholder="Their testimonial quote..."
               style={{ height: 'auto' }}
             />

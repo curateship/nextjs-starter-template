@@ -265,7 +265,7 @@ export function PageDividerBlock({
                               type="color"
                               value={lineColor || '#e5e7eb'}
                               onChange={(e) => onLineColorChange(e.target.value)}
-                              className="w-12 h-9 flex-shrink-0 rounded cursor-pointer shadow-sm border-0 p-1"
+                              className="w-12 h-9 shrink-0 rounded cursor-pointer shadow-sm border-0 p-1"
                             />
                             <input
                               type="text"
