@@ -13,13 +13,21 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Mail, Users, Filter, Zap, FileText, Trash2, ExternalLink } from "lucide-react"
+import { Trash2, ExternalLink } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -60,6 +68,7 @@ export default function ContactDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Edit form state
   const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" })
@@ -266,15 +275,78 @@ export default function ContactDashboardPage() {
               { label: loading ? <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" /> : displayName },
             ]}
             actions={
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting || loading}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                {deleting ? "Deleting..." : "Delete"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={loading || !contact}>
+                      Settings
+                    </Button>
+                  </DialogTrigger>
+                  {contact && (
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Settings</DialogTitle>
+                        <DialogDescription>
+                          Update this contact&apos;s name, status, and tags.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleSave} className="space-y-4">
+                        <div>
+                          <Label className="text-xs mb-1 block">First Name</Label>
+                          <Input
+                            value={editForm.first_name}
+                            onChange={e => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
+                            placeholder="First name"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">Last Name</Label>
+                          <Input
+                            value={editForm.last_name}
+                            onChange={e => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
+                            placeholder="Last name"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">Status</Label>
+                          <Select value={editForm.status} onValueChange={v => setEditForm(prev => ({ ...prev, status: v }))}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                              <SelectItem value="bounced">Bounced</SelectItem>
+                              <SelectItem value="complained">Complained</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">Tags</Label>
+                          <Input
+                            value={editForm.tags}
+                            onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
+                            placeholder="tag1, tag2, tag3"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">Separate with commas</p>
+                        </div>
+                        <Button type="submit" disabled={saving} className="w-full">
+                          {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  )}
+                </Dialog>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting || loading}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {deleting ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
             }
           />
 
@@ -356,7 +428,7 @@ export default function ContactDashboardPage() {
                 </Card>
               </div>
 
-              {/* Two-column layout: Email History + Details */}
+              {/* Two-column layout: Email History + Sidebar */}
               <div className="grid grid-cols-1 lg:grid-cols-3">
                 {/* Email History — left 2/3 */}
                 <Card className="lg:col-span-2 p-0">
@@ -408,59 +480,8 @@ export default function ContactDashboardPage() {
                   )}
                 </Card>
 
-                {/* Right sidebar — Details, Segments, Clicked Links */}
+                {/* Right sidebar — Segments, Clicked Links */}
                 <div>
-                  {/* Edit Details */}
-                  <Card className="p-0">
-                    <div className="px-6 py-4 border-b">
-                      <h2 className="font-semibold text-sm">Details</h2>
-                    </div>
-                    <form onSubmit={handleSave} className="px-6 py-4 space-y-4">
-                      <div>
-                        <Label className="text-xs mb-1 block">First Name</Label>
-                        <Input
-                          value={editForm.first_name}
-                          onChange={e => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
-                          placeholder="First name"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs mb-1 block">Last Name</Label>
-                        <Input
-                          value={editForm.last_name}
-                          onChange={e => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
-                          placeholder="Last name"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs mb-1 block">Status</Label>
-                        <Select value={editForm.status} onValueChange={v => setEditForm(prev => ({ ...prev, status: v }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                            <SelectItem value="bounced">Bounced</SelectItem>
-                            <SelectItem value="complained">Complained</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-xs mb-1 block">Tags</Label>
-                        <Input
-                          value={editForm.tags}
-                          onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
-                          placeholder="tag1, tag2, tag3"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Separate with commas</p>
-                      </div>
-                      <Button type="submit" disabled={saving} className="w-full">
-                        {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
-                      </Button>
-                    </form>
-                  </Card>
-
                   {/* Segments */}
                   <Card className="p-0">
                     <div className="px-6 py-4 border-b">

@@ -143,12 +143,14 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
           {blocksLoading ? (
             <div>
               {/* Navigation skeleton */}
-              <div className="flex items-center gap-6 px-8 py-4">
-                <div className="h-7 w-7 bg-muted rounded animate-pulse" />
-                <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
-                <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
-                <div className="flex-1" />
-                <div className="h-5 w-5 bg-muted/40 rounded animate-pulse" />
+              <div className="px-8 py-4">
+                <div className="mx-auto flex w-full max-w-[1200px] items-center gap-6">
+                  <div className="h-7 w-7 bg-muted rounded animate-pulse" />
+                  <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
+                  <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
+                  <div className="flex-1" />
+                  <div className="h-5 w-5 bg-muted/40 rounded animate-pulse" />
+                </div>
               </div>
 
               {/* Hero skeleton — left text + right image */}
@@ -209,7 +211,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
 
               {/* Footer skeleton */}
               <div className="px-8 py-8">
-                <div className="flex items-center justify-between">
+                <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between">
                   <div className="h-4 bg-muted/60 rounded animate-pulse w-40" />
                   <div className="flex gap-4">
                     <div className="h-4 bg-muted/40 rounded animate-pulse w-12" />

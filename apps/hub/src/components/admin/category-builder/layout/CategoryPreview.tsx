@@ -179,14 +179,16 @@ export function CategoryPreview({ blocks, category, site, className = "", blocks
           {blocksLoading ? (
             <div>
               {/* Navigation skeleton */}
-              <div className="flex items-center justify-between px-8 py-4 border-b">
-                <div className="h-6 bg-muted rounded animate-pulse w-28" />
-                <div className="flex gap-6">
-                  <div className="h-4 bg-muted/60 rounded animate-pulse w-14" />
-                  <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
-                  <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
+              <div className="border-b px-8 py-4">
+                <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between">
+                  <div className="h-6 bg-muted rounded animate-pulse w-28" />
+                  <div className="flex gap-6">
+                    <div className="h-4 bg-muted/60 rounded animate-pulse w-14" />
+                    <div className="h-4 bg-muted/60 rounded animate-pulse w-16" />
+                    <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
+                  </div>
+                  <div className="h-8 bg-muted rounded-md animate-pulse w-20" />
                 </div>
-                <div className="h-8 bg-muted rounded-md animate-pulse w-20" />
               </div>
 
               {/* Category content skeleton */}
@@ -208,7 +210,7 @@ export function CategoryPreview({ blocks, category, site, className = "", blocks
 
               {/* Footer skeleton */}
               <div className="border-t px-8 py-8 mt-8">
-                <div className="flex items-center justify-between">
+                <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between">
                   <div className="h-4 bg-muted/60 rounded animate-pulse w-40" />
                   <div className="flex gap-4">
                     <div className="h-4 bg-muted/40 rounded animate-pulse w-12" />
