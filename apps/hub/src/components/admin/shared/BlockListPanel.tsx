@@ -56,6 +56,14 @@ interface BlockListPanelProps {
   lockedBlockIds?: Set<string>
   /** Optional label for locked blocks */
   lockedLabel?: string
+  /** Optional title for the sidebar panel */
+  panelTitle?: string
+  /** Optional singular item label used in delete and button copy */
+  itemNameSingular?: string
+  /** Optional plural item label used in empty states */
+  itemNamePlural?: string
+  /** Optional add button label */
+  addButtonLabel?: string
 }
 
 /** Sortable block item used inside the DnD context */
@@ -170,6 +178,10 @@ export function BlockListPanel({
   entityName = "content",
   lockedBlockIds,
   lockedLabel,
+  panelTitle = "Blocks",
+  itemNameSingular = "block",
+  itemNamePlural = "blocks",
+  addButtonLabel = "Add Block",
 }: BlockListPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [blockToDelete, setBlockToDelete] = useState<ListBlock | null>(null)
@@ -211,7 +223,7 @@ export function BlockListPanel({
           </div>
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
-            <h2 className="text-lg font-semibold">Blocks</h2>
+            <h2 className="text-lg font-semibold">{panelTitle}</h2>
             {onPreview && (
               <Button onClick={onPreview} size="sm" variant="outline" className="flex items-center space-x-1">
                 <Eye className="w-3.5 h-3.5" />
@@ -240,8 +252,8 @@ export function BlockListPanel({
         ) : blocks.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-muted-foreground mb-4">
-              <p className="text-base font-medium">No blocks added yet</p>
-              <p className="text-xs">Click &quot;Add Blocks&quot; to start building your {entityName}</p>
+              <p className="text-base font-medium">No {itemNamePlural} added yet</p>
+              <p className="text-xs">Click &quot;{addButtonLabel}&quot; to start building your {entityName}</p>
             </div>
           </div>
         ) : (
@@ -271,7 +283,7 @@ export function BlockListPanel({
           <div className="px-5 mt-3">
             <Button variant="outline" size="sm" onClick={onAddBlock}>
               <Plus className="w-4 h-4 mr-1" />
-              Add Block
+              {addButtonLabel}
             </Button>
           </div>
         )}
@@ -281,16 +293,16 @@ export function BlockListPanel({
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Block</DialogTitle>
+            <DialogTitle>Delete {itemNameSingular}</DialogTitle>
             <DialogDescription>
               {blockToDelete && (
-                <>Are you sure you want to delete the {getBlockName(blockTypes, blockToDelete.type)} block? It will be removed when you save.</>
+                <>Are you sure you want to delete the {getBlockName(blockTypes, blockToDelete.type)} {itemNameSingular}? It will be removed when you save.</>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end space-x-2 pt-4">
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>Delete Block</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>Delete {itemNameSingular}</Button>
           </div>
         </DialogContent>
       </Dialog>

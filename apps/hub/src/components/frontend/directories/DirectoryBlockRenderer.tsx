@@ -1,7 +1,9 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
+import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryWithBlocks {
   id: string
@@ -20,6 +22,7 @@ interface DirectoryWithBlocks {
 interface DirectoryBlockRendererProps {
   site: SiteWithBlocks
   directory: DirectoryWithBlocks
+  customBlockTemplates?: Record<string, DirectoryCustomBlockTemplate>
 }
 
 function DirectoryContentStyled({
@@ -57,7 +60,7 @@ function DirectoryContentStyled({
   )
 }
 
-export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRendererProps) {
+export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {} }: DirectoryBlockRendererProps) {
   const { blocks: siteBlocks = [] } = site
   const { blocks: directoryBlocks = [] } = directory
 
@@ -90,6 +93,26 @@ export function DirectoryBlockRenderer({ site, directory }: DirectoryBlockRender
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
+              </div>
+            )
+          }
+
+          if (block.type === 'directory-custom') {
+            const templateId = block.content?.templateId
+            const template = typeof templateId === 'string' ? customBlockTemplates[templateId] : undefined
+
+            if (!template) {
+              return null
+            }
+
+            return (
+              <div key={`directory-custom-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+                <DirectoryCustomBlockSection
+                  template={template}
+                  values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                />
               </div>
             )
           }

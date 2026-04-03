@@ -26,6 +26,8 @@ import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionMod
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
 import { getSiteDirectoriesAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
+import { Blocks } from "lucide-react"
+import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -81,7 +83,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }, [siteId, initialDirectory, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
+  const { site, blocks, siteBlocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -94,6 +96,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     setBlocks: setLocalBlocks,
     selectedDirectory,
     directoryId: directories.find(d => d.slug === selectedDirectory)?.id,
+    customBlockTemplates,
     currentDirectory: directories.find(d => d.slug === selectedDirectory)
   })
 
@@ -104,6 +107,17 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     name: currentDirectoryData?.title || selectedDirectory,
     blocks: localBlocks[selectedDirectory] || []
   }
+
+  const customBlockDefinitions = customBlockTemplates.map(template => ({
+    type: getDirectoryCustomBlockSelectionType(template.id),
+    name: template.name,
+    icon: Blocks,
+    description: `${template.layout} • ${template.fields.length} field${template.fields.length === 1 ? '' : 's'}`,
+    defaultContent: {
+      templateId: template.id,
+      values: {},
+    },
+  }))
 
   // Handle directory change with URL update
   const handleDirectoryChange = (directorySlug: string) => {
@@ -275,6 +289,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             settings: site?.settings
           }}
           siteBlocks={siteBlocks}
+          customBlockTemplates={customBlockTemplates}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
           onSelectBlock={builderState.setSelectedBlock}
@@ -302,7 +317,10 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onOpenChange={setBlockModalOpen}
           onAddBlocks={builderState.handleAddBlocks}
           existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
-          blockTypes={DIRECTORY_BLOCK_TYPES}
+          sections={[
+            { title: 'Built In', blockTypes: DIRECTORY_BLOCK_TYPES },
+            { title: 'Custom', blockTypes: customBlockDefinitions },
+          ]}
           entityName="directory"
         />
       </div>

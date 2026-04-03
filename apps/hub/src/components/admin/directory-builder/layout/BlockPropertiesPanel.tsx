@@ -1,6 +1,8 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
+import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
 import { DirectoryPreview } from "./DirectoryPreview"
+import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {
   id: string
@@ -35,6 +37,7 @@ interface BlockPropertiesPanelProps {
     }
   }
   siteBlocks?: Record<string, any[]>
+  customBlockTemplates?: DirectoryCustomBlockTemplate[]
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
@@ -48,6 +51,7 @@ export function BlockPropertiesPanel({
   currentDirectory,
   site,
   siteBlocks,
+  customBlockTemplates = [],
   blocksLoading = false,
   onTitleChange,
   onSelectBlock,
@@ -73,6 +77,15 @@ export function BlockPropertiesPanel({
                   name: currentDirectory?.name,
                 }}
                 onDirectoryTitleChange={onTitleChange}
+                onBack={onBack}
+              />
+            )}
+            {selectedBlock.type === 'directory-custom' && (
+              <DirectoryCustomBlock
+                content={selectedBlock.content}
+                onContentChange={updateBlockContent}
+                siteId={siteId}
+                template={customBlockTemplates.find(template => template.id === selectedBlock.content?.templateId) || null}
                 onBack={onBack}
               />
             )}
@@ -102,6 +115,7 @@ export function BlockPropertiesPanel({
             className="h-full"
             blocksLoading={blocksLoading}
             allBlocks={currentDirectory?.blocks || []}
+            customBlockTemplates={customBlockTemplates}
             onSelectBlock={onSelectBlock}
           />
         </div>

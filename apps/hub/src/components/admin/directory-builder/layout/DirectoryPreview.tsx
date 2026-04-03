@@ -4,6 +4,7 @@ import { useRef, useState, useEffect, useCallback } from "react"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
+import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {
   id: string
@@ -40,10 +41,11 @@ interface DirectoryPreviewProps {
   className?: string
   blocksLoading?: boolean
   allBlocks?: DirectoryBlock[]
+  customBlockTemplates?: DirectoryCustomBlockTemplate[]
   onSelectBlock?: (block: DirectoryBlock) => void
 }
 
-export function DirectoryPreview({ blocks, directory, site, className = "", blocksLoading = false, allBlocks, onSelectBlock }: DirectoryPreviewProps) {
+export function DirectoryPreview({ blocks, directory, site, className = "", blocksLoading = false, allBlocks, customBlockTemplates = [], onSelectBlock }: DirectoryPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredEl, setHoveredEl] = useState<HTMLElement | null>(null)
 
@@ -230,7 +232,13 @@ export function DirectoryPreview({ blocks, directory, site, className = "", bloc
               </div>
             </div>
           ) : (
-            <DirectoryBlockRenderer site={previewSite} directory={previewDirectory} />
+            <DirectoryBlockRenderer
+              site={previewSite}
+              directory={previewDirectory}
+              customBlockTemplates={Object.fromEntries(
+                customBlockTemplates.map(template => [template.id, template])
+              )}
+            />
           )}
         </div>
       </div>

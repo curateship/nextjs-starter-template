@@ -67,6 +67,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: FolderOpen,
       isActive: false,
       featureKey: "directory",
+      items: [
+        { title: "Custom Blocks", url: "/admin/directories/custom-blocks" },
+      ],
     },
     {
       title: "Newsletters",

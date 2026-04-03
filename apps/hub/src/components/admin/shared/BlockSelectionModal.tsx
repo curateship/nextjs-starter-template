@@ -29,8 +29,15 @@ interface BlockSelectionModalProps {
   onOpenChange: (open: boolean) => void
   onAddBlocks: (selections: BlockSelection[]) => void
   existingBlockTypes?: string[]
-  blockTypes: BlockTypeDefinition[]
+  blockTypes?: BlockTypeDefinition[]
+  sections?: Array<{
+    title: string
+    blockTypes: BlockTypeDefinition[]
+  }>
   entityName?: string
+  title?: string
+  itemLabelPlural?: string
+  addActionLabel?: string
 }
 
 /**
@@ -42,14 +49,19 @@ export function BlockSelectionModal({
   onOpenChange,
   onAddBlocks,
   existingBlockTypes = [],
-  blockTypes,
+  blockTypes = [],
+  sections,
   entityName = "content",
+  title = "Add Blocks",
+  itemLabelPlural = "blocks",
+  addActionLabel = "Add selected blocks",
 }: BlockSelectionModalProps) {
   const [selections, setSelections] = useState<Record<string, number>>({})
+  const allBlockTypes = sections?.flatMap(section => section.blockTypes) || blockTypes
 
   const disabledBlocks = useMemo(() => {
     const disabled = new Set<string>()
-    blockTypes.forEach(blockType => {
+    allBlockTypes.forEach(blockType => {
       if (blockType.conflictsWith) {
         blockType.conflictsWith.forEach(conflictType => {
           if (existingBlockTypes.includes(conflictType)) {
@@ -59,7 +71,7 @@ export function BlockSelectionModal({
       }
     })
     return disabled
-  }, [existingBlockTypes, blockTypes])
+  }, [existingBlockTypes, allBlockTypes])
 
   const handleToggleBlock = (type: string) => {
     setSelections(prev => {
@@ -107,120 +119,139 @@ export function BlockSelectionModal({
     if (!blockType.conflictsWith) return null
     for (const conflictType of blockType.conflictsWith) {
       if (existingBlockTypes.includes(conflictType)) {
-        const conflictBlock = blockTypes.find(b => b.type === conflictType)
+        const conflictBlock = allBlockTypes.find(b => b.type === conflictType)
         return `Cannot add ${blockType.name} when ${conflictBlock?.name || 'conflicting block'} exists`
       }
     }
     return null
   }
 
+  const renderBlockCard = (blockType: BlockTypeDefinition) => {
+    const Icon = blockType.icon
+    const isSelected = !!selections[blockType.type]
+    const isDisabled = disabledBlocks.has(blockType.type)
+    const conflictMessage = getConflictMessage(blockType)
+    const quantity = selections[blockType.type] || 0
+
+    const blockCard = (
+      <div
+        key={blockType.type}
+        className={`
+          border rounded-lg p-4 transition-all cursor-pointer
+          ${isSelected
+            ? 'border-primary bg-primary/5 shadow-sm'
+            : 'border-border hover:border-muted-foreground'
+          }
+          ${isDisabled
+            ? 'opacity-50 cursor-not-allowed hover:border-border'
+            : ''
+          }
+        `}
+        onClick={() => !isDisabled && handleToggleBlock(blockType.type)}
+      >
+        <div className="flex items-start space-x-3">
+          <div className={`
+            flex items-center justify-center w-10 h-10 rounded
+            ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}
+          `}>
+            <Icon className="w-5 h-5" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="font-semibold text-sm">{blockType.name}</h4>
+              {isDisabled && (
+                <Info className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {blockType.description}
+            </p>
+
+            {isSelected && (
+              <div className="flex items-center space-x-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                <span className="text-xs text-muted-foreground">Quantity:</span>
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleQuantityChange(blockType.type, -1)
+                    }}
+                  >
+                    <Minus className="w-3 h-3" />
+                  </Button>
+                  <span className="text-sm font-medium w-6 text-center">{quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleQuantityChange(blockType.type, 1)
+                    }}
+                    disabled={quantity >= 10}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+
+    if (isDisabled && conflictMessage) {
+      return (
+        <TooltipProvider key={blockType.type}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {blockCard}
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{conflictMessage}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+
+    return blockCard
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[900px] max-w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Blocks</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Select the blocks you want to add to your {entityName}. You can add multiple blocks at once and specify quantities.
+            Select the {itemLabelPlural} you want to add to your {entityName}. You can add multiple {itemLabelPlural} at once and specify quantities.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-4 py-4">
-          {blockTypes.map((blockType) => {
-            const Icon = blockType.icon
-            const isSelected = !!selections[blockType.type]
-            const isDisabled = disabledBlocks.has(blockType.type)
-            const conflictMessage = getConflictMessage(blockType)
-            const quantity = selections[blockType.type] || 0
-
-            const blockCard = (
-              <div
-                key={blockType.type}
-                className={`
-                  border rounded-lg p-4 transition-all cursor-pointer
-                  ${isSelected
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-border hover:border-muted-foreground'
-                  }
-                  ${isDisabled
-                    ? 'opacity-50 cursor-not-allowed hover:border-border'
-                    : ''
-                  }
-                `}
-                onClick={() => !isDisabled && handleToggleBlock(blockType.type)}
-              >
-                <div className="flex items-start space-x-3">
-                  <div className={`
-                    flex items-center justify-center w-10 h-10 rounded
-                    ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}
-                  `}>
-                    <Icon className="w-5 h-5" />
+        {sections ? (
+          <div className="space-y-6 py-4">
+            {sections
+              .filter(section => section.blockTypes.length > 0)
+              .map(section => (
+                <div key={section.title} className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">{section.title}</h3>
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-semibold text-sm">{blockType.name}</h4>
-                      {isDisabled && (
-                        <Info className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {blockType.description}
-                    </p>
-
-                    {isSelected && (
-                      <div className="flex items-center space-x-2 mt-3" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-xs text-muted-foreground">Quantity:</span>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleQuantityChange(blockType.type, -1)
-                            }}
-                          >
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <span className="text-sm font-medium w-6 text-center">{quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleQuantityChange(blockType.type, 1)
-                            }}
-                            disabled={quantity >= 10}
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-3 gap-4">
+                    {section.blockTypes.map(renderBlockCard)}
                   </div>
                 </div>
-              </div>
-            )
-
-            if (isDisabled && conflictMessage) {
-              return (
-                <TooltipProvider key={blockType.type}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {blockCard}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{conflictMessage}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )
-            }
-
-            return blockCard
-          })}
-        </div>
+              ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-4 py-4">
+            {blockTypes.map(renderBlockCard)}
+          </div>
+        )}
 
         <DialogFooter>
           <div className="flex items-center justify-between w-full">
@@ -235,7 +266,7 @@ export function BlockSelectionModal({
                 onClick={handleAddBlocks}
                 disabled={totalBlocksToAdd === 0}
               >
-                Add selected blocks
+                {addActionLabel}
               </Button>
             </div>
           </div>

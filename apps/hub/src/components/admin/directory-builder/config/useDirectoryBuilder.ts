@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react"
 import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import { getBlockTypeDefinition } from "./directory-block-types"
+import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import { parseDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 
 interface BlockSelection {
   type: string
@@ -19,6 +21,7 @@ interface UseDirectoryBuilderParams {
   setBlocks: React.Dispatch<React.SetStateAction<Record<string, DirectoryBlock[]>>>
   selectedDirectory: string
   directoryId?: string
+  customBlockTemplates: DirectoryCustomBlockTemplate[]
   currentDirectory?: {
     title?: string
     content_blocks?: Record<string, any>
@@ -42,6 +45,7 @@ export function useDirectoryBuilder({
   setBlocks,
   selectedDirectory,
   directoryId,
+  customBlockTemplates,
   currentDirectory
 }: UseDirectoryBuilderParams): UseDirectoryBuilderReturn {
   const [selectedBlock, setSelectedBlock] = useState<DirectoryBlock | null>(null)
@@ -93,6 +97,32 @@ export function useDirectoryBuilder({
 
     // Process each selection
     for (const selection of selections) {
+      const customTemplateId = parseDirectoryCustomBlockSelectionType(selection.type)
+
+      if (customTemplateId) {
+        const template = customBlockTemplates.find(item => item.id === customTemplateId)
+
+        if (!template) {
+          console.warn(`Unknown custom block template: ${customTemplateId}`)
+          continue
+        }
+
+        for (let i = 0; i < selection.quantity; i++) {
+          const timestamp = Date.now() + i
+          newBlocks.push({
+            id: `directory-custom-${timestamp}`,
+            type: 'directory-custom',
+            title: template.name,
+            content: {
+              templateId: template.id,
+              values: {},
+            },
+          })
+        }
+
+        continue
+      }
+
       const blockDefinition = getBlockTypeDefinition(selection.type)
 
       if (!blockDefinition) {
@@ -153,7 +183,8 @@ export function useDirectoryBuilder({
         id: block.id,
         type: block.type,
         content: block.content,
-        display_order: index
+        display_order: index,
+        ...(block.title ? { title: block.title } : {}),
       }
     })
 

@@ -1,13 +1,14 @@
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { db } from "@/lib/db"
-import { directories } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { directories, directoryCustomBlocks } from "@/lib/db/schema"
+import { eq, and, inArray } from "drizzle-orm"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { JsonLd } from "@/components/admin/seo/JsonLd"
+import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -53,12 +54,44 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks
   } as any
 
+  const templateIds = Array.from(new Set(
+    blocks
+      .map(block => block.type === 'directory-custom' ? block.content?.templateId : null)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+  ))
+
+  let customBlockTemplates: Record<string, DirectoryCustomBlockTemplate> = {}
+
+  if (templateIds.length > 0) {
+    const templateRows = await db
+      .select()
+      .from(directoryCustomBlocks)
+      .where(and(eq(directoryCustomBlocks.siteId, site.id), inArray(directoryCustomBlocks.id, templateIds)))
+
+    customBlockTemplates = Object.fromEntries(
+      templateRows.map(row => [
+        row.id,
+        {
+          id: row.id,
+          site_id: row.siteId,
+          name: row.name,
+          slug: row.slug,
+          layout: row.layout as DirectoryCustomBlockTemplate['layout'],
+          fields: Array.isArray(row.fields) ? row.fields : [],
+          created_at: row.createdAt?.toISOString() ?? '',
+          updated_at: row.updatedAt?.toISOString() ?? '',
+        },
+      ])
+    )
+  }
+
   return (
     <>
       <JsonLd site={site} content={directoryWithBlocks} contentType="directory" />
       <DirectoryBlockRenderer
         site={site}
         directory={directoryWithBlocks}
+        customBlockTemplates={customBlockTemplates}
       />
     </>
   )
