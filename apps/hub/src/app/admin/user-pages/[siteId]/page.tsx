@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getPageAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -29,7 +30,7 @@ const UserPageSettingsModal = dynamic(() =>
   import("@/components/admin/user-page-builder/layout/UserPageSettingsModal").then(m => ({ default: m.UserPageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Users } from "lucide-react"
+import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
@@ -346,16 +347,14 @@ export default function UserUserPagesPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText },
-          { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users, active: true },
-        ]}
-      />
+      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, "user-pages")} />
       <AdminLayout>
         <div className="w-full">
         <DashboardSubheader
-          items={[{ label: "User Pages" }]}
+          items={[
+            { label: "Pages", href: `/admin/sites/${siteId}/pages` },
+            { label: "User Pages" },
+          ]}
           tabs={{
             value: filterStatus,
             onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },

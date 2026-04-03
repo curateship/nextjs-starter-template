@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
@@ -50,13 +51,7 @@ export default function EmailHealthPage() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Overview", href: "/admin/site-health" },
-          { label: "Email Health", href: "/admin/site-health/email", active: true },
-          { label: "Cron Jobs", href: "/admin/site-health/cron" },
-        ]}
-      />
+      <StickyHeader navLinks={getSiteHealthAdminTopNavLinks("email")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

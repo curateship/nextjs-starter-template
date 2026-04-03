@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getPageAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useUserPageData } from "@/components/admin/user-page-builder/config/useUserPageData"
 import { useUserPageBuilder } from "@/components/admin/user-page-builder/config/useUserPageBuilder"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { UserPageSettingsModal } from "@/components/admin/user-page-builder/layout/UserPageSettingsModal"
 import { CreateUserPageModal } from "@/components/admin/user-page-builder/layout/CreateUserPageModal"
 import {
@@ -209,7 +211,9 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <BuilderStickyHeader
+      <DashboardStickyHeader navLinks={getPageAdminTopNavLinks(siteId, "user-pages")} />
+      <BuilderToolbar
+        className="top-16 z-40"
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/user-pages/${siteId}`, label: "User Pages" },
@@ -225,6 +229,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         onSave={builderState.handleSaveAllBlocks}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>

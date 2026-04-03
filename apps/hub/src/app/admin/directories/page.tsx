@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
@@ -31,7 +32,6 @@ const DirectorySettingsModal = dynamic(() =>
 )
 import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getDirectoryAdminNavLinks } from "@/components/admin/directory-builder/custom-blocks/directory-nav-links"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction, getDirectoryIdsAction } from "@/lib/actions/directories/directory-actions"
@@ -324,7 +324,7 @@ export default function DirectoriesPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getDirectoryAdminNavLinks('directory')} />
+      <StickyHeader navLinks={getDirectoryAdminTopNavLinks("directory")} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

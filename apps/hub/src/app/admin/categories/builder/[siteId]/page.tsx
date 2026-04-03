@@ -10,7 +10,8 @@ import { useCategoryData } from "@/components/admin/category-builder/config/useC
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
@@ -183,7 +184,9 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <BuilderStickyHeader
+      <DashboardStickyHeader />
+      <BuilderToolbar
+        className="top-16 z-40"
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: `/admin/categories/${siteId}`, label: "Categories" },
@@ -201,6 +204,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        showSidebarToggle={false}
         renderCreateModal={(show, setShow) => show && site ? (
           <CreateCategoryModal
             siteId={site.id}

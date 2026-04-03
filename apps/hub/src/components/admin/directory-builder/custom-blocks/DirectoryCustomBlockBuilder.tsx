@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Monitor, Save, Smartphone } from "lucide-react"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/admin/layout/dashboard/breadcrumb"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
@@ -12,7 +13,6 @@ import { BlockSelectionModal, type BlockSelection } from "@/components/admin/sha
 import { DirectoryCustomBlockPreview } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockPreview"
 import { DirectoryCustomBlockSettingsPanel } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockSettingsPanel"
 import { DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS } from "@/components/admin/directory-builder/custom-blocks/field-type-definitions"
-import { getDirectoryAdminNavLinks } from "@/components/admin/directory-builder/custom-blocks/directory-nav-links"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { createDirectoryCustomField } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockField, DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -151,7 +151,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   if (loading) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <StickyHeader navLinks={getDirectoryAdminNavLinks('custom-blocks')} />
+        <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
         <div className="border-b bg-background px-5 py-3">
           <div className="h-6 w-56 animate-pulse rounded bg-muted" />
         </div>
@@ -165,7 +165,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   if (error) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <StickyHeader navLinks={getDirectoryAdminNavLinks('custom-blocks')} />
+        <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
         <div className="flex flex-1 items-center justify-center">
           <div className="space-y-4 text-center">
             <p className="text-red-600">{error}</p>
@@ -180,7 +180,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <StickyHeader navLinks={getDirectoryAdminNavLinks('custom-blocks')} />
+      <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
 
       <div className="border-b bg-background px-5 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">

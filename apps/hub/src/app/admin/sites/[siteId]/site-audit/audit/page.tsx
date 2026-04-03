@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useCallback } from 'react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
+import { getSiteAuditAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,11 +72,7 @@ export default function ContentAuditPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader navLinks={[
-        { label: 'Overview', href: `/admin/sites/${siteId}/site-audit` },
-        { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit`, active: true },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
-      ]} />
+      <StickyHeader navLinks={getSiteAuditAdminTopNavLinks(siteId, "audit")} />
       <AdminLayout>
         <DashboardSubheader
           items={[

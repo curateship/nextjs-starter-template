@@ -10,7 +10,7 @@ import { useDirectoryData } from "@/components/admin/directory-builder/config/us
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
 import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
 import {
@@ -226,7 +226,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <BuilderStickyHeader
+      <BuilderToolbar
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/directories", label: "Directories" },

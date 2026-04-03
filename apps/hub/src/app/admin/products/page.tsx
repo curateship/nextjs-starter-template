@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -28,7 +29,7 @@ const ProductSettingsModal = dynamic(() =>
   import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, ShoppingCart, BarChart3 } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
@@ -346,13 +347,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Products", href: "/admin/products", icon: Package, active: true },
-          { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
-          { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3 },
-        ]}
-      />
+      <StickyHeader navLinks={getProductAdminTopNavLinks("products")} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

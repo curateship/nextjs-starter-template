@@ -20,8 +20,8 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/admin/layout/dashboard/breadcrumb"
-import { Save, Plus, Settings, ChevronDown, ExternalLink, PanelLeft, PanelRight, PanelRightClose, Home } from "lucide-react"
+} from "@/components/ui/breadcrumb"
+import { Save, Plus, Settings, ChevronDown, ExternalLink, PanelLeft, PanelRight, PanelRightClose } from "lucide-react"
 import { SaveStatusBadge } from "@/components/admin/shared/SaveStatusBadge"
 
 /** Generic item interface — all builders have items with at least these fields */
@@ -46,10 +46,11 @@ interface NavLink {
   active?: boolean
 }
 
-interface BuilderStickyHeaderProps {
+interface BuilderToolbarProps {
   className?: string
   breadcrumbItems?: BreadcrumbItemType[]
   navLinks?: NavLink[]
+  rightActions?: React.ReactNode
   /** All items of this content type */
   items?: BuilderItem[]
   /** Currently selected item slug */
@@ -57,7 +58,7 @@ interface BuilderStickyHeaderProps {
   /** Callback when user selects a different item from the dropdown */
   onItemChange?: (slug: string) => void
   /** Entity type display name, e.g. "Product" */
-  entityName: string
+  entityName?: string
   /** URL path segment, e.g. "products". Used to build preview URLs. */
   urlSegment?: string
   /** Custom URL builder. If not provided, defaults to http://{subdomain}.localhost:3000/{urlSegment}/{slug} */
@@ -77,17 +78,19 @@ interface BuilderStickyHeaderProps {
   renderItemLabel?: (item: BuilderItem) => React.ReactNode
   /** Whether to show the Save button with "outline" variant (default) or "default" variant */
   saveVariant?: "outline" | "default"
+  showSidebarToggle?: boolean
 }
 
 /**
- * Shared builder StickyHeader used by product, post, event, directory, category, page, and user-page builders.
- * Provides: sidebar toggle, breadcrumbs with item-selector dropdown, save/publish buttons, block list toggle,
- * and render props for create/settings modals.
+ * Shared builder toolbar used by admin builder and editor pages.
+ * Provides: sidebar toggle, breadcrumbs, optional item-selector dropdown, built-in builder actions,
+ * custom right-side actions, block list toggle, and render props for create/settings modals.
  */
-export function BuilderStickyHeader({
+export function BuilderToolbar({
   className,
   breadcrumbItems = [],
   navLinks,
+  rightActions,
   items,
   selectedItemSlug,
   onItemChange,
@@ -105,7 +108,8 @@ export function BuilderStickyHeader({
   renderSettingsModal,
   renderItemLabel,
   saveVariant = "outline",
-}: BuilderStickyHeaderProps) {
+  showSidebarToggle = true,
+}: BuilderToolbarProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -113,6 +117,7 @@ export function BuilderStickyHeader({
 
   const isBuilderMode = items !== undefined
   const currentItem = items?.find(item => item.slug === selectedItemSlug)
+  const visibleBreadcrumbItems = breadcrumbItems.filter((item, index) => !(index === 0 && item.label === "Dashboard"))
 
   const handleCreate = () => {
     setDropdownOpen(false)
@@ -138,31 +143,27 @@ export function BuilderStickyHeader({
         <div className="flex items-center justify-between flex-1 px-4 h-full">
           <div className="flex items-center gap-2">
             {/* Sidebar toggle */}
-            <button
-              onClick={toggleSidebar}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
-            >
-              <PanelLeft className="h-3.5 w-3.5" />
-            </button>
+            {showSidebarToggle && (
+              <button
+                onClick={toggleSidebar}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+              >
+                <PanelLeft className="h-3.5 w-3.5" />
+              </button>
+            )}
 
             {/* Breadcrumbs with item-selector dropdown on the last item */}
-            {breadcrumbItems.length > 0 && (
-              <Breadcrumb className="w-fit rounded-md bg-muted px-3 py-1.5">
+            {visibleBreadcrumbItems.length > 0 && (
+              <Breadcrumb>
                 <BreadcrumbList>
-                  {breadcrumbItems.map((item, index) => {
-                    const isLastItem = index === breadcrumbItems.length - 1
+                  {visibleBreadcrumbItems.map((item, index) => {
+                    const isLastItem = index === visibleBreadcrumbItems.length - 1
                     const shouldShowDropdown = isLastItem && isBuilderMode
 
                     return (
                       <React.Fragment key={index}>
                         <BreadcrumbItem>
-                          {index === 0 ? (
-                            <BreadcrumbLink asChild>
-                              <Link href={item.href || "#"}>
-                                <Home className="size-4" />
-                              </Link>
-                            </BreadcrumbLink>
-                          ) : shouldShowDropdown ? (
+                          {shouldShowDropdown ? (
                             !item.label ? (
                               <div className="h-5 w-32 bg-muted rounded animate-pulse" />
                             ) : (
@@ -211,7 +212,7 @@ export function BuilderStickyHeader({
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={handleCreate}>
                                   <Plus className="mr-2 h-4 w-4" />
-                                  Create {entityName}
+                                  Create {entityName || "Item"}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -232,7 +233,7 @@ export function BuilderStickyHeader({
                             </BreadcrumbLink>
                           )}
                         </BreadcrumbItem>
-                        {index < breadcrumbItems.length - 1 && (
+                        {index < visibleBreadcrumbItems.length - 1 && (
                           <BreadcrumbSeparator />
                         )}
                       </React.Fragment>
@@ -243,7 +244,7 @@ export function BuilderStickyHeader({
             )}
           </div>
 
-          {/* Nav Links (used by page/user-page builders) */}
+          {/* Nav links */}
           {navLinks && navLinks.length > 0 && (
             <div className="flex items-center gap-8 h-full pr-14">
               {navLinks.map((link) => (
@@ -263,36 +264,41 @@ export function BuilderStickyHeader({
             </div>
           )}
 
-          {/* Builder Action Buttons */}
-          {isBuilderMode && (
+          {/* Right-side actions */}
+          {(rightActions || isBuilderMode || onToggleBlockList) && (
             <div className="flex items-center space-x-2">
-              <SaveStatusBadge message={saveMessage} />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowEditDialog(true)}
-                disabled={!currentItem}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Edit Settings
-              </Button>
-              <Button
-                size="sm"
-                variant={saveVariant}
-                onClick={onSave}
-                disabled={isSaving}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
-              {onPublish && (
-                <Button
-                  size="sm"
-                  onClick={onPublish}
-                  disabled={isPublishing || isSaving}
-                >
-                  {isPublishing ? 'Publishing...' : currentItem?.is_published ? 'Published' : 'Publish'}
-                </Button>
+              {rightActions}
+              {isBuilderMode && (
+                <>
+                  <SaveStatusBadge message={saveMessage} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowEditDialog(true)}
+                    disabled={!currentItem}
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Edit Settings
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={saveVariant}
+                    onClick={onSave}
+                    disabled={isSaving}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  {onPublish && (
+                    <Button
+                      size="sm"
+                      onClick={onPublish}
+                      disabled={isPublishing || isSaving}
+                    >
+                      {isPublishing ? 'Publishing...' : currentItem?.is_published ? 'Published' : 'Publish'}
+                    </Button>
+                  )}
+                </>
               )}
               {onToggleBlockList && (
                 <button

@@ -4,7 +4,8 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -13,6 +14,7 @@ import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Monitor, Tablet, Smartphone, Save, Pencil, Check, X } from "lucide-react"
 
 interface PageProps {
@@ -42,6 +44,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [nameInput, setNameInput] = useState("")
 
   const blockEditor = useBlockEditor()
+  const newsletterNavLinks = getNewsletterAdminTopNavLinks("templates")
 
   useEffect(() => {
     loadTemplate()
@@ -100,7 +103,10 @@ export default function TemplateEditorPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <StickyHeader
+        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
             { href: "/admin/newsletters/templates", label: "Templates" },
@@ -145,7 +151,10 @@ export default function TemplateEditorPage({ params }: PageProps) {
   if (error && !template) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <StickyHeader
+        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
             { href: "/admin/newsletters/templates", label: "Templates" },
@@ -164,7 +173,10 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader
+      <DashboardStickyHeader navLinks={newsletterNavLinks} />
+      <BuilderToolbar
+        className="top-16 z-40"
+        showSidebarToggle={false}
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/newsletters/templates", label: "Templates" },

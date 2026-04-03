@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,13 +24,6 @@ import {
   Mail,
   AlertCircle,
 } from "lucide-react"
-
-// Shared nav links for all site-health pages
-const siteHealthNavLinks = [
-  { label: "Overview", href: "/admin/site-health", active: true },
-  { label: "Email Health", href: "/admin/site-health/email" },
-  { label: "Cron Jobs", href: "/admin/site-health/cron" },
-]
 
 export default function SiteHealthOverviewPage() {
   const { currentSite } = useSiteSwitcher()
@@ -93,7 +87,7 @@ export default function SiteHealthOverviewPage() {
 
   return (
     <>
-      <StickyHeader navLinks={siteHealthNavLinks} />
+      <StickyHeader navLinks={getSiteHealthAdminTopNavLinks("overview")} />
       <AdminLayout>
         <DashboardSubheader
           items={[{ label: "Site Health" }]}

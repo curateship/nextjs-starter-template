@@ -11,12 +11,11 @@ import {
   List,
   Magnet,
   CreditCard,
-  Package,
-  BarChart3,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -296,18 +295,15 @@ function OrdersContent() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Products", href: "/admin/products", icon: Package },
-          { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: true },
-          { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3 },
-        ]}
-      />
+      <StickyHeader navLinks={getProductAdminTopNavLinks("orders")} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
-            items={[{ label: "Orders" }]}
+            items={[
+              { label: "Products", href: "/admin/products" },
+              { label: "Orders" },
+            ]}
             tabs={{
               value: activeTab,
               onValueChange: (v) => {

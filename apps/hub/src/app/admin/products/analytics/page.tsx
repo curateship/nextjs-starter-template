@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, Users, ShoppingCart, DollarSign, Package, BarChart3, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
+import { Eye, Users, ShoppingCart, DollarSign, Package, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import {
@@ -148,13 +149,7 @@ export default function ProductAnalyticsPage() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Products", href: "/admin/products", icon: Package },
-          { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
-          { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3, active: true },
-        ]}
-      />
+      <StickyHeader navLinks={getProductAdminTopNavLinks("analytics")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

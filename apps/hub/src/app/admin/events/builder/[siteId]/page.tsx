@@ -10,7 +10,8 @@ import { useEventData } from "@/components/admin/event-builder/config/useEventDa
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
 import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
 import {
@@ -212,7 +213,9 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <BuilderStickyHeader
+      <DashboardStickyHeader />
+      <BuilderToolbar
+        className="top-16 z-40"
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/events", label: "Events" },
@@ -230,6 +233,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getPageAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -27,7 +28,7 @@ const PageSettingsModal = dynamic(() =>
   import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit, Users } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
@@ -331,19 +332,11 @@ export default function SitePagesPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText, active: true },
-          { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users },
-        ]}
-      />
+      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, "pages")} />
       <AdminLayout>
         <div className="w-full">
         <DashboardSubheader
-          items={[
-            { label: "Sites", href: "/admin/sites" },
-            { label: "Pages" },
-          ]}
+          items={[{ label: "Pages" }]}
           tabs={{
             value: filterStatus,
             onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },

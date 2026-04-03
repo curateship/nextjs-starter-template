@@ -10,7 +10,8 @@ import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBu
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -223,7 +224,9 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <BuilderStickyHeader
+      <DashboardStickyHeader />
+      <BuilderToolbar
+        className="top-16 z-40"
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/posts", label: "Posts" },
@@ -241,6 +244,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>

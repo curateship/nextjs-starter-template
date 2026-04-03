@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
@@ -191,15 +192,7 @@ export default function EmailAutomationsPage() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
-          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
-          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
-          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap, active: true },
-          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-        ]}
-      />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("automations")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

@@ -3,7 +3,9 @@
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/newsletter-builder/layout/StickyHeader"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -173,6 +175,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const productTriggerOptions = draftTriggerType === "lead_magnet_signup" ? leadMagnetProducts : purchaseProducts
   const productTriggerLabel = draftTriggerType === "lead_magnet_signup" ? "Lead magnet" : "Product"
   const centerAxisStyle = { transform: "translateX(1.5px)" }
+  const newsletterNavLinks = getNewsletterAdminTopNavLinks("automations")
 
   const flash = (message: string) => {
     setSaveMessage(message)
@@ -564,8 +567,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <>
-        <StickyHeader
+      <div className="flex h-full flex-col overflow-hidden">
+        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
             { href: "/admin/newsletters/automations", label: "Automations" },
@@ -618,14 +624,17 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             </div>
           </div>
         </AdminLayout>
-      </>
+      </div>
     )
   }
 
   if (!automation) {
     return (
-      <>
-        <StickyHeader
+      <div className="flex h-full flex-col overflow-hidden">
+        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
           breadcrumbItems={[
             { href: "/admin", label: "Dashboard" },
             { href: "/admin/newsletters/automations", label: "Automations" },
@@ -638,13 +647,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">Back</Button>
           </div>
         </AdminLayout>
-      </>
+      </div>
     )
   }
 
   return (
-    <>
-      <StickyHeader
+    <div className="flex h-full flex-col overflow-hidden">
+      <DashboardStickyHeader navLinks={newsletterNavLinks} />
+      <BuilderToolbar
+        className="top-16 z-40"
+        showSidebarToggle={false}
         breadcrumbItems={[
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/newsletters/automations", label: "Automations" },
@@ -1051,6 +1063,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           </DialogContent>
         </Dialog>
       </AdminLayout>
-    </>
+    </div>
   )
 }

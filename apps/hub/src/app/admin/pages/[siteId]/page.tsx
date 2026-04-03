@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getPageAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
 import { usePageBuilder } from "@/components/admin/page-builder/config/usePageBuilder"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderStickyHeader } from "@/components/admin/shared/BuilderStickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import {
@@ -196,7 +198,9 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           Editing Theme: {site?.name}
         </div>
       )}
-      <BuilderStickyHeader
+      <DashboardStickyHeader navLinks={getPageAdminTopNavLinks(siteId, "pages")} />
+      <BuilderToolbar
+        className="top-16 z-40"
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
           { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
@@ -212,6 +216,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         onSave={builderState.handleSaveAllBlocks}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>

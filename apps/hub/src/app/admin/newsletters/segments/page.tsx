@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -224,15 +225,7 @@ export default function SegmentsPage() {
 
   return (
     <>
-      <StickyHeader
-        navLinks={[
-          { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
-          { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users },
-          { label: "Segments", href: "/admin/newsletters/segments", icon: Filter, active: true },
-          { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
-          { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-        ]}
-      />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("segments")} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

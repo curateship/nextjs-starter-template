@@ -5,12 +5,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { getDirectoryAdminNavLinks } from "@/components/admin/directory-builder/custom-blocks/directory-nav-links"
 import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -82,7 +82,7 @@ export default function DirectoryCustomBlocksPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getDirectoryAdminNavLinks('custom-blocks')} />
+      <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

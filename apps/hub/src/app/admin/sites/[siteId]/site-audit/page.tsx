@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useCallback } from 'react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
+import { getSiteAuditAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -151,13 +152,9 @@ export default function SiteAuditPage({ params }: PageProps) {
   if (loading) {
     return (
       <>
-        <StickyHeader navLinks={[
-          { label: 'Overview', href: `/admin/sites/${siteId}/site-audit`, active: true },
-          { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit` },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
-        ]} />
+        <StickyHeader navLinks={getSiteAuditAdminTopNavLinks(siteId, "site-audit")} />
         <AdminLayout>
-          <DashboardSubheader items={[{ label: 'Site Audit Overview' }]} />
+          <DashboardSubheader items={[{ label: 'Site Audit' }]} />
           <div className="pb-8">
             <div className="grid md:grid-cols-2 lg:grid-cols-4">
               {[...Array(4)].map((_, i) => (
@@ -189,14 +186,10 @@ export default function SiteAuditPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader navLinks={[
-        { label: 'Overview', href: `/admin/sites/${siteId}/site-audit`, active: true },
-        { label: 'Content Audit', href: `/admin/sites/${siteId}/site-audit/audit` },
-        { label: 'Internal Links', href: `/admin/sites/${siteId}/site-audit/links` },
-      ]} />
+      <StickyHeader navLinks={getSiteAuditAdminTopNavLinks(siteId, "site-audit")} />
       <AdminLayout>
         <DashboardSubheader
-          items={[{ label: 'Site Audit Overview' }]}
+          items={[{ label: 'Site Audit' }]}
           actions={
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings className="h-4 w-4 mr-2" />

@@ -1,4 +1,4 @@
-import { HomeIcon, type LucideIcon } from "lucide-react"
+import { type LucideIcon } from "lucide-react"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,7 +39,6 @@ interface DashboardSubheaderProps {
 
 /**
  * Full-width breadcrumb row that sits below the StickyHeader.
- * Renders Home icon automatically as the first breadcrumb item.
  * Optionally renders filter tabs (All/Draft/Published etc.) and action buttons.
  */
 export function DashboardSubheader({ items, tabs, preActions, actions, className }: DashboardSubheaderProps) {
@@ -48,20 +47,11 @@ export function DashboardSubheader({ items, tabs, preActions, actions, className
       {/* Left side: breadcrumbs */}
       <Breadcrumb>
         <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
-          {/* Home icon — always first */}
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/admin">
-              <HomeIcon className="size-4" />
-              <span className="sr-only">Home</span>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-
-          {/* Breadcrumb items */}
           {items.map((item, index) => {
             const isLast = index === items.length - 1
             return (
               <span key={index} className="contents">
-                <BreadcrumbSeparator />
+                {index > 0 && <BreadcrumbSeparator />}
                 <BreadcrumbItem>
                   {isLast ? (
                     <BreadcrumbPage>{item.label}</BreadcrumbPage>

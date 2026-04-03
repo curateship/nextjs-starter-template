@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
@@ -250,13 +251,7 @@ export default function ContactDashboardPage() {
     : ""
 
   // Nav links (same as contacts list page)
-  const navLinks = [
-    { label: "Newsletters", href: "/admin/newsletters", icon: Mail },
-    { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users, active: true },
-    { label: "Segments", href: "/admin/newsletters/segments", icon: Filter },
-    { label: "Automations", href: "/admin/newsletters/automations", icon: Zap },
-    { label: "Templates", href: "/admin/newsletters/templates", icon: FileText },
-  ]
+  const navLinks = getNewsletterAdminTopNavLinks("contacts")
 
   return (
     <>
