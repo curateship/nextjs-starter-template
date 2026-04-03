@@ -411,6 +411,13 @@ a, a *, button[onclick], button:hover {
   text-decoration: underline;
 }
 
+.newsletter-email-rich-text img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 24px 0;
+}
+
 .newsletter-email-rich-text blockquote {
   margin: 0 0 24px 0;
   padding-left: 16px;
@@ -460,4 +467,16 @@ a, a *, button[onclick], button:hover {
   color: #9ca3af;
   pointer-events: none;
   height: 0;
+}
+
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem 0 !important;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px dotted #3b82f6;
+  outline-offset: 4px;
 }

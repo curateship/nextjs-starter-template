@@ -70,6 +70,7 @@ function styleRichTextHtml(htmlContent: string): string {
   styledContent = styleOpeningTags(styledContent, 'li', 'margin:0 0 10px 0;')
   styledContent = styleOpeningTags(styledContent, 'a', 'color:#2563eb;text-decoration:underline;')
   styledContent = styleOpeningTags(styledContent, 'blockquote', 'margin:0 0 24px 0;padding-left:16px;border-left:4px solid #e5e7eb;color:#4b5563;')
+  styledContent = styleOpeningTags(styledContent, 'img', 'display:block;max-width:100%;height:auto;margin:0 auto 24px auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;')
 
   return styledContent.replace(/<li([^>]*)>\s*<p([^>]*)>/gi, (_match, liAttributes = '', paragraphAttributes = '') => {
     return `<li${liAttributes}><p${paragraphAttributes}>`.replace(/<p([^>]*)>/i, (paragraphTag) => mergeInlineStyles(paragraphTag, 'margin:0;'))

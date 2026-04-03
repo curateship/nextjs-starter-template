@@ -28,8 +28,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
 
-const ALLOWED_HTML_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote']
-const ALLOWED_HTML_ATTR = ['href', 'target', 'rel']
+const ALLOWED_HTML_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote', 'img']
+const ALLOWED_HTML_ATTR = ['href', 'target', 'rel', 'src', 'alt']
 
 interface NewsletterRichTextBlockProps {
   content: Record<string, any>
@@ -203,6 +203,7 @@ export function NewsletterRichTextBlock({
                   inline
                   placeholder="Write your content here..."
                   contentClassName="newsletter-email-rich-text"
+                  mediaPickerSiteId={siteId}
                   toolbarContent={
                     <Button
                       variant="ghost"

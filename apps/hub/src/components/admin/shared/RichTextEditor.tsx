@@ -1,15 +1,18 @@
 "use client"
 
 import { useEditor, EditorContent } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
+import Image from '@tiptap/extension-image'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import DOMPurify from "dompurify"
 import { 
   Bold, 
@@ -20,10 +23,12 @@ import {
   AlignLeft, 
   AlignCenter, 
   AlignRight,
+  ImageIcon,
+  Trash2,
   Eye,
   EyeOff
 } from "lucide-react"
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef, type MouseEvent } from 'react'
 import { cn } from "@/lib/utils/tailwind-class-merger"
 
 export interface RichTextEditorProps {
@@ -42,6 +47,7 @@ export interface RichTextEditorProps {
   children?: React.ReactNode
   toolbarContent?: React.ReactNode
   contentClassName?: string
+  mediaPickerSiteId?: string
 }
 
 export function RichTextEditor({
@@ -53,8 +59,13 @@ export function RichTextEditor({
   children,
   toolbarContent,
   contentClassName,
+  mediaPickerSiteId,
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
+  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(null)
+  const pendingContentRef = useRef<string | null>(null)
+  const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   
   const editor = useEditor({
     extensions: [
@@ -70,6 +81,11 @@ export function RichTextEditor({
       }),
       Placeholder.configure({
         placeholder: placeholder || 'Start writing...',
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-lg',
+        },
       }),
     ],
     content: content.content,
@@ -90,6 +106,7 @@ export function RichTextEditor({
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
+      pendingContentRef.current = html
       onContentChange({
         ...content,
         content: html
@@ -99,7 +116,20 @@ export function RichTextEditor({
 
   // Update editor content when content prop changes
   useEffect(() => {
-    if (editor && content.content !== editor.getHTML()) {
+    if (!editor) {
+      return
+    }
+
+    if (pendingContentRef.current === content.content) {
+      pendingContentRef.current = null
+      return
+    }
+
+    if (pendingContentRef.current !== null) {
+      return
+    }
+
+    if (content.content !== editor.getHTML()) {
       editor.commands.setContent(content.content)
     }
   }, [content.content, editor])
@@ -140,6 +170,119 @@ export function RichTextEditor({
 
     editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }, [editor])
+
+  const handleImageSelect = useCallback((imageUrl: string, altText?: string) => {
+    if (!imageUrl) {
+      return
+    }
+
+    editor?.chain().focus().setImage({ src: imageUrl, alt: altText || '' }).run()
+  }, [editor])
+
+  const updateSelectedImageButtonPosition = useCallback(() => {
+    if (!editor || !editorSurfaceRef.current) {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const { selection } = editor.state
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const imageElement = editor.view.nodeDOM(selection.from)
+    if (!(imageElement instanceof HTMLElement)) {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const surfaceRect = editorSurfaceRef.current.getBoundingClientRect()
+    const imageRect = imageElement.getBoundingClientRect()
+    const buttonSize = 36
+    const padding = 8
+
+    setSelectedImageButtonPosition({
+      top: Math.max(padding, imageRect.top - surfaceRect.top + padding),
+      left: Math.max(
+        padding,
+        Math.min(
+          surfaceRect.width - buttonSize - padding,
+          imageRect.right - surfaceRect.left - buttonSize - padding
+        )
+      ),
+    })
+  }, [editor])
+
+  const handleDeleteSelectedImage = useCallback(() => {
+    if (!editor) {
+      return
+    }
+
+    const { selection } = editor.state
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') {
+      return
+    }
+
+    editor.chain().focus().deleteSelection().run()
+    setSelectedImageButtonPosition(null)
+  }, [editor])
+
+  const handleEditorContainerMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target
+
+    if (!(target instanceof HTMLElement)) {
+      return
+    }
+
+    if (target.closest('.ProseMirror')) {
+      return
+    }
+
+    event.preventDefault()
+    editor?.commands.focus('end')
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    const syncSelectedImageButton = () => {
+      window.requestAnimationFrame(updateSelectedImageButtonPosition)
+    }
+
+    syncSelectedImageButton()
+    editor.on('selectionUpdate', syncSelectedImageButton)
+    editor.on('transaction', syncSelectedImageButton)
+    editor.on('focus', syncSelectedImageButton)
+    editor.on('blur', syncSelectedImageButton)
+
+    return () => {
+      editor.off('selectionUpdate', syncSelectedImageButton)
+      editor.off('transaction', syncSelectedImageButton)
+      editor.off('focus', syncSelectedImageButton)
+      editor.off('blur', syncSelectedImageButton)
+    }
+  }, [editor, updateSelectedImageButtonPosition])
+
+  useEffect(() => {
+    if (!selectedImageButtonPosition) {
+      return
+    }
+
+    const syncSelectedImageButton = () => {
+      updateSelectedImageButtonPosition()
+    }
+
+    window.addEventListener('resize', syncSelectedImageButton)
+    window.addEventListener('scroll', syncSelectedImageButton, true)
+
+    return () => {
+      window.removeEventListener('resize', syncSelectedImageButton)
+      window.removeEventListener('scroll', syncSelectedImageButton, true)
+    }
+  }, [selectedImageButtonPosition, updateSelectedImageButtonPosition])
 
   if (!editor) {
     return inline ? (
@@ -226,6 +369,19 @@ export function RichTextEditor({
       >
         <LinkIcon className="w-4 h-4" />
       </Button>
+      {mediaPickerSiteId && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => setIsImagePickerOpen(true)}
+            title="Add Image"
+          >
+            <ImageIcon className="w-4 h-4" />
+          </Button>
+        </>
+      )}
       <div className="w-px h-6 bg-border mx-1" />
       {/* Alignment */}
       <Button
@@ -319,17 +475,35 @@ export function RichTextEditor({
           </div>
           {/* Editor */}
           <div
-            className="cursor-text"
-            onClick={() => {
-              if (editor && !editor.isFocused) {
-                editor.commands.focus()
-              }
-            }}
+            ref={editorSurfaceRef}
+            className="relative cursor-text"
+            onMouseDown={handleEditorContainerMouseDown}
           >
             <EditorContent
               editor={editor}
               className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:my-1.5!'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
             />
+            {selectedImageButtonPosition && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                className="absolute z-10 size-8 rounded-full shadow-lg"
+                style={selectedImageButtonPosition}
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  handleDeleteSelectedImage()
+                }}
+                title="Delete image"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       ) : (
@@ -374,17 +548,35 @@ export function RichTextEditor({
 
                 {/* Editor */}
                 <div
-                  className={`cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
-                  onClick={() => {
-                    if (editor && !editor.isFocused) {
-                      editor.commands.focus()
-                    }
-                  }}
+                  ref={editorSurfaceRef}
+                  className={`relative cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
+                  onMouseDown={handleEditorContainerMouseDown}
                 >
                   <EditorContent
                     editor={editor}
                     className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:my-1.5!'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
                   />
+                  {selectedImageButtonPosition && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute z-10 size-8 rounded-full shadow-lg"
+                      style={selectedImageButtonPosition}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        handleDeleteSelectedImage()
+                      }}
+                      title="Delete image"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </>
             ) : (
@@ -405,8 +597,8 @@ export function RichTextEditor({
                     className={contentClassName || "prose prose-sm max-w-none [&_p]:my-1.5!"}
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(content.content, {
-                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
-                        ALLOWED_ATTR: ['href', 'target', 'rel'],
+                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote', 'img'],
+                        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
                         ALLOW_DATA_ATTR: false
                       })
                     }}
@@ -422,6 +614,16 @@ export function RichTextEditor({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {mediaPickerSiteId && (
+        <MediaPicker
+          open={isImagePickerOpen}
+          onOpenChange={setIsImagePickerOpen}
+          onSelectMedia={handleImageSelect}
+          showVideos={false}
+          site_id={mediaPickerSiteId}
+        />
       )}
     </div>
   )
