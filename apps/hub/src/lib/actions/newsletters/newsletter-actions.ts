@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { generateEmailHtml } from '@/lib/newsletters/render'
+import { generateEmailHtml } from '@/lib/actions/newsletters/render'
 
 export interface Newsletter {
   id: string

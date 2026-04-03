@@ -8,7 +8,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, Users, ShoppingCart, DollarSign, Package, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import {
   getProductAnalyticsOverview,
   getProductTrafficOverTime,

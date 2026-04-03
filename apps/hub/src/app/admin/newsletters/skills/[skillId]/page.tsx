@@ -33,7 +33,7 @@ import {
 import { generateOutline } from "@/lib/actions/ai/newsletter-ai-actions"
 import { isAIProvider } from "@/lib/utils/ai-models"
 import type { NewsletterSkill, NewsletterSkillOutput } from "@/lib/actions/newsletters/skill-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { SkillModal } from "@/components/admin/newsletter-skills/SkillModal"
 

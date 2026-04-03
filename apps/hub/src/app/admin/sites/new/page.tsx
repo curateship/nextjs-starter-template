@@ -8,7 +8,7 @@ import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard
 import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
 import { createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { getTemplateSitesAction, applyThemeToSiteAction } from "@/lib/actions/themes/user-theme-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Palette } from "lucide-react"

@@ -18,7 +18,7 @@ import {
   generateOneOutput,
 } from "@/lib/actions/newsletters/skill-actions"
 import type { NewsletterSkill } from "@/lib/actions/newsletters/skill-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import Link from "next/link"
 import { SkillModal } from "@/components/admin/newsletter-skills/SkillModal"
 

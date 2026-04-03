@@ -3,7 +3,7 @@
 import { Footprints } from "lucide-react"
 import DOMPurify from "dompurify"
 import type { NewsletterBlock } from "../config/useNewsletterBuilder"
-import { renderNewsletterBlockHtml } from "@/lib/newsletters/render"
+import { renderNewsletterBlockHtml } from "@/lib/actions/newsletters/render"
 
 interface NewsletterCanvasProps {
   blocks: NewsletterBlock[]

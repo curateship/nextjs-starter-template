@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,

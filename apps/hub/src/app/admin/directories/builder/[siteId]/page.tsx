@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
 import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
@@ -226,10 +228,12 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <DashboardStickyHeader navLinks={getDirectoryAdminTopNavLinks("directory")} />
       <BuilderToolbar
+        className="top-16 z-40"
+        showSidebarToggle={false}
         breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/directories", label: "Directories" },
+          { href: "/admin/directories", label: "Directory" },
           { label: currentDirectoryData?.title || "", isPage: true }
         ]}
         items={directories}

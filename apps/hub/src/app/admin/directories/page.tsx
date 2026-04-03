@@ -36,7 +36,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction, getDirectoryIdsAction } from "@/lib/actions/directories/directory-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
 export default function DirectoriesPage() {

@@ -4,13 +4,13 @@ import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateEmailHtml } from '@/lib/newsletters/render'
+import { generateEmailHtml } from '@/lib/actions/newsletters/render'
 import {
   getAutomationTriggerNodes,
   isAutomationTriggerType,
   matchesAutomationTrigger,
   type AutomationTriggerType,
-} from '@/lib/newsletters/automation-triggers'
+} from '@/lib/actions/newsletters/automation-triggers'
 
 export interface EmailAutomation {
   id: string

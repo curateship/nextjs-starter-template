@@ -13,7 +13,7 @@ import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverabilit
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { getCronJobs } from "@/lib/actions/cron/cron-actions"
 import type { CronJob } from "@/lib/actions/cron/cron-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import {
   Shield,
   CheckCircle,

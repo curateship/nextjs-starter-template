@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { normalizeNewsletterRichTextHtml } from "@/lib/newsletters/render"
+import { normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
 
 const ALLOWED_HTML_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote']
 const ALLOWED_HTML_ATTR = ['href', 'target', 'rel']

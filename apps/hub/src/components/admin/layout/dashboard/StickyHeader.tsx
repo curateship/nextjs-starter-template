@@ -88,7 +88,7 @@ export function StickyHeader({
         </div>
 
         {/* Right side: page-specific actions + theme toggle */}
-        <div className="flex items-center gap-2 pr-3">
+        <div className="flex items-center gap-2 pr-1">
           {rightActions}
           <AdminThemeToggle />
         </div>

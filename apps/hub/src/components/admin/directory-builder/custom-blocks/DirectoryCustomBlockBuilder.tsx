@@ -4,16 +4,16 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Monitor, Save, Smartphone } from "lucide-react"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/admin/layout/dashboard/breadcrumb"
 import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { Button } from "@/components/ui/button"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal, type BlockSelection } from "@/components/admin/shared/BlockSelectionModal"
 import { DirectoryCustomBlockPreview } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockPreview"
 import { DirectoryCustomBlockSettingsPanel } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockSettingsPanel"
 import { DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS } from "@/components/admin/directory-builder/custom-blocks/field-type-definitions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { createDirectoryCustomField } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockField, DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { createDirectoryCustomBlock, getDirectoryCustomBlockById, updateDirectoryCustomBlock } from "@/lib/actions/directories/directory-custom-block-actions"
@@ -152,9 +152,21 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
-        <div className="border-b bg-background px-5 py-3">
-          <div className="h-6 w-56 animate-pulse rounded bg-muted" />
-        </div>
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
+          breadcrumbItems={[
+            { href: "/admin/directories", label: "Directory" },
+            { href: "/admin/directories/custom-blocks", label: "Custom Blocks" },
+            { label: "Loading...", isPage: true },
+          ]}
+          rightActions={
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-8 w-24 animate-pulse rounded bg-muted" />
+            </div>
+          }
+        />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 animate-pulse bg-muted/30" />
         </div>
@@ -166,6 +178,15 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
+        <BuilderToolbar
+          className="top-16 z-40"
+          showSidebarToggle={false}
+          breadcrumbItems={[
+            { href: "/admin/directories", label: "Directory" },
+            { href: "/admin/directories/custom-blocks", label: "Custom Blocks" },
+            { label: "Error", isPage: true },
+          ]}
+        />
         <div className="flex flex-1 items-center justify-center">
           <div className="space-y-4 text-center">
             <p className="text-red-600">{error}</p>
@@ -181,51 +202,37 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
-
-      <div className="border-b bg-background px-5 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Breadcrumb>
-            <BreadcrumbList className="gap-2">
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/admin/directories">Directory</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/admin/directories/custom-blocks">Custom Blocks</Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{template?.name || name || 'New Custom Block'}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
+      <BuilderToolbar
+        className="top-16 z-40"
+        showSidebarToggle={false}
+        breadcrumbItems={[
+          { href: "/admin/directories", label: "Directory" },
+          { href: "/admin/directories/custom-blocks", label: "Custom Blocks" },
+          { label: template?.name || name || "New Custom Block", isPage: true },
+        ]}
+        rightActions={
           <div className="flex flex-wrap items-center gap-2">
             {saveMessage && (
-              <span className={`text-sm ${saveMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
+              <span className={`text-sm ${saveMessage.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
                 {saveMessage}
               </span>
             )}
 
             <div className="flex items-center overflow-hidden rounded-md border">
               <Button
-                variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
+                variant={previewWidth === "desktop" ? "default" : "ghost"}
                 size="sm"
                 className="rounded-none border-r"
-                onClick={() => setPreviewWidth('desktop')}
+                onClick={() => setPreviewWidth("desktop")}
               >
                 <Monitor className="mr-2 h-4 w-4" />
                 Desktop
               </Button>
               <Button
-                variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
+                variant={previewWidth === "mobile" ? "default" : "ghost"}
                 size="sm"
                 className="rounded-none"
-                onClick={() => setPreviewWidth('mobile')}
+                onClick={() => setPreviewWidth("mobile")}
               >
                 <Smartphone className="mr-2 h-4 w-4" />
                 Mobile
@@ -234,11 +241,11 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
 
             <Button size="sm" onClick={handleSave} disabled={isSaving}>
               <Save className="mr-2 h-4 w-4" />
-              {templateId ? 'Save' : 'Create Block'}
+              {templateId ? "Save" : "Create Block"}
             </Button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <div className="border-r pt-4">

@@ -29,7 +29,7 @@ import {
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 
 export default function SegmentsPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()

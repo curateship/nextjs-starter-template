@@ -10,7 +10,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getCategoriesWithCountsAction, deleteCategoriesAction, getCategoryIdsAction, type Category } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"

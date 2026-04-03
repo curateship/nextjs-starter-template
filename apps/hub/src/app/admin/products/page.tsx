@@ -35,7 +35,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import type { Product } from "@/lib/actions/products/product-actions"
 

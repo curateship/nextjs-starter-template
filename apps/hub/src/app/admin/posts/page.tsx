@@ -34,7 +34,7 @@ import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, 
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostsPage() {

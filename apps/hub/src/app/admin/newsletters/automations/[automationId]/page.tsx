@@ -44,7 +44,7 @@ import {
   serializeAutomationTriggerNodes,
   type AutomationTriggerNode,
   type AutomationTriggerType,
-} from "@/lib/newsletters/automation-triggers"
+} from "@/lib/actions/newsletters/automation-triggers"
 import { cn } from "@/lib/utils"
 import { Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
 

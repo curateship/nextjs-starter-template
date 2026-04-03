@@ -1,6 +1,6 @@
 'use client'
 
-import { SiteSwitcherProvider } from "@/components/admin/site-switcher/site-switcher-provider"
+import { SiteSwitcherProvider } from "@/components/admin/layout/site-switcher-provider"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"

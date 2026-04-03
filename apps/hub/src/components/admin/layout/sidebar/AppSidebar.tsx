@@ -31,7 +31,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/admin/layout/sidebar/Sidebar"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string }

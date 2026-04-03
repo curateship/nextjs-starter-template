@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
@@ -29,7 +30,7 @@ import {
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 
 export default function TemplatesPage() {
   const { currentSite } = useSiteSwitcher()
@@ -352,12 +353,12 @@ export default function TemplatesPage() {
                           aria-label={`Select ${template.name}`}
                           disabled={template.is_default}
                         />
-                        <a
+                        <Link
                           href={`/admin/newsletters/templates/${template.id}`}
                           className="hover:opacity-80 transition-opacity"
                         >
                           <h4 className="font-medium text-sm hover:underline">{template.name}</h4>
-                        </a>
+                        </Link>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">{getBlockCount(template)}</span>

@@ -14,7 +14,7 @@ import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/la
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { SaveAsTemplateModal } from "@/components/admin/newsletter-builder/layout/SaveAsTemplateModal"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send, FileText } from "lucide-react"
 

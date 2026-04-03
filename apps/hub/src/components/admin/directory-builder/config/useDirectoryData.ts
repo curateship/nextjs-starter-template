@@ -4,7 +4,7 @@ import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-ac
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./directory-block-types"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
-import { useSiteSwitcher } from "@/components/admin/site-switcher/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 
 export default function EmailHealthPage() {
