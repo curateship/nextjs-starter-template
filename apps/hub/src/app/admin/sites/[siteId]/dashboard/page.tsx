@@ -2,14 +2,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
-import { ChartLineLabel } from '@/components/admin/dashboard/ChartLineLabel'
+import { ChartLineLabel } from '@/components/admin/layout/charts/ChartLineLabel'
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { SaveAsThemeButton } from '@/components/admin/themes/SaveAsThemeButton'
 import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
-import { ChartBarVisitors } from '@/components/admin/dashboard/ChartBarVisitors'
+import { ChartBarVisitors } from '@/components/admin/layout/charts/ChartBarVisitors'
 import { isExternalQuickLinkHref, normalizeSiteQuickLinks, resolveSiteQuickLinkHref } from '@/lib/utils/site-quick-links'
 
 interface PageProps {

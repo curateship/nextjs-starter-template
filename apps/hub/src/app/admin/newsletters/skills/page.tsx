@@ -20,7 +20,7 @@ import {
 import type { NewsletterSkill } from "@/lib/actions/newsletters/skill-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
 import Link from "next/link"
-import { SkillModal } from "@/components/admin/newsletter-skills/SkillModal"
+import { SkillModal } from "@/components/admin/newsletter-builder/SkillModal"
 
 // Skill with output counts from the API
 type SkillWithCounts = NewsletterSkill & { pending_count: number; approved_count: number }

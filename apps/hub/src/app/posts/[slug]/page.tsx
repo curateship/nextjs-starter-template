@@ -7,7 +7,7 @@ import { notFound } from "next/navigation"
 import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/seo/JsonLd"
+import { JsonLd } from "@/components/admin/shared/JsonLd"
 
 interface PostPageProps {
   params: Promise<{

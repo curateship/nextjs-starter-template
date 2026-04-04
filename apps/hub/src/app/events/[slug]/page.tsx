@@ -7,7 +7,7 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/seo/JsonLd"
+import { JsonLd } from "@/components/admin/shared/JsonLd"
 
 interface EventPageProps {
   params: Promise<{

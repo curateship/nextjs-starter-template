@@ -538,7 +538,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[
-              { label: "Sites", href: "/admin/sites" },
+              { label: siteName || "Site", href: `/admin/sites/${siteId}/dashboard` },
               { label: "Settings" },
             ]}
             actions={
@@ -569,7 +569,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
           <div className="flex items-start gap-6">
             {/* Vertical tab list */}
-            <nav className="flex flex-col w-48 shrink-0 pt-[15px] ml-2">
+            <nav className="ml-2 flex w-48 shrink-0 flex-col">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
