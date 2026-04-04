@@ -30,7 +30,7 @@ import {
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 export default function TemplatesPage() {
   const { currentSite } = useSiteSwitcher()

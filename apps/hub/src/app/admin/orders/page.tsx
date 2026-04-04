@@ -40,7 +40,7 @@ import {
 
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
   deleteOrders,

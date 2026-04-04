@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 const SiteFavicon = React.memo(function SiteFavicon({ favicon, name }: { favicon?: string; name?: string }) {
   if (favicon) {

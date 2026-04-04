@@ -7,7 +7,7 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryPageProps {
@@ -87,7 +87,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
 
   return (
     <>
-      <JsonLd site={site} content={directoryWithBlocks} contentType="directory" />
+      <StructuredData site={site} content={directoryWithBlocks} contentType="directory" />
       <DirectoryBlockRenderer
         site={site}
         directory={directoryWithBlocks}

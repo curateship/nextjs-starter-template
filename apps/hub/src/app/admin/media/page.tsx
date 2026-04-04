@@ -13,7 +13,7 @@ import { getPaginatedMediaAction, deleteImageAction, updateImageAction, getMedia
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { 
   Dialog,
   DialogContent,

@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,
@@ -39,10 +39,10 @@ import { CheckCircle, Eye, EyeOff, Trash2, MoreHorizontal, Edit, Paintbrush, Pen
 import { cn } from "@/lib/utils/tailwind-class-merger"
 import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
-import { StylingSettingsCard } from "@/components/admin/layout/dashboard/StylingSettingsCard"
-import { ContentTypesSettingsCard } from "@/components/admin/layout/dashboard/ContentTypesSettingsCard"
+import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
+import { ContentTypesSettingsCard } from "@/components/admin/layout/settings/ContentTypesSettingsCard"
 import { FeatureTogglesCard } from "@/components/admin/layout/dashboard/FeatureTogglesCard"
-import { QuickLinksSettingsCard } from "@/components/admin/layout/dashboard/QuickLinksSettingsCard"
+import { QuickLinksSettingsCard } from "@/components/admin/layout/settings/QuickLinksSettingsCard"
 import { normalizeSiteQuickLinks, type SiteQuickLink } from "@/lib/utils/site-quick-links"
 
 // --- IntegrationCard ---

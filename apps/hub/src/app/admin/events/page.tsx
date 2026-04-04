@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, Copy, Trash2, Settings, Calendar, X, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import dynamic from "next/dynamic"
 
 const CreateEventModal = dynamic(() =>

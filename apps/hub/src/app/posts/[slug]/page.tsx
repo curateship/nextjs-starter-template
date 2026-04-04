@@ -7,7 +7,7 @@ import { notFound } from "next/navigation"
 import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 interface PostPageProps {
   params: Promise<{
@@ -80,7 +80,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
   return (
     <>
-      <JsonLd site={site} content={postWithBlocks} contentType="post" />
+      <StructuredData site={site} content={postWithBlocks} contentType="post" />
       <PostBlockRenderer
         site={site}
         post={postWithBlocks}

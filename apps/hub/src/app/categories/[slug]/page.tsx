@@ -7,7 +7,7 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 interface CategoryPageProps {
   params: Promise<{
@@ -55,7 +55,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
   return (
     <>
-      <JsonLd site={site} content={categoryWithBlocks} contentType="category" />
+      <StructuredData site={site} content={categoryWithBlocks} contentType="category" />
       <CategoryBlockRenderer
         site={site}
         category={categoryWithBlocks}

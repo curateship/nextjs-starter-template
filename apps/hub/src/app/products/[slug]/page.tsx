@@ -7,7 +7,7 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 interface ProductPageProps {
   params: Promise<{
@@ -55,7 +55,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <>
-      <JsonLd site={site} content={productWithBlocks} contentType="product" />
+      <StructuredData site={site} content={productWithBlocks} contentType="product" />
       <ProductBlockRenderer
         site={site}
         product={productWithBlocks}

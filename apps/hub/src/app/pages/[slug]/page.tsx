@@ -5,7 +5,7 @@ import { pages } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 interface PagePageProps {
   params: Promise<{
@@ -24,7 +24,7 @@ export default async function PagePage({ params }: PagePageProps) {
 
   return (
     <>
-      <JsonLd site={site} contentType="page" />
+      <StructuredData site={site} contentType="page" />
       <BlockRenderer site={site} />
     </>
   )

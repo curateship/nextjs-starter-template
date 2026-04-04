@@ -6,7 +6,7 @@ import { headers } from "next/headers"
 import { getSessionCookie } from "better-auth/cookies"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 async function getHomePageSite() {
   return await getSiteFromHeaders('home')
@@ -43,7 +43,7 @@ export default async function SiteHomePage() {
       {lcpImageUrl && (
         <link rel="preload" as="image" href={lcpImageUrl} fetchPriority="high" />
       )}
-      <JsonLd site={site} contentType="home" />
+      <StructuredData site={site} contentType="home" />
       <BlockRenderer site={site} />
     </>
   )

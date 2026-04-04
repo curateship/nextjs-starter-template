@@ -1,10 +1,10 @@
 'use client'
 
-import { SiteSwitcherProvider } from "@/components/admin/layout/site-switcher-provider"
+import { SiteSwitcherProvider } from "@/components/admin/providers/site-switcher-provider"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"
-import { AdminFontProvider } from "@/components/admin/layout/admin-font-provider"
+import { AdminFontProvider } from "@/components/admin/providers/admin-font-provider"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface AdminClientShellProps {

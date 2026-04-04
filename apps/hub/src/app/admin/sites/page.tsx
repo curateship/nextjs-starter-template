@@ -12,7 +12,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils"
 import { getAllSitesAction, deleteSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
 

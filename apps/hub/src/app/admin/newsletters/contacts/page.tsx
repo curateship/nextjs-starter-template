@@ -49,7 +49,7 @@ import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import {
   cloneContactFilterGroup,
   type ContactDataField,

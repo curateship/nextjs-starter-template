@@ -13,7 +13,7 @@ import { BlockSelectionModal, type BlockSelection } from "@/components/admin/sha
 import { DirectoryCustomBlockPreview } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockPreview"
 import { DirectoryCustomBlockSettingsPanel } from "@/components/admin/directory-builder/custom-blocks/DirectoryCustomBlockSettingsPanel"
 import { DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS } from "@/components/admin/directory-builder/custom-blocks/field-type-definitions"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { createDirectoryCustomField } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockField, DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { createDirectoryCustomBlock, getDirectoryCustomBlockById, updateDirectoryCustomBlock } from "@/lib/actions/directories/directory-custom-block-actions"

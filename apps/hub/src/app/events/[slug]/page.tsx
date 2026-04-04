@@ -7,7 +7,7 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
-import { JsonLd } from "@/components/admin/shared/JsonLd"
+import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 interface EventPageProps {
   params: Promise<{
@@ -55,7 +55,7 @@ export default async function EventPage({ params }: EventPageProps) {
 
   return (
     <>
-      <JsonLd site={site} content={eventWithBlocks} contentType="event" />
+      <StructuredData site={site} content={eventWithBlocks} contentType="event" />
       <EventBlockRenderer
         site={site}
         event={eventWithBlocks}

@@ -4,7 +4,7 @@ import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./product-block-types"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 interface ProductBlock {
   id: string

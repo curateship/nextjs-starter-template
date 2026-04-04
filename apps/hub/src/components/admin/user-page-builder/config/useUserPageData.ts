@@ -5,7 +5,7 @@ import {
 } from "@/lib/actions/user-pages/user-pages-actions"
 import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
-import { useSiteSwitcher } from "@/components/admin/layout/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 interface UseUserPagesDataReturn {
   site: Site | null

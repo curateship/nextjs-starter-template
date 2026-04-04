@@ -1,8 +1,8 @@
 import { buildSiteUrl } from '@/lib/utils/seo-helpers'
 import { toCdnUrl } from '@/lib/utils/cdn'
 
-// Minimal site shape for JSON-LD
-interface JsonLdSite {
+// Minimal site shape for structured data
+interface StructuredDataSite {
   id: string
   name: string
   subdomain: string
@@ -11,7 +11,7 @@ interface JsonLdSite {
   settings?: any
 }
 
-interface JsonLdContent {
+interface StructuredDataContent {
   title?: string
   slug?: string
   description?: string
@@ -38,17 +38,17 @@ interface JsonLdContent {
 
 type ContentType = 'home' | 'page' | 'post' | 'product' | 'category' | 'directory' | 'event'
 
-interface JsonLdProps {
-  site: JsonLdSite
-  content?: JsonLdContent | null
+interface StructuredDataProps {
+  site: StructuredDataSite
+  content?: StructuredDataContent | null
   contentType: ContentType
 }
 
 /**
- * Renders JSON-LD structured data as a script tag.
+ * Renders structured data as a JSON-LD script tag.
  * Supports Organization (site-wide), Article, Product, Event, and WebPage schemas.
  */
-export function JsonLd({ site, content, contentType }: JsonLdProps) {
+export function StructuredData({ site, content, contentType }: StructuredDataProps) {
   const baseUrl = buildSiteUrl(site)
   const schemas: any[] = []
 
@@ -144,7 +144,7 @@ export function JsonLd({ site, content, contentType }: JsonLdProps) {
   }
 
   // Wrap in @graph if multiple schemas
-  const jsonLd = {
+  const structuredData = {
     '@context': 'https://schema.org',
     ...(schemas.length === 1 ? schemas[0] : { '@graph': schemas }),
   }
@@ -152,7 +152,7 @@ export function JsonLd({ site, content, contentType }: JsonLdProps) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }}
     />
   )
 }

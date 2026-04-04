@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
-import { CacheSettingsCard } from "./CacheSettingsCard"
-import { TrackingSettingsCard } from "./TrackingSettingsCard"
+import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
+import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
 import { Switch } from "@/components/ui/switch"
 
 interface SiteDashboardProps {
