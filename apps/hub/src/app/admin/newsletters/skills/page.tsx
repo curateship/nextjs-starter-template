@@ -11,7 +11,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Play, Settings, Wand2, Mail, Users, Filter, Zap, FileText, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import {
   getSkillsBySite,
   deleteSkill,

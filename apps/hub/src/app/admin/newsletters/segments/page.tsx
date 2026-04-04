@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import {
   getSegmentsWithCounts,
   createSegment,

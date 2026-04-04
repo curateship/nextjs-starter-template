@@ -31,7 +31,7 @@ const DirectorySettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Settings, FolderOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteDirectoriesWithCategoriesAction, deleteDirectoryAction, deleteDirectoriesAction, duplicateDirectoryAction, getDirectoryIdsAction } from "@/lib/actions/directories/directory-actions"

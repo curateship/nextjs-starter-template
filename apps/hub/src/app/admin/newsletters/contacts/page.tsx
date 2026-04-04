@@ -36,7 +36,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import {
   getContactsWithStats,
   deleteContacts,

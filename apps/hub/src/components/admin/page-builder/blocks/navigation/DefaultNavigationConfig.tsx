@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import type { NavigationStyleAdminProps } from "./index"
 
 export function DefaultNavigationConfig({ config, onConfigChange }: NavigationStyleAdminProps) {

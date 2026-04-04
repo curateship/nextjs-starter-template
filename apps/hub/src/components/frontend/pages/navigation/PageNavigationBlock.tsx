@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Menu, X, ChevronDown, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState, useRef, useEffect, memo } from 'react'
-import { cn } from '@/lib/utils/tailwind-class-merger'
+import { cn } from '@/lib/utils/tailwind'
 import { isSafeUrl } from '@/lib/utils/url-validator'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 

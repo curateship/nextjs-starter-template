@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

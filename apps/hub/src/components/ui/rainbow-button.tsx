@@ -11,7 +11,7 @@ import {
   Zap,
   LucideIcon
 } from "lucide-react";
-import { cn } from "@/lib/utils/tailwind-class-merger";
+import { cn } from "@/lib/utils/tailwind";
 
 interface RainbowButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   href?: string;

@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 
 /** Single filter tab definition */
 export interface SubheaderTab {

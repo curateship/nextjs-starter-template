@@ -30,7 +30,7 @@ const ProductSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"

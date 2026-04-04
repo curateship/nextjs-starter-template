@@ -13,7 +13,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { LEAD_MAGNET_STYLES } from '.'
-import { cn } from '@/lib/utils/tailwind-class-merger'
+import { cn } from '@/lib/utils/tailwind'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 interface ProductLeadMagnetBlockProps {

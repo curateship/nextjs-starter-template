@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, Globe, Check } from "lucide-react"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DndContext,

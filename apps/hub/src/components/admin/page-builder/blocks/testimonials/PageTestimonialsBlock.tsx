@@ -11,7 +11,7 @@ import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,

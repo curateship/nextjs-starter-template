@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 
 import { Settings, Play, Pause, Trash2, Clock, Zap, Globe, MousePointer, Workflow, ArrowUp, ArrowDown, ChevronsUpDown, Plus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 
 type WorkflowTrigger = 'manual' | 'schedule' | 'webhook' | 'event'
 type WorkflowStatus = 'active' | 'paused' | 'draft'

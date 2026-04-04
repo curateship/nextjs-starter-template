@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import DotPattern from "@/components/ui/dot-pattern";
-import { cn } from "@/lib/utils/tailwind-class-merger";
+import { cn } from "@/lib/utils/tailwind";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
 

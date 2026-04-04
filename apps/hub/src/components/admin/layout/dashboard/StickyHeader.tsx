@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { PanelLeft, type LucideIcon } from "lucide-react"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"

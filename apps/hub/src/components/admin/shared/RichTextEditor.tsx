@@ -29,7 +29,7 @@ import {
   EyeOff
 } from "lucide-react"
 import { useState, useCallback, useEffect, useRef, type MouseEvent } from 'react'
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 
 export interface RichTextEditorProps {
   content: {

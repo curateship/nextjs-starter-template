@@ -16,7 +16,7 @@ import { getCategoriesWithCountsAction, deleteCategoriesAction, getCategoryIdsAc
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 
 const CreateCategoryModal = dynamic(() =>
   import("@/components/admin/category-builder/layout/CreateCategoryModal")

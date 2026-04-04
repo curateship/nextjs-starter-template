@@ -28,7 +28,7 @@ const PostSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Settings, BookOpen, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction, getPostIdsAction } from "@/lib/actions/posts/post-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"

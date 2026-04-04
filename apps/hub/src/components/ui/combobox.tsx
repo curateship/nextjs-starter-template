@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Check, ChevronsUpDown, X } from "lucide-react"
 
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { Button } from "@/components/ui/button"
 import {
   Command,

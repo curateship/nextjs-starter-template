@@ -1,5 +1,5 @@
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import type {
   DirectoryCustomBlockField,
   DirectoryCustomBlockRepeaterField,

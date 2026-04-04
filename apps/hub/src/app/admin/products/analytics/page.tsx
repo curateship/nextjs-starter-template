@@ -7,7 +7,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, Users, ShoppingCart, DollarSign, Package, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import {
   getProductAnalyticsOverview,

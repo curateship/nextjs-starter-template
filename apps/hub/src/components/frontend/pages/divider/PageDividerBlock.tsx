@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 
 interface DividerBlockProps {
   content: {

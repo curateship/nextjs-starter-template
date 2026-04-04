@@ -45,7 +45,7 @@ import {
   type AutomationTriggerNode,
   type AutomationTriggerType,
 } from "@/lib/actions/newsletters/automation-triggers"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import { Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
 
 interface PageProps {

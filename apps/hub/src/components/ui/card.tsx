@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils/tailwind-class-merger'
+import { cn } from '@/lib/utils/tailwind'
 
 const cardVariants = cva('text-card-foreground rounded-md mb-7 mx-4', {
     variants: {

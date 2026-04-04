@@ -31,7 +31,7 @@ const UserPageSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getUserPagesAction, deleteUserPageAction, deleteUserPagesAction, duplicateUserPageAction, getUserPageIdsAction } from "@/lib/actions/user-pages/user-pages-actions"

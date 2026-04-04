@@ -7,7 +7,7 @@ import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
-import { cn } from "@/lib/utils/tailwind-class-merger"
+import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default

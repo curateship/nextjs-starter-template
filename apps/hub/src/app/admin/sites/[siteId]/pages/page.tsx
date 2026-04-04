@@ -29,7 +29,7 @@ const PageSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction, getPageIdsAction } from "@/lib/actions/pages/page-actions"

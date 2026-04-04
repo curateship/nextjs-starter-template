@@ -13,7 +13,7 @@ import {
   CreditCard,
 } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils/tailwind"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
