@@ -40,10 +40,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { getTemplateSitesAction, deleteTemplateAction } from "@/lib/actions/themes/user-theme-actions"
 import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
-import { ContentTypesSettingsCard } from "@/components/admin/layout/settings/ContentTypesSettingsCard"
-import { FeatureTogglesCard } from "@/components/admin/layout/dashboard/FeatureTogglesCard"
-import { QuickLinksSettingsCard } from "@/components/admin/layout/settings/QuickLinksSettingsCard"
-import { normalizeSiteQuickLinks, type SiteQuickLink } from "@/lib/utils/site-quick-links"
+import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSettingsHeaderNav"
 
 // --- IntegrationCard ---
 
@@ -304,9 +301,7 @@ interface SiteEditPageProps {
 
 const TABS = [
   { id: 'general', label: 'General Settings' },
-  { id: 'quick-links', label: 'Quick Links' },
   { id: 'style', label: 'Style' },
-  { id: 'content-types', label: 'Content Types' },
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
@@ -321,7 +316,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const { siteId } = use(params)
   const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
   const [activeTab, setActiveTab] = useState<TabId>('general')
-  const contextSite = sites.find(s => s.id === siteId) || currentSite
+  const contextSite = sites.find((site) => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null)
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
   const [siteName, setSiteName] = useState(contextSite?.name || "")
   const [subdomain, setSubdomain] = useState(contextSite?.subdomain || "")
@@ -336,10 +331,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
-  const [defaultBlocks, setDefaultBlocks] = useState<Record<string, string[]>>(contextSite?.settings?.default_blocks || {})
-  const [quickLinks, setQuickLinks] = useState<SiteQuickLink[]>(normalizeSiteQuickLinks(contextSite?.settings?.quick_links))
-  const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>(contextSite?.settings?.enabled_features || {})
-  const [featureOrder, setFeatureOrder] = useState<string[]>(contextSite?.settings?.feature_order || [])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -455,9 +446,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       setError(null)
       setSaveMessage(null)
 
-      const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinks)
-
-      if (activeTab === 'general' || activeTab === 'quick-links' || activeTab === 'style' || activeTab === 'content-types') {
+      if (activeTab === 'general' || activeTab === 'style') {
         if (!siteName.trim()) {
           setError('Site name is required')
           return
@@ -482,10 +471,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             site_width: siteWidth,
             custom_width: customWidth,
             default_theme: defaultTheme,
-            default_blocks: defaultBlocks,
-            quick_links: normalizedQuickLinks,
-            enabled_features: enabledFeatures,
-            feature_order: featureOrder
           }
         })
 
@@ -495,7 +480,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         }
 
         if (data) {
-          setQuickLinks(normalizedQuickLinks)
           setSite(prev => prev ? { ...prev, ...data } : null)
           if (currentSite?.id === siteId) {
             setCurrentSite({ ...currentSite, ...data })
@@ -533,13 +517,13 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   return (
     <>
-      <StickyHeader />
+      <StickyHeader navContent={<SiteSettingsHeaderNav siteId={siteId} activeSection="general" />} />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[
               { label: siteName || "Site", href: `/admin/sites/${siteId}/dashboard` },
-              { label: "Settings" },
+              { label: "General Settings" },
             ]}
             actions={
               <div className="flex items-center gap-2">
@@ -611,13 +595,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 </form>
               )}
 
-              {activeTab === 'quick-links' && (
-                <QuickLinksSettingsCard
-                  quickLinks={quickLinks}
-                  onQuickLinksChange={setQuickLinks}
-                />
-              )}
-
               {activeTab === 'style' && (
                 <div className="space-y-6">
                   <StylingSettingsCard
@@ -633,21 +610,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onSiteWidthChange={setSiteWidth}
                     onCustomWidthChange={setCustomWidth}
                     onDefaultThemeChange={setDefaultTheme}
-                  />
-                </div>
-              )}
-
-              {activeTab === 'content-types' && (
-                <div className="space-y-6">
-                  <FeatureTogglesCard
-                    enabledFeatures={enabledFeatures}
-                    onEnabledFeaturesChange={setEnabledFeatures}
-                    featureOrder={featureOrder}
-                    onFeatureOrderChange={setFeatureOrder}
-                  />
-                  <ContentTypesSettingsCard
-                    defaultBlocks={defaultBlocks}
-                    onDefaultBlocksChange={setDefaultBlocks}
                   />
                 </div>
               )}

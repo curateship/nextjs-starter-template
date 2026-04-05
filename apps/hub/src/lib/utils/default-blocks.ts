@@ -5,6 +5,7 @@ import { EVENT_BLOCK_TYPES } from '@/components/admin/event-builder/config/event
 import { DIRECTORY_BLOCK_TYPES } from '@/components/admin/directory-builder/config/directory-block-types'
 import { CATEGORY_BLOCK_TYPES } from '@/components/admin/category-builder/config/category-block-types'
 import { USER_PAGE_BLOCK_TYPES } from '@/components/admin/user-page-builder/config/user-page-block-types'
+import { NEWSLETTER_BLOCK_TYPES } from '@/components/admin/newsletter-builder/config/newsletter-block-types'
 
 const BLOCK_TYPE_MAPS: Record<string, { type: string; defaultContent: Record<string, any> }[]> = {
   pages: PAGE_BLOCK_TYPES,
@@ -12,6 +13,7 @@ const BLOCK_TYPE_MAPS: Record<string, { type: string; defaultContent: Record<str
   posts: POST_BLOCK_TYPES,
   events: EVENT_BLOCK_TYPES,
   directories: DIRECTORY_BLOCK_TYPES,
+  newsletters: NEWSLETTER_BLOCK_TYPES,
   categories: CATEGORY_BLOCK_TYPES,
   user_pages: USER_PAGE_BLOCK_TYPES,
 }

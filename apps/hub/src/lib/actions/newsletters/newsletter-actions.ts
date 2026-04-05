@@ -8,6 +8,7 @@ import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 export interface Newsletter {
   id: string
@@ -180,6 +181,11 @@ export async function createNewsletter(input: {
     if (!input.subject?.trim()) return { data: null, error: 'Subject is required' }
 
     const subjectTrimmed = input.subject.trim()
+    const siteRow = await db.query.sites.findFirst({
+      where: eq(sites.id, input.siteId),
+      columns: { settings: true },
+    })
+    const defaultBlocks = (siteRow?.settings as Record<string, any> | undefined)?.default_blocks?.newsletters as string[] | undefined
 
     const [data] = await db
       .insert(newsletters)
@@ -189,6 +195,7 @@ export async function createNewsletter(input: {
         subject: subjectTrimmed,
         audienceFilter: input.audience_filter || {},
         content: input.content || '',
+        contentBlocks: applyDefaultBlocks({}, 'newsletters', defaultBlocks),
         status: input.status || 'draft',
       })
       .returning()

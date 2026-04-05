@@ -20,12 +20,14 @@ interface NavLink {
 interface StickyHeaderProps {
   className?: string
   navLinks?: NavLink[]
+  navContent?: React.ReactNode
   rightActions?: React.ReactNode
 }
 
 export function StickyHeader({
   className,
   navLinks,
+  navContent,
   rightActions,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
@@ -45,8 +47,10 @@ export function StickyHeader({
             <PanelLeft className="h-3.5 w-3.5" />
           </button>
 
+          {navContent}
+
           {/* NavLinks as tab pills */}
-          {navLinks && navLinks.length > 0 && (
+          {!navContent && navLinks && navLinks.length > 0 && (
             <div className="inline-flex h-8 items-center rounded-md gap-1">
               {navLinks.map((link) => {
                 const Icon = link.icon ?? (link.iconName ? getQuickLinkIcon(link.iconName) : null)
