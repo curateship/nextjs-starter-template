@@ -47,7 +47,6 @@ const REPEATER_FIELD_TYPE_OPTIONS: Array<{ value: DirectoryCustomBlockSimpleFiel
   { value: 'image', label: 'Image' },
   { value: 'link', label: 'Link' },
   { value: 'number', label: 'Number' },
-  { value: 'toggle', label: 'Toggle' },
   { value: 'select', label: 'Select' },
 ]
 

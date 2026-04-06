@@ -1,5 +1,4 @@
 import {
-  Binary,
   ChevronDownSquare,
   FileImage,
   Grip,
@@ -52,13 +51,6 @@ export const DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS: BlockTypeDefinition[] = [
     name: 'Number',
     icon: Hash,
     description: 'Numeric value',
-    defaultContent: {},
-  },
-  {
-    type: 'toggle',
-    name: 'Toggle',
-    icon: Binary,
-    description: 'True or false value',
     defaultContent: {},
   },
   {
