@@ -20,7 +20,6 @@ import { getTemplatesBySite } from "@/lib/actions/newsletters/template-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { updateNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { Users } from "lucide-react"
 
@@ -125,10 +124,35 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     setLoading(true)
     setError(null)
 
+    const selectedTemplate = selectedTemplateId !== 'blank'
+      ? templates.find(t => t.id === selectedTemplateId)
+      : null
+    const metadata = dripEnabled ? {
+      drip_config: {
+        enabled: true,
+        batch_size_min: parseInt(dripBatchMin) || 400,
+        batch_size_max: parseInt(dripBatchMax) || 500,
+        interval_min_minutes: parseInt(dripIntervalMin) || 30,
+        interval_max_minutes: parseInt(dripIntervalMax) || 60,
+        bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
+        ...(dripSendWindowEnabled ? {
+          send_window_start: dripSendWindowStart,
+          send_window_end: dripSendWindowEnd,
+          send_window_timezone: dripSendWindowTimezone,
+        } : {
+          send_window_start: null,
+          send_window_end: null,
+          send_window_timezone: null,
+        }),
+      },
+    } : undefined
+
     const { data, error: createError } = await createNewsletter({
       siteId: currentSite.id,
       subject: subject.trim(),
       audience_filter: buildAudienceFilter(),
+      content_blocks: selectedTemplate?.content_blocks,
+      metadata,
       status,
     })
 
@@ -139,40 +163,6 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     }
 
     if (data) {
-      // Pre-populate blocks from template if selected
-      const selectedTemplate = selectedTemplateId !== 'blank'
-        ? templates.find(t => t.id === selectedTemplateId)
-        : null
-      if (selectedTemplate?.content_blocks && Object.keys(selectedTemplate.content_blocks).length > 0) {
-        await updateNewsletter(data.id, {
-          content_blocks: selectedTemplate.content_blocks,
-        })
-      }
-
-      // Save drip config as metadata if enabled
-      if (dripEnabled) {
-        await updateNewsletter(data.id, {
-          metadata: {
-            drip_config: {
-              enabled: true,
-              batch_size_min: parseInt(dripBatchMin) || 400,
-              batch_size_max: parseInt(dripBatchMax) || 500,
-              interval_min_minutes: parseInt(dripIntervalMin) || 30,
-              interval_max_minutes: parseInt(dripIntervalMax) || 60,
-              bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
-              ...(dripSendWindowEnabled ? {
-                send_window_start: dripSendWindowStart,
-                send_window_end: dripSendWindowEnd,
-                send_window_timezone: dripSendWindowTimezone,
-              } : {
-                send_window_start: null,
-                send_window_end: null,
-                send_window_timezone: null,
-              }),
-            },
-          },
-        })
-      }
       onSuccess(data)
     }
     setLoading(false)

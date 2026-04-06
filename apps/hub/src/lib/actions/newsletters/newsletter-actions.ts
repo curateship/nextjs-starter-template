@@ -35,6 +35,7 @@ interface NewsletterBlock {
   type: string
   title: string
   content: Record<string, any>
+  display_order?: number
 }
 
 
@@ -69,6 +70,12 @@ function rowToNewsletter(row: any): Newsletter {
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
+}
+
+function getSortedNewsletterBlocks(contentBlocks: Record<string, any> | null | undefined): NewsletterBlock[] {
+  return Object.values(contentBlocks || {})
+    .filter((block: any) => block?.id && block?.type)
+    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as NewsletterBlock[]
 }
 
 export async function getNewslettersBySite(
@@ -165,7 +172,9 @@ export async function createNewsletter(input: {
   siteId: string
   subject: string
   audience_filter?: Record<string, any>
+  content_blocks?: Record<string, any>
   content?: string
+  metadata?: Record<string, any>
   status?: 'draft' | 'scheduled'
 }): Promise<{ data: Newsletter | null; error: string | null }> {
   try {
@@ -186,6 +195,12 @@ export async function createNewsletter(input: {
       columns: { settings: true },
     })
     const defaultBlocks = (siteRow?.settings as Record<string, any> | undefined)?.default_blocks?.newsletters as string[] | undefined
+    const contentBlocks = applyDefaultBlocks(input.content_blocks, 'newsletters', defaultBlocks)
+    const sortedBlocks = getSortedNewsletterBlocks(contentBlocks)
+    const maxWidth = input.metadata?.maxWidth || 600
+    const generatedContent = sortedBlocks.length > 0
+      ? generateEmailHtml(sortedBlocks, maxWidth)
+      : (input.content || '')
 
     const [data] = await db
       .insert(newsletters)
@@ -194,8 +209,9 @@ export async function createNewsletter(input: {
         name: subjectTrimmed,
         subject: subjectTrimmed,
         audienceFilter: input.audience_filter || {},
-        content: input.content || '',
-        contentBlocks: applyDefaultBlocks({}, 'newsletters', defaultBlocks),
+        content: generatedContent,
+        contentBlocks,
+        metadata: input.metadata || {},
         status: input.status || 'draft',
       })
       .returning()
