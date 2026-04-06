@@ -68,7 +68,7 @@ export function useDirectoryBuilder({
     }
   }
 
-  const handleDeleteBlock = (block: DirectoryBlock) => {
+  const handleDeleteBlock = (block: DirectoryEditorBlock) => {
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedDirectory] = updatedBlocks[selectedDirectory].filter(b => b.id !== block.id)
     setBlocks(updatedBlocks)
@@ -78,7 +78,7 @@ export function useDirectoryBuilder({
     }
   }
 
-  const handleReorderBlocks = (reorderedBlocks: DirectoryBlock[]) => {
+  const handleReorderBlocks = (reorderedBlocks: DirectoryEditorBlock[]) => {
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedDirectory] = reorderedBlocks
     setBlocks(updatedBlocks)
