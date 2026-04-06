@@ -4,9 +4,11 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
-import { PanelLeft, type LucideIcon } from "lucide-react"
+import { PanelLeft, Settings2, type LucideIcon } from "lucide-react"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
 import { getQuickLinkIcon } from "@/lib/utils/site-quick-links"
+import { Button } from "@/components/ui/button"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 interface NavLink {
   label: string
@@ -31,6 +33,11 @@ export function StickyHeader({
   rightActions,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
+  const { currentSite } = useSiteSwitcher()
+  const newsletterSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings/newsletters` : null
+  const showNewsletterSettingsButton =
+    Boolean(newsletterSettingsHref) &&
+    Boolean(navLinks?.some((link) => link.href.startsWith("/admin/newsletters")))
 
   return (
     <header className={cn(
@@ -94,6 +101,14 @@ export function StickyHeader({
         {/* Right side: page-specific actions + theme toggle */}
         <div className="flex items-center gap-2 pr-1">
           {rightActions}
+          {showNewsletterSettingsButton && newsletterSettingsHref && (
+            <Button variant="outline" asChild size="sm">
+              <Link href={newsletterSettingsHref}>
+                <Settings2 className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+          )}
           <AdminThemeToggle />
         </div>
       </div>

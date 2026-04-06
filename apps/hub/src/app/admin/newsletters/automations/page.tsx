@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, Users, Filter, FileText } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getAutomationsBySite,
@@ -32,6 +32,7 @@ import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actio
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { AUTOMATION_TRIGGER_SHORT_LABELS, getAutomationTriggerNodes } from "@/lib/actions/newsletters/automation-triggers"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function EmailAutomationsPage() {
   const router = useRouter()
@@ -177,6 +178,22 @@ export default function EmailAutomationsPage() {
     draft: automations.filter(a => a.status === 'draft').length,
   }
 
+  const filterOptions = [
+    { value: "all", label: "All", icon: List, count: statusCounts.all },
+    { value: "active", label: "Active", icon: Play, count: statusCounts.active },
+    { value: "paused", label: "Paused", icon: Pause, count: statusCounts.paused },
+    { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
+  ] as const
+
+  const handleFilterChange = (value: string) => {
+    setFilterStatus(value)
+    setSelectedIds(new Set())
+    setAllSelected(false)
+    setCurrentPage(1)
+  }
+
+  const activeFilter = filterOptions.find((option) => option.value === filterStatus) ?? filterOptions[0]
+
   const getStatusBadge = (status: string) => {
     if (status === 'active') return <Badge className="bg-green-100 text-green-800">Active</Badge>
     if (status === 'paused') return <Badge className="bg-yellow-100 text-yellow-800">Paused</Badge>
@@ -200,16 +217,30 @@ export default function EmailAutomationsPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Automations" },
             ]}
-            tabs={{
-              value: filterStatus,
-              onValueChange: (v) => { setFilterStatus(v); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) },
-              items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "active", label: "Active", icon: Play, count: statusCounts.active },
-                { value: "paused", label: "Paused", icon: Pause, count: statusCounts.paused },
-                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
-              ],
-            }}
+            preActions={
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" aria-label="Filter automations">
+                    <activeFilter.icon className="h-4 w-4 text-muted-foreground" />
+                    <span>{activeFilter.label}</span>
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-40 space-y-1">
+                  {filterOptions.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onSelect={() => handleFilterChange(option.value)}
+                      className={cn(option.value === filterStatus && "bg-accent text-accent-foreground")}
+                    >
+                      <option.icon className="h-4 w-4 text-muted-foreground" />
+                      <span>{option.label}</span>
+                      <span className="ml-auto text-muted-foreground">{option.count}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
             actions={
               <>
                 {selectedIds.size > 0 && (

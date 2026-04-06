@@ -27,12 +27,13 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, Users, Filter, Zap, FileText, Wand2 } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, Wand2, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function NewslettersPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -247,6 +248,21 @@ export default function NewslettersPage() {
     draft: newsletters.filter((n) => n.status === 'draft' || n.status === 'scheduled').length,
   }
 
+  const filterOptions = [
+    { value: 'all' as const, label: 'All', count: statusCounts.all, icon: List },
+    { value: 'draft' as const, label: 'Drafts', count: statusCounts.draft, icon: FileEdit },
+    { value: 'sent' as const, label: 'Sent', count: statusCounts.sent, icon: Send },
+  ]
+
+  const handleFilterChange = (value: string) => {
+    setFilterStatus(value as 'all' | 'draft' | 'sent')
+    setSelectedIds(new Set())
+    setAllSelected(false)
+    setCurrentPage(1)
+  }
+
+  const activeFilter = filterOptions.find((option) => option.value === filterStatus) ?? filterOptions[0]
+
   return (
     <>
       <StickyHeader navLinks={getNewsletterAdminTopNavLinks("newsletters")} />
@@ -255,35 +271,50 @@ export default function NewslettersPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters" }]}
-            tabs={{
-              value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'draft' | 'sent'); setSelectedIds(new Set()); setAllSelected(false); setCurrentPage(1) },
-              items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "draft", label: "Drafts", icon: FileEdit, count: statusCounts.draft },
-                { value: "sent", label: "Sent", icon: Send, count: statusCounts.sent },
-              ],
-            }}
             preActions={
-              selectedIds.size > 0 ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              ) : undefined
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" aria-label="Filter newsletters">
+                      <activeFilter.icon className="h-4 w-4 text-muted-foreground" />
+                      <span>{activeFilter.label}</span>
+                      <ChevronDown className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-40 space-y-1">
+                    {filterOptions.map((option) => (
+                      <DropdownMenuItem
+                        key={option.value}
+                        onSelect={() => handleFilterChange(option.value)}
+                        className={cn(option.value === filterStatus && "bg-accent text-accent-foreground")}
+                      >
+                        <option.icon className="h-4 w-4 text-muted-foreground" />
+                        <span>{option.label}</span>
+                        <span className="ml-auto text-muted-foreground">{option.count}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {selectedIds.size > 0 ? (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    {massDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                        <span className="hidden sm:inline">Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                      </>
+                    )}
+                  </Button>
+                ) : null}
+              </>
             }
             actions={
               <>
