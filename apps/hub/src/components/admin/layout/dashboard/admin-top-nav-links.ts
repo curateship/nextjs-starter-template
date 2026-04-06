@@ -27,7 +27,7 @@ type NewsletterAdminSection =
   | "segments"
   | "automations"
   | "templates"
-type DirectoryAdminSection = "directory" | "custom-blocks"
+type DirectoryAdminSection = "directory" | "templates" | "custom-blocks"
 type SiteHealthAdminSection = "overview" | "email" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
 
@@ -60,6 +60,7 @@ export function getDirectoryAdminTopNavLinks(active: DirectoryAdminSection): Adm
   return [
     { label: "Directory", href: "/admin/directories", icon: FolderOpen, active: active === "directory" },
     { label: "Custom Blocks", href: "/admin/directories/custom-blocks", icon: Blocks, active: active === "custom-blocks" },
+    { label: "Templates", href: "/admin/directories/templates", icon: FileText, active: active === "templates" },
   ]
 }
 

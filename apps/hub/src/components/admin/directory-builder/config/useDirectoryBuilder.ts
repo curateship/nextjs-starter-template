@@ -3,22 +3,16 @@ import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory
 import { getBlockTypeDefinition } from "./directory-block-types"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { parseDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
+import { directoryBlocksToJson, type DirectoryEditorBlock } from "./directory-block-utils"
 
 interface BlockSelection {
   type: string
   quantity: number
 }
 
-interface DirectoryBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
-
 interface UseDirectoryBuilderParams {
-  blocks: Record<string, DirectoryBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, DirectoryBlock[]>>>
+  blocks: Record<string, DirectoryEditorBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, DirectoryEditorBlock[]>>>
   selectedDirectory: string
   directoryId?: string
   customBlockTemplates: DirectoryCustomBlockTemplate[]
@@ -29,13 +23,13 @@ interface UseDirectoryBuilderParams {
 }
 
 interface UseDirectoryBuilderReturn {
-  selectedBlock: DirectoryBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<DirectoryBlock | null>>
+  selectedBlock: DirectoryEditorBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<DirectoryEditorBlock | null>>
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: DirectoryBlock) => void
-  handleReorderBlocks: (blocks: DirectoryBlock[]) => void
+  handleDeleteBlock: (block: DirectoryEditorBlock) => void
+  handleReorderBlocks: (blocks: DirectoryEditorBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
@@ -48,7 +42,7 @@ export function useDirectoryBuilder({
   customBlockTemplates,
   currentDirectory
 }: UseDirectoryBuilderParams): UseDirectoryBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<DirectoryBlock | null>(null)
+  const [selectedBlock, setSelectedBlock] = useState<DirectoryEditorBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
 
@@ -93,7 +87,7 @@ export function useDirectoryBuilder({
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
     const currentBlocks = updatedBlocks[selectedDirectory] || []
-    const newBlocks: DirectoryBlock[] = []
+    const newBlocks: DirectoryEditorBlock[] = []
 
     // Process each selection
     for (const selection of selections) {
@@ -133,7 +127,7 @@ export function useDirectoryBuilder({
       // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
         const timestamp = Date.now() + i // Ensure unique IDs
-        const newBlock: DirectoryBlock = {
+        const newBlock: DirectoryEditorBlock = {
           id: `${selection.type}-${timestamp}`,
           type: selection.type,
           title: blockDefinition.name,
@@ -162,37 +156,7 @@ export function useDirectoryBuilder({
     }
 
     const currentBlocks = blocks[selectedDirectory] || []
-
-    // Get existing content blocks from the currentDirectory to preserve settings
-    const existingContentBlocks = currentDirectory?.content_blocks || {}
-
-    // Preserve non-block settings (e.g. show_featured_image, _settings)
-    const preservedSettings: Record<string, any> = {}
-    Object.entries(existingContentBlocks).forEach(([key, value]) => {
-      if (typeof value !== 'object' || value === null) {
-        preservedSettings[key] = value
-      } else if (key.startsWith('_')) {
-        preservedSettings[key] = value
-      }
-    })
-
-    // Convert blocks array to JSON object format keyed by block ID
-    const newContentBlocks: Record<string, any> = {}
-    currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.id] = {
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        display_order: index,
-        ...(block.title ? { title: block.title } : {}),
-      }
-    })
-
-    // Merge preserved settings with new blocks
-    const contentBlocks: Record<string, any> = {
-      ...preservedSettings,
-      ...newContentBlocks
-    }
+    const contentBlocks = directoryBlocksToJson(currentBlocks, currentDirectory?.content_blocks || {})
 
     setIsSaving(true)
     setSaveMessage("Saving...")

@@ -2,21 +2,13 @@ import { useState, useEffect } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
-import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
-import { getBlockName } from "./directory-block-types"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-
-interface DirectoryBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+import { parseDirectoryBlocksFromJson, type DirectoryEditorBlock } from "./directory-block-utils"
 
 interface UseDirectoryDataReturn {
   site: SiteWithTheme | null
-  blocks: Record<string, DirectoryBlock[]>
+  blocks: Record<string, DirectoryEditorBlock[]>
   siteBlocks: Record<string, any[]>
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   siteLoading: boolean
@@ -30,7 +22,7 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
-  const [blocks, setBlocks] = useState<Record<string, DirectoryBlock[]>>({})
+  const [blocks, setBlocks] = useState<Record<string, DirectoryEditorBlock[]>>({})
   const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [blocksLoading, setBlocksLoading] = useState(false)
@@ -39,29 +31,10 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
     directoriesData: NonNullable<Awaited<ReturnType<typeof getSiteDirectoriesAction>>['data']>,
     templates: DirectoryCustomBlockTemplate[]
   ) => {
-    const templateMap = new Map(templates.map(template => [template.id, template]))
-    const convertedBlocks: Record<string, DirectoryBlock[]> = {}
+    const convertedBlocks: Record<string, DirectoryEditorBlock[]> = {}
 
     directoriesData.forEach((directory) => {
-      const directoryBlocks = convertContentBlocksToArray(directory.content_blocks || {}, directory.id)
-
-      const blocksWithTitles = directoryBlocks.map(block => {
-        if (block.type === 'directory-custom') {
-          const templateId = block.content?.templateId
-          const template = typeof templateId === 'string' ? templateMap.get(templateId) : undefined
-          return {
-            ...block,
-            title: template?.name || block.title || 'Custom Block'
-          }
-        }
-
-        return {
-          ...block,
-          title: block.title || getBlockName(block.type)
-        }
-      })
-
-      convertedBlocks[directory.slug] = blocksWithTitles
+      convertedBlocks[directory.slug] = parseDirectoryBlocksFromJson(directory.content_blocks || {}, templates)
     })
 
     return convertedBlocks

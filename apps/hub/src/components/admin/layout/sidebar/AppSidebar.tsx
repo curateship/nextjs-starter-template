@@ -69,6 +69,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       featureKey: "directory",
       items: [
         { title: "Custom Blocks", url: "/admin/directories/custom-blocks" },
+        { title: "Templates", url: "/admin/directories/templates" },
       ],
     },
     {

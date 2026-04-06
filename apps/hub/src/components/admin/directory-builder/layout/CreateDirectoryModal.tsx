@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,8 +12,18 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
+import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
+import type { DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface CreateDirectoryModalProps {
   onSuccess: (directory: Directory, continueToBuilder?: boolean) => void
@@ -37,6 +47,38 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!currentSite?.id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getDirectoryTemplatesBySite(currentSite.id)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id])
 
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({ ...prev, title }))
@@ -80,6 +122,16 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setError(null)
 
     try {
+      const selectedTemplate = selectedTemplateId !== 'blank'
+        ? templates.find((template) => template.id === selectedTemplateId)
+        : null
+      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === 'object'
+        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
+        : {}
+      const templateSettings = templateContentBlocks._settings && typeof templateContentBlocks._settings === 'object'
+        ? templateContentBlocks._settings
+        : {}
+
       const directoryData = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
@@ -89,8 +141,12 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         featured_image: featuredImage || null,
         is_published: false,
         content_blocks: {
-          ...(isPrivate ? { _settings: { is_private: true } } : {}),
-          show_featured_image: true
+          ...templateContentBlocks,
+          _settings: {
+            ...templateSettings,
+            is_private: isPrivate,
+          },
+          show_featured_image: templateContentBlocks.show_featured_image ?? true,
         }
       }
       
@@ -119,7 +175,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       if (selectedCategoryIds.length > 0) {
         bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
       }
-      onSuccess(result.data, continueToBuilder)
+      onSuccess(toSnakeCase(result.data) as Directory, continueToBuilder)
     } catch (err) {
       setError("Failed to create directory")
       setLoading(false)
@@ -135,6 +191,25 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       )}
 
       <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Label htmlFor="template">Start from Template</Label>
+          {!templatesLoading && (
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger id="template">
+                <SelectValue placeholder="Select template" />
+              </SelectTrigger>
+              <SelectContent className="z-[60]">
+                <SelectItem value="blank">Blank</SelectItem>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
         {/* Directory Title */}
         <div className="col-span-2">
           <Label htmlFor="title">Directory Title *</Label>

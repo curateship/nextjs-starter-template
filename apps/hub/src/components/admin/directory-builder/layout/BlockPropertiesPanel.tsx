@@ -42,6 +42,7 @@ interface BlockPropertiesPanelProps {
   onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
   onBack?: () => void
+  showDirectoryTitleField?: boolean
 }
 
 export function BlockPropertiesPanel({
@@ -56,11 +57,12 @@ export function BlockPropertiesPanel({
   onTitleChange,
   onSelectBlock,
   onBack,
+  showDirectoryTitleField = true,
 }: BlockPropertiesPanelProps) {
   // Get navigation and footer from siteBlocks for the current directory
   const currentSiteBlocks = siteBlocks?.[currentDirectory?.slug || ''] || []
-  const navigation = currentSiteBlocks.find(b => b.type === 'navigation')?.content
-  const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content
+  const navigation = currentSiteBlocks.find(b => b.type === 'navigation')?.content ?? site?.settings?.navigation
+  const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content ?? site?.settings?.footer
 
   return (
     <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
@@ -78,6 +80,7 @@ export function BlockPropertiesPanel({
                 }}
                 onDirectoryTitleChange={onTitleChange}
                 onBack={onBack}
+                showDirectoryTitleField={showDirectoryTitleField}
               />
             )}
             {selectedBlock.type === 'directory-custom' && (

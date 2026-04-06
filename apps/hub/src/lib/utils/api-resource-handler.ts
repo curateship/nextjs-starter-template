@@ -63,6 +63,32 @@ interface CreateResourceConfig {
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
 }
 
+async function findResourceById(table: any, id: string) {
+  const rows = await db.select().from(table).where(eq(table.id, id)).limit(1)
+  return rows[0] ?? null
+}
+
+async function findResourceBySlug(table: any, siteId: string, slug: string) {
+  const rows = await db
+    .select({ id: table.id, title: table.title })
+    .from(table)
+    .where(and(eq(table.siteId, siteId), eq(table.slug, slug)))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
+async function getNextDisplayOrder(table: any, siteId: string) {
+  const rows = await db
+    .select({ displayOrder: table.displayOrder })
+    .from(table)
+    .where(eq(table.siteId, siteId))
+    .orderBy(desc(table.displayOrder))
+    .limit(1)
+
+  return rows[0] ? rows[0].displayOrder + 1 : 1
+}
+
 /**
  * Generic POST handler for creating a content resource.
  * Handles: auth, site ownership, slug generation/validation, uniqueness, display order, default blocks.
@@ -92,12 +118,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       if (slugError) return slugError
 
       /* Slug uniqueness check */
-      const existing = await db.query[config.table._.name as keyof typeof db.query]
-        ? await (db.query as any)[config.table._.name].findFirst({
-            where: and(eq(config.table.siteId, data.site_id), eq(config.table.slug, slug)),
-            columns: { title: true },
-          })
-        : null
+      const existing = await findResourceBySlug(config.table, data.site_id, slug)
 
       if (existing) {
         return jsonError(
@@ -107,12 +128,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       }
 
       /* Display order */
-      const orderData = await (db.query as any)[config.table._.name].findFirst({
-        where: eq(config.table.siteId, data.site_id),
-        orderBy: [desc(config.table.displayOrder)],
-        columns: { displayOrder: true },
-      })
-      const nextOrder = orderData ? orderData.displayOrder + 1 : 1
+      const nextOrder = await getNextDisplayOrder(config.table, data.site_id)
 
       /* Default blocks */
       const siteSettings = site.settings as Record<string, unknown> | null
@@ -167,9 +183,7 @@ export function getResourceHandler(config: ItemResourceConfig) {
       if (userIdOrError instanceof NextResponse) return userIdOrError
 
       /* Fetch entity */
-      const entity = await (db.query as any)[config.table._.name].findFirst({
-        where: eq(config.table.id, entityId),
-      })
+      const entity = await findResourceById(config.table, entityId)
       if (!entity) return jsonError(`${config.entityName} not found`, 404)
 
       /* Site ownership */
@@ -207,9 +221,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       if (userIdOrError instanceof NextResponse) return userIdOrError
 
       /* Fetch entity */
-      const entity = await (db.query as any)[config.table._.name].findFirst({
-        where: eq(config.table.id, entityId),
-      })
+      const entity = await findResourceById(config.table, entityId)
       if (!entity) return jsonError(`${config.entityName} not found`, 404)
 
       /* Site ownership */
@@ -228,10 +240,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
         if (slugError) return slugError
 
         /* Uniqueness check (excluding current entity) */
-        const existing = await (db.query as any)[config.table._.name].findFirst({
-          where: and(eq(config.table.siteId, entity.siteId), eq(config.table.slug, slug)),
-          columns: { id: true },
-        })
+        const existing = await findResourceBySlug(config.table, entity.siteId, slug)
         if (existing && existing.id !== entityId) {
           return jsonError(`A ${config.entityName.toLowerCase()} with the slug "${slug}" already exists. Please choose a different slug.`, 400)
         }

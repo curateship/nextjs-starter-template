@@ -58,6 +58,13 @@ All app code lives in `apps/hub/`. The root `package.json` is the workspace root
 - Dockerfile at repo root builds the hub app (standalone output)
 - Use the Coolify MCP for server/database operations when needed
 
+## Auth And Migrations
+
+- Current app auth is Better Auth, not Supabase
+- `apps/hub/migrations/` contains legacy SQL and historical/manual migrations from older Supabase-era patterns
+- Do not assume `auth.uid()`, `auth.role()`, `auth.users`, storage policies, or `supabase_url` in those SQL files reflect the current runtime architecture
+- When adding new database work, follow current runtime code and Drizzle schema, and validate auth assumptions against the app before copying legacy SQL patterns
+
 ## Development Commands
 
 ```bash

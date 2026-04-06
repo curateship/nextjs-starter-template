@@ -1,3 +1,5 @@
+-- LEGACY NOTE: This migration uses older Supabase-style auth/RLS patterns.
+-- Current app auth is Better Auth. Validate current auth before copying `auth.*` SQL from here.
 -- Newsletter templates table
 CREATE TABLE newsletter_templates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

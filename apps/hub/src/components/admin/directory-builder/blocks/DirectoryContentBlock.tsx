@@ -41,9 +41,19 @@ interface DirectoryContentBlockProps {
   }
   onDirectoryTitleChange?: (title: string) => void
   onBack?: () => void
+  showDirectoryTitleField?: boolean
 }
 
-export function DirectoryContentBlock({ content, onContentChange, siteId, blockId, directoryData, onDirectoryTitleChange, onBack }: DirectoryContentBlockProps) {
+export function DirectoryContentBlock({
+  content,
+  onContentChange,
+  siteId,
+  blockId,
+  directoryData,
+  onDirectoryTitleChange,
+  onBack,
+  showDirectoryTitleField = true,
+}: DirectoryContentBlockProps) {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(directoryData?.title || directoryData?.name || 'Untitled Directory')
 
@@ -173,17 +183,18 @@ export function DirectoryContentBlock({ content, onContentChange, siteId, blockI
                   </div>
                 </div>
 
-                {/* Directory Title */}
-                <div className="space-y-2 px-6 mb-4">
-                  <Label htmlFor="directory-title">Directory Title</Label>
-                  <Input
-                    id="directory-title"
-                    value={localTitle}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    placeholder="Enter directory title..."
-                    className="text-lg font-medium"
-                  />
-                </div>
+                {showDirectoryTitleField && (
+                  <div className="space-y-2 px-6 mb-4">
+                    <Label htmlFor="directory-title">Directory Title</Label>
+                    <Input
+                      id="directory-title"
+                      value={localTitle}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      placeholder="Enter directory title..."
+                      className="text-lg font-medium"
+                    />
+                  </div>
+                )}
 
                 {/* Rich Text Editor */}
                 <div className="space-y-2 px-6">
