@@ -188,7 +188,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             <SelectTrigger id="newsletter-template">
               <SelectValue placeholder="Select template" />
             </SelectTrigger>
-            <SelectContent className="z-[60]">
+            <SelectContent className="z-60">
               <SelectItem value="blank">Blank</SelectItem>
               {templates.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -218,7 +218,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             <SelectTrigger id="create-audience-select">
               <SelectValue placeholder="Select audience" />
             </SelectTrigger>
-            <SelectContent className="z-[60]">
+            <SelectContent className="z-60">
               <SelectItem value="none">No segment</SelectItem>
               <SelectItem value="all">All Contacts</SelectItem>
               {segments.map(seg => (
@@ -366,7 +366,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                       <SelectTrigger id="create-send-window-tz">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="z-[60]">
+                      <SelectContent className="z-60">
                         <SelectItem value="America/New_York">Eastern Time</SelectItem>
                         <SelectItem value="America/Chicago">Central Time</SelectItem>
                         <SelectItem value="America/Denver">Mountain Time</SelectItem>
