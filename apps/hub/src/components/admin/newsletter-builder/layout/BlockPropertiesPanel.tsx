@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { NewsletterCanvas } from "./NewsletterCanvas"
 import { NewsletterRichTextBlock } from "../blocks/rich-text/NewsletterRichTextBlock"
@@ -33,10 +34,59 @@ export function BlockPropertiesPanel({
   onSubjectChange,
   onSubjectClick,
 }: BlockPropertiesPanelProps) {
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+
   const handleContentChange = (field: string, value: any) => {
     if (!selectedBlock) return
     updateBlockContent(selectedBlock.id, field, value)
   }
+
+  useEffect(() => {
+    if (selectedBlock) {
+      setEditingBlockId(null)
+    }
+  }, [selectedBlock])
+
+  useEffect(() => {
+    if (!editingBlockId) {
+      return
+    }
+
+    const editingBlock = blocks.find((block) => block.id === editingBlockId)
+    if (!editingBlock || editingBlock.type !== "newsletter-rich-text") {
+      setEditingBlockId(null)
+    }
+  }, [blocks, editingBlockId])
+
+  useEffect(() => {
+    if (!editingBlockId) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      const targetElement =
+        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+
+      if (!targetElement) {
+        return
+      }
+
+      if (
+        targetElement.closest('[data-newsletter-inline-editor-shell="true"]') ||
+        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
+        targetElement.closest('[data-media-picker-dialog="true"]') ||
+        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
+      ) {
+        return
+      }
+
+      setEditingBlockId(null)
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [editingBlockId])
 
   return (
     <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
@@ -84,11 +134,16 @@ export function BlockPropertiesPanel({
             blocks={blocks}
             previewWidth={previewWidth}
             emailWidth={emailWidth}
+            siteId={siteId}
             onSelectBlock={onSelectBlock}
-            selectedBlock={selectedBlock}
             subject={subject}
             onSubjectChange={onSubjectChange}
             onSubjectClick={onSubjectClick}
+            editingBlockId={editingBlockId}
+            onStartInlineEdit={setEditingBlockId}
+            onStopInlineEdit={() => setEditingBlockId(null)}
+            onUpdateInlineRichText={(blockId, htmlContent) => updateBlockContent(blockId, "htmlContent", htmlContent)}
+            onOpenBlockSettings={(block) => onSelectBlock(block)}
           />
         </div>
       )}

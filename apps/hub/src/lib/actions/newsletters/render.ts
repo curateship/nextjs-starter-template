@@ -5,7 +5,7 @@ export interface NewsletterRenderBlock {
   content: Record<string, any>
 }
 
-export const DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR = '#e5e7eb'
+export const DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR = '#fafafa'
 
 export function normalizeNewsletterRichTextHtml(htmlContent: string): string {
   return htmlContent

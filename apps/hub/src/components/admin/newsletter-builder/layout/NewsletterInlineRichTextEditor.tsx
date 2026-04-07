@@ -1,0 +1,964 @@
+"use client"
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Editor } from "@tiptap/core"
+import { posToDOMRect } from "@tiptap/core"
+import { NodeSelection } from "@tiptap/pm/state"
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
+import { BubbleMenu } from "@tiptap/react/menus"
+import StarterKit from "@tiptap/starter-kit"
+import Placeholder from "@tiptap/extension-placeholder"
+import Link from "@tiptap/extension-link"
+import Image from "@tiptap/extension-image"
+import { Button } from "@/components/ui/button"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Bold,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  ImageIcon,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Pilcrow,
+  Quote,
+  Trash2,
+} from "lucide-react"
+import { cn } from "@/lib/utils/tailwind"
+import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
+
+interface NewsletterInlineRichTextEditorProps {
+  blockId: string
+  content: Record<string, any>
+  onContentChange: (htmlContent: string) => void
+  siteId: string
+  scrollTarget?: HTMLElement | null
+}
+
+interface SlashCommandRange {
+  from: number
+  to: number
+}
+
+interface SlashCommandMenuState {
+  query: string
+  range: SlashCommandRange
+  position: {
+    top: number
+    left: number
+  }
+  signature: string
+}
+
+interface SlashCommandDefinition {
+  id: string
+  label: string
+  description: string
+  keywords: string[]
+  icon: React.ComponentType<{ className?: string }>
+  run: (editor: Editor, range: SlashCommandRange) => void
+}
+
+const SLASH_MENU_WIDTH = 320
+
+const BASE_SLASH_COMMANDS: SlashCommandDefinition[] = [
+  {
+    id: "paragraph",
+    label: "Text",
+    description: "Plain paragraph",
+    keywords: ["paragraph", "text", "body", "normal"],
+    icon: Pilcrow,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setParagraph().run()
+    },
+  },
+  {
+    id: "heading-1",
+    label: "Heading 1",
+    description: "Large section heading",
+    keywords: ["heading", "title", "h1"],
+    icon: Heading1,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 1 }).run()
+    },
+  },
+  {
+    id: "heading-2",
+    label: "Heading 2",
+    description: "Medium section heading",
+    keywords: ["heading", "subtitle", "h2"],
+    icon: Heading2,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 2 }).run()
+    },
+  },
+  {
+    id: "heading-3",
+    label: "Heading 3",
+    description: "Compact section heading",
+    keywords: ["heading", "subheading", "h3"],
+    icon: Heading3,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 3 }).run()
+    },
+  },
+  {
+    id: "heading-4",
+    label: "Heading 4",
+    description: "Small heading",
+    keywords: ["heading", "h4"],
+    icon: Heading3,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 4 }).run()
+    },
+  },
+  {
+    id: "heading-5",
+    label: "Heading 5",
+    description: "Compact heading",
+    keywords: ["heading", "h5"],
+    icon: Heading3,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 5 }).run()
+    },
+  },
+  {
+    id: "heading-6",
+    label: "Heading 6",
+    description: "Fine heading",
+    keywords: ["heading", "h6"],
+    icon: Heading3,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).setHeading({ level: 6 }).run()
+    },
+  },
+  {
+    id: "bullet-list",
+    label: "Bullet list",
+    description: "Start a bulleted list",
+    keywords: ["list", "bullet", "unordered", "ul"],
+    icon: List,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).toggleBulletList().run()
+    },
+  },
+  {
+    id: "ordered-list",
+    label: "Numbered list",
+    description: "Start a numbered list",
+    keywords: ["list", "ordered", "numbered", "ol"],
+    icon: ListOrdered,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).toggleOrderedList().run()
+    },
+  },
+  {
+    id: "blockquote",
+    label: "Quote",
+    description: "Format as a quote",
+    keywords: ["quote", "blockquote", "callout"],
+    icon: Quote,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).toggleBlockquote().run()
+    },
+  },
+]
+
+function getSlashMenuState(editor: Editor): SlashCommandMenuState | null {
+  const { selection } = editor.state
+
+  if (!selection.empty || !editor.isEditable || !editor.view.hasFocus()) {
+    return null
+  }
+
+  const { $from, from, to } = selection
+  const textBeforeCursor = $from.parent.textBetween(0, $from.parentOffset, "\n", "\0")
+  const match = /(?:^|\s)\/([^\s/]*)$/.exec(textBeforeCursor)
+
+  if (!match) {
+    return null
+  }
+
+  const matchText = match[0]
+  const query = match[1] || ""
+  const slashOffset = textBeforeCursor.length - matchText.length + (matchText.startsWith("/") ? 0 : 1)
+  const slashFrom = $from.start() + slashOffset
+  const rect = posToDOMRect(editor.view, slashFrom, to)
+  const maxLeft = typeof window === "undefined" ? rect.left : window.innerWidth - SLASH_MENU_WIDTH - 12
+
+  return {
+    query,
+    range: {
+      from: slashFrom,
+      to: from,
+    },
+    position: {
+      top: rect.bottom + 8,
+      left: Math.max(12, Math.min(rect.left, maxLeft)),
+    },
+    signature: `${slashFrom}:${to}:${query}`,
+  }
+}
+
+export function NewsletterInlineRichTextEditor({
+  blockId,
+  content,
+  onContentChange,
+  siteId,
+  scrollTarget,
+}: NewsletterInlineRichTextEditorProps) {
+  const pendingContentRef = useRef<string | null>(null)
+  const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
+  const pendingLinkRangeRef = useRef<SlashCommandRange | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const slashMenuRef = useRef<SlashCommandMenuState | null>(null)
+  const dismissedSlashSignatureRef = useRef<string | null>(null)
+  const selectedSlashIndexRef = useRef(0)
+  const filteredSlashCommandsRef = useRef<SlashCommandDefinition[]>([])
+  const [slashMenu, setSlashMenu] = useState<SlashCommandMenuState | null>(null)
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState("")
+  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(
+    null,
+  )
+  const normalizedContent = useMemo(
+    () => normalizeNewsletterRichTextHtml(content.htmlContent || ""),
+    [content.htmlContent],
+  )
+  const imageBorderSize = Math.max(0, Math.min(48, parseInt(String(content.imageBorderSize ?? 0), 10) || 0))
+  const imageBorderColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(content.imageBorderColor || "")
+    ? content.imageBorderColor
+    : DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        code: false,
+        codeBlock: false,
+        horizontalRule: false,
+        strike: false,
+        heading: {
+          levels: [1, 2, 3, 4, 5, 6],
+        },
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          rel: "noopener noreferrer nofollow",
+          class: "text-blue-600 underline",
+        },
+      }),
+      Placeholder.configure({
+        placeholder: "Write your content here...",
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: "max-w-full h-auto",
+        },
+      }),
+    ],
+    content: normalizedContent,
+    immediatelyRender: false,
+    editorProps: {
+      transformPastedText(text) {
+        return text.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
+      },
+      transformPastedHTML(html) {
+        return html
+          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
+          .replace(/<div>/gi, "<p>")
+          .replace(/<\/div>/gi, "</p>")
+      },
+      handleKeyDown: (_view, event) => {
+        if (!slashMenuRef.current) {
+          return false
+        }
+
+        if (event.key === "ArrowDown") {
+          event.preventDefault()
+          setSelectedSlashIndex((currentIndex) => {
+            if (filteredSlashCommandsRef.current.length === 0) {
+              return 0
+            }
+
+            return (currentIndex + 1) % filteredSlashCommandsRef.current.length
+          })
+          return true
+        }
+
+        if (event.key === "ArrowUp") {
+          event.preventDefault()
+          setSelectedSlashIndex((currentIndex) => {
+            if (filteredSlashCommandsRef.current.length === 0) {
+              return 0
+            }
+
+            return (currentIndex - 1 + filteredSlashCommandsRef.current.length) % filteredSlashCommandsRef.current.length
+          })
+          return true
+        }
+
+        if (event.key === "Enter") {
+          if (!editor) {
+            return false
+          }
+
+          const command = filteredSlashCommandsRef.current[selectedSlashIndexRef.current]
+          if (!command) {
+            return true
+          }
+
+          event.preventDefault()
+          runSlashCommand(command, slashMenuRef.current.range)
+          return true
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault()
+          dismissedSlashSignatureRef.current = slashMenuRef.current.signature
+          setSlashMenu(null)
+          return true
+        }
+
+        return false
+      },
+      attributes: {
+        class: "outline-none min-h-[80px]",
+      },
+    },
+    onUpdate: ({ editor: currentEditor }) => {
+      const html = normalizeNewsletterRichTextHtml(currentEditor.getHTML())
+      pendingContentRef.current = html
+      onContentChange(html)
+    },
+  })
+
+  const handleImageSelect = useCallback(
+    (imageUrl: string, altText?: string) => {
+      if (!editor || !imageUrl) {
+        return
+      }
+
+      const range = pendingImageRangeRef.current
+      const command = editor.chain().focus()
+
+      if (range) {
+        command.deleteRange(range)
+      }
+
+      command.setImage({ src: imageUrl, alt: altText || "" }).run()
+      pendingImageRangeRef.current = null
+    },
+    [editor],
+  )
+
+  const handleImagePickerOpenChange = useCallback((open: boolean) => {
+    setIsImagePickerOpen(open)
+    if (!open) {
+      pendingImageRangeRef.current = null
+    }
+  }, [])
+
+  const handleLinkDialogOpenChange = useCallback((open: boolean) => {
+    setIsLinkDialogOpen(open)
+    if (!open) {
+      pendingLinkRangeRef.current = null
+    }
+  }, [])
+
+  const updateSelectedImageButtonPosition = useCallback(() => {
+    if (!editor || !rootRef.current) {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const { selection } = editor.state
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const imageElement = editor.view.nodeDOM(selection.from)
+    if (!(imageElement instanceof HTMLElement)) {
+      setSelectedImageButtonPosition(null)
+      return
+    }
+
+    const surfaceRect = rootRef.current.getBoundingClientRect()
+    const imageRect = imageElement.getBoundingClientRect()
+    const buttonSize = 36
+    const padding = 8
+
+    setSelectedImageButtonPosition({
+      top: Math.max(padding, imageRect.top - surfaceRect.top + padding),
+      left: Math.max(
+        padding,
+        Math.min(surfaceRect.width - buttonSize - padding, imageRect.right - surfaceRect.left - buttonSize - padding),
+      ),
+    })
+  }, [editor])
+
+  const handleDeleteSelectedImage = useCallback(() => {
+    if (!editor) {
+      return
+    }
+
+    const { selection } = editor.state
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
+      return
+    }
+
+    editor.chain().focus().deleteSelection().run()
+    setSelectedImageButtonPosition(null)
+  }, [editor])
+
+  const slashCommands = useMemo(() => {
+    if (!siteId) {
+      return BASE_SLASH_COMMANDS
+    }
+
+    return [
+      ...BASE_SLASH_COMMANDS,
+      {
+        id: "image",
+        label: "Image",
+        description: "Insert image from media library",
+        keywords: ["image", "photo", "picture", "media", "upload"],
+        icon: ImageIcon,
+        run: (_editor: Editor, range: SlashCommandRange) => {
+          pendingImageRangeRef.current = range
+          setSlashMenu(null)
+          setIsImagePickerOpen(true)
+        },
+      },
+    ]
+  }, [siteId])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    if (pendingContentRef.current === normalizedContent) {
+      pendingContentRef.current = null
+      return
+    }
+
+    if (pendingContentRef.current !== null) {
+      return
+    }
+
+    if (editor.getHTML() !== normalizedContent) {
+      editor.commands.setContent(normalizedContent || "<p></p>")
+    }
+  }, [editor, normalizedContent])
+
+  const filteredSlashCommands = useMemo(() => {
+    if (!slashMenu) {
+      return []
+    }
+
+    const normalizedQuery = slashMenu.query.trim().toLowerCase()
+    if (!normalizedQuery) {
+      return slashCommands
+    }
+
+    return slashCommands.filter((command) => {
+      const haystack = [command.label, command.description, ...command.keywords].join(" ").toLowerCase()
+      return haystack.includes(normalizedQuery)
+    })
+  }, [slashCommands, slashMenu])
+
+  useEffect(() => {
+    filteredSlashCommandsRef.current = filteredSlashCommands
+  }, [filteredSlashCommands])
+
+  useEffect(() => {
+    selectedSlashIndexRef.current = selectedSlashIndex
+  }, [selectedSlashIndex])
+
+  useEffect(() => {
+    slashMenuRef.current = slashMenu
+  }, [slashMenu])
+
+  useEffect(() => {
+    setSelectedSlashIndex(0)
+  }, [slashMenu?.signature])
+
+  useEffect(() => {
+    if (selectedSlashIndex < filteredSlashCommands.length) {
+      return
+    }
+
+    setSelectedSlashIndex(filteredSlashCommands.length > 0 ? filteredSlashCommands.length - 1 : 0)
+  }, [filteredSlashCommands.length, selectedSlashIndex])
+
+  const runSlashCommand = useCallback(
+    (command: SlashCommandDefinition, range: SlashCommandRange) => {
+      if (!editor) {
+        return
+      }
+
+      command.run(editor, range)
+      dismissedSlashSignatureRef.current = null
+      setSlashMenu(null)
+    },
+    [editor],
+  )
+
+  const refreshSlashMenu = useCallback(() => {
+    if (!editor) {
+      return
+    }
+
+    const nextSlashMenu = getSlashMenuState(editor)
+
+    setSlashMenu((currentSlashMenu) => {
+      if (!nextSlashMenu) {
+        dismissedSlashSignatureRef.current = null
+        return currentSlashMenu === null ? currentSlashMenu : null
+      }
+
+      if (dismissedSlashSignatureRef.current === nextSlashMenu.signature) {
+        return currentSlashMenu === null ? currentSlashMenu : null
+      }
+
+      if (
+        currentSlashMenu &&
+        currentSlashMenu.signature === nextSlashMenu.signature &&
+        currentSlashMenu.position.top === nextSlashMenu.position.top &&
+        currentSlashMenu.position.left === nextSlashMenu.position.left
+      ) {
+        return currentSlashMenu
+      }
+
+      return nextSlashMenu
+    })
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    refreshSlashMenu()
+
+    editor.on("selectionUpdate", refreshSlashMenu)
+    editor.on("transaction", refreshSlashMenu)
+    editor.on("focus", refreshSlashMenu)
+    editor.on("blur", refreshSlashMenu)
+
+    return () => {
+      editor.off("selectionUpdate", refreshSlashMenu)
+      editor.off("transaction", refreshSlashMenu)
+      editor.off("focus", refreshSlashMenu)
+      editor.off("blur", refreshSlashMenu)
+    }
+  }, [editor, refreshSlashMenu])
+
+  useEffect(() => {
+    if (!slashMenu) {
+      return
+    }
+
+    const updatePosition = () => {
+      window.requestAnimationFrame(refreshSlashMenu)
+    }
+
+    const resolvedScrollTarget = scrollTarget ?? window
+
+    window.addEventListener("resize", updatePosition)
+    resolvedScrollTarget.addEventListener("scroll", updatePosition)
+
+    return () => {
+      window.removeEventListener("resize", updatePosition)
+      resolvedScrollTarget.removeEventListener("scroll", updatePosition)
+    }
+  }, [refreshSlashMenu, scrollTarget, slashMenu])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    const syncSelectedImageButton = () => {
+      window.requestAnimationFrame(updateSelectedImageButtonPosition)
+    }
+
+    syncSelectedImageButton()
+    editor.on("selectionUpdate", syncSelectedImageButton)
+    editor.on("transaction", syncSelectedImageButton)
+    editor.on("focus", syncSelectedImageButton)
+    editor.on("blur", syncSelectedImageButton)
+
+    return () => {
+      editor.off("selectionUpdate", syncSelectedImageButton)
+      editor.off("transaction", syncSelectedImageButton)
+      editor.off("focus", syncSelectedImageButton)
+      editor.off("blur", syncSelectedImageButton)
+    }
+  }, [editor, updateSelectedImageButtonPosition])
+
+  useEffect(() => {
+    if (!selectedImageButtonPosition) {
+      return
+    }
+
+    const syncSelectedImageButton = () => {
+      updateSelectedImageButtonPosition()
+    }
+
+    window.addEventListener("resize", syncSelectedImageButton)
+
+    return () => {
+      window.removeEventListener("resize", syncSelectedImageButton)
+    }
+  }, [selectedImageButtonPosition, updateSelectedImageButtonPosition])
+
+  const editorState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      isBold: currentEditor?.isActive("bold") ?? false,
+      isItalic: currentEditor?.isActive("italic") ?? false,
+      isHeading1: currentEditor?.isActive("heading", { level: 1 }) ?? false,
+      isHeading2: currentEditor?.isActive("heading", { level: 2 }) ?? false,
+      isHeading3: currentEditor?.isActive("heading", { level: 3 }) ?? false,
+      isHeading4: currentEditor?.isActive("heading", { level: 4 }) ?? false,
+      isBulletList: currentEditor?.isActive("bulletList") ?? false,
+      isOrderedList: currentEditor?.isActive("orderedList") ?? false,
+      isBlockquote: currentEditor?.isActive("blockquote") ?? false,
+      isLink: currentEditor?.isActive("link") ?? false,
+    }),
+  })
+
+  const handleLink = useCallback(() => {
+    if (!editor) {
+      return
+    }
+
+    const { from, to } = editor.state.selection
+    pendingLinkRangeRef.current = { from, to }
+    setLinkUrl(editor.getAttributes("link").href || "")
+    setIsLinkDialogOpen(true)
+  }, [editor])
+
+  const applyLink = useCallback(() => {
+    if (!editor || !pendingLinkRangeRef.current) {
+      return
+    }
+
+    const nextUrl = linkUrl.trim()
+    const range = pendingLinkRangeRef.current
+    const chain = editor.chain().focus().setTextSelection(range).extendMarkRange("link")
+
+    if (!nextUrl) {
+      chain.unsetLink().run()
+    } else {
+      chain.setLink({ href: nextUrl }).run()
+    }
+
+    pendingLinkRangeRef.current = null
+    setIsLinkDialogOpen(false)
+  }, [editor, linkUrl])
+
+  const removeLink = useCallback(() => {
+    if (!editor || !pendingLinkRangeRef.current) {
+      return
+    }
+
+    editor.chain().focus().setTextSelection(pendingLinkRangeRef.current).extendMarkRange("link").unsetLink().run()
+    pendingLinkRangeRef.current = null
+    setLinkUrl("")
+    setIsLinkDialogOpen(false)
+  }, [editor])
+
+  if (!editor) {
+    return null
+  }
+
+  const resolvedScrollTarget = scrollTarget ?? (typeof window === "undefined" ? undefined : window)
+
+  return (
+    <div
+      ref={rootRef}
+      data-inline-newsletter-editor-root="true"
+      data-inline-newsletter-block-id={blockId}
+      className="relative"
+      style={{
+        backgroundColor: content.backgroundColor || "#ffffff",
+      }}
+    >
+      <BubbleMenu
+        editor={editor}
+        appendTo={() => rootRef.current ?? document.body}
+        options={{
+          placement: "top",
+          offset: 10,
+          shift: true,
+          flip: true,
+          scrollTarget: resolvedScrollTarget,
+        }}
+        className="z-20 flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isBold && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          title="Bold"
+        >
+          <Bold className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isItalic && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          title="Italic"
+        >
+          <Italic className="h-4 w-4" />
+        </Button>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isHeading1 && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          title="Heading 1"
+        >
+          <Heading1 className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isHeading2 && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          title="Heading 2"
+        >
+          <Heading2 className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isHeading3 && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          title="Heading 3"
+        >
+          <Heading3 className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isHeading4 && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+          title="Heading 4"
+        >
+          <Heading4 className="h-4 w-4" />
+        </Button>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isBulletList && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          title="Bullet list"
+        >
+          <List className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isOrderedList && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          title="Numbered list"
+        >
+          <ListOrdered className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isBlockquote && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          title="Quote"
+        >
+          <Quote className="h-4 w-4" />
+        </Button>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn("h-8 w-8 p-0", editorState?.isLink && "bg-primary/15")}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={handleLink}
+          title="Edit link"
+        >
+          <LinkIcon className="h-4 w-4" />
+        </Button>
+      </BubbleMenu>
+
+      <table width="100%" cellPadding="0" cellSpacing="0" border={0}>
+        <tbody>
+          <tr>
+            <td
+              style={{
+                padding: `${content.padding ?? 20}px`,
+                fontFamily: "Arial, sans-serif",
+                fontSize: "16px",
+                lineHeight: 1.6,
+                color: "#333333",
+              }}
+            >
+              <EditorContent
+                editor={editor}
+                className="newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
+                style={{
+                  ["--newsletter-image-border-size" as string]: `${imageBorderSize}px`,
+                  ["--newsletter-image-border-color" as string]: imageBorderColor,
+                }}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {selectedImageButtonPosition && (
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          className="absolute z-20 size-8 rounded-full shadow-lg"
+          style={selectedImageButtonPosition}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            handleDeleteSelectedImage()
+          }}
+          title="Delete image"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+
+      {slashMenu && (
+        <div
+          data-newsletter-inline-editor-menu="true"
+          className="fixed z-30"
+          style={{
+            top: slashMenu.position.top,
+            left: slashMenu.position.left,
+            width: `${SLASH_MENU_WIDTH}px`,
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+        >
+          <div className="max-h-[320px] overflow-y-auto rounded-xl border bg-background/95 p-1 shadow-xl backdrop-blur">
+            {filteredSlashCommands.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">No commands found.</div>
+            ) : (
+              filteredSlashCommands.map((command, index) => {
+                const Icon = command.icon
+
+                return (
+                  <button
+                    key={command.id}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                      index === selectedSlashIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+                    )}
+                    onPointerEnter={() => setSelectedSlashIndex(index)}
+                    onPointerDown={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      runSlashCommand(command, slashMenu.range)
+                    }}
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-muted/50">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium">{command.label}</span>
+                      <span className="truncate text-xs text-muted-foreground">{command.description}</span>
+                    </span>
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      <MediaPicker
+        open={isImagePickerOpen}
+        onOpenChange={handleImagePickerOpenChange}
+        onSelectMedia={handleImageSelect}
+        showVideos={false}
+        site_id={siteId}
+      />
+
+      <Dialog open={isLinkDialogOpen} onOpenChange={handleLinkDialogOpenChange}>
+        <DialogContent data-newsletter-inline-link-dialog="true" className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor={`newsletter-inline-link-${blockId}`}>URL</Label>
+            <Input
+              id={`newsletter-inline-link-${blockId}`}
+              value={linkUrl}
+              onChange={(event) => setLinkUrl(event.target.value)}
+              placeholder="https://example.com"
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" variant="outline" onClick={removeLink}>
+              Remove link
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => handleLinkDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={applyLink}>
+                Apply
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

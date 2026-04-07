@@ -1,35 +1,71 @@
 "use client"
 
-import { Footprints } from "lucide-react"
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { Footprints, Settings } from "lucide-react"
 import DOMPurify from "dompurify"
 import type { NewsletterBlock } from "../config/useNewsletterBuilder"
 import { renderNewsletterBlockHtml } from "@/lib/actions/newsletters/render"
+import { NewsletterInlineRichTextEditor } from "./NewsletterInlineRichTextEditor"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils/tailwind"
 
 interface NewsletterCanvasProps {
   blocks: NewsletterBlock[]
   previewWidth: number
   emailWidth?: number
+  siteId: string
   onSelectBlock: (block: NewsletterBlock) => void
-  selectedBlock: NewsletterBlock | null
   subject?: string
   onSubjectChange?: (value: string) => void
   onSubjectClick?: () => void
+  editingBlockId?: string | null
+  onStartInlineEdit?: (blockId: string) => void
+  onStopInlineEdit?: () => void
+  onUpdateInlineRichText?: (blockId: string, htmlContent: string) => void
+  onOpenBlockSettings?: (block: NewsletterBlock) => void
 }
 
 export function NewsletterCanvas({
   blocks,
   previewWidth,
   emailWidth = 600,
+  siteId,
   onSelectBlock,
-  selectedBlock,
   subject,
   onSubjectChange,
   onSubjectClick,
+  editingBlockId = null,
+  onStartInlineEdit,
+  onStopInlineEdit,
+  onUpdateInlineRichText,
+  onOpenBlockSettings,
 }: NewsletterCanvasProps) {
   const effectiveWidth = Math.min(previewWidth, emailWidth)
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const handleBlockClick = (event: ReactMouseEvent<HTMLDivElement>, block: NewsletterBlock) => {
+    const target = event.target as HTMLElement
+
+    if (target.closest("a")) {
+      event.preventDefault()
+    }
+
+    if (block.type === "newsletter-rich-text") {
+      if (editingBlockId === block.id) {
+        return
+      }
+
+      onStartInlineEdit?.(block.id)
+      return
+    }
+
+    onStopInlineEdit?.()
+    onSelectBlock(block)
+  }
 
   return (
-    <div className="h-full overflow-y-auto bg-muted/30 p-8">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto bg-muted/30 p-8">
       <style>{`
         .canvas-block { position: relative; }
         .canvas-block::after {
@@ -38,11 +74,15 @@ export function NewsletterCanvas({
           top: 0; left: 0; right: 0; bottom: 0;
           border: 2px dashed transparent;
           pointer-events: none;
-          z-index: 9999;
+          z-index: 10;
           transition: border-color 0.15s;
         }
         .canvas-block:hover::after {
           border-color: #3b82f6;
+        }
+        .canvas-block.is-editing::after {
+          border-color: #2563eb;
+          border-style: solid;
         }
       `}</style>
       <div className="mx-auto bg-white shadow-sm overflow-hidden transition-all duration-300" style={{ maxWidth: effectiveWidth }}>
@@ -88,18 +128,62 @@ export function NewsletterCanvas({
           blocks.map(block => (
             <div
               key={block.id}
-              className="relative cursor-pointer canvas-block"
-              onClick={() => onSelectBlock(block)}
+              className={cn(
+                "canvas-block",
+                block.type === "newsletter-rich-text" && editingBlockId === block.id
+                  ? "is-editing cursor-text"
+                  : "cursor-pointer",
+              )}
+              data-newsletter-inline-editor-shell={block.type === "newsletter-rich-text" && editingBlockId === block.id ? "true" : undefined}
+              onMouseEnter={() => setHoveredBlockId(block.id)}
+              onMouseLeave={() => setHoveredBlockId(current => current === block.id ? null : current)}
+              onClick={(event) => handleBlockClick(event, block)}
             >
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(renderNewsletterBlockHtml(block), {
-                    ALLOWED_TAGS: ['table', 'tbody', 'tr', 'td', 'img', 'hr', 'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
-                    ALLOWED_ATTR: ['href', 'target', 'rel', 'style', 'src', 'alt', 'width', 'height', 'cellpadding', 'cellspacing', 'border', 'role', 'align', 'class'],
-                    ALLOW_DATA_ATTR: false,
-                  })
-                }}
-              />
+              {block.type === "newsletter-rich-text" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className={cn(
+                    "absolute right-3 top-3 z-20 h-8 w-8 rounded-full border bg-background/90 shadow-sm transition-opacity",
+                    hoveredBlockId === block.id || editingBlockId === block.id ? "opacity-100" : "opacity-0",
+                  )}
+                  data-newsletter-settings-button="true"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onStopInlineEdit?.()
+                    onOpenBlockSettings?.(block)
+                  }}
+                  title="Open block settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
+
+              {block.type === "newsletter-rich-text" && editingBlockId === block.id ? (
+                <NewsletterInlineRichTextEditor
+                  blockId={block.id}
+                  content={block.content}
+                  onContentChange={(htmlContent) => onUpdateInlineRichText?.(block.id, htmlContent)}
+                  siteId={siteId}
+                  scrollTarget={scrollContainerRef.current}
+                />
+              ) : (
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(renderNewsletterBlockHtml(block), {
+                      ALLOWED_TAGS: ['table', 'tbody', 'tr', 'td', 'img', 'hr', 'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote'],
+                      ALLOWED_ATTR: ['href', 'target', 'rel', 'style', 'src', 'alt', 'width', 'height', 'cellpadding', 'cellspacing', 'border', 'role', 'align', 'class'],
+                      ALLOW_DATA_ATTR: false,
+                    })
+                  }}
+                />
+              )}
             </div>
           ))
         )}
