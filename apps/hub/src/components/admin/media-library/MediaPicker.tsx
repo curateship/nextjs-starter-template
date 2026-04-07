@@ -238,7 +238,7 @@ export function MediaPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-media-picker-dialog="true" className="!max-w-[800px] !max-h-[85vh] w-[90vw]">
+      <DialogContent data-media-picker-dialog="true" className="max-w-[800px]! max-h-[85vh]! w-[90vw]">
         <DialogHeader>
           <DialogTitle>{showVideos ? 'Select Media' : 'Select Image'}</DialogTitle>
         </DialogHeader>

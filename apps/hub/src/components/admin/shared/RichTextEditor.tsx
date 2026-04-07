@@ -1,6 +1,7 @@
 "use client"
 
 import { useEditor, EditorContent } from '@tiptap/react'
+import { mergeAttributes } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -9,12 +10,13 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import DOMPurify from "dompurify"
-import { 
+import {
   Bold, 
   Italic, 
   List, 
@@ -28,7 +30,7 @@ import {
   Eye,
   EyeOff
 } from "lucide-react"
-import { useState, useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useId, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { cn } from "@/lib/utils/tailwind"
 
 export interface RichTextEditorProps {
@@ -51,6 +53,82 @@ export interface RichTextEditorProps {
   mediaPickerSiteId?: string
 }
 
+function normalizeLinkedImageAttribute(value: string | null): string | null {
+  return value && value.trim().length > 0 ? value : null
+}
+
+function getLinkedImageAttributes(element: HTMLElement) {
+  const imageElement = element instanceof HTMLImageElement ? element : element.querySelector("img[src]")
+
+  if (!(imageElement instanceof HTMLImageElement)) {
+    return false
+  }
+
+  const linkElement = imageElement.closest("a[href]")
+
+  return {
+    src: normalizeLinkedImageAttribute(imageElement.getAttribute("src")),
+    alt: normalizeLinkedImageAttribute(imageElement.getAttribute("alt")),
+    title: normalizeLinkedImageAttribute(imageElement.getAttribute("title")),
+    width: normalizeLinkedImageAttribute(imageElement.getAttribute("width")),
+    height: normalizeLinkedImageAttribute(imageElement.getAttribute("height")),
+    href: normalizeLinkedImageAttribute(linkElement?.getAttribute("href") ?? null),
+    target: normalizeLinkedImageAttribute(linkElement?.getAttribute("target") ?? null),
+    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null),
+  }
+}
+
+const LinkedImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      href: {
+        default: null,
+      },
+      target: {
+        default: "_blank",
+      },
+      rel: {
+        default: "noopener noreferrer nofollow",
+      },
+    }
+  },
+
+  parseHTML() {
+    const imageSelector = this.options.allowBase64 ? "img[src]" : 'img[src]:not([src^="data:"])'
+
+    return [
+      {
+        tag: `a[href] ${imageSelector}`,
+        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
+      },
+      {
+        tag: imageSelector,
+        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
+      },
+    ]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { href, target, rel, ...imageAttributes } = HTMLAttributes
+    const mergedImageAttributes = mergeAttributes(this.options.HTMLAttributes, imageAttributes)
+
+    if (!href) {
+      return ["img", mergedImageAttributes]
+    }
+
+    return [
+      "a",
+      mergeAttributes(
+        { href },
+        target ? { target } : {},
+        rel ? { rel } : {},
+      ),
+      ["img", mergedImageAttributes],
+    ]
+  },
+})
+
 export function RichTextEditor({
   content,
   onContentChange,
@@ -65,9 +143,13 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
   const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(null)
   const pendingContentRef = useRef<string | null>(null)
+  const pendingLinkTargetRef = useRef<{ range: { from: number; to: number }; isImage: boolean } | null>(null)
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
+  const linkInputId = useId()
   
   const editor = useEditor({
     extensions: [
@@ -84,7 +166,7 @@ export function RichTextEditor({
       Placeholder.configure({
         placeholder: placeholder || 'Start writing...',
       }),
-      Image.configure({
+      LinkedImage.configure({
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-lg',
         },
@@ -93,6 +175,44 @@ export function RichTextEditor({
     content: content.content,
     immediatelyRender: false,
     editorProps: {
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          const target = event.target
+
+          if (!(target instanceof HTMLElement)) {
+            return false
+          }
+
+          const imageElement = target.closest('img')
+          const linkElement = target.closest('a[href]')
+
+          if (!(imageElement instanceof HTMLImageElement) || !linkElement || !view.dom.contains(imageElement)) {
+            return false
+          }
+
+          event.preventDefault()
+          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0))))
+          view.focus()
+          return true
+        },
+        click: (_view, event) => {
+          const target = event.target
+
+          if (!(target instanceof HTMLElement)) {
+            return false
+          }
+
+          const imageElement = target.closest('img')
+          const linkElement = target.closest('a[href]')
+
+          if (!(imageElement instanceof HTMLImageElement) || !linkElement) {
+            return false
+          }
+
+          event.preventDefault()
+          return true
+        },
+      },
       transformPastedText(text) {
         // Convert single newlines to double so Tiptap creates
         // separate <p> tags instead of <br> within one <p>
@@ -157,20 +277,88 @@ export function RichTextEditor({
     })
   }
 
+  const handleLinkDialogOpenChange = useCallback((open: boolean) => {
+    setIsLinkDialogOpen(open)
+    if (!open) {
+      pendingLinkTargetRef.current = null
+    }
+  }, [])
+
   const addLink = useCallback(() => {
-    const previousUrl = editor?.getAttributes('link').href
-    const url = window.prompt('URL:', previousUrl)
-
-    if (url === null) {
+    if (!editor) {
       return
     }
 
-    if (url === '') {
-      editor?.chain().focus().extendMarkRange('link').unsetLink().run()
+    const selection = editor.state.selection
+    const { from, to } = selection
+    const imageSelection =
+      selection instanceof NodeSelection && selection.node.type.name === 'image' ? selection : null
+    pendingLinkTargetRef.current = {
+      range: { from, to },
+      isImage: Boolean(imageSelection),
+    }
+    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || '' : editor.getAttributes('link').href || '')
+    setIsLinkDialogOpen(true)
+  }, [editor])
+
+  const applyLink = useCallback(() => {
+    if (!editor || !pendingLinkTargetRef.current) {
       return
     }
 
-    editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+    const nextUrl = linkUrl.trim()
+    const { range, isImage } = pendingLinkTargetRef.current
+
+    if (isImage) {
+      editor
+        .chain()
+        .focus()
+        .setNodeSelection(range.from)
+        .updateAttributes('image', {
+          href: nextUrl || null,
+          target: nextUrl ? '_blank' : null,
+          rel: nextUrl ? 'noopener noreferrer nofollow' : null,
+        })
+        .run()
+    } else {
+      const chain = editor.chain().focus().setTextSelection(range).extendMarkRange('link')
+
+      if (!nextUrl) {
+        chain.unsetLink().run()
+      } else {
+        chain.setLink({ href: nextUrl }).run()
+      }
+    }
+
+    pendingLinkTargetRef.current = null
+    setIsLinkDialogOpen(false)
+  }, [editor, linkUrl])
+
+  const removeLink = useCallback(() => {
+    if (!editor || !pendingLinkTargetRef.current) {
+      return
+    }
+
+    const { range, isImage } = pendingLinkTargetRef.current
+
+    if (isImage) {
+      editor
+        .chain()
+        .focus()
+        .setNodeSelection(range.from)
+        .updateAttributes('image', {
+          href: null,
+          target: null,
+          rel: null,
+        })
+        .run()
+    } else {
+      editor.chain().focus().setTextSelection(range).extendMarkRange('link').unsetLink().run()
+    }
+
+    pendingLinkTargetRef.current = null
+    setLinkUrl('')
+    setIsLinkDialogOpen(false)
   }, [editor])
 
   const handleImageSelect = useCallback((imageUrl: string, altText?: string) => {
@@ -305,6 +493,11 @@ export function RichTextEditor({
     )
   }
 
+  const isImageLinkActive =
+    editor.state.selection instanceof NodeSelection &&
+    editor.state.selection.node.type.name === 'image' &&
+    Boolean(editor.state.selection.node.attrs.href)
+
   const toolbarButtons = (
     <>
       {/* Text formatting */}
@@ -365,7 +558,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive('link') && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", (editor.isActive('link') || isImageLinkActive) && "bg-primary/20")}
         onClick={addLink}
         title="Add Link"
       >
@@ -629,6 +822,37 @@ export function RichTextEditor({
           site_id={mediaPickerSiteId}
         />
       )}
+
+      <Dialog open={isLinkDialogOpen} onOpenChange={handleLinkDialogOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor={linkInputId}>URL</Label>
+            <Input
+              id={linkInputId}
+              value={linkUrl}
+              onChange={(event) => setLinkUrl(event.target.value)}
+              placeholder="https://example.com"
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" variant="outline" onClick={removeLink}>
+              Remove link
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => handleLinkDialogOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={applyLink}>
+                Apply
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

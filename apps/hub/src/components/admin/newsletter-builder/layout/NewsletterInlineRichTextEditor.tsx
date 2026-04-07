@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Editor } from "@tiptap/core"
-import { posToDOMRect } from "@tiptap/core"
+import { mergeAttributes, posToDOMRect } from "@tiptap/core"
 import { NodeSelection } from "@tiptap/pm/state"
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
@@ -66,6 +66,82 @@ interface SlashCommandDefinition {
 }
 
 const SLASH_MENU_WIDTH = 320
+
+function normalizeLinkedImageAttribute(value: string | null): string | null {
+  return value && value.trim().length > 0 ? value : null
+}
+
+function getLinkedImageAttributes(element: HTMLElement) {
+  const imageElement = element instanceof HTMLImageElement ? element : element.querySelector("img[src]")
+
+  if (!(imageElement instanceof HTMLImageElement)) {
+    return false
+  }
+
+  const linkElement = imageElement.closest("a[href]")
+
+  return {
+    src: normalizeLinkedImageAttribute(imageElement.getAttribute("src")),
+    alt: normalizeLinkedImageAttribute(imageElement.getAttribute("alt")),
+    title: normalizeLinkedImageAttribute(imageElement.getAttribute("title")),
+    width: normalizeLinkedImageAttribute(imageElement.getAttribute("width")),
+    height: normalizeLinkedImageAttribute(imageElement.getAttribute("height")),
+    href: normalizeLinkedImageAttribute(linkElement?.getAttribute("href") ?? null),
+    target: normalizeLinkedImageAttribute(linkElement?.getAttribute("target") ?? null),
+    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null),
+  }
+}
+
+const LinkedImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      href: {
+        default: null,
+      },
+      target: {
+        default: "_blank",
+      },
+      rel: {
+        default: "noopener noreferrer nofollow",
+      },
+    }
+  },
+
+  parseHTML() {
+    const imageSelector = this.options.allowBase64 ? "img[src]" : 'img[src]:not([src^="data:"])'
+
+    return [
+      {
+        tag: `a[href] ${imageSelector}`,
+        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
+      },
+      {
+        tag: imageSelector,
+        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
+      },
+    ]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { href, target, rel, ...imageAttributes } = HTMLAttributes
+    const mergedImageAttributes = mergeAttributes(this.options.HTMLAttributes, imageAttributes)
+
+    if (!href) {
+      return ["img", mergedImageAttributes]
+    }
+
+    return [
+      "a",
+      mergeAttributes(
+        { href },
+        target ? { target } : {},
+        rel ? { rel } : {},
+      ),
+      ["img", mergedImageAttributes],
+    ]
+  },
+})
 
 const BASE_SLASH_COMMANDS: SlashCommandDefinition[] = [
   {
@@ -215,7 +291,7 @@ export function NewsletterInlineRichTextEditor({
 }: NewsletterInlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
-  const pendingLinkRangeRef = useRef<SlashCommandRange | null>(null)
+  const pendingLinkTargetRef = useRef<{ range: SlashCommandRange; isImage: boolean } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const slashMenuRef = useRef<SlashCommandMenuState | null>(null)
   const dismissedSlashSignatureRef = useRef<string | null>(null)
@@ -259,7 +335,7 @@ export function NewsletterInlineRichTextEditor({
       Placeholder.configure({
         placeholder: "Write your content here...",
       }),
-      Image.configure({
+      LinkedImage.configure({
         HTMLAttributes: {
           class: "max-w-full h-auto",
         },
@@ -268,6 +344,44 @@ export function NewsletterInlineRichTextEditor({
     content: normalizedContent,
     immediatelyRender: false,
     editorProps: {
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          const target = event.target
+
+          if (!(target instanceof HTMLElement)) {
+            return false
+          }
+
+          const imageElement = target.closest("img")
+          const linkElement = target.closest("a[href]")
+
+          if (!(imageElement instanceof HTMLImageElement) || !linkElement || !view.dom.contains(imageElement)) {
+            return false
+          }
+
+          event.preventDefault()
+          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0))))
+          view.focus()
+          return true
+        },
+        click: (_view, event) => {
+          const target = event.target
+
+          if (!(target instanceof HTMLElement)) {
+            return false
+          }
+
+          const imageElement = target.closest("img")
+          const linkElement = target.closest("a[href]")
+
+          if (!(imageElement instanceof HTMLImageElement) || !linkElement) {
+            return false
+          }
+
+          event.preventDefault()
+          return true
+        },
+      },
       transformPastedText(text) {
         return text.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
       },
@@ -370,7 +484,7 @@ export function NewsletterInlineRichTextEditor({
   const handleLinkDialogOpenChange = useCallback((open: boolean) => {
     setIsLinkDialogOpen(open)
     if (!open) {
-      pendingLinkRangeRef.current = null
+      pendingLinkTargetRef.current = null
     }
   }, [])
 
@@ -635,7 +749,12 @@ export function NewsletterInlineRichTextEditor({
       isBulletList: currentEditor?.isActive("bulletList") ?? false,
       isOrderedList: currentEditor?.isActive("orderedList") ?? false,
       isBlockquote: currentEditor?.isActive("blockquote") ?? false,
-      isLink: currentEditor?.isActive("link") ?? false,
+      isLink:
+        currentEditor?.isActive("link") ||
+        (currentEditor?.state.selection instanceof NodeSelection &&
+          currentEditor.state.selection.node.type.name === "image" &&
+          Boolean(currentEditor.state.selection.node.attrs.href)) ||
+        false,
     }),
   })
 
@@ -644,19 +763,43 @@ export function NewsletterInlineRichTextEditor({
       return
     }
 
-    const { from, to } = editor.state.selection
-    pendingLinkRangeRef.current = { from, to }
-    setLinkUrl(editor.getAttributes("link").href || "")
+    const selection = editor.state.selection
+    const { from, to } = selection
+    const imageSelection =
+      selection instanceof NodeSelection && selection.node.type.name === "image" ? selection : null
+
+    pendingLinkTargetRef.current = {
+      range: { from, to },
+      isImage: Boolean(imageSelection),
+    }
+    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || "" : editor.getAttributes("link").href || "")
     setIsLinkDialogOpen(true)
   }, [editor])
 
   const applyLink = useCallback(() => {
-    if (!editor || !pendingLinkRangeRef.current) {
+    if (!editor || !pendingLinkTargetRef.current) {
       return
     }
 
     const nextUrl = linkUrl.trim()
-    const range = pendingLinkRangeRef.current
+    const { range, isImage } = pendingLinkTargetRef.current
+
+    if (isImage) {
+      editor
+        .chain()
+        .focus()
+        .setNodeSelection(range.from)
+        .updateAttributes("image", {
+          href: nextUrl || null,
+          target: nextUrl ? "_blank" : null,
+          rel: nextUrl ? "noopener noreferrer nofollow" : null,
+        })
+        .run()
+      pendingLinkTargetRef.current = null
+      setIsLinkDialogOpen(false)
+      return
+    }
+
     const chain = editor.chain().focus().setTextSelection(range).extendMarkRange("link")
 
     if (!nextUrl) {
@@ -665,17 +808,33 @@ export function NewsletterInlineRichTextEditor({
       chain.setLink({ href: nextUrl }).run()
     }
 
-    pendingLinkRangeRef.current = null
+    pendingLinkTargetRef.current = null
     setIsLinkDialogOpen(false)
   }, [editor, linkUrl])
 
   const removeLink = useCallback(() => {
-    if (!editor || !pendingLinkRangeRef.current) {
+    if (!editor || !pendingLinkTargetRef.current) {
       return
     }
 
-    editor.chain().focus().setTextSelection(pendingLinkRangeRef.current).extendMarkRange("link").unsetLink().run()
-    pendingLinkRangeRef.current = null
+    const { range, isImage } = pendingLinkTargetRef.current
+
+    if (isImage) {
+      editor
+        .chain()
+        .focus()
+        .setNodeSelection(range.from)
+        .updateAttributes("image", {
+          href: null,
+          target: null,
+          rel: null,
+        })
+        .run()
+    } else {
+      editor.chain().focus().setTextSelection(range).extendMarkRange("link").unsetLink().run()
+    }
+
+    pendingLinkTargetRef.current = null
     setLinkUrl("")
     setIsLinkDialogOpen(false)
   }, [editor])

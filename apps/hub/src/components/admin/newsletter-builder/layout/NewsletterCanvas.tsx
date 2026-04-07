@@ -81,8 +81,7 @@ export function NewsletterCanvas({
           border-color: #3b82f6;
         }
         .canvas-block.is-editing::after {
-          border-color: #2563eb;
-          border-style: solid;
+          border-color: #d1d5db;
         }
       `}</style>
       <div className="mx-auto bg-white shadow-sm overflow-hidden transition-all duration-300" style={{ maxWidth: effectiveWidth }}>
