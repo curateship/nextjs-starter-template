@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export function NewsletterSettingsModal({
   siteId,
   onSuccess,
 }: NewsletterSettingsModalProps) {
+  const [activeTab, setActiveTab] = useState("general")
   const [subject, setSubject] = useState('')
   const [filterTags, setFilterTags] = useState('')
   const [testEmail, setTestEmail] = useState('')
@@ -97,6 +99,12 @@ export function NewsletterSettingsModal({
       }
     }
   }, [newsletter])
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab("general")
+    }
+  }, [open, newsletter?.id])
 
   // Load segments when modal opens
   useEffect(() => {
@@ -240,234 +248,253 @@ export function NewsletterSettingsModal({
           )}
 
           <div className="space-y-6">
-            {/* Subject & Sub Header */}
-            <div>
-              <Label htmlFor="settings-subject">Subject Line *</Label>
-              <Input
-                id="settings-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Email subject line"
-                disabled={isSent}
-              />
-            </div>
-            <div>
-              <Label htmlFor="settings-max-width">Content Max Width (px)</Label>
-              <Input
-                id="settings-max-width"
-                type="number"
-                value={maxWidth}
-                onChange={(e) => setMaxWidth(parseInt(e.target.value) || 600)}
-                placeholder="600"
-                disabled={isSent}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Maximum width of the email content. Default is 600px.
-              </p>
-            </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="grid-cols-3 gap-1 mb-7">
+                <TabsTrigger value="general">General</TabsTrigger>
+                <TabsTrigger value="drip-options">Drip Options</TabsTrigger>
+                <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
+              </TabsList>
 
-            {/* Audience */}
-            <div>
-              <h3 className="font-medium mb-4">Audience</h3>
-              <div>
-                <Label htmlFor="audience-select">Segment</Label>
-                <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
-                  <SelectTrigger id="audience-select">
-                    <SelectValue placeholder="Select audience" />
-                  </SelectTrigger>
-                  <SelectContent className="z-60">
-                    <SelectItem value="none">No segment</SelectItem>
-                    <SelectItem value="all">All Contacts</SelectItem>
-                    {segments.map(seg => (
-                      <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
-                    ))}
-                    <SelectItem value="custom">Custom filter...</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Show manual tags input for custom filter */}
-              {audienceMode === 'custom' && (
-                <div className="mt-3">
-                  <Label htmlFor="filter-tags">Filter by Tags</Label>
+              <TabsContent value="general" className="mt-0 space-y-6 min-h-[340px]">
+                <div>
+                  <Label htmlFor="settings-subject">Subject Line *</Label>
                   <Input
-                    id="filter-tags"
-                    value={filterTags}
-                    onChange={(e) => setFilterTags(e.target.value)}
-                    placeholder="austin, fitness (comma-separated)"
+                    id="settings-subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Email subject line"
+                    disabled={isSent}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="settings-max-width">Content Max Width (px)</Label>
+                  <Input
+                    id="settings-max-width"
+                    type="number"
+                    value={maxWidth}
+                    onChange={(e) => setMaxWidth(parseInt(e.target.value) || 600)}
+                    placeholder="600"
                     disabled={isSent}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Only contacts with ALL these tags will receive this newsletter.
+                    Maximum width of the email content. Default is 600px.
                   </p>
                 </div>
-              )}
 
-              {audienceMode !== 'none' && (
-                <div className="flex items-center gap-2 text-sm mt-3">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    {audienceCount !== null
-                      ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
-                      : 'Calculating...'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Drip Send */}
-            {!isSent && (
-              <div>
-                <h3 className="font-medium mb-4">Drip Send</h3>
-                <div className="flex items-center gap-2 mb-3">
-                  <Checkbox
-                    id="drip-toggle"
-                    checked={dripEnabled}
-                    onCheckedChange={(checked) => setDripEnabled(checked === true)}
-                  />
-                  <Label htmlFor="drip-toggle">Enable drip sending</Label>
-                </div>
-                {dripEnabled && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="drip-batch-min">Batch size min</Label>
+                {!isSent && (
+                  <div>
+                    <h3 className="font-medium mb-4">Test Email</h3>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label htmlFor="test-email">Email Address</Label>
                         <Input
-                          id="drip-batch-min"
-                          type="number"
-                          value={dripBatchMin}
-                          onChange={(e) => setDripBatchMin(e.target.value)}
-                          min={1}
+                          id="test-email"
+                          type="email"
+                          value={testEmail}
+                          onChange={(e) => setTestEmail(e.target.value)}
+                          placeholder="your@email.com"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="drip-batch-max">Batch size max</Label>
-                        <Input
-                          id="drip-batch-max"
-                          type="number"
-                          value={dripBatchMax}
-                          onChange={(e) => setDripBatchMax(e.target.value)}
-                          min={1}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="drip-interval-min">Interval min (minutes)</Label>
-                        <Input
-                          id="drip-interval-min"
-                          type="number"
-                          value={dripIntervalMin}
-                          onChange={(e) => setDripIntervalMin(e.target.value)}
-                          min={1}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="drip-interval-max">Interval max (minutes)</Label>
-                        <Input
-                          id="drip-interval-max"
-                          type="number"
-                          value={dripIntervalMax}
-                          onChange={(e) => setDripIntervalMax(e.target.value)}
-                          min={1}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="drip-bounce-threshold">Bounce threshold (%)</Label>
-                      <Input
-                        id="drip-bounce-threshold"
-                        type="number"
-                        value={dripBounceThreshold}
-                        onChange={(e) => setDripBounceThreshold(e.target.value)}
-                        min={0.1}
-                        step="any"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Auto-pause and notify you if bounce rate exceeds this percentage
-                      </p>
-                    </div>
-
-                    {/* Send Window */}
-                    <div className="pt-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Checkbox
-                          id="send-window-toggle"
-                          checked={dripSendWindowEnabled}
-                          onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)}
-                        />
-                        <Label htmlFor="send-window-toggle">Limit sending to specific hours</Label>
-                      </div>
-                      {dripSendWindowEnabled && (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label htmlFor="send-window-start">Start time</Label>
-                              <Input
-                                id="send-window-start"
-                                type="time"
-                                value={dripSendWindowStart}
-                                onChange={(e) => setDripSendWindowStart(e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="send-window-end">End time</Label>
-                              <Input
-                                id="send-window-end"
-                                type="time"
-                                value={dripSendWindowEnd}
-                                onChange={(e) => setDripSendWindowEnd(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <Label htmlFor="send-window-tz">Timezone</Label>
-                            <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone}>
-                              <SelectTrigger id="send-window-tz">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-60">
-                                <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                                <SelectItem value="America/Chicago">Central Time</SelectItem>
-                                <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                                <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                                <SelectItem value="UTC">UTC</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Emails will only be sent between {dripSendWindowStart} and {dripSendWindowEnd} in the selected timezone
-                          </p>
-                        </div>
-                      )}
+                      <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
+                        <TestTube className="h-4 w-4 mr-2" />
+                        {sendingTest ? 'Sending...' : 'Send Test'}
+                      </Button>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
+              </TabsContent>
 
-            {/* Test Email */}
-            {!isSent && (
-              <div>
-                <h3 className="font-medium mb-4">Test Email</h3>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Label htmlFor="test-email">Email Address</Label>
-                    <Input
-                      id="test-email"
-                      type="email"
-                      value={testEmail}
-                      onChange={(e) => setTestEmail(e.target.value)}
-                      placeholder="your@email.com"
+              <TabsContent value="drip-options" className="mt-0 space-y-6 min-h-[340px]">
+                {isSent && (
+                  <p className="text-sm text-muted-foreground">
+                    Drip settings are locked after sending starts.
+                  </p>
+                )}
+
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Checkbox
+                      id="drip-toggle"
+                      checked={dripEnabled}
+                      onCheckedChange={(checked) => setDripEnabled(checked === true)}
+                      disabled={isSent}
                     />
+                    <Label htmlFor="drip-toggle">Enable drip sending</Label>
                   </div>
-                  <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
-                    <TestTube className="h-4 w-4 mr-2" />
-                    {sendingTest ? 'Sending...' : 'Send Test'}
-                  </Button>
+                  {dripEnabled && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="drip-batch-min">Batch size min</Label>
+                          <Input
+                            id="drip-batch-min"
+                            type="number"
+                            value={dripBatchMin}
+                            onChange={(e) => setDripBatchMin(e.target.value)}
+                            min={1}
+                            disabled={isSent}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="drip-batch-max">Batch size max</Label>
+                          <Input
+                            id="drip-batch-max"
+                            type="number"
+                            value={dripBatchMax}
+                            onChange={(e) => setDripBatchMax(e.target.value)}
+                            min={1}
+                            disabled={isSent}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="drip-interval-min">Interval min (minutes)</Label>
+                          <Input
+                            id="drip-interval-min"
+                            type="number"
+                            value={dripIntervalMin}
+                            onChange={(e) => setDripIntervalMin(e.target.value)}
+                            min={1}
+                            disabled={isSent}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="drip-interval-max">Interval max (minutes)</Label>
+                          <Input
+                            id="drip-interval-max"
+                            type="number"
+                            value={dripIntervalMax}
+                            onChange={(e) => setDripIntervalMax(e.target.value)}
+                            min={1}
+                            disabled={isSent}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="drip-bounce-threshold">Bounce threshold (%)</Label>
+                        <Input
+                          id="drip-bounce-threshold"
+                          type="number"
+                          value={dripBounceThreshold}
+                          onChange={(e) => setDripBounceThreshold(e.target.value)}
+                          min={0.1}
+                          step="any"
+                          disabled={isSent}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Auto-pause and notify you if bounce rate exceeds this percentage
+                        </p>
+                      </div>
+
+                      <div className="pt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Checkbox
+                            id="send-window-toggle"
+                            checked={dripSendWindowEnabled}
+                            onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)}
+                            disabled={isSent}
+                          />
+                          <Label htmlFor="send-window-toggle">Limit sending to specific hours</Label>
+                        </div>
+                        {dripSendWindowEnabled && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label htmlFor="send-window-start">Start time</Label>
+                                <Input
+                                  id="send-window-start"
+                                  type="time"
+                                  value={dripSendWindowStart}
+                                  onChange={(e) => setDripSendWindowStart(e.target.value)}
+                                  disabled={isSent}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="send-window-end">End time</Label>
+                                <Input
+                                  id="send-window-end"
+                                  type="time"
+                                  value={dripSendWindowEnd}
+                                  onChange={(e) => setDripSendWindowEnd(e.target.value)}
+                                  disabled={isSent}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label htmlFor="send-window-tz">Timezone</Label>
+                              <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone} disabled={isSent}>
+                                <SelectTrigger id="send-window-tz">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="z-60">
+                                  <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                                  <SelectItem value="America/Chicago">Central Time</SelectItem>
+                                  <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                                  <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                                  <SelectItem value="UTC">UTC</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Emails will only be sent between {dripSendWindowStart} and {dripSendWindowEnd} in the selected timezone
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              </TabsContent>
+
+              <TabsContent value="audience-filter" className="mt-0 space-y-6 min-h-[340px]">
+                <div>
+                  <div>
+                    <Label htmlFor="audience-select">Segment</Label>
+                    <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
+                      <SelectTrigger id="audience-select">
+                        <SelectValue placeholder="Select audience" />
+                      </SelectTrigger>
+                      <SelectContent className="z-60">
+                        <SelectItem value="none">No segment</SelectItem>
+                        <SelectItem value="all">All Contacts</SelectItem>
+                        {segments.map(seg => (
+                          <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                        ))}
+                        <SelectItem value="custom">Custom filter...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {audienceMode === 'custom' && (
+                    <div className="mt-3">
+                      <Label htmlFor="filter-tags">Filter by Tags</Label>
+                      <Input
+                        id="filter-tags"
+                        value={filterTags}
+                        onChange={(e) => setFilterTags(e.target.value)}
+                        placeholder="austin, fitness (comma-separated)"
+                        disabled={isSent}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Only contacts with ALL these tags will receive this newsletter.
+                      </p>
+                    </div>
+                  )}
+
+                  {audienceMode !== 'none' && (
+                    <div className="flex items-center gap-2 text-sm mt-3">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span>
+                        {audienceCount !== null
+                          ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
+                          : 'Calculating...'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
 
             {/* Actions */}
             <div className="flex justify-between pt-4">
