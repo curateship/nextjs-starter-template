@@ -4,12 +4,13 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
-import { ImageIcon, X } from "lucide-react"
+import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
@@ -193,7 +194,12 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label htmlFor="template">Start from Template</Label>
-          {!templatesLoading && (
+          {templatesLoading ? (
+            <div className="border-input mt-2 inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+              <Skeleton className="h-4 w-24 rounded-sm" />
+              <ChevronDown className="size-4 opacity-50" />
+            </div>
+          ) : (
             <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
               <SelectTrigger id="template">
                 <SelectValue placeholder="Select template" />

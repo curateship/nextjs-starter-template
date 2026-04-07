@@ -111,7 +111,7 @@ export async function uploadMediaAction(
 
     revalidatePath('/admin/media')
     revalidatePath('/admin/images')
-    return { data: mediaData as unknown as MediaData, error: null }
+    return { data: toMediaData(mediaData), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }

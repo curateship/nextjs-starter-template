@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -21,7 +22,7 @@ import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { Users } from "lucide-react"
+import { ChevronDown, Users } from "lucide-react"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -60,15 +61,18 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   // Load segments and templates
   useEffect(() => {
     if (!currentSite?.id) return
+
+    setTemplatesLoading(true)
     getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
-    getTemplatesBySite(currentSite.id).then(({ data }) => {
-      const loaded = data || []
-      setTemplates(loaded)
-      // Preselect the default template, or fall back to 'blank'
-      const defaultTemplate = loaded.find(t => t.is_default)
-      setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
-      setTemplatesLoading(false)
-    })
+    getTemplatesBySite(currentSite.id)
+      .then(({ data }) => {
+        const loaded = data || []
+        setTemplates(loaded)
+        // Preselect the default template, or fall back to 'blank'
+        const defaultTemplate = loaded.find(t => t.is_default)
+        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+      })
+      .finally(() => setTemplatesLoading(false))
   }, [currentSite?.id])
 
   // Update audience count based on mode
@@ -183,7 +187,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
       <div>
         <Label htmlFor="newsletter-template">Start from template</Label>
-        {!templatesLoading && (
+        {templatesLoading ? (
+          <div className="border-input mt-2 inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+            <Skeleton className="h-4 w-24 rounded-sm" />
+            <ChevronDown className="size-4 opacity-50" />
+          </div>
+        ) : (
           <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
             <SelectTrigger id="newsletter-template">
               <SelectValue placeholder="Select template" />
