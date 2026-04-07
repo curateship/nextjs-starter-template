@@ -42,6 +42,7 @@ export function NewsletterCanvas({
 }: NewsletterCanvasProps) {
   const effectiveWidth = Math.min(previewWidth, emailWidth)
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null)
+  const [isSubjectFocused, setIsSubjectFocused] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   const handleBlockClick = (event: ReactMouseEvent<HTMLDivElement>, block: NewsletterBlock) => {
@@ -88,13 +89,15 @@ export function NewsletterCanvas({
         {/* Email subject */}
         {onSubjectChange ? (
           <div
-            className="canvas-block"
+            className={cn("canvas-block", isSubjectFocused && "is-editing")}
             style={{ padding: '20px 20px', borderBottom: '1px solid #e5e7eb' }}
           >
             <input
               type="text"
               value={subject || ''}
               onChange={e => onSubjectChange(e.target.value)}
+              onFocus={() => setIsSubjectFocused(true)}
+              onBlur={() => setIsSubjectFocused(false)}
               placeholder="Email subject line..."
               style={{
                 width: '100%',

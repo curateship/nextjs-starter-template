@@ -215,7 +215,7 @@ export function BlockListPanel({
 
   return (
     <>
-      <div className="w-[250px] p-2.5 sticky top-0 self-start max-h-screen overflow-y-auto">
+      <div className="w-[250px] sticky top-0 self-start max-h-screen overflow-y-auto px-2.5 pb-2.5 pt-5">
         {/* Header */}
         {blocksLoading ? (
           <div className="mb-4 px-5">
@@ -237,12 +237,14 @@ export function BlockListPanel({
         {blocksLoading ? (
           <div className="space-y-0">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="p-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-muted rounded animate-pulse mb-2"></div>
-                    <div className="h-3 bg-muted/50 rounded animate-pulse w-2/3"></div>
+              <div key={i} className="p-3 rounded-lg opacity-60">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 bg-muted rounded animate-pulse"></div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3.5 h-3.5 bg-muted rounded-sm animate-pulse"></div>
+                      <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+                    </div>
                   </div>
                   <div className="w-5 h-5 bg-muted rounded animate-pulse"></div>
                 </div>
@@ -281,10 +283,14 @@ export function BlockListPanel({
         {/* Add Block button */}
         {onAddBlock && (
           <div className="px-5 mt-3">
-            <Button variant="outline" size="sm" onClick={onAddBlock}>
-              <Plus className="w-4 h-4 mr-1" />
-              {addButtonLabel}
-            </Button>
+            {blocksLoading ? (
+              <div className="h-9 w-28 bg-muted rounded animate-pulse"></div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={onAddBlock}>
+                <Plus className="w-4 h-4 mr-1" />
+                {addButtonLabel}
+              </Button>
+            )}
           </div>
         )}
       </div>
