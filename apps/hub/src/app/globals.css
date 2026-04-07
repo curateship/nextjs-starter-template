@@ -320,64 +320,62 @@ a, a *, button[onclick], button:hover {
   color: #333333;
 }
 
-.newsletter-email-rich-text h1 {
-  margin: 0 0 16px 0;
+.newsletter-email-rich-text h1,
+.newsletter-email-rich-text h2,
+.newsletter-email-rich-text h3,
+.newsletter-email-rich-text h4,
+.newsletter-email-rich-text h5,
+.newsletter-email-rich-text h6 {
   padding-top: 7px;
-  font-size: 32px;
-  line-height: 1.2;
+  letter-spacing: 0 !important;
   font-weight: 700;
   color: #111827;
-  font-family: Arial, sans-serif;
+  font-family: Arial, sans-serif !important;
+}
+
+.newsletter-email-rich-text p,
+.newsletter-email-rich-text ul,
+.newsletter-email-rich-text ol,
+.newsletter-email-rich-text li,
+.newsletter-email-rich-text a,
+.newsletter-email-rich-text blockquote {
+  font-family: Arial, sans-serif !important;
+}
+
+.newsletter-email-rich-text h1 {
+  margin: 0 0 16px 0;
+  font-size: 32px;
+  line-height: 1.2;
 }
 
 .newsletter-email-rich-text h2 {
   margin: 0 0 16px 0;
-  padding-top: 7px;
   font-size: 28px;
   line-height: 1.25;
-  font-weight: 700;
-  color: #111827;
-  font-family: Arial, sans-serif;
 }
 
 .newsletter-email-rich-text h3 {
   margin: 0 0 14px 0;
-  padding-top: 7px;
   font-size: 22px;
   line-height: 1.3;
-  font-weight: 700;
-  color: #111827;
-  font-family: Arial, sans-serif;
 }
 
 .newsletter-email-rich-text h4 {
   margin: 0 0 12px 0;
-  padding-top: 7px;
   font-size: 18px;
   line-height: 1.35;
-  font-weight: 700;
-  color: #111827;
-  font-family: Arial, sans-serif;
 }
 
 .newsletter-email-rich-text h5 {
   margin: 0 0 10px 0;
-  padding-top: 7px;
   font-size: 16px;
   line-height: 1.4;
-  font-weight: 700;
-  color: #111827;
-  font-family: Arial, sans-serif;
 }
 
 .newsletter-email-rich-text h6 {
   margin: 0 0 10px 0;
-  padding-top: 7px;
   font-size: 14px;
   line-height: 1.4;
-  font-weight: 700;
-  color: #111827;
-  font-family: Arial, sans-serif;
 }
 
 .newsletter-email-rich-text p {
@@ -483,4 +481,12 @@ a, a *, button[onclick], button:hover {
 .ProseMirror img.ProseMirror-selectednode {
   outline: 2px dotted #3b82f6;
   outline-offset: 4px;
+}
+
+.newsletter-email-rich-text .ProseMirror img {
+  margin: 0 0 24px 0 !important;
+}
+
+.newsletter-email-rich-text .ProseMirror img.ProseMirror-selectednode {
+  outline-offset: 0;
 }

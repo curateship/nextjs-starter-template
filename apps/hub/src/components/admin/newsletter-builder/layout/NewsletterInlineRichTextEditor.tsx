@@ -39,6 +39,7 @@ interface NewsletterInlineRichTextEditorProps {
   onContentChange: (htmlContent: string) => void
   siteId: string
   scrollTarget?: HTMLElement | null
+  isActive: boolean
 }
 
 interface SlashCommandRange {
@@ -288,10 +289,12 @@ export function NewsletterInlineRichTextEditor({
   onContentChange,
   siteId,
   scrollTarget,
+  isActive,
 }: NewsletterInlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
   const pendingLinkTargetRef = useRef<{ range: SlashCommandRange; isImage: boolean } | null>(null)
+  const activationPositionRef = useRef<{ left: number; top: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const slashMenuRef = useRef<SlashCommandMenuState | null>(null)
   const dismissedSlashSignatureRef = useRef<string | null>(null)
@@ -343,6 +346,7 @@ export function NewsletterInlineRichTextEditor({
     ],
     content: normalizedContent,
     immediatelyRender: false,
+    editable: isActive,
     editorProps: {
       handleDOMEvents: {
         mousedown: (view, event) => {
@@ -555,6 +559,49 @@ export function NewsletterInlineRichTextEditor({
       },
     ]
   }, [siteId])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    editor.setEditable(isActive)
+  }, [editor, isActive])
+
+  useEffect(() => {
+    if (!editor || !isActive) {
+      return
+    }
+
+    const nextPosition = activationPositionRef.current
+    activationPositionRef.current = null
+
+    window.requestAnimationFrame(() => {
+      if (!editor) {
+        return
+      }
+
+      if (nextPosition) {
+        const targetPosition = editor.view.posAtCoords(nextPosition)
+
+        if (targetPosition) {
+          editor.chain().focus(targetPosition.pos).run()
+          return
+        }
+      }
+
+      editor.commands.focus()
+    })
+  }, [editor, isActive])
+
+  useEffect(() => {
+    if (isActive) {
+      return
+    }
+
+    setSlashMenu(null)
+    setSelectedImageButtonPosition(null)
+  }, [isActive])
 
   useEffect(() => {
     if (!editor) {
@@ -854,133 +901,142 @@ export function NewsletterInlineRichTextEditor({
       style={{
         backgroundColor: content.backgroundColor || "#ffffff",
       }}
+      onMouseDownCapture={(event) => {
+        if (isActive) {
+          return
+        }
+
+        activationPositionRef.current = { left: event.clientX, top: event.clientY }
+      }}
     >
-      <BubbleMenu
-        editor={editor}
-        appendTo={() => rootRef.current ?? document.body}
-        options={{
-          placement: "top",
-          offset: 10,
-          shift: true,
-          flip: true,
-          scrollTarget: resolvedScrollTarget,
-        }}
-        className="z-20 flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur"
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isBold && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          title="Bold"
+      {isActive && (
+        <BubbleMenu
+          editor={editor}
+          appendTo={() => rootRef.current ?? document.body}
+          options={{
+            placement: "top",
+            offset: 10,
+            shift: true,
+            flip: true,
+            scrollTarget: resolvedScrollTarget,
+          }}
+          className="z-20 flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur"
         >
-          <Bold className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isItalic && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="Italic"
-        >
-          <Italic className="h-4 w-4" />
-        </Button>
-        <div className="mx-1 h-5 w-px bg-border" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isHeading1 && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          title="Heading 1"
-        >
-          <Heading1 className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isHeading2 && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          title="Heading 2"
-        >
-          <Heading2 className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isHeading3 && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          title="Heading 3"
-        >
-          <Heading3 className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isHeading4 && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
-          title="Heading 4"
-        >
-          <Heading4 className="h-4 w-4" />
-        </Button>
-        <div className="mx-1 h-5 w-px bg-border" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isBulletList && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="Bullet list"
-        >
-          <List className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isOrderedList && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="Numbered list"
-        >
-          <ListOrdered className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isBlockquote && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          title="Quote"
-        >
-          <Quote className="h-4 w-4" />
-        </Button>
-        <div className="mx-1 h-5 w-px bg-border" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn("h-8 w-8 p-0", editorState?.isLink && "bg-primary/15")}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={handleLink}
-          title="Edit link"
-        >
-          <LinkIcon className="h-4 w-4" />
-        </Button>
-      </BubbleMenu>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isBold && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            title="Bold"
+          >
+            <Bold className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isItalic && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            title="Italic"
+          >
+            <Italic className="h-4 w-4" />
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isHeading1 && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            title="Heading 1"
+          >
+            <Heading1 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isHeading2 && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            title="Heading 2"
+          >
+            <Heading2 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isHeading3 && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            title="Heading 3"
+          >
+            <Heading3 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isHeading4 && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+            title="Heading 4"
+          >
+            <Heading4 className="h-4 w-4" />
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isBulletList && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            title="Bullet list"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isOrderedList && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            title="Numbered list"
+          >
+            <ListOrdered className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isBlockquote && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            title="Quote"
+          >
+            <Quote className="h-4 w-4" />
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn("h-8 w-8 p-0", editorState?.isLink && "bg-primary/15")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={handleLink}
+            title="Edit link"
+          >
+            <LinkIcon className="h-4 w-4" />
+          </Button>
+        </BubbleMenu>
+      )}
 
       <table width="100%" cellPadding="0" cellSpacing="0" border={0}>
         <tbody>
@@ -1007,7 +1063,7 @@ export function NewsletterInlineRichTextEditor({
         </tbody>
       </table>
 
-      {selectedImageButtonPosition && (
+      {isActive && selectedImageButtonPosition && (
         <Button
           type="button"
           variant="destructive"
@@ -1029,7 +1085,7 @@ export function NewsletterInlineRichTextEditor({
         </Button>
       )}
 
-      {slashMenu && (
+      {isActive && slashMenu && (
         <div
           data-newsletter-inline-editor-menu="true"
           className="fixed z-30"

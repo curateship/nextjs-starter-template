@@ -129,9 +129,8 @@ export function NewsletterCanvas({
               key={block.id}
               className={cn(
                 "canvas-block",
-                block.type === "newsletter-rich-text" && editingBlockId === block.id
-                  ? "is-editing cursor-text"
-                  : "cursor-pointer",
+                block.type === "newsletter-rich-text" ? "cursor-text" : "cursor-pointer",
+                block.type === "newsletter-rich-text" && editingBlockId === block.id && "is-editing",
               )}
               data-newsletter-inline-editor-shell={block.type === "newsletter-rich-text" && editingBlockId === block.id ? "true" : undefined}
               onMouseEnter={() => setHoveredBlockId(block.id)}
@@ -164,13 +163,14 @@ export function NewsletterCanvas({
                 </Button>
               )}
 
-              {block.type === "newsletter-rich-text" && editingBlockId === block.id ? (
+              {block.type === "newsletter-rich-text" ? (
                 <NewsletterInlineRichTextEditor
                   blockId={block.id}
                   content={block.content}
                   onContentChange={(htmlContent) => onUpdateInlineRichText?.(block.id, htmlContent)}
                   siteId={siteId}
                   scrollTarget={scrollContainerRef.current}
+                  isActive={editingBlockId === block.id}
                 />
               ) : (
                 <div
