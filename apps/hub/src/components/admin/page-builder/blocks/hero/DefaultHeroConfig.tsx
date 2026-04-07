@@ -71,7 +71,7 @@ function SortableAvatarItem({
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>

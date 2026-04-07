@@ -275,7 +275,7 @@ export function NewsletterSettingsModal({
                   <SelectTrigger id="audience-select">
                     <SelectValue placeholder="Select audience" />
                   </SelectTrigger>
-                  <SelectContent className="z-[60]">
+                  <SelectContent className="z-60">
                     <SelectItem value="none">No segment</SelectItem>
                     <SelectItem value="all">All Contacts</SelectItem>
                     {segments.map(seg => (
@@ -426,7 +426,7 @@ export function NewsletterSettingsModal({
                               <SelectTrigger id="send-window-tz">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="z-[60]">
+                              <SelectContent className="z-60">
                                 <SelectItem value="America/New_York">Eastern Time</SelectItem>
                                 <SelectItem value="America/Chicago">Central Time</SelectItem>
                                 <SelectItem value="America/Denver">Mountain Time</SelectItem>
