@@ -94,7 +94,7 @@ function styleRichTextHtml(htmlContent: string, content: Record<string, any>): s
   styledContent = styleOpeningTags(styledContent, 'p', 'margin:0 0 24px 0;')
   styledContent = styleOpeningTags(styledContent, 'ul', 'margin:0 0 16px 0;padding-left:24px;list-style-type:disc;list-style-position:outside;')
   styledContent = styleOpeningTags(styledContent, 'ol', 'margin:0 0 16px 0;padding-left:24px;list-style-type:decimal;list-style-position:outside;')
-  styledContent = styleOpeningTags(styledContent, 'li', 'margin:0 0 10px 0;')
+  styledContent = styleOpeningTags(styledContent, 'li', 'margin:0 0 4px 0;')
   styledContent = styleOpeningTags(styledContent, 'a', 'color:#2563eb;text-decoration:underline;')
   styledContent = styleOpeningTags(styledContent, 'blockquote', 'margin:0 0 24px 0;padding-left:16px;border-left:4px solid #e5e7eb;color:#4b5563;')
   styledContent = styleOpeningTags(styledContent, 'img', getRichTextImageStyles(content))
