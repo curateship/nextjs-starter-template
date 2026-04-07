@@ -5,10 +5,27 @@ export interface NewsletterRenderBlock {
   content: Record<string, any>
 }
 
+export const DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR = '#e5e7eb'
+
 export function normalizeNewsletterRichTextHtml(htmlContent: string): string {
   return htmlContent
     .replace(/<p(?:\s[^>]*)?>\s*(?:&nbsp;|\u00a0|<br[^>]*>)?\s*<\/p>/gi, '')
     .trim()
+}
+
+function normalizeNewsletterImageBorderColor(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
+
+  const trimmedValue = value.trim()
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmedValue)
+    ? trimmedValue
+    : DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
+}
+
+function normalizeNewsletterImageBorderSize(value: unknown): number {
+  const parsedValue = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsedValue)) return 0
+  return Math.max(0, Math.min(48, Math.round(parsedValue)))
 }
 
 function escapeHtml(text: string): string {
@@ -55,7 +72,17 @@ function styleOpeningTags(html: string, tagName: string, styles: string): string
   return html.replace(new RegExp(`<${tagName}(\\s[^>]*)?>`, 'gi'), (match) => mergeInlineStyles(match, styles))
 }
 
-function styleRichTextHtml(htmlContent: string): string {
+function getRichTextImageStyles(content: Record<string, any>): string {
+  const imageBorderSize = normalizeNewsletterImageBorderSize(content.imageBorderSize)
+  const imageBorderColor = normalizeNewsletterImageBorderColor(content.imageBorderColor)
+  const frameStyles = imageBorderSize > 0
+    ? `padding:${imageBorderSize}px;background-color:${imageBorderColor};`
+    : 'padding:0;background-color:transparent;'
+
+  return `display:block;max-width:100%;height:auto;margin:0 auto 24px auto;box-sizing:border-box;border:0;border-radius:8px;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;${frameStyles}`
+}
+
+function styleRichTextHtml(htmlContent: string, content: Record<string, any>): string {
   let styledContent = normalizeNewsletterRichTextHtml(htmlContent)
 
   styledContent = styleOpeningTags(styledContent, 'h1', 'margin:0 0 16px 0;padding-top:7px;font-size:32px;line-height:1.2;font-weight:700;color:#111827;font-family:Arial,sans-serif;')
@@ -70,7 +97,7 @@ function styleRichTextHtml(htmlContent: string): string {
   styledContent = styleOpeningTags(styledContent, 'li', 'margin:0 0 10px 0;')
   styledContent = styleOpeningTags(styledContent, 'a', 'color:#2563eb;text-decoration:underline;')
   styledContent = styleOpeningTags(styledContent, 'blockquote', 'margin:0 0 24px 0;padding-left:16px;border-left:4px solid #e5e7eb;color:#4b5563;')
-  styledContent = styleOpeningTags(styledContent, 'img', 'display:block;max-width:100%;height:auto;margin:0 auto 24px auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;')
+  styledContent = styleOpeningTags(styledContent, 'img', getRichTextImageStyles(content))
 
   return styledContent.replace(/<li([^>]*)>\s*<p([^>]*)>/gi, (_match, liAttributes = '', paragraphAttributes = '') => {
     return `<li${liAttributes}><p${paragraphAttributes}>`.replace(/<p([^>]*)>/i, (paragraphTag) => mergeInlineStyles(paragraphTag, 'margin:0;'))
@@ -104,7 +131,7 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock): string 
 
     case 'newsletter-rich-text': {
       const { htmlContent = '', backgroundColor = '#ffffff', padding = 20 } = block.content
-      const styledContent = styleRichTextHtml(htmlContent)
+      const styledContent = styleRichTextHtml(htmlContent, block.content)
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${styledContent}</td></tr></table>`
     }
 

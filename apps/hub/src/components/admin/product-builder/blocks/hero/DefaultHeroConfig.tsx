@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -333,7 +334,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                 <div className="space-y-2">
                   <Label className="text-xs">Opacity</Label>
                   <div className="flex items-center space-x-2">
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       max="100"
@@ -344,7 +345,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                           onConfigChange('backgroundPatternOpacity', value);
                         }
                       }}
-                      className="w-20 px-2 py-1 border rounded-md text-sm"
+                      className="h-auto w-20 px-2 py-1 text-sm"
                       placeholder="80"
                     />
                     <span className="text-xs text-muted-foreground">%</span>

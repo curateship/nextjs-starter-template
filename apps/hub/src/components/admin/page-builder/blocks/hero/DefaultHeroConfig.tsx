@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
@@ -319,7 +320,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                 {!config.heroImageHideMobile && (
                   <div className="flex items-center gap-2 mt-2">
                     <Label className="text-xs whitespace-nowrap">Mobile Opacity</Label>
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       max="100"
@@ -330,7 +331,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                           onConfigChange('heroImageMobileOpacity', value);
                         }
                       }}
-                      className="w-16 px-2 py-1 border rounded-md text-xs"
+                      className="h-auto w-16 px-2 py-1 text-xs"
                     />
                     <span className="text-xs text-muted-foreground">%</span>
                   </div>
@@ -347,17 +348,14 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                   <Label htmlFor="heroImageCustomSize" className="text-xs cursor-pointer">Custom size</Label>
                   {config.heroImageSize != null && (
                     <>
-                      <input
+                      <Input
                         type="number"
                         min="100"
                         max="2000"
                         value={config.heroImageSize ?? ''}
                         onChange={(e) => {
                           const raw = e.target.value;
-                          if (raw === '') {
-                            onConfigChange('heroImageSize', '');
-                            return;
-                          }
+                          if (raw === '') return;
                           const value = parseInt(raw);
                           if (!isNaN(value)) {
                             onConfigChange('heroImageSize', value);
@@ -371,7 +369,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                             onConfigChange('heroImageSize', 2000);
                           }
                         }}
-                        className="w-20 px-2 py-1 border rounded-md text-xs"
+                        className="h-auto w-20 px-2 py-1 text-xs"
                       />
                       <span className="text-xs text-muted-foreground">px</span>
                     </>
@@ -422,7 +420,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                 <Field orientation="horizontal" className="w-auto">
                   <FieldLabel>Opacity</FieldLabel>
                   <div className="flex items-center gap-1">
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       max="100"
@@ -433,7 +431,7 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                           onConfigChange('backgroundPatternOpacity', value);
                         }
                       }}
-                      className="w-16 px-2 py-1 border rounded-md text-sm"
+                      className="h-auto w-16 px-2 py-1 text-sm"
                       placeholder="80"
                     />
                     <span className="text-xs text-muted-foreground">%</span>

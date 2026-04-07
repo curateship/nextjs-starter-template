@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
@@ -625,7 +626,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                       </div>
                       {currentStyleConfig.containerWidth !== 'full' && (
                         <div className="w-32">
-                          <input
+                          <Input
                             type="number"
                             min="320"
                             max="2560"
@@ -640,7 +641,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                               }
                             }}
                             placeholder="1152"
-                            className="w-full px-3 py-2 border rounded-md text-sm"
+                            className="h-auto w-full px-3 py-2 text-sm"
                           />
                         </div>
                       )}

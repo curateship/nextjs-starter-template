@@ -293,7 +293,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                     <Label htmlFor="contentWidth" className="text-sm cursor-pointer">Constrain to fixed width</Label>
                     {(currentStyleConfig.contentWidth || 'full') === 'fixed' && (
                       <>
-                        <input
+                        <Input
                           type="number"
                           min="600"
                           max="2000"
@@ -315,7 +315,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                             if (value < 600) handleStyleConfigChange('contentMaxWidth', 600)
                             else if (value > 2000) handleStyleConfigChange('contentMaxWidth', 2000)
                           }}
-                          className="w-20 px-2 py-1 border rounded-md text-sm"
+                          className="h-auto w-20 px-2 py-1 text-sm"
                         />
                         <span className="text-xs text-muted-foreground">px</span>
                       </>

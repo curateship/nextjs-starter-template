@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import type { ProductContentStyleAdminProps } from "."
 
@@ -68,7 +69,7 @@ export function DefaultProductContentConfig({ config, onConfigChange }: ProductC
         <CardContent>
           <div className="flex items-center gap-2">
             <Label htmlFor="contentMaxWidth" className="text-sm">Max width</Label>
-            <input
+            <Input
               id="contentMaxWidth"
               type="number"
               min="480"
@@ -92,7 +93,7 @@ export function DefaultProductContentConfig({ config, onConfigChange }: ProductC
                 else if (value > 1280) onConfigChange('contentMaxWidth', 1280)
               }}
               placeholder={siteDefaultWidth ? String(siteDefaultWidth) : ''}
-              className="w-20 px-2 py-1 border rounded-md text-sm"
+              className="h-auto w-20 px-2 py-1 text-sm"
             />
             <span className="text-xs text-muted-foreground">px</span>
           </div>

@@ -28,7 +28,7 @@ import {
   Eye,
   EyeOff
 } from "lucide-react"
-import { useState, useCallback, useEffect, useRef, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { cn } from "@/lib/utils/tailwind"
 
 export interface RichTextEditorProps {
@@ -47,6 +47,7 @@ export interface RichTextEditorProps {
   children?: React.ReactNode
   toolbarContent?: React.ReactNode
   contentClassName?: string
+  contentStyle?: CSSProperties
   mediaPickerSiteId?: string
 }
 
@@ -59,6 +60,7 @@ export function RichTextEditor({
   children,
   toolbarContent,
   contentClassName,
+  contentStyle,
   mediaPickerSiteId,
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
@@ -555,6 +557,7 @@ export function RichTextEditor({
                   <EditorContent
                     editor={editor}
                     className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:my-1.5!'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                    style={contentStyle}
                   />
                   {selectedImageButtonPosition && (
                     <Button
@@ -595,6 +598,7 @@ export function RichTextEditor({
                   )}
                   <div
                     className={contentClassName || "prose prose-sm max-w-none [&_p]:my-1.5!"}
+                    style={contentStyle}
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(content.content, {
                         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote', 'img'],

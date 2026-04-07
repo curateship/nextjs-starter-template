@@ -416,6 +416,10 @@ a, a *, button[onclick], button:hover {
   max-width: 100%;
   height: auto;
   margin: 0 0 24px 0;
+  box-sizing: border-box;
+  padding: var(--newsletter-image-border-size, 0px);
+  background-color: var(--newsletter-image-border-color, transparent);
+  border-radius: 8px;
 }
 
 .newsletter-email-rich-text blockquote {

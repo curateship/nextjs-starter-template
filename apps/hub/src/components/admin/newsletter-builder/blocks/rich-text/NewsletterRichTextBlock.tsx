@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import DOMPurify from "dompurify"
 import { Sparkles, Wand2 } from "lucide-react"
 import { generateNewsletterRichText } from "@/lib/actions/ai/newsletter-ai-actions"
@@ -26,7 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
+import {
+  DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR,
+  normalizeNewsletterRichTextHtml,
+} from "@/lib/actions/newsletters/render"
 
 const ALLOWED_HTML_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote', 'img']
 const ALLOWED_HTML_ATTR = ['href', 'target', 'rel', 'src', 'alt']
@@ -49,6 +52,14 @@ export function NewsletterRichTextBlock({
   onSubjectChange,
 }: NewsletterRichTextBlockProps) {
   const normalizedHtmlContent = normalizeNewsletterRichTextHtml(content.htmlContent || '')
+  const imageBorderSize = Math.max(0, Math.min(48, parseInt(String(content.imageBorderSize ?? 0), 10) || 0))
+  const imageBorderColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(content.imageBorderColor || '')
+    ? content.imageBorderColor
+    : DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
+  const richTextContentStyle = {
+    '--newsletter-image-border-size': `${imageBorderSize}px`,
+    '--newsletter-image-border-color': imageBorderColor,
+  } as CSSProperties
   const [localSubject, setLocalSubject] = useState('')
   const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
   const [aiError, setAiError] = useState<string | null>(null)
@@ -203,6 +214,7 @@ export function NewsletterRichTextBlock({
                   inline
                   placeholder="Write your content here..."
                   contentClassName="newsletter-email-rich-text"
+                  contentStyle={richTextContentStyle}
                   mediaPickerSiteId={siteId}
                   toolbarContent={
                     <Button
@@ -280,98 +292,137 @@ export function NewsletterRichTextBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  AI Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="newsletter-ai-subject">Subject</Label>
-                  <Input
-                    id="newsletter-ai-subject"
-                    value={subjectValue}
-                    onChange={(event) => handleSubjectChange(event.target.value)}
-                    placeholder="Email subject line"
-                  />
-                </div>
+            <div className="space-y-6">
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Image Output</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="newsletter-image-border-size">Border Size (px)</Label>
+                    <Input
+                      id="newsletter-image-border-size"
+                      type="number"
+                      min={0}
+                      max={48}
+                      value={imageBorderSize}
+                      onChange={(event) => onContentChange('imageBorderSize', Math.max(0, Math.min(48, parseInt(event.target.value || '0', 10) || 0)))}
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="newsletter-ai-prompt">Prompt</Label>
-                  <Textarea
-                    id="newsletter-ai-prompt"
-                    value={content.aiPrompt || ''}
-                    onChange={(event) => {
-                      setAiError(null)
-                      onContentChange('aiPrompt', event.target.value)
-                    }}
-                    placeholder="Tell the AI how to finish this newsletter. Tone, audience, offer, CTA, sections, and any constraints."
-                    rows={6}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This prompt is saved with the block. Use the `Generate with AI` button in the editor toolbar on the `Content` tab to run it.
+                  <div>
+                    <Label htmlFor="newsletter-image-border-color">Border Color</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="color"
+                        value={imageBorderColor}
+                        onChange={(event) => onContentChange('imageBorderColor', event.target.value)}
+                        className="w-10 h-10 rounded border cursor-pointer"
+                      />
+                      <Input
+                        id="newsletter-image-border-color"
+                        value={imageBorderColor}
+                        onChange={(event) => onContentChange('imageBorderColor', event.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    AI Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="newsletter-ai-subject">Subject</Label>
+                    <Input
+                      id="newsletter-ai-subject"
+                      value={subjectValue}
+                      onChange={(event) => handleSubjectChange(event.target.value)}
+                      placeholder="Email subject line"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="newsletter-ai-prompt">Prompt</Label>
+                    <Textarea
+                      id="newsletter-ai-prompt"
+                      value={content.aiPrompt || ''}
+                      onChange={(event) => {
+                        setAiError(null)
+                        onContentChange('aiPrompt', event.target.value)
+                      }}
+                      placeholder="Tell the AI how to finish this newsletter. Tone, audience, offer, CTA, sections, and any constraints."
+                      rows={6}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This prompt is saved with the block. Use the `Generate with AI` button in the editor toolbar on the `Content` tab to run it.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="w-full sm:w-auto">
+                      <Label>AI Provider</Label>
+                      {aiProviders.length === 0 ? (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          No AI providers configured. Add an API key in Site Settings → Integrations.
+                        </p>
+                      ) : (
+                        <Select value={activeProvider || ''} onValueChange={handleProviderChange}>
+                          <SelectTrigger className="w-full sm:w-[220px]">
+                            <SelectValue placeholder="Select AI provider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {aiProviders.map((provider) => (
+                              <SelectItem key={provider} value={provider}>
+                                {getAIProviderLabel(provider)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    <div className="w-full sm:w-auto">
+                      <Label>Model</Label>
+                      {activeProvider ? (
+                        <Select
+                          value={content.aiModel || getDefaultAIModel(activeProvider)}
+                          onValueChange={(value) => {
+                            setAiError(null)
+                            onContentChange('aiModel', value)
+                          }}
+                        >
+                          <SelectTrigger className="w-full sm:w-[260px]">
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableModels.map((model) => (
+                              <SelectItem key={model.value} value={model.value}>
+                                {model.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Select a provider first.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground">
+                    AI generation uses the subject, the current editor content, and this saved prompt.
                   </p>
-                </div>
-
-                <div className="flex flex-wrap items-start gap-3">
-                  <div className="w-full sm:w-auto">
-                    <Label>AI Provider</Label>
-                    {aiProviders.length === 0 ? (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        No AI providers configured. Add an API key in Site Settings → Integrations.
-                      </p>
-                    ) : (
-                      <Select value={activeProvider || ''} onValueChange={handleProviderChange}>
-                        <SelectTrigger className="w-full sm:w-[220px]">
-                          <SelectValue placeholder="Select AI provider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {aiProviders.map((provider) => (
-                            <SelectItem key={provider} value={provider}>
-                              {getAIProviderLabel(provider)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-
-                  <div className="w-full sm:w-auto">
-                    <Label>Model</Label>
-                    {activeProvider ? (
-                      <Select
-                        value={content.aiModel || getDefaultAIModel(activeProvider)}
-                        onValueChange={(value) => {
-                          setAiError(null)
-                          onContentChange('aiModel', value)
-                        }}
-                      >
-                        <SelectTrigger className="w-full sm:w-[260px]">
-                          <SelectValue placeholder="Select model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModels.map((model) => (
-                            <SelectItem key={model.value} value={model.value}>
-                              {model.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Select a provider first.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  AI generation uses the subject, the current editor content, and this saved prompt.
-                </p>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           ),
         },
       ]}

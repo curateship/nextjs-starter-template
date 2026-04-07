@@ -1,5 +1,6 @@
 import { ImageIcon, FileText, Minus, Footprints, Info } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
+import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR } from "@/lib/actions/newsletters/render"
 
 export type { BlockTypeDefinition }
 
@@ -26,6 +27,8 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
       htmlContent: '',
       backgroundColor: '#ffffff',
       padding: 20,
+      imageBorderSize: 0,
+      imageBorderColor: DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR,
     }
   },
   {
