@@ -4,11 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
-import { PanelLeft, Settings2, type LucideIcon } from "lucide-react"
+import { BarChart3, Blocks, FileText, PanelLeft, Settings2, type LucideIcon } from "lucide-react"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
 import { getQuickLinkIcon } from "@/lib/utils/site-quick-links"
 import { Button } from "@/components/ui/button"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { usePathname } from "next/navigation"
 
 interface NavLink {
   label: string
@@ -34,10 +35,17 @@ export function StickyHeader({
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const { currentSite } = useSiteSwitcher()
+  const pathname = usePathname()
   const newsletterSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings/newsletters` : null
-  const showNewsletterSettingsButton =
-    Boolean(newsletterSettingsHref) &&
-    Boolean(navLinks?.some((link) => link.href.startsWith("/admin/newsletters")))
+  const isNewsletterSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/newsletters")))
+  const isProductSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/products") || link.href.startsWith("/admin/orders")))
+  const isDirectorySection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/directories")))
+  const productAnalyticsActive = pathname.startsWith("/admin/products/analytics")
+  const directoryCustomBlocksActive = pathname.startsWith("/admin/directories/custom-blocks")
+  const directoryTemplatesActive = pathname.startsWith("/admin/directories/templates")
+  const showNewsletterTemplatesButton = isNewsletterSection
+  const showNewsletterSettingsButton = Boolean(newsletterSettingsHref) && isNewsletterSection
+  const newsletterTemplatesActive = pathname.startsWith("/admin/newsletters/templates")
 
   return (
     <header className={cn(
@@ -101,6 +109,38 @@ export function StickyHeader({
         {/* Right side: page-specific actions + theme toggle */}
         <div className="flex items-center gap-2 pr-1">
           {rightActions}
+          {isProductSection && (
+            <Button variant={productAnalyticsActive ? "default" : "outline"} asChild size="sm">
+              <Link href="/admin/products/analytics">
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </Link>
+            </Button>
+          )}
+          {isDirectorySection && (
+            <Button variant={directoryCustomBlocksActive ? "default" : "outline"} asChild size="sm">
+              <Link href="/admin/directories/custom-blocks">
+                <Blocks className="h-4 w-4" />
+                Custom Blocks
+              </Link>
+            </Button>
+          )}
+          {isDirectorySection && (
+            <Button variant={directoryTemplatesActive ? "default" : "outline"} asChild size="sm">
+              <Link href="/admin/directories/templates">
+                <FileText className="h-4 w-4" />
+                Templates
+              </Link>
+            </Button>
+          )}
+          {showNewsletterTemplatesButton && (
+            <Button variant={newsletterTemplatesActive ? "default" : "outline"} asChild size="sm">
+              <Link href="/admin/newsletters/templates">
+                <FileText className="h-4 w-4" />
+                Templates
+              </Link>
+            </Button>
+          )}
           {showNewsletterSettingsButton && newsletterSettingsHref && (
             <Button variant="outline" asChild size="sm">
               <Link href={newsletterSettingsHref}>

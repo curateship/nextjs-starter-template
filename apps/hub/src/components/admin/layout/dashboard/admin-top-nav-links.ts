@@ -35,7 +35,6 @@ export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTo
   return [
     { label: "Products", href: "/admin/products", icon: Package, active: active === "products" },
     { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: active === "orders" },
-    { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3, active: active === "analytics" },
   ]
 }
 
@@ -52,15 +51,12 @@ export function getNewsletterAdminTopNavLinks(active?: NewsletterAdminSection): 
     { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users, active: active === "contacts" },
     { label: "Segments", href: "/admin/newsletters/segments", icon: Filter, active: active === "segments" },
     { label: "Automations", href: "/admin/newsletters/automations", icon: Zap, active: active === "automations" },
-    { label: "Templates", href: "/admin/newsletters/templates", icon: FileText, active: active === "templates" },
   ]
 }
 
 export function getDirectoryAdminTopNavLinks(active: DirectoryAdminSection): AdminTopNavLink[] {
   return [
     { label: "Directory", href: "/admin/directories", icon: FolderOpen, active: active === "directory" },
-    { label: "Custom Blocks", href: "/admin/directories/custom-blocks", icon: Blocks, active: active === "custom-blocks" },
-    { label: "Templates", href: "/admin/directories/templates", icon: FileText, active: active === "templates" },
   ]
 }
 
