@@ -104,32 +104,15 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
       onClick={isInteractive ? handleClick : undefined}
       onClickCapture={isInteractive ? handleClickCapture : undefined}
     >
-      <style>{`
-        .preview-container [data-block-type="navigation"] {
-          position: relative !important;
-          width: 100% !important;
-        }
-        .preview-container .pt-16 {
-          padding-top: 0 !important;
-        }
-      `}</style>
       {isInteractive && (
         <style>{`
           .preview-container [data-block-id],
           .preview-container [data-block-type] {
             cursor: pointer;
-            position: relative;
           }
-          .preview-container .block-hovered::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 2px dashed #3b82f6;
-            pointer-events: none;
-            z-index: 9999;
+          .preview-container .block-hovered {
+            outline: 2px dashed #3b82f6;
+            outline-offset: -2px;
           }
         `}</style>
       )}

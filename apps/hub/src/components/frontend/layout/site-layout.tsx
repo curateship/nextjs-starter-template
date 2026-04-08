@@ -47,7 +47,7 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
       )}
 
       {/* Main content */}
-      <main className={navigation ? "pt-16" : ""}>
+      <main>
         {children}
       </main>
 

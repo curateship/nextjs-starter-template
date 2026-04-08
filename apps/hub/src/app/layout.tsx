@@ -67,6 +67,9 @@ export default async function RootLayout({
   const resolvedNavStyle = navBlock?.content?.styleConfig?.[activeNavStyle] || navBlock?.content?.style
   const themeToggleEnabled = resolvedNavStyle?.showDarkModeToggle !== false
   const serverThemeClass = !themeToggleEnabled && defaultTheme === 'dark' ? 'dark' : ''
+  const fontConfigKey = success && site?.settings
+    ? `${site.settings.font_family || 'playfair-display'}:${site.settings.secondary_font_family || 'urbanist'}`
+    : 'default'
 
   return (
     <html
@@ -80,12 +83,30 @@ export default async function RootLayout({
       } : undefined}
     >
       <head>
-        <link rel="preconnect" href="https://pub-01334433f2d349b1814dc29bae7f95d7.r2.dev" />
+        <link
+          key="r2-preconnect"
+          rel="preconnect"
+          href="https://pub-01334433f2d349b1814dc29bae7f95d7.r2.dev"
+        />
         {fonts ? (<>
           {fonts.preloadPaths.map(path => (
-            <link key={path} rel="preload" href={path} as="font" type="font/woff2" crossOrigin="anonymous" />
+            <link
+              key={`font-preload:${path}`}
+              rel="preload"
+              href={path}
+              as="font"
+              type="font/woff2"
+              crossOrigin="anonymous"
+              data-font-preload="true"
+            />
           ))}
-          <style dangerouslySetInnerHTML={{ __html: fonts.fontCSS }} />
+          <style
+            key={`font-css:${fontConfigKey}`}
+            id="site-font-face-styles"
+            data-font-css="true"
+            suppressHydrationWarning
+            dangerouslySetInnerHTML={{ __html: fonts.fontCSS }}
+          />
         </>) : null}
       </head>
       <body

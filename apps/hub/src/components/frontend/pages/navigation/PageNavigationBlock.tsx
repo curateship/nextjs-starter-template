@@ -382,12 +382,12 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
   }
 
   return (
-    <header>
+    <header className="sticky top-0 z-50">
       <nav
         data-block-type="navigation"
         data-state={menuState && 'active'}
         className={cn(
-          'fixed top-0 z-50 w-full border-b',
+          'w-full border-b',
           blurClass,
           (!style?.backgroundColor) && 'bg-background/90'
         )}
