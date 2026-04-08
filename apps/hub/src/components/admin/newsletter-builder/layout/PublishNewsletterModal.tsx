@@ -10,12 +10,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
+import { getCronStatus } from "@/lib/actions/cron/cron-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import { Users, TestTube, Send, Radio } from "lucide-react"
+import { Users, TestTube, Send, Radio, AlertTriangle, CheckCircle2 } from "lucide-react"
 
 interface PublishNewsletterModalProps {
   open: boolean
@@ -37,6 +39,8 @@ export function PublishNewsletterModal({
   const [sending, setSending] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [testEmail, setTestEmail] = useState('')
+  const [cronStatus, setCronStatus] = useState<{ isRunning: boolean; enabledCount: number; totalCount: number; lastRunAt: string | null } | null>(null)
+  const [cronStatusLoaded, setCronStatusLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
@@ -44,6 +48,15 @@ export function PublishNewsletterModal({
   useEffect(() => {
     if (!open || !siteId) return
     getSegmentsBySite(siteId).then(({ data }) => setSegments(data || []))
+  }, [open, siteId])
+
+  useEffect(() => {
+    if (!open || !siteId) return
+    setCronStatusLoaded(false)
+    getCronStatus(siteId).then(({ data }) => {
+      setCronStatus(data)
+      setCronStatusLoaded(true)
+    })
   }, [open, siteId])
 
   // Load audience count
@@ -69,6 +82,9 @@ export function PublishNewsletterModal({
     if (open) {
       setError(null)
       setSuccessMsg(null)
+    } else {
+      setCronStatus(null)
+      setCronStatusLoaded(false)
     }
   }, [open])
 
@@ -118,7 +134,7 @@ export function PublishNewsletterModal({
     : null
 
   const audienceLabel = !hasAudience
-    ? 'No audience selected'
+    ? 'No audience selected. Configure in Settings.'
     : filter.audience === 'all'
       ? 'All Contacts'
       : segmentName
@@ -146,33 +162,40 @@ export function PublishNewsletterModal({
           </div>
         )}
 
-        <div className="space-y-5">
+        <div className="space-y-2">
           {/* Subject */}
-          <div className="flex items-start justify-between py-3">
+          <div className="flex items-start justify-between py-1.5">
             <span className="text-sm text-muted-foreground">Subject</span>
             <span className="text-sm font-medium text-right max-w-[300px]">{newsletter.subject}</span>
           </div>
 
           {/* Audience */}
-          <div className="flex items-start justify-between py-3">
+          <div className="flex items-start justify-between py-1.5">
             <span className="text-sm text-muted-foreground">Audience</span>
             <div className="text-right">
-              <span className="text-sm font-medium">{audienceLabel}</span>
-              {hasAudience && (
-                <div className="flex items-center gap-1.5 justify-end mt-1">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    {audienceCount !== null
-                      ? `${audienceCount.toLocaleString()} contact${audienceCount !== 1 ? 's' : ''}`
-                      : 'Calculating...'}
-                  </span>
+              {hasAudience ? (
+                <>
+                  <span className="text-sm font-medium">{audienceLabel}</span>
+                  <div className="flex items-center gap-1.5 justify-end mt-1">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      {audienceCount !== null
+                        ? `${audienceCount.toLocaleString()} contact${audienceCount !== 1 ? 's' : ''}`
+                        : 'Calculating...'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>{audienceLabel}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Drip Config */}
-          <div className="flex items-start justify-between py-3">
+          <div className="flex items-start justify-between py-1.5">
             <span className="text-sm text-muted-foreground">Delivery</span>
             <div className="text-right">
               {drip?.enabled ? (
@@ -194,8 +217,39 @@ export function PublishNewsletterModal({
             </div>
           </div>
 
+          <div className="flex items-start justify-between py-1.5">
+            <span className="text-sm text-muted-foreground">Cron Status</span>
+            <div className="text-right">
+              {!cronStatusLoaded ? (
+                <p className="text-xs text-muted-foreground">Checking...</p>
+              ) : cronStatus?.totalCount === 0 ? (
+                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>No crons setup.</span>
+                </div>
+              ) : cronStatus ? (
+                cronStatus.isRunning ? (
+                  <div className="flex items-center justify-end gap-1.5 text-xs text-green-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>{cronStatus.enabledCount} cron{cronStatus.enabledCount !== 1 ? 's' : ''} running</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>No crons are running.</span>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>Unable to load cron status.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Test Email */}
-          <div className="py-3">
+          <div className="pt-7 pb-3">
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <Label htmlFor="publish-test-email" className="text-sm text-muted-foreground">Send a test first</Label>
@@ -215,27 +269,31 @@ export function PublishNewsletterModal({
             </div>
           </div>
 
-          {/* Warning if no audience */}
-          {!hasAudience && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-orange-800 text-sm">
-                No audience selected. Configure audience in Settings before broadcasting.
-              </p>
-            </div>
-          )}
-
           {/* Actions */}
           <div className="flex justify-between pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleConfirmAndBroadcast}
-              disabled={sending || !hasAudience}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
-            </Button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={!hasAudience ? 0 : -1}>
+                    <Button
+                      onClick={handleConfirmAndBroadcast}
+                      disabled={sending || !hasAudience}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!hasAudience && (
+                  <TooltipContent side="top">
+                    Fix the audience requirement first.
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </DialogContent>
