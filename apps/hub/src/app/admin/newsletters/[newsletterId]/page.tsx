@@ -41,6 +41,21 @@ function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
   return currentMinutes >= windowStart && currentMinutes < windowEnd
 }
 
+function formatSendWindow(dripConfig: Record<string, any> | undefined) {
+  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return 'send'
+
+  const formatTime = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number)
+    const period = hours >= 12 ? 'pm' : 'am'
+    const displayHour = hours % 12 || 12
+
+    if (minutes === 0) return `${displayHour}${period}`
+    return `${displayHour}:${String(minutes).padStart(2, '0')}${period}`
+  }
+
+  return `${formatTime(dripConfig.send_window_start)} - ${formatTime(dripConfig.send_window_end)}`
+}
+
 function formatDripStatus(newsletter: { status: string; total_sent: number; total_recipients: number; metadata?: Record<string, any> }) {
   const dripConfig = newsletter.metadata?.drip_config
   const parts = [`${newsletter.status === 'paused' ? 'Paused' : 'Drip sending'}: ${newsletter.total_sent}/${newsletter.total_recipients} sent`]
@@ -62,7 +77,7 @@ function formatDripStatus(newsletter: { status: string; total_sent: number; tota
   }
 
   if (!isWithinSendWindow(dripConfig)) {
-    parts.push('Waiting for send window')
+    parts.push(`Waiting for ${formatSendWindow(dripConfig)} send window`)
     return parts.join(' · ')
   }
 

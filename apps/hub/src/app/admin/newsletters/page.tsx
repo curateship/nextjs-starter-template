@@ -49,12 +49,27 @@ function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
   return currentMinutes >= windowStart && currentMinutes < windowEnd
 }
 
+function formatSendWindow(dripConfig: Record<string, any> | undefined) {
+  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return 'window'
+
+  const formatTime = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number)
+    const period = hours >= 12 ? 'pm' : 'am'
+    const displayHour = hours % 12 || 12
+
+    if (minutes === 0) return `${displayHour}${period}`
+    return `${displayHour}:${String(minutes).padStart(2, '0')}${period}`
+  }
+
+  return `${formatTime(dripConfig.send_window_start)} - ${formatTime(dripConfig.send_window_end)}`
+}
+
 function getDripStatusLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
 
   if (newsletter.status === 'paused') return 'Paused'
   if (newsletter.status !== 'sending' || dripConfig?.enabled !== true) return 'Sending'
-  if (!isWithinSendWindow(dripConfig)) return 'Waiting for window'
+  if (!isWithinSendWindow(dripConfig)) return `Waiting for ${formatSendWindow(dripConfig)}`
   if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
     return 'Waiting for cron'
   }
@@ -81,9 +96,7 @@ function formatDripRowStatus(newsletter: Newsletter) {
   }
 
   if (newsletter.status === 'sending') {
-    if (!isWithinSendWindow(dripConfig)) {
-      parts.push('Waiting for send window')
-    } else if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
+    if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date() && isWithinSendWindow(dripConfig)) {
       parts.push('Waiting for next cron run')
     }
   }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Resend } from 'resend'
 import { db } from '@/lib/db'
 import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters, productOrders } from '@/lib/db/schema'
 import { eq, and, isNull, desc } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import crypto from 'crypto'
 import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
 import { getProductByIdAction } from '@/lib/actions/products/product-actions'
 import { safeDecrypt } from '@/lib/utils/encryption'
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No Resend integrations configured' }, { status: 400 })
     }
 
-    let verified = false
+    let body: Record<string, any> | null = null
     for (const integration of integrations) {
       const config = integration.config as Record<string, any>
       const secret = typeof config?.webhook_secret === 'string'
@@ -53,28 +53,25 @@ export async function POST(request: NextRequest) {
         : undefined
       if (!secret) continue
 
-      const PREFIX = 'whsec' + '_'
-      const rawSecret = secret.startsWith(PREFIX) ? secret.slice(PREFIX.length) : secret
-      const secretBytes = Buffer.from(rawSecret, 'base64')
-      const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
-      const expected = crypto
-        .createHmac('sha256', secretBytes)
-        .update(signedContent)
-        .digest('base64')
-
-      verified = svixSignature.split(' ').some((sig: string) => {
-        const [, sigValue] = sig.split(',')
-        return sigValue === expected
-      })
-
-      if (verified) break
+      try {
+        body = new Resend('re_placeholder').webhooks.verify({
+          payload: rawBody,
+          headers: {
+            id: svixId,
+            timestamp: svixTimestamp,
+            signature: svixSignature,
+          },
+          webhookSecret: secret,
+        }) as Record<string, any>
+        break
+      } catch {
+        continue
+      }
     }
 
-    if (!verified) {
+    if (!body) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
-
-    const body = JSON.parse(rawBody)
     const { type, data } = body
 
     const email = data?.to?.[0] || data?.email
