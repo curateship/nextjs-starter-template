@@ -78,6 +78,21 @@ function getSortedNewsletterBlocks(contentBlocks: Record<string, any> | null | u
     .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as NewsletterBlock[]
 }
 
+function isWithinDripSendWindow(dripConfig: Record<string, any> | undefined) {
+  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
+
+  const tz = dripConfig.send_window_timezone || 'America/New_York'
+  const nowInTz = new Date().toLocaleString('en-US', { timeZone: tz })
+  const localizedNow = new Date(nowInTz)
+  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
+  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
+  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
+  const windowStart = startH * 60 + startM
+  const windowEnd = endH * 60 + endM
+
+  return currentMinutes >= windowStart && currentMinutes < windowEnd
+}
+
 export async function getNewslettersBySite(
   siteId: string,
   options?: { page?: number; pageSize?: number }
@@ -426,6 +441,26 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
 
     const dripConfig = newsletter.metadata?.drip_config
     const isDrip = dripConfig?.enabled === true
+
+    if (isDrip && !isWithinDripSendWindow(dripConfig)) {
+      await db
+        .update(newsletters)
+        .set({
+          metadata: {
+            ...newsletter.metadata,
+            drip_config: {
+              ...dripConfig,
+              next_batch_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+              batches_sent: dripConfig?.batches_sent || 0,
+              total_bounced: dripConfig?.total_bounced || 0,
+              paused_reason: null,
+            },
+          },
+        })
+        .where(eq(newsletters.id, newsletterId))
+
+      return { success: true, error: null }
+    }
 
     // For drip mode, only send a random-sized first batch
     const contactsToSend = isDrip
