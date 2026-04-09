@@ -7,11 +7,13 @@ export function UnsubscribeForm({
   siteId,
   initialEmail,
   token,
+  newsletterId,
   siteName,
 }: {
   siteId: string
   initialEmail: string
   token: string
+  newsletterId?: string
   siteName: string
 }) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
@@ -21,7 +23,7 @@ export function UnsubscribeForm({
     if (!initialEmail || !token) return
 
     setStatus("loading")
-    const { success, error } = await unsubscribeContact(siteId, initialEmail, token)
+    const { success, error } = await unsubscribeContact(siteId, initialEmail, token, newsletterId)
 
     if (success) {
       setStatus("success")

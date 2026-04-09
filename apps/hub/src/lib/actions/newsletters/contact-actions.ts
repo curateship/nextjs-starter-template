@@ -938,7 +938,8 @@ export async function getContactEngagementOverTime(
 export async function unsubscribeContact(
   siteId: string,
   email: string,
-  token: string
+  token: string,
+  newsletterId?: string
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { success: false, error: 'Invalid request' }
@@ -950,12 +951,34 @@ export async function unsubscribeContact(
       return { success: false, error: 'Invalid unsubscribe link' }
     }
 
-    // Intentionally returns success even if no row matched, to prevent email enumeration
-    const [updatedContact] = await db
-      .update(newsletterContacts)
-      .set({ status: 'unsubscribed', updatedAt: new Date() })
+    const normalizedNewsletterId = newsletterId && UUID_REGEX.test(newsletterId) ? newsletterId : null
+
+    const [contact] = await db
+      .select({ id: newsletterContacts.id, status: newsletterContacts.status })
+      .from(newsletterContacts)
       .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.email, emailLower)))
-      .returning({ id: newsletterContacts.id })
+      .limit(1)
+
+    if (!contact) {
+      return { success: true, error: null }
+    }
+
+    if (contact.status !== 'unsubscribed') {
+      await db
+        .update(newsletterContacts)
+        .set({ status: 'unsubscribed', updatedAt: new Date() })
+        .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.email, emailLower)))
+
+      if (normalizedNewsletterId) {
+        await db.insert(newsletterEvents).values({
+          siteId,
+          contactId: contact.id,
+          eventType: 'unsubscribed',
+          sourceType: 'broadcast',
+          sourceId: normalizedNewsletterId,
+        })
+      }
+    }
 
     return { success: true, error: null }
   } catch (err) {

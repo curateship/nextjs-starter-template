@@ -402,7 +402,7 @@ export default function NewslettersPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-9 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-10 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-3 flex items-center space-x-4">
                   <Checkbox
                     checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
@@ -470,6 +470,7 @@ export default function NewslettersPage() {
                   <span>Clicks</span>
                   <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('clicks')}</span>
                 </button>
+                <div>Unsubscribes</div>
                 <button
                   type="button"
                   onClick={() => toggleSort('modified')}
@@ -502,7 +503,7 @@ export default function NewslettersPage() {
                 <div className="space-y-0">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-9 gap-4 items-center">
+                      <div className="grid grid-cols-10 gap-4 items-center">
                         <div className="col-span-3 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
@@ -512,6 +513,7 @@ export default function NewslettersPage() {
                           </div>
                         </div>
                         <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
+                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
@@ -536,7 +538,7 @@ export default function NewslettersPage() {
               ) : (
                 sortedNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-9 gap-4 items-center">
+                    <div className="grid grid-cols-10 gap-4 items-center">
                       <div className="col-span-3">
                         <div className="flex items-center space-x-4">
                           <Checkbox
@@ -602,6 +604,17 @@ export default function NewslettersPage() {
                           {newsletter.total_sent > 0
                             ? `${Math.round((newsletter.total_clicked / newsletter.total_sent) * 100)}%`
                             : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {newsletter.total_sent <= 0
+                            ? "—"
+                            : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 === 0
+                              ? "0%"
+                              : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 < 10
+                                ? `${(((newsletter.total_unsubscribed / newsletter.total_sent) * 100)).toFixed(1)}%`
+                                : `${Math.round((newsletter.total_unsubscribed / newsletter.total_sent) * 100)}%`}
                         </span>
                       </div>
                       <div>

@@ -25,6 +25,7 @@ export interface Newsletter {
   total_sent: number
   total_opened: number
   total_clicked: number
+  total_unsubscribed: number
   metadata: Record<string, any>
   created_at: string
   updated_at: string
@@ -50,7 +51,7 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
-function rowToNewsletter(row: any): Newsletter {
+function rowToNewsletter(row: any, totalUnsubscribed = 0): Newsletter {
   return {
     id: row.id,
     site_id: row.siteId,
@@ -66,6 +67,7 @@ function rowToNewsletter(row: any): Newsletter {
     total_sent: row.totalSent ?? 0,
     total_opened: row.totalOpened ?? 0,
     total_clicked: row.totalClicked ?? 0,
+    total_unsubscribed: totalUnsubscribed,
     metadata: row.metadata ?? {},
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
@@ -125,7 +127,34 @@ export async function getNewslettersBySite(
         .where(eq(newsletters.siteId, siteId)),
     ])
 
-    return { data: rows.map(rowToNewsletter), total: countResult[0]?.count ?? 0, error: null }
+    const newsletterIds = rows.map((row) => row.id)
+    const unsubscribeRows = newsletterIds.length === 0
+      ? []
+      : await db
+        .select({
+          sourceId: newsletterEvents.sourceId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(newsletterEvents)
+        .where(and(
+          eq(newsletterEvents.siteId, siteId),
+          eq(newsletterEvents.sourceType, 'broadcast'),
+          eq(newsletterEvents.eventType, 'unsubscribed'),
+          inArray(newsletterEvents.sourceId, newsletterIds),
+        ))
+        .groupBy(newsletterEvents.sourceId)
+
+    const unsubscribeCounts = new Map(
+      unsubscribeRows
+        .filter((row) => row.sourceId)
+        .map((row) => [row.sourceId as string, row.count]),
+    )
+
+    return {
+      data: rows.map((row) => rowToNewsletter(row, unsubscribeCounts.get(row.id) ?? 0)),
+      total: countResult[0]?.count ?? 0,
+      error: null,
+    }
   } catch (err) {
     console.error('getNewslettersBySite error:', err)
     return { data: null, total: 0, error: 'Server error' }
@@ -473,7 +502,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
     for (const contact of contactsToSend) {
       try {
         const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
-        const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
+        const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletterId}`
 
         const htmlWithUnsub = newsletter.content + `
           <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">

@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
         for (const contact of batch) {
           try {
             const unsubToken = generateUnsubscribeToken(newsletter.siteId, contact.email)
-            const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}`
+            const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletter.id}`
 
             // Replace {{unsubscribe_url}} placeholder from footer block
             let htmlWithUnsub = newsletter.content!.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl)
