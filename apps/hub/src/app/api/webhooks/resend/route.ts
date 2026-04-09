@@ -91,6 +91,19 @@ export async function POST(request: NextRequest) {
     // Record to newsletter_events if we have a message ID
     if (eventType && messageId) {
       try {
+        const [duplicateEvent] = await db
+          .select({ id: newsletterEvents.id })
+          .from(newsletterEvents)
+          .where(and(
+            eq(newsletterEvents.providerMessageId, messageId),
+            eq(newsletterEvents.eventType, eventType),
+          ))
+          .limit(1)
+
+        if (duplicateEvent) {
+          return NextResponse.json({ message: 'Event already recorded' })
+        }
+
         // Find the event record by provider_message_id to get contact_id and source
         const [existingEvent] = await db
           .select({
