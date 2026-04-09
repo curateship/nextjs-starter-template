@@ -35,6 +35,62 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
+function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
+  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
+
+  const tz = dripConfig.send_window_timezone || 'America/New_York'
+  const localizedNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }))
+  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
+  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
+  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
+  const windowStart = startH * 60 + startM
+  const windowEnd = endH * 60 + endM
+
+  return currentMinutes >= windowStart && currentMinutes < windowEnd
+}
+
+function getDripStatusLabel(newsletter: Newsletter) {
+  const dripConfig = newsletter.metadata?.drip_config
+
+  if (newsletter.status === 'paused') return 'Paused'
+  if (newsletter.status !== 'sending' || dripConfig?.enabled !== true) return 'Sending'
+  if (!isWithinSendWindow(dripConfig)) return 'Waiting for window'
+  if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
+    return 'Waiting for cron'
+  }
+
+  return 'Sending'
+}
+
+function formatDripRowStatus(newsletter: Newsletter) {
+  const dripConfig = newsletter.metadata?.drip_config
+  const parts = [`${newsletter.total_sent}/${newsletter.total_recipients} sent`]
+
+  if (dripConfig?.batches_sent > 0) {
+    const label = dripConfig.batches_sent === 1 ? 'batch' : 'batches'
+    parts.push(`${dripConfig.batches_sent} ${label}`)
+  }
+
+  if (dripConfig?.total_bounced > 0) {
+    parts.push(`${dripConfig.total_bounced} bounced`)
+  }
+
+  if (newsletter.status === 'paused' && dripConfig?.paused_reason) {
+    parts.push(dripConfig.paused_reason)
+    return parts.join(' · ')
+  }
+
+  if (newsletter.status === 'sending') {
+    if (!isWithinSendWindow(dripConfig)) {
+      parts.push('Waiting for send window')
+    } else if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
+      parts.push('Waiting for next cron run')
+    }
+  }
+
+  return parts.join(' · ')
+}
+
 export default function NewslettersPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const router = useRouter()
@@ -177,7 +233,7 @@ export default function NewslettersPage() {
   const getStatusBadge = (newsletter: Newsletter) => {
     switch (newsletter.status) {
       case 'sent': return <Badge variant="default" className="bg-green-100 text-green-800">Sent</Badge>
-      case 'sending': return <Badge variant="default" className="bg-blue-100 text-blue-800">Sending</Badge>
+      case 'sending': return <Badge variant="default" className="bg-blue-100 text-blue-800">{getDripStatusLabel(newsletter)}</Badge>
       case 'paused': return <Badge variant="default" className="bg-orange-100 text-orange-800">Paused</Badge>
       case 'scheduled': return <Badge variant="default" className="bg-yellow-100 text-yellow-800">Scheduled</Badge>
       default: return <Badge variant="secondary">Draft</Badge>
@@ -510,12 +566,7 @@ export default function NewslettersPage() {
                         </div>
                         {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
                           <div className="text-xs text-muted-foreground mt-1">
-                            {newsletter.total_sent}/{newsletter.total_recipients} sent
-                            {newsletter.metadata.drip_config.batches_sent > 0 && ` · ${newsletter.metadata.drip_config.batches_sent} batches`}
-                            {newsletter.metadata.drip_config.total_bounced > 0 && ` · ${newsletter.metadata.drip_config.total_bounced} bounced`}
-                            {newsletter.status === 'paused' && newsletter.metadata.drip_config.paused_reason && (
-                              <span className="block text-orange-600">{newsletter.metadata.drip_config.paused_reason}</span>
-                            )}
+                            {formatDripRowStatus(newsletter)}
                           </div>
                         )}
                       </div>
