@@ -27,6 +27,57 @@ const PREVIEW_WIDTHS = {
   mobile: 320,
 } as const
 
+function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
+  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
+
+  const tz = dripConfig.send_window_timezone || 'America/New_York'
+  const localizedNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }))
+  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
+  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
+  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
+  const windowStart = startH * 60 + startM
+  const windowEnd = endH * 60 + endM
+
+  return currentMinutes >= windowStart && currentMinutes < windowEnd
+}
+
+function formatDripStatus(newsletter: { status: string; total_sent: number; total_recipients: number; metadata?: Record<string, any> }) {
+  const dripConfig = newsletter.metadata?.drip_config
+  const parts = [`${newsletter.status === 'paused' ? 'Paused' : 'Drip sending'}: ${newsletter.total_sent}/${newsletter.total_recipients} sent`]
+
+  if (dripConfig?.batches_sent > 0) {
+    const label = dripConfig.batches_sent === 1 ? 'batch' : 'batches'
+    parts.push(`${dripConfig.batches_sent} ${label}`)
+  }
+
+  if (dripConfig?.total_bounced > 0) {
+    parts.push(`${dripConfig.total_bounced} bounced`)
+  }
+
+  if (newsletter.status === 'paused') {
+    if (dripConfig?.paused_reason && dripConfig.paused_reason !== 'manual') {
+      parts.push(dripConfig.paused_reason)
+    }
+    return parts.join(' · ')
+  }
+
+  if (!isWithinSendWindow(dripConfig)) {
+    parts.push('Waiting for send window')
+    return parts.join(' · ')
+  }
+
+  if (typeof dripConfig?.next_batch_at === 'string') {
+    const nextBatchAt = new Date(dripConfig.next_batch_at)
+    if (nextBatchAt > new Date()) {
+      parts.push(`Next batch: ${nextBatchAt.toLocaleTimeString()}`)
+    } else {
+      parts.push('Waiting for next cron run')
+    }
+  }
+
+  return parts.join(' · ')
+}
+
 export default function NewsletterBuilderPage({ params }: PageProps) {
   const { newsletterId } = use(params)
   const router = useRouter()
@@ -234,19 +285,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         <div className={`px-4 py-2.5 flex items-center justify-between text-sm ${builder.newsletter.status === 'paused' ? 'bg-orange-50 border-b border-orange-200' : 'bg-blue-50 border-b border-blue-200'}`}>
           <div className="flex items-center gap-3">
             {builder.newsletter.status === 'paused' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
-            <span>
-              {builder.newsletter.status === 'paused' ? 'Paused' : 'Drip sending'}: {builder.newsletter.total_sent}/{builder.newsletter.total_recipients} sent
-              {builder.newsletter.metadata.drip_config.batches_sent > 0 && ` · ${builder.newsletter.metadata.drip_config.batches_sent} batches`}
-              {builder.newsletter.metadata.drip_config.total_bounced > 0 && ` · ${builder.newsletter.metadata.drip_config.total_bounced} bounced`}
-              {builder.newsletter.status === 'paused' && builder.newsletter.metadata.drip_config.paused_reason && (
-                <span className="text-orange-600 ml-2">({builder.newsletter.metadata.drip_config.paused_reason})</span>
-              )}
-              {builder.newsletter.status === 'sending' && builder.newsletter.metadata.drip_config.next_batch_at && (
-                <span className="text-muted-foreground ml-2">
-                  · Next batch: {new Date(builder.newsletter.metadata.drip_config.next_batch_at).toLocaleTimeString()}
-                </span>
-              )}
-            </span>
+            <span>{formatDripStatus(builder.newsletter)}</span>
           </div>
           <Button
             variant="outline"
