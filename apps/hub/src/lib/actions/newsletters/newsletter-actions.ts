@@ -642,6 +642,13 @@ export async function pauseNewsletter(newsletterId: string): Promise<{ success: 
     }
 
     const existingMeta = nlRow.metadata as Record<string, any> | null
+    const dripConfig = existingMeta?.drip_config as Record<string, any> | undefined
+    const nextBatchAt = typeof dripConfig?.next_batch_at === 'string'
+      ? new Date(dripConfig.next_batch_at)
+      : null
+    const pausedRemainingMs = nextBatchAt
+      ? Math.max(nextBatchAt.getTime() - Date.now(), 0)
+      : null
 
     await db
       .update(newsletters)
@@ -650,8 +657,10 @@ export async function pauseNewsletter(newsletterId: string): Promise<{ success: 
         metadata: {
           ...existingMeta,
           drip_config: {
-            ...existingMeta?.drip_config,
+            ...dripConfig,
             paused_reason: 'manual',
+            paused_at: new Date().toISOString(),
+            paused_remaining_ms: pausedRemainingMs,
           },
         },
       })
@@ -686,6 +695,13 @@ export async function resumeNewsletter(newsletterId: string): Promise<{ success:
     }
 
     const existingMeta = nlRow.metadata as Record<string, any> | null
+    const dripConfig = existingMeta?.drip_config as Record<string, any> | undefined
+    const pausedRemainingMs = typeof dripConfig?.paused_remaining_ms === 'number'
+      ? dripConfig.paused_remaining_ms
+      : null
+    const nextBatchAt = pausedRemainingMs !== null
+      ? new Date(Date.now() + pausedRemainingMs).toISOString()
+      : (typeof dripConfig?.next_batch_at === 'string' ? dripConfig.next_batch_at : new Date().toISOString())
 
     await db
       .update(newsletters)
@@ -694,9 +710,11 @@ export async function resumeNewsletter(newsletterId: string): Promise<{ success:
         metadata: {
           ...existingMeta,
           drip_config: {
-            ...existingMeta?.drip_config,
-            next_batch_at: new Date().toISOString(),
+            ...dripConfig,
+            next_batch_at: nextBatchAt,
             paused_reason: null,
+            paused_at: null,
+            paused_remaining_ms: null,
           },
         },
       })
