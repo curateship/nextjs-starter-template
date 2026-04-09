@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { newsletters, newsletterContacts, newsletterEvents, sites, authUsers } from '@/lib/db/schema'
+import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites, authUsers } from '@/lib/db/schema'
 import { eq, and, lte, inArray, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
@@ -86,35 +86,46 @@ export async function GET(request: NextRequest) {
         const audienceFilter = newsletter.audienceFilter as Record<string, any> | null
         const filter = audienceFilter || {}
 
-        // Base query: active contacts for this site
-        // Note: advanced tag/source filtering via jsonb is handled in SQL
-        let conditions = and(
-          eq(newsletterContacts.siteId, newsletter.siteId),
-          eq(newsletterContacts.status, 'active'),
-        )
+        let allContacts: { id: string; email: string; metadata: any }[]
 
-        // Add tag filter if present
-        if (filter.tags?.length) {
-          for (const tag of filter.tags) {
+        if (filter.segment_id) {
+          allContacts = await db
+            .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+            .from(newsletterContacts)
+            .innerJoin(newsletterSegmentContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+            .where(and(
+              eq(newsletterSegmentContacts.segmentId, filter.segment_id),
+              eq(newsletterContacts.siteId, newsletter.siteId),
+              eq(newsletterContacts.status, 'active'),
+            ))
+        } else {
+          // Base query: active contacts for this site
+          let conditions = and(
+            eq(newsletterContacts.siteId, newsletter.siteId),
+            eq(newsletterContacts.status, 'active'),
+          )
+
+          if (filter.tags?.length) {
+            for (const tag of filter.tags) {
+              conditions = and(
+                conditions,
+                sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`,
+              )
+            }
+          }
+
+          if (filter.sources?.length) {
             conditions = and(
               conditions,
-              sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`,
+              inArray(sql`${newsletterContacts.metadata}->>'source'`, filter.sources),
             )
           }
-        }
 
-        // Add source filter if present
-        if (filter.sources?.length) {
-          conditions = and(
-            conditions,
-            inArray(sql`${newsletterContacts.metadata}->>'source'`, filter.sources),
-          )
+          allContacts = await db
+            .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+            .from(newsletterContacts)
+            .where(conditions!)
         }
-
-        const allContacts = await db
-          .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
-          .from(newsletterContacts)
-          .where(conditions!)
 
         if (!allContacts.length) {
           await db
