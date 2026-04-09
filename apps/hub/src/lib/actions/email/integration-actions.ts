@@ -13,7 +13,6 @@ export {
 } from '@/lib/actions/integrations/integration-actions'
 
 export {
-  getFlodeskConfig,
   getResendConfig,
   getEmailConfig,
 } from '@/lib/actions/integrations/config-helpers'

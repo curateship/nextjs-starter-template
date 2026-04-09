@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { products, newsletterContacts } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
-import { getFlodeskConfig, getEmailConfig } from '@/lib/actions/email/integration-actions'
-import { flodeskService } from '@/lib/actions/email/flodesk-service'
+import { getEmailConfig } from '@/lib/actions/email/integration-actions'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 
 /**
@@ -112,7 +111,11 @@ export async function POST(request: NextRequest) {
         .onConflictDoUpdate({
           target: [newsletterContacts.siteId, newsletterContacts.email],
           set: {
-            metadata: { source: 'lead_magnet', source_product_id: productId },
+            metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
+              source: 'lead_magnet',
+              source_product_id: productId,
+            })}::jsonb`,
+            updatedAt: new Date(),
           },
         })
         .returning({ id: newsletterContacts.id })
@@ -164,35 +167,6 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error('Failed to send lead magnet email:', emailError)
       // Don't fail the request - order was still created
-    }
-
-    // Add to Flodesk if enabled
-    const flodeskSettings = leadMagnetBlock.flodeskSettings
-    if (flodeskSettings?.enabled) {
-      try {
-        // Get Flodesk configuration (site-specific or fallback to env)
-        const flodeskConfig = await getFlodeskConfig(siteId)
-
-        if (flodeskConfig) {
-          // Add subscriber to Flodesk with configured settings
-          const result = await flodeskService.addSubscriber(flodeskConfig, {
-            email,
-            segmentId: flodeskSettings.segmentId || flodeskConfig.segmentId,
-            tags: flodeskSettings.tags || [],
-          })
-
-          if (result.success) {
-            console.log('Added to Flodesk successfully')
-          } else {
-            console.error('Failed to add to Flodesk:', result.error)
-          }
-        } else {
-          console.warn('Flodesk enabled but no API key configured')
-        }
-      } catch (flodeskError) {
-        console.error('Error adding to Flodesk:', flodeskError)
-        // Don't fail the request - email was already sent
-      }
     }
 
     return NextResponse.json({

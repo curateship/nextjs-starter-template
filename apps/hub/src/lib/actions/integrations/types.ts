@@ -1,5 +1,4 @@
 export type IntegrationType =
-  | 'flodesk'
   | 'resend'
   | 'stripe'
   | 'anthropic'
@@ -12,7 +11,6 @@ export type IntegrationType =
  * These fields will be encrypted before writing to the database.
  */
 export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
-  flodesk: ['api_key'],
   resend: ['api_key', 'webhook_secret'],
   stripe: ['secret_key', 'webhook_secret'],
   anthropic: ['api_key'],
@@ -63,16 +61,6 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
       { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
       { key: 'from_email', label: 'From Email', type: 'email', placeholder: 'noreply@yourdomain.com' },
       { key: 'from_name', label: 'From Name', type: 'text', placeholder: 'Your Company' },
-    ],
-  },
-  {
-    type: 'flodesk',
-    label: 'Flodesk',
-    description: 'Email marketing and subscriber management',
-    category: 'email',
-    fields: [
-      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'fk_...', required: true },
-      { key: 'segment_id', label: 'Default Segment ID', type: 'text', placeholder: 'seg_...' },
     ],
   },
   // AI Providers

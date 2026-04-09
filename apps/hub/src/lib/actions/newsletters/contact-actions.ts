@@ -339,13 +339,17 @@ export async function createOrUpsertContact(input: {
       })
       .onConflictDoUpdate({
         target: [newsletterContacts.siteId, newsletterContacts.email],
-        set: { metadata, updatedAt: new Date() },
+        set: {
+          metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb`,
+          updatedAt: new Date(),
+        },
       })
       .returning()
 
     if (!data) {
       return { data: null, error: 'Failed to save contact' }
     }
+
     return { data: rowToContact(data), error: null }
   } catch (err) {
     console.error('createOrUpsertContact error:', err)
@@ -399,7 +403,6 @@ export async function bulkImportContacts(input: {
     // Process in batches of 500
     const batchSize = 500
     let imported = 0
-
     for (let i = 0; i < uniqueContacts.length; i += batchSize) {
       const batch = uniqueContacts.slice(i, i + batchSize)
       const rows = batch.map(c => {
@@ -423,7 +426,7 @@ export async function bulkImportContacts(input: {
           .onConflictDoUpdate({
             target: [newsletterContacts.siteId, newsletterContacts.email],
             set: {
-              metadata: sql`excluded.metadata`,
+              metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || excluded.metadata`,
               updatedAt: new Date(),
             },
           })
@@ -484,6 +487,7 @@ export async function updateContact(
     if (!data) {
       return { data: null, error: 'Failed to update contact' }
     }
+
     return { data: rowToContact(data), error: null }
   } catch (err) {
     console.error('updateContact error:', err)
@@ -947,10 +951,11 @@ export async function unsubscribeContact(
     }
 
     // Intentionally returns success even if no row matched, to prevent email enumeration
-    await db
+    const [updatedContact] = await db
       .update(newsletterContacts)
       .set({ status: 'unsubscribed', updatedAt: new Date() })
       .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.email, emailLower)))
+      .returning({ id: newsletterContacts.id })
 
     return { success: true, error: null }
   } catch (err) {

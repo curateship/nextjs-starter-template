@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { db } from '@/lib/db'
-import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters, productOrders } from '@/lib/db/schema'
-import { eq, and, isNull, desc } from 'drizzle-orm'
+import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
-import { getProductByIdAction } from '@/lib/actions/products/product-actions'
 import { safeDecrypt } from '@/lib/utils/encryption'
 
 /**
  * POST /api/webhooks/resend
- * Handle Resend webhook events (email.opened, email.clicked)
+ * Handle Resend webhook events and keep local contact suppression state in sync.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -74,7 +72,6 @@ export async function POST(request: NextRequest) {
     }
     const { type, data } = body
 
-    const email = data?.to?.[0] || data?.email
     const messageId = data?.email_id || data?.id
 
     // Map Resend event types to our event types
@@ -181,123 +178,10 @@ export async function POST(request: NextRequest) {
         }
       } catch (err) {
         console.error('Error recording newsletter event:', err)
-        // Don't fail the webhook — continue to Flodesk logic below
       }
     }
 
-    // Only handle email.opened and email.clicked for Flodesk integration
-    if (type !== 'email.opened' && type !== 'email.clicked') {
-      return NextResponse.json({ message: 'Event recorded' })
-    }
-
-    if (!email) {
-      return NextResponse.json({ error: 'No email found' }, { status: 400 })
-    }
-
-    console.log(`Resend webhook: ${type}`)
-
-    // Find the most recent order for this email
-    const [order] = await db
-      .select()
-      .from(productOrders)
-      .where(and(
-        eq(productOrders.customerEmail, email.toLowerCase().trim()),
-        isNull(productOrders.flodeskAddedAt),
-      ))
-      .orderBy(desc(productOrders.createdAt))
-      .limit(1)
-
-    if (!order) {
-      console.log(`No pending Flodesk addition found for ${email}`)
-      return NextResponse.json({ message: 'No pending order found' })
-    }
-
-    // Check if order already added to Flodesk
-    if (order.flodeskAddedAt) {
-      console.log(`Already added to Flodesk: ${email}`)
-      return NextResponse.json({ message: 'Already added to Flodesk' })
-    }
-
-    // Get Flodesk configuration for this site
-    const flodeskConfig = await getFlodeskConfig(order.siteId)
-    if (!flodeskConfig) {
-      console.log(`No Flodesk configuration for site ${order.siteId}`)
-      return NextResponse.json({ message: 'Flodesk not configured' })
-    }
-
-    // Get product details for tags
-    const productResult = await getProductByIdAction(order.productId)
-    if (!productResult.data) {
-      console.error(`Product not found: ${order.productId}`)
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 })
-    }
-
-    const product = productResult.data
-    const leadMagnetBlock = (product.content_blocks as Record<string, any>)?.['lead-magnet']
-    const flodeskSettings = leadMagnetBlock?.flodeskSettings || {}
-
-    // Prepare subscriber data
-    const orderMeta = order.metadata as Record<string, any> | null
-    const subscriberData: any = {
-      email,
-      first_name: orderMeta?.first_name || '',
-      last_name: orderMeta?.last_name || '',
-    }
-
-    // Add to segment if configured
-    if (flodeskSettings.segmentId || flodeskConfig.segmentId) {
-      subscriberData.segment_ids = [flodeskSettings.segmentId || flodeskConfig.segmentId]
-    }
-
-    // Add tags if configured
-    if (flodeskSettings.tags && Array.isArray(flodeskSettings.tags) && flodeskSettings.tags.length > 0) {
-      subscriberData.tags = flodeskSettings.tags
-    }
-
-    // Add subscriber to Flodesk
-    try {
-      const flodeskResponse = await fetch('https://api.flodesk.com/v1/subscribers', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${Buffer.from(flodeskConfig.apiKey + ':').toString('base64')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(subscriberData),
-      })
-
-      if (!flodeskResponse.ok) {
-        const errorText = await flodeskResponse.text()
-        console.error(`Flodesk API error: ${flodeskResponse.status} - ${errorText}`)
-        throw new Error(`Flodesk API error: ${flodeskResponse.status}`)
-      }
-
-      const flodeskData = await flodeskResponse.json()
-      console.log(`Added ${email} to Flodesk:`, flodeskData)
-
-      // Mark as added to Flodesk
-      await db
-        .update(productOrders)
-        .set({
-          flodeskAddedAt: new Date(),
-          metadata: {
-            ...orderMeta,
-            flodesk_subscriber_id: flodeskData.id,
-            flodesk_event_type: type,
-          },
-        })
-        .where(eq(productOrders.id, order.id))
-
-      return NextResponse.json({
-        success: true,
-        message: `Subscriber added to Flodesk on ${type}`,
-      })
-    } catch (flodeskError) {
-      console.error('Error adding to Flodesk:', flodeskError)
-      return NextResponse.json(
-        { error: 'Failed to add to Flodesk' },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json({ message: 'Event recorded' })
   } catch (error) {
     console.error('Error in Resend webhook:', error)
     return NextResponse.json(

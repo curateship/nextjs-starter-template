@@ -45,14 +45,26 @@ import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSe
 // --- IntegrationCard ---
 
 interface IntegrationCardProps {
+  siteId: string
   entry: IntegrationRegistryEntry
   integration: SiteIntegration | null
   formValues: Record<string, string>
   onFormChange: (type: string, key: string, value: string) => void
   onToggle: (integrationId: string, isEnabled: boolean) => Promise<void>
+  onSuccess?: (message: string) => void
+  onError?: (message: string) => void
 }
 
-function IntegrationCard({ entry, integration, formValues, onFormChange, onToggle }: IntegrationCardProps) {
+function IntegrationCard({
+  siteId,
+  entry,
+  integration,
+  formValues,
+  onFormChange,
+  onToggle,
+  onSuccess,
+  onError,
+}: IntegrationCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
 
@@ -211,8 +223,9 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       const currentValues = allFormValuesRef.current
       for (const entry of entries) {
         const formValues = currentValues[entry.type] || {}
-        const config: Record<string, any> = {}
-        let hasValues = false
+        const existingIntegration = integrations.find((integration) => integration.integrationType === entry.type)
+        const config: Record<string, any> = { ...(existingIntegration?.config || {}) }
+        let hasValues = !!existingIntegration
         for (const field of entry.fields) {
           if (formValues[field.key]) {
             config[field.key] = formValues[field.key]
@@ -280,11 +293,14 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       {entries.map((entry) => (
         <IntegrationCard
           key={entry.type}
+          siteId={siteId}
           entry={entry}
           integration={getIntegration(entry.type)}
           formValues={allFormValues[entry.type] || {}}
           onFormChange={handleFormChange}
           onToggle={handleToggle}
+          onSuccess={onSuccess}
+          onError={onError}
         />
       ))}
     </div>

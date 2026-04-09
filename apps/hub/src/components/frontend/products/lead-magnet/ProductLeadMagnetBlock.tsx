@@ -15,11 +15,6 @@ interface LeadMagnetBlockContent {
     replyTo?: string
     content?: string
   }
-  flodeskSettings?: {
-    enabled?: boolean
-    segmentId?: string
-    tags?: string[]
-  }
   thankYouMessage?: {
     heading?: string
     message?: string

@@ -1,17 +1,16 @@
 -- Create site_integrations table for managing third-party integrations per site
--- This table supports any integration type (Flodesk, ConvertKit, Mailchimp, etc.)
+-- This table supports any integration type (Resend, ConvertKit, Mailchimp, etc.)
 -- using a flexible JSONB config column
 
 CREATE TABLE site_integrations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
 
-  -- Integration type: 'flodesk', 'convertkit', 'mailchimp', 'resend', etc.
+  -- Integration type: 'resend', 'convertkit', 'mailchimp', etc.
   integration_type VARCHAR(50) NOT NULL,
 
   -- Flexible JSON config for integration-specific settings
   -- Examples:
-  --   Flodesk: { "api_key": "fk_xxx", "segment_id": "seg_xxx" }
   --   ConvertKit: { "api_key": "ck_xxx", "form_id": "123" }
   --   Resend: { "api_key": "re_xxx", "from_email": "hello@custom.com", "from_name": "Brand" }
   config JSONB NOT NULL,

@@ -34,8 +34,8 @@ CREATE TABLE product_orders (
   -- Integration tracking
   -- When email was sent
   email_sent_at TIMESTAMP WITH TIME ZONE,
-  -- When added to Flodesk (or other email platform)
-  flodesk_added_at TIMESTAMP WITH TIME ZONE,
+  -- When added to an external email platform
+  email_platform_added_at TIMESTAMP WITH TIME ZONE,
 
   -- Additional metadata
   -- Store user agent, referrer, IP, custom data, etc.
@@ -78,6 +78,6 @@ CREATE TRIGGER update_product_orders_updated_at
 -- Add comments for documentation
 COMMENT ON TABLE product_orders IS 'Universal table for tracking both free product signups and paid purchases with engagement metrics';
 COMMENT ON COLUMN product_orders.order_type IS 'Distinguishes between free lead magnet signups and paid purchases';
-COMMENT ON COLUMN product_orders.access_token IS 'Unique token used in email links for click tracking and Flodesk integration';
+COMMENT ON COLUMN product_orders.access_token IS 'Unique token used in email links for click tracking and email platform integration';
 COMMENT ON COLUMN product_orders.click_count IS 'Total number of times user clicked tracked links (engagement metric)';
 COMMENT ON COLUMN product_orders.metadata IS 'Additional data like user agent, referrer, UTM params, custom fields, etc.';

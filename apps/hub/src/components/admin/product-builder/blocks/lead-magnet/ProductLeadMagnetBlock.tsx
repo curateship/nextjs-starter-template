@@ -2,13 +2,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { BlockTabs } from '@/components/admin/shared/BlockTabs'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Check, AlertTriangle } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { Check } from 'lucide-react'
+import { useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -31,8 +29,6 @@ export function ProductLeadMagnetBlock({
   blockId,
   onBack,
 }: ProductLeadMagnetBlockProps) {
-  const [newTag, setNewTag] = useState('')
-
   const leadMagnetStyle = content.leadMagnetStyle || 'default'
   const styleConfig = content.styleConfig || {}
   const currentStyleConfig = styleConfig[leadMagnetStyle] || {}
@@ -67,25 +63,6 @@ export function ProductLeadMagnetBlock({
       })
     },
   })
-
-  const handleAddTag = () => {
-    if (newTag.trim()) {
-      onContentChange('flodeskSettings', {
-        ...content.flodeskSettings,
-        tags: [...(content.flodeskSettings?.tags || []), newTag.trim()],
-      })
-      setNewTag('')
-    }
-  }
-
-  const handleRemoveTag = (index: number) => {
-    const updated = [...(content.flodeskSettings?.tags || [])]
-    updated.splice(index, 1)
-    onContentChange('flodeskSettings', {
-      ...content.flodeskSettings,
-      tags: updated,
-    })
-  }
 
   return (
     <BlockTabs
@@ -319,98 +296,6 @@ export function ProductLeadMagnetBlock({
                   { key: 'buttonText', label: 'Button' },
                 ]}
               />
-
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Flodesk</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 flex items-start gap-2 text-sm text-amber-800">
-                    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      Flodesk requires an API key configured in your site&apos;s{' '}
-                      <a href={`/admin/sites/${siteId}/settings`} className="underline font-medium">
-                        Integration settings
-                      </a>.
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="flodeskEnabled"
-                      checked={content.flodeskSettings?.enabled || false}
-                      onCheckedChange={(checked) =>
-                        onContentChange('flodeskSettings', {
-                          ...content.flodeskSettings,
-                          enabled: !!checked,
-                        })
-                      }
-                    />
-                    <Label htmlFor="flodeskEnabled">
-                      Enable Flodesk Integration
-                    </Label>
-                  </div>
-
-                  {content.flodeskSettings?.enabled && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="segmentId">Segment ID</Label>
-                        <Input
-                          id="segmentId"
-                          value={content.flodeskSettings?.segmentId || ''}
-                          onChange={(e) =>
-                            onContentChange('flodeskSettings', {
-                              ...content.flodeskSettings,
-                              segmentId: e.target.value,
-                            })
-                          }
-                          placeholder="seg_..."
-                        />
-                        <p className="mt-1 text-sm text-gray-600">
-                          Get this from your Flodesk account settings
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Tags</Label>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {content.flodeskSettings?.tags?.map((tag: string, index: number) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm"
-                            >
-                              <span>{tag}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveTag(index)}
-                                className="text-indigo-600 hover:text-indigo-800"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                          <Input
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            placeholder="Add a tag"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                handleAddTag()
-                              }
-                            }}
-                          />
-                          <Button type="button" onClick={handleAddTag}>
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
             </>
           ),
         },

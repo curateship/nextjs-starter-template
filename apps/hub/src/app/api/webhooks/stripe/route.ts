@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { siteIntegrations, newsletterContacts, emailAutomationEnrollments, emailAutomations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 
 /**
@@ -100,10 +100,11 @@ export async function POST(req: NextRequest) {
               .onConflictDoUpdate({
                 target: [newsletterContacts.siteId, newsletterContacts.email],
                 set: {
-                  metadata: {
+                  metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
                     source: 'paid_purchase',
                     source_product_id: sessionProductId || null,
-                  },
+                  })}::jsonb`,
+                  updatedAt: new Date(),
                 },
               })
               .returning({ id: newsletterContacts.id })

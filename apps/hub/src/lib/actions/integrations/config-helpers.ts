@@ -28,28 +28,6 @@ export async function getStripeConfig(siteId: string): Promise<{
 }
 
 /**
- * Get Flodesk config for a site from site integrations.
- */
-export async function getFlodeskConfig(siteId: string): Promise<{
-  apiKey: string
-  segmentId?: string
-} | null> {
-  const integration = await getSiteIntegration(siteId, 'flodesk')
-
-  if (integration && integration.isEnabled) {
-    const { api_key, segment_id } = integration.config
-    if (api_key) {
-      return {
-        apiKey: api_key,
-        segmentId: segment_id,
-      }
-    }
-  }
-
-  return null
-}
-
-/**
  * Get email provider config for a site from site integrations.
  * Checks enabled email-type integrations (resend, then future providers).
  */

@@ -40,7 +40,6 @@ export const productOrders = pgTable('product_orders', {
   clickedAt: timestamp('clicked_at', { withTimezone: true }),
   clickCount: integer('click_count').default(0),
   emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
-  flodeskAddedAt: timestamp('flodesk_added_at', { withTimezone: true }),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

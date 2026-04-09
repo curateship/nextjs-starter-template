@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  getOrderByToken,
-  markLinkClicked,
-  markFlodeskAdded,
-} from '@/lib/actions/email/order-actions'
-import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
-import { flodeskService } from '@/lib/actions/email/flodesk-service'
-import { getProductByIdAction } from '@/lib/actions/products/product-actions'
+import { getOrderByToken, markLinkClicked } from '@/lib/actions/email/order-actions'
 
 /**
  * GET /api/track/click/[token]?redirect=https://example.com
- * Track email link click for analytics and optionally add to Flodesk
+ * Track email link click for analytics
  */
 export async function GET(
   request: NextRequest,
@@ -32,52 +25,8 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 404 })
     }
 
-    // Check if this is the first click
-    const isFirstClick = !order.clicked_at
-
     // Mark link as clicked (increments click_count and sets clicked_at if first time)
     await markLinkClicked(token)
-
-    // If first click, add to Flodesk for email marketing
-    if (isFirstClick && !order.flodesk_added_at) {
-      try {
-        // Get Flodesk configuration for this site
-        const flodeskConfig = await getFlodeskConfig(order.site_id)
-
-        if (flodeskConfig) {
-          // Get product details for tag generation
-          const productResult = await getProductByIdAction(order.product_id)
-
-          if (productResult.data) {
-            const product = productResult.data
-            // Generate tag from product slug
-            const tag = flodeskService.generateLeadMagnetTag(product.slug)
-
-            // Add to Flodesk
-            const flodeskResult = await flodeskService.addSubscriber(
-              flodeskConfig,
-              {
-                email: order.customer_email,
-                segmentId: flodeskConfig.segmentId,
-                tags: [tag],
-              }
-            )
-
-            if (flodeskResult.success) {
-              // Mark as added to Flodesk
-              await markFlodeskAdded(order.id)
-              console.log('Successfully added to Flodesk:', order.customer_email)
-            } else {
-              console.error('Failed to add to Flodesk:', flodeskResult.error)
-              // Don't fail the request - just log the error
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error adding to Flodesk:', error)
-        // Don't fail the request - Flodesk integration is optional
-      }
-    }
 
     // Redirect to destination URL if provided
     if (redirectUrl) {

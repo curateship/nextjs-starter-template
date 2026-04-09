@@ -86,11 +86,6 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Collect email addresses with lead magnet offer',
     defaultContent: {
       heading: 'Get This Free Resource',
-      email: {
-        flodeskEnabled: false,
-        flodeskFormUrl: '',
-        flodeskSegmentIds: []
-      },
       benefits: []
     },
     conflictsWith: ['product-checkout']

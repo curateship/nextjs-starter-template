@@ -50,7 +50,6 @@ export interface ProductOrder {
   clicked_at: string | null
   click_count: number
   email_sent_at: string | null
-  flodesk_added_at: string | null
   metadata: Record<string, any> | null
   created_at: string
   updated_at: string
@@ -82,7 +81,6 @@ function toProductOrder(row: typeof productOrders.$inferSelect): ProductOrder {
     clicked_at: row.clickedAt?.toISOString() ?? null,
     click_count: row.clickCount ?? 0,
     email_sent_at: row.emailSentAt?.toISOString() ?? null,
-    flodesk_added_at: row.flodeskAddedAt?.toISOString() ?? null,
     metadata: row.metadata as Record<string, any> | null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -368,24 +366,6 @@ export async function markLinkClicked(token: string): Promise<ProductOrder> {
     return toProductOrder(updated)
   } catch (error) {
     console.error('Error in markLinkClicked:', error)
-    throw error
-  }
-}
-
-/**
- * Mark Flodesk addition for an order
- */
-export async function markFlodeskAdded(orderId: string): Promise<void> {
-  try {
-    await db
-      .update(productOrders)
-      .set({
-        flodeskAddedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(productOrders.id, orderId))
-  } catch (error) {
-    console.error('Error in markFlodeskAdded:', error)
     throw error
   }
 }
