@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { getFlodeskConfig } from '@/lib/actions/email/integration-actions'
 import { getProductByIdAction } from '@/lib/actions/products/product-actions'
+import { safeDecrypt } from '@/lib/utils/encryption'
 
 /**
  * POST /api/webhooks/resend
@@ -47,7 +48,9 @@ export async function POST(request: NextRequest) {
     let verified = false
     for (const integration of integrations) {
       const config = integration.config as Record<string, any>
-      const secret = config?.webhook_secret
+      const secret = typeof config?.webhook_secret === 'string'
+        ? safeDecrypt(config.webhook_secret)
+        : undefined
       if (!secret) continue
 
       const PREFIX = 'whsec' + '_'
