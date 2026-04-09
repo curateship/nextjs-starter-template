@@ -1,0 +1,3 @@
+ALTER TABLE newsletter_segments
+ADD COLUMN IF NOT EXISTS segment_type VARCHAR(20) NOT NULL DEFAULT 'static',
+ADD COLUMN IF NOT EXISTS dynamic_rule JSONB;

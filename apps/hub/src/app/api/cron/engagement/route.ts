@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterEvents } from '@/lib/db/schema'
 import { eq, and, inArray, gte } from 'drizzle-orm'
+import { syncAllDynamicSegments } from '@/lib/actions/newsletters/segment-actions'
 
 /**
  * GET /api/cron/engagement
@@ -88,6 +89,8 @@ export async function GET(request: NextRequest) {
         updated++
       }
     }
+
+    await syncAllDynamicSegments()
 
     return NextResponse.json({ message: `Updated ${updated} contact scores`, updated })
   } catch (err) {

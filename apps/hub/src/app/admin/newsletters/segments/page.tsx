@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,7 +19,20 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText, X } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getSegmentsWithCounts,
@@ -30,6 +44,7 @@ import {
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { formatSegmentDynamicRule, type SegmentDynamicRuleOperator, type SegmentType } from "@/lib/newsletters/segment-rules"
 
 export default function SegmentsPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -55,6 +70,10 @@ export default function SegmentsPage() {
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null)
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
+  const [formSegmentType, setFormSegmentType] = useState<SegmentType>("static")
+  const [formDynamicOperator, setFormDynamicOperator] = useState<SegmentDynamicRuleOperator>("is")
+  const [formDynamicDays, setFormDynamicDays] = useState("30")
+  const [hasDynamicCondition, setHasDynamicCondition] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -91,6 +110,10 @@ export default function SegmentsPage() {
     setEditingSegment(null)
     setFormName("")
     setFormDescription("")
+    setFormSegmentType("static")
+    setFormDynamicOperator("is")
+    setFormDynamicDays("30")
+    setHasDynamicCondition(false)
     setModalOpen(true)
   }
 
@@ -98,17 +121,32 @@ export default function SegmentsPage() {
     setEditingSegment(segment)
     setFormName(segment.name)
     setFormDescription(segment.description || "")
+    setFormSegmentType(segment.segment_type)
+    setFormDynamicOperator(segment.dynamic_rule?.operator ?? "is")
+    setFormDynamicDays(String(segment.dynamic_rule?.days ?? 30))
+    setHasDynamicCondition(Boolean(segment.dynamic_rule))
     setModalOpen(true)
   }
 
   async function handleSave() {
     if (!currentSite?.id || !formName.trim()) return
+
+    const days = Number(formDynamicDays)
+    if (formSegmentType === "dynamic" && (!Number.isInteger(days) || days < 1)) {
+      setError("Dynamic segments need a whole number of days")
+      return
+    }
+
     setSaving(true)
 
     if (editingSegment) {
       const { error: updateError } = await updateSegment(editingSegment.id, {
         name: formName.trim(),
         description: formDescription,
+        segmentType: formSegmentType,
+        dynamicRule: formSegmentType === "dynamic" && hasDynamicCondition
+          ? { type: "last_engaged_within_days", operator: formDynamicOperator, days }
+          : null,
       })
       if (updateError) {
         setError(updateError)
@@ -120,6 +158,10 @@ export default function SegmentsPage() {
         siteId: currentSite.id,
         name: formName.trim(),
         description: formDescription,
+        segmentType: formSegmentType,
+        dynamicRule: formSegmentType === "dynamic" && hasDynamicCondition
+          ? { type: "last_engaged_within_days", operator: formDynamicOperator, days }
+          : null,
       })
       if (createError) {
         setError(createError)
@@ -222,6 +264,10 @@ export default function SegmentsPage() {
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
+
+  const invalidDynamicDays = formSegmentType === "dynamic" && (
+    !hasDynamicCondition || !Number.isInteger(Number(formDynamicDays)) || Number(formDynamicDays) < 1
+  )
 
   return (
     <>
@@ -375,9 +421,17 @@ export default function SegmentsPage() {
                           href={`/admin/newsletters/segments/${segment.id}`}
                           className="hover:opacity-80 transition-opacity"
                         >
-                          <h4 className="font-medium text-sm hover:underline">{segment.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-sm hover:underline">{segment.name}</h4>
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                              {segment.segment_type}
+                            </Badge>
+                          </div>
                           {segment.description && (
                             <p className="text-xs text-muted-foreground">{segment.description}</p>
+                          )}
+                          {segment.segment_type === "dynamic" && segment.dynamic_rule && (
+                            <p className="text-xs text-muted-foreground">{formatSegmentDynamicRule(segment.dynamic_rule)}</p>
                           )}
                         </Link>
                       </div>
@@ -467,11 +521,126 @@ export default function SegmentsPage() {
                 rows={2}
               />
             </div>
+            <div className="space-y-3">
+              <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={formSegmentType === "static"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setFormSegmentType("static")
+                      setHasDynamicCondition(false)
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Static</span>
+                    <p className="text-xs text-muted-foreground">
+                      Manual segment membership.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={formSegmentType === "dynamic"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setFormSegmentType("dynamic")
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Dynamic</span>
+                    <p className="text-xs text-muted-foreground">
+                      Membership updates from conditions.
+                    </p>
+                  </div>
+                </label>
+              </div>
+              {formSegmentType === "dynamic" && (
+                <div className="pt-6 space-y-6">
+                  {hasDynamicCondition ? (
+                    <div className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-medium">Last engaged</h3>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setHasDynamicCondition(false)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                          <Select value={formDynamicOperator} onValueChange={(value: SegmentDynamicRuleOperator) => setFormDynamicOperator(value)}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="is">Is</SelectItem>
+                              <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            id="segment-dynamic-days"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={formDynamicDays}
+                            onChange={(e) => setFormDynamicDays(e.target.value)}
+                            placeholder="Days"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Contacts are added and removed automatically based on engagement.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                      No conditions added yet.
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="outline" disabled={hasDynamicCondition}>
+                          Add Condition
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setHasDynamicCondition(true)
+                            if (!formDynamicDays) setFormDynamicDays("30")
+                          }}
+                        >
+                          Last engaged
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              )}
+              {editingSegment && editingSegment.segment_type !== formSegmentType && (
+                <p className="text-xs text-muted-foreground">
+                  {formSegmentType === "dynamic"
+                    ? "Switching to dynamic will replace the current members with contacts matching the rule."
+                    : "Switching to static will freeze the current members as a manual list."}
+                </p>
+              )}
+            </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={saving || !formName.trim()}>
+              <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicDays}>
                 {saving ? "Saving..." : editingSegment ? "Update Segment" : "Create Segment"}
               </Button>
             </div>

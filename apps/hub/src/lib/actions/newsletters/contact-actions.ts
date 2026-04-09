@@ -13,6 +13,7 @@ import {
   type ContactFilterGroup,
   type ContactFilterRule,
 } from '@/lib/actions/newsletters/contact-filters'
+import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
 
 export interface CrmContact {
   id: string
@@ -403,6 +404,7 @@ export async function bulkImportContacts(input: {
     // Process in batches of 500
     const batchSize = 500
     let imported = 0
+    const importedContactIds: string[] = []
     for (let i = 0; i < uniqueContacts.length; i += batchSize) {
       const batch = uniqueContacts.slice(i, i + batchSize)
       const rows = batch.map(c => {
@@ -433,10 +435,15 @@ export async function bulkImportContacts(input: {
           .returning({ id: newsletterContacts.id })
 
         imported += result.length
+        importedContactIds.push(...result.map((row) => row.id))
       } catch (err) {
         console.error('bulkImportContacts batch error:', err)
         return { imported, skipped, error: 'Failed to import batch' }
       }
+    }
+
+    if (importedContactIds.length) {
+      await syncDynamicSegmentsForContacts(importedContactIds)
     }
 
     return { imported, skipped, error: null }

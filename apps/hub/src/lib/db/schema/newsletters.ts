@@ -76,6 +76,8 @@ export const newsletterSegments = pgTable('newsletter_segments', {
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description').default(''),
+  segmentType: varchar('segment_type', { length: 20 }).notNull().default('static'),
+  dynamicRule: jsonb('dynamic_rule'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

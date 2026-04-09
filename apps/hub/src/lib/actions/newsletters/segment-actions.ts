@@ -5,12 +5,15 @@ import { db } from '@/lib/db'
 import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { findActiveAutomations } from './automation-actions'
+import { formatSegmentDynamicRule, normalizeSegmentDynamicRule, type SegmentDynamicRule, type SegmentType } from '@/lib/newsletters/segment-rules'
 
 export interface Segment {
   id: string
   site_id: string
   name: string
   description: string
+  segment_type: SegmentType
+  dynamic_rule: SegmentDynamicRule | null
   created_at: string
   updated_at: string
 }
@@ -32,8 +35,194 @@ function rowToSegment(row: any): Segment {
     site_id: row.siteId,
     name: row.name,
     description: (row.description as string) ?? '',
+    segment_type: row.segmentType === 'dynamic' ? 'dynamic' : 'static',
+    dynamic_rule: normalizeSegmentDynamicRule(row.dynamicRule),
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
+  }
+}
+
+function normalizeSegmentType(value: unknown): SegmentType {
+  return value === 'dynamic' ? 'dynamic' : 'static'
+}
+
+function validateSegmentInput(
+  input: { name?: string; segmentType?: unknown; dynamicRule?: unknown },
+  requireName = false
+): { name?: string; segmentType: SegmentType; dynamicRule: SegmentDynamicRule | null; error: string | null } {
+  const name = typeof input.name === 'string' ? input.name.trim() : undefined
+  if (requireName && !name) {
+    return { name, segmentType: 'static', dynamicRule: null, error: 'Segment name is required' }
+  }
+  if (!requireName && input.name !== undefined && !name) {
+    return { name, segmentType: 'static', dynamicRule: null, error: 'Segment name is required' }
+  }
+
+  const segmentType = normalizeSegmentType(input.segmentType)
+  const dynamicRule = normalizeSegmentDynamicRule(input.dynamicRule)
+
+  if (segmentType === 'dynamic' && !dynamicRule) {
+    return { name, segmentType, dynamicRule: null, error: 'Dynamic segments need a valid rule' }
+  }
+
+  if (segmentType === 'static' && input.dynamicRule !== undefined && dynamicRule) {
+    return { name, segmentType, dynamicRule: null, error: 'Static segments cannot have a dynamic rule' }
+  }
+
+  return {
+    name,
+    segmentType,
+    dynamicRule: segmentType === 'dynamic' ? dynamicRule : null,
+    error: null,
+  }
+}
+
+async function enrollSegmentAutomationContacts(
+  executor: any,
+  siteId: string,
+  segmentId: string,
+  contactIds: string[]
+) {
+  if (!contactIds.length) return
+
+  const automations = await findActiveAutomations(siteId, 'segment_added', segmentId)
+  if (!automations.length) return
+
+  const enrollmentValues = automations.flatMap((automation) =>
+    contactIds.map((contactId) => ({
+      automationId: automation.id,
+      contactId,
+      metadata: {
+        source: 'segment_added',
+        segment_id: segmentId,
+      },
+    }))
+  )
+
+  if (!enrollmentValues.length) return
+
+  await executor
+    .insert(emailAutomationEnrollments)
+    .values(enrollmentValues)
+    .onConflictDoNothing()
+}
+
+async function syncDynamicSegmentMembership(
+  executor: any,
+  segment: { id: string; siteId: string; segmentType: string; dynamicRule: unknown },
+  options?: { contactIds?: string[] }
+) {
+  if (segment.segmentType !== 'dynamic') return
+
+  const dynamicRule = normalizeSegmentDynamicRule(segment.dynamicRule)
+  if (!dynamicRule) return
+
+  const normalizedContactIds = options?.contactIds?.filter((id) => UUID_REGEX.test(id)) ?? []
+  const useScopedContacts = normalizedContactIds.length > 0
+  const cutoff = new Date(Date.now() - dynamicRule.days * 24 * 60 * 60 * 1000)
+
+  const matchesRuleCondition = dynamicRule.operator === 'is'
+    ? and(
+        sql`${newsletterContacts.lastEngagedAt} IS NOT NULL`,
+        sql`${newsletterContacts.lastEngagedAt} >= ${cutoff}`,
+      )
+    : or(
+        sql`${newsletterContacts.lastEngagedAt} IS NULL`,
+        sql`${newsletterContacts.lastEngagedAt} < ${cutoff}`,
+      )
+
+  const matchingContacts = await executor
+    .select({ id: newsletterContacts.id })
+    .from(newsletterContacts)
+    .where(and(
+      eq(newsletterContacts.siteId, segment.siteId),
+      matchesRuleCondition!,
+      ...(useScopedContacts ? [inArray(newsletterContacts.id, normalizedContactIds)] : []),
+    ))
+
+  const existingMemberships = await executor
+    .select({ contactId: newsletterSegmentContacts.contactId })
+    .from(newsletterSegmentContacts)
+    .where(and(
+      eq(newsletterSegmentContacts.segmentId, segment.id),
+      ...(useScopedContacts ? [inArray(newsletterSegmentContacts.contactId, normalizedContactIds)] : []),
+    ))
+
+  const matchingIds = new Set<string>(matchingContacts.map((row: { id: string }) => row.id))
+  const existingIds = new Set<string>(existingMemberships.map((row: { contactId: string }) => row.contactId))
+
+  const toAdd: string[] = Array.from(matchingIds).filter((id) => !existingIds.has(id))
+  const toRemove: string[] = Array.from(existingIds).filter((id) => !matchingIds.has(id))
+
+  if (toAdd.length) {
+    const inserted = await executor
+      .insert(newsletterSegmentContacts)
+      .values(toAdd.map((contactId) => ({ segmentId: segment.id, contactId })))
+      .onConflictDoNothing()
+      .returning({ contactId: newsletterSegmentContacts.contactId })
+
+    await enrollSegmentAutomationContacts(executor, segment.siteId, segment.id, inserted.map((row: { contactId: string }) => row.contactId))
+  }
+
+  if (toRemove.length) {
+    await executor
+      .delete(newsletterSegmentContacts)
+      .where(and(
+        eq(newsletterSegmentContacts.segmentId, segment.id),
+        inArray(newsletterSegmentContacts.contactId, toRemove),
+      ))
+  }
+}
+
+export async function syncDynamicSegmentsForContacts(contactIds: string[]): Promise<void> {
+  const ids = [...new Set(contactIds.filter((id) => UUID_REGEX.test(id)))]
+  if (!ids.length) return
+
+  const siteRows = await db
+    .select({ id: newsletterContacts.id, siteId: newsletterContacts.siteId })
+    .from(newsletterContacts)
+    .where(inArray(newsletterContacts.id, ids))
+
+  const idsBySite = new Map<string, string[]>()
+  for (const row of siteRows) {
+    const existing = idsBySite.get(row.siteId) || []
+    existing.push(row.id)
+    idsBySite.set(row.siteId, existing)
+  }
+
+  for (const [siteId, scopedIds] of idsBySite.entries()) {
+    const segments = await db
+      .select({
+        id: newsletterSegments.id,
+        siteId: newsletterSegments.siteId,
+        segmentType: newsletterSegments.segmentType,
+        dynamicRule: newsletterSegments.dynamicRule,
+      })
+      .from(newsletterSegments)
+      .where(and(
+        eq(newsletterSegments.siteId, siteId),
+        eq(newsletterSegments.segmentType, 'dynamic'),
+      ))
+
+    for (const segment of segments) {
+      await syncDynamicSegmentMembership(db, segment, { contactIds: scopedIds })
+    }
+  }
+}
+
+export async function syncAllDynamicSegments(): Promise<void> {
+  const segments = await db
+    .select({
+      id: newsletterSegments.id,
+      siteId: newsletterSegments.siteId,
+      segmentType: newsletterSegments.segmentType,
+      dynamicRule: newsletterSegments.dynamicRule,
+    })
+    .from(newsletterSegments)
+    .where(eq(newsletterSegments.segmentType, 'dynamic'))
+
+  for (const segment of segments) {
+    await syncDynamicSegmentMembership(db, segment)
   }
 }
 
@@ -131,6 +320,8 @@ export async function createSegment(input: {
   siteId: string
   name: string
   description?: string
+  segmentType?: SegmentType
+  dynamicRule?: SegmentDynamicRule | null
 }): Promise<{ data: Segment | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.siteId)) return { data: null, error: 'Invalid site ID' }
@@ -142,16 +333,30 @@ export async function createSegment(input: {
       return { data: null, error: 'Access denied' }
     }
 
-    if (!input.name?.trim()) return { data: null, error: 'Segment name is required' }
+    const validated = validateSegmentInput(input, true)
+    if (validated.error || !validated.name) return { data: null, error: validated.error || 'Invalid segment' }
+    const segmentName = validated.name
 
-    const [data] = await db
-      .insert(newsletterSegments)
-      .values({
-        siteId: input.siteId,
-        name: input.name.trim(),
-        description: input.description || '',
-      })
-      .returning()
+    const data = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(newsletterSegments)
+        .values({
+          siteId: input.siteId,
+          name: segmentName,
+          description: input.description || '',
+          segmentType: validated.segmentType,
+          dynamicRule: validated.dynamicRule,
+        })
+        .returning()
+
+      if (!created) return null
+
+      if (validated.segmentType === 'dynamic') {
+        await syncDynamicSegmentMembership(tx, created)
+      }
+
+      return created
+    })
 
     if (!data) {
       return { data: null, error: 'Failed to create segment' }
@@ -166,7 +371,7 @@ export async function createSegment(input: {
 
 export async function updateSegment(
   segmentId: string,
-  updates: { name?: string; description?: string }
+  updates: { name?: string; description?: string; segmentType?: SegmentType; dynamicRule?: SegmentDynamicRule | null }
 ): Promise<{ data: Segment | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
@@ -175,7 +380,11 @@ export async function updateSegment(
     if (!user) return { data: null, error: 'Not authenticated' }
 
     const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
+      .select({
+        siteId: newsletterSegments.siteId,
+        segmentType: newsletterSegments.segmentType,
+        dynamicRule: newsletterSegments.dynamicRule,
+      })
       .from(newsletterSegments)
       .where(eq(newsletterSegments.id, segmentId))
       .limit(1)
@@ -186,15 +395,41 @@ export async function updateSegment(
       return { data: null, error: 'Access denied' }
     }
 
-    const allowedFields: Record<string, any> = { updatedAt: new Date() }
-    if (updates.name !== undefined) allowedFields.name = updates.name
-    if (updates.description !== undefined) allowedFields.description = updates.description
+    const currentSegmentType = normalizeSegmentType(segment.segmentType)
+    const nextSegmentType = updates.segmentType !== undefined ? normalizeSegmentType(updates.segmentType) : currentSegmentType
+    const ruleSource = nextSegmentType === 'dynamic'
+      ? (updates.dynamicRule !== undefined ? updates.dynamicRule : segment.dynamicRule)
+      : null
+    const validated = validateSegmentInput({
+      name: updates.name,
+      segmentType: nextSegmentType,
+      dynamicRule: ruleSource,
+    })
+    if (validated.error) return { data: null, error: validated.error }
 
-    const [data] = await db
-      .update(newsletterSegments)
-      .set(allowedFields)
-      .where(eq(newsletterSegments.id, segmentId))
-      .returning()
+    const allowedFields: Record<string, any> = { updatedAt: new Date() }
+    if (updates.name !== undefined) allowedFields.name = updates.name.trim()
+    if (updates.description !== undefined) allowedFields.description = updates.description
+    if (updates.segmentType !== undefined) allowedFields.segmentType = nextSegmentType
+    if (updates.dynamicRule !== undefined || updates.segmentType !== undefined) {
+      allowedFields.dynamicRule = nextSegmentType === 'dynamic' ? validated.dynamicRule : null
+    }
+
+    const data = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(newsletterSegments)
+        .set(allowedFields)
+        .where(eq(newsletterSegments.id, segmentId))
+        .returning()
+
+      if (!updated) return null
+
+      if (nextSegmentType === 'dynamic') {
+        await syncDynamicSegmentMembership(tx, updated)
+      }
+
+      return updated
+    })
 
     if (!data) {
       return { data: null, error: 'Failed to update segment' }
@@ -317,12 +552,13 @@ export async function addContactsToSegment(
     if (!user) return { added: 0, error: 'Not authenticated' }
 
     const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
+      .select({ siteId: newsletterSegments.siteId, segmentType: newsletterSegments.segmentType })
       .from(newsletterSegments)
       .where(eq(newsletterSegments.id, segmentId))
       .limit(1)
 
     if (!segment) return { added: 0, error: 'Segment not found' }
+    if (segment.segmentType === 'dynamic') return { added: 0, error: 'Dynamic segment membership is automatic' }
 
     if (!await verifySiteOwnership(segment.siteId, user.id)) {
       return { added: 0, error: 'Access denied' }
@@ -343,29 +579,7 @@ export async function addContactsToSegment(
       .onConflictDoNothing()
       .returning({ contactId: newsletterSegmentContacts.contactId })
 
-    if (result.length > 0) {
-      const automations = await findActiveAutomations(segment.siteId, 'segment_added', segmentId)
-
-      if (automations.length > 0) {
-        const enrollmentValues = automations.flatMap(automation =>
-          result.map(entry => ({
-            automationId: automation.id,
-            contactId: entry.contactId,
-            metadata: {
-              source: 'segment_added',
-              segment_id: segmentId,
-            },
-          }))
-        )
-
-        if (enrollmentValues.length > 0) {
-          await db
-            .insert(emailAutomationEnrollments)
-            .values(enrollmentValues)
-            .onConflictDoNothing()
-        }
-      }
-    }
+    await enrollSegmentAutomationContacts(db, segment.siteId, segmentId, result.map((entry) => entry.contactId))
 
     return { added: result.length, error: null }
   } catch (err) {
@@ -389,12 +603,13 @@ export async function removeContactsFromSegment(
     if (!user) return { removed: 0, error: 'Not authenticated' }
 
     const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
+      .select({ siteId: newsletterSegments.siteId, segmentType: newsletterSegments.segmentType })
       .from(newsletterSegments)
       .where(eq(newsletterSegments.id, segmentId))
       .limit(1)
 
     if (!segment) return { removed: 0, error: 'Segment not found' }
+    if (segment.segmentType === 'dynamic') return { removed: 0, error: 'Dynamic segment membership is automatic' }
 
     if (!await verifySiteOwnership(segment.siteId, user.id)) {
       return { removed: 0, error: 'Access denied' }
@@ -681,12 +896,13 @@ export async function searchContactsForSegment(
     if (!user) return { data: null, error: 'Not authenticated' }
 
     const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
+      .select({ siteId: newsletterSegments.siteId, segmentType: newsletterSegments.segmentType })
       .from(newsletterSegments)
       .where(eq(newsletterSegments.id, segmentId))
       .limit(1)
 
     if (!segment) return { data: null, error: 'Segment not found' }
+    if (segment.segmentType === 'dynamic') return { data: null, error: 'Dynamic segment membership is automatic' }
     if (!await verifySiteOwnership(segment.siteId, user.id)) {
       return { data: null, error: 'Access denied' }
     }
@@ -723,3 +939,5 @@ export async function searchContactsForSegment(
     return { data: null, error: 'Server error' }
   }
 }
+
+export { formatSegmentDynamicRule }

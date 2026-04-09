@@ -5,6 +5,7 @@ import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters } f
 import { eq, and } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
+import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
 
 /**
  * POST /api/webhooks/resend
@@ -174,6 +175,8 @@ export async function POST(request: NextRequest) {
               .update(newsletterContacts)
               .set({ lastEngagedAt: new Date() })
               .where(eq(newsletterContacts.id, existingEvent.contactId))
+
+            await syncDynamicSegmentsForContacts([existingEvent.contactId])
           }
         }
       } catch (err) {

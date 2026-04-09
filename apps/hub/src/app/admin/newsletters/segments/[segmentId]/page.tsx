@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -10,6 +10,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,6 +21,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Mail, Users, Filter, Zap, FileText, Trash2, Plus, X, Search, Settings } from "lucide-react"
 import {
   LineChart,
@@ -43,6 +57,7 @@ import {
   addContactsToSegment,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { formatSegmentDynamicRule, type SegmentDynamicRuleOperator, type SegmentType } from "@/lib/newsletters/segment-rules"
 
 export default function SegmentDashboardPage() {
   const params = useParams()
@@ -64,7 +79,7 @@ export default function SegmentDashboardPage() {
   const [loadingMore, setLoadingMore] = useState(false)
 
   // Edit form state
-  const [editForm, setEditForm] = useState({ name: "", description: "" })
+  const [editForm, setEditForm] = useState({ name: "", description: "", segmentType: "static" as SegmentType, dynamicOperator: "is" as SegmentDynamicRuleOperator, dynamicDays: "30", hasDynamicCondition: false })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -128,6 +143,10 @@ export default function SegmentDashboardPage() {
       setEditForm({
         name: segmentRes.data.name,
         description: segmentRes.data.description,
+        segmentType: segmentRes.data.segment_type,
+        dynamicOperator: segmentRes.data.dynamic_rule?.operator ?? "is",
+        dynamicDays: String(segmentRes.data.dynamic_rule?.days ?? 30),
+        hasDynamicCondition: Boolean(segmentRes.data.dynamic_rule),
       })
     } catch {
       setError("Failed to load segment data")
@@ -164,15 +183,31 @@ export default function SegmentDashboardPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!segment) return
+    if (invalidDynamicDays) {
+      setError("Dynamic segments need a whole number of days")
+      return
+    }
     setSaving(true)
 
     const { data, error } = await updateSegment(segment.id, {
       name: editForm.name,
       description: editForm.description,
+      segmentType: editForm.segmentType,
+      dynamicRule: editForm.segmentType === "dynamic" && editForm.hasDynamicCondition
+        ? { type: "last_engaged_within_days", operator: editForm.dynamicOperator, days: Number(editForm.dynamicDays) }
+        : null,
     })
 
     if (data) {
       setSegment(data)
+      setEditForm({
+        name: data.name,
+        description: data.description,
+        segmentType: data.segment_type,
+        dynamicOperator: data.dynamic_rule?.operator ?? "is",
+        dynamicDays: String(data.dynamic_rule?.days ?? 30),
+        hasDynamicCondition: Boolean(data.dynamic_rule),
+      })
       setSettingsOpen(false)
     }
     if (error) setError(error)
@@ -245,6 +280,9 @@ export default function SegmentDashboardPage() {
 
   // Nav links — Segments tab active
   const navLinks = getNewsletterAdminTopNavLinks("segments")
+  const invalidDynamicDays = editForm.segmentType === "dynamic" && (
+    !editForm.hasDynamicCondition || !Number.isInteger(Number(editForm.dynamicDays)) || Number(editForm.dynamicDays) < 1
+  )
 
   return (
     <>
@@ -326,10 +364,20 @@ export default function SegmentDashboardPage() {
                     <Filter className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-lg font-semibold truncate">{segment.name}</h1>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-lg font-semibold truncate">{segment.name}</h1>
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                        {segment.segment_type}
+                      </Badge>
+                    </div>
                     <p className="text-sm text-muted-foreground truncate">
                       {stats?.totalContacts ?? 0} contacts{segment.description ? ` · ${segment.description}` : ""}
                     </p>
+                    {segment.segment_type === "dynamic" && segment.dynamic_rule && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatSegmentDynamicRule(segment.dynamic_rule)}
+                      </p>
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground">Created {formatDate(segment.created_at)}</span>
                 </div>
@@ -393,60 +441,62 @@ export default function SegmentDashboardPage() {
                   <Card className="p-0">
                     <div className="px-6 py-4 border-b flex items-center justify-between">
                       <h2 className="font-semibold text-sm">Contacts ({contactsTotal})</h2>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                            <Plus className="h-3.5 w-3.5" />
-                            Add
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-3" align="end">
-                          {/* Search input */}
-                          <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              value={searchQuery}
-                              onChange={e => setSearchQuery(e.target.value)}
-                              placeholder="Search by email..."
-                              className="pl-9 h-8 text-sm"
-                              autoFocus
-                            />
-                          </div>
-                          {/* Search results */}
-                          <div className="mt-2">
-                            {searching && (
-                              <p className="text-xs text-muted-foreground py-2">Searching...</p>
-                            )}
-                            {searchResults.length > 0 && (
-                              <div className="divide-y max-h-48 overflow-y-auto">
-                                {searchResults.map(result => (
-                                  <div key={result.id} className="py-2 flex items-center gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm truncate">{result.email}</p>
-                                      {getContactName(result.metadata) && (
-                                        <p className="text-xs text-muted-foreground truncate">{getContactName(result.metadata)}</p>
-                                      )}
+                      {segment.segment_type === "static" ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                              <Plus className="h-3.5 w-3.5" />
+                              Add
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-3" align="end">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Search by email..."
+                                className="pl-9 h-8 text-sm"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="mt-2">
+                              {searching && (
+                                <p className="text-xs text-muted-foreground py-2">Searching...</p>
+                              )}
+                              {searchResults.length > 0 && (
+                                <div className="divide-y max-h-48 overflow-y-auto">
+                                  {searchResults.map(result => (
+                                    <div key={result.id} className="py-2 flex items-center gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm truncate">{result.email}</p>
+                                        {getContactName(result.metadata) && (
+                                          <p className="text-xs text-muted-foreground truncate">{getContactName(result.metadata)}</p>
+                                        )}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs shrink-0"
+                                        onClick={() => handleAddContact(result.id)}
+                                        disabled={addingContact === result.id}
+                                      >
+                                        <Plus className="h-3.5 w-3.5 mr-1" />
+                                        {addingContact === result.id ? "..." : "Add"}
+                                      </Button>
                                     </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2 text-xs shrink-0"
-                                      onClick={() => handleAddContact(result.id)}
-                                      disabled={addingContact === result.id}
-                                    >
-                                      <Plus className="h-3.5 w-3.5 mr-1" />
-                                      {addingContact === result.id ? "..." : "Add"}
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
-                              <p className="text-xs text-muted-foreground py-2">No contacts found</p>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                                  ))}
+                                </div>
+                              )}
+                              {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                                <p className="text-xs text-muted-foreground py-2">No contacts found</p>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Updates automatically</span>
+                      )}
                     </div>
                     <div className="divide-y">
                       {contacts.length === 0 ? (
@@ -467,15 +517,17 @@ export default function SegmentDashboardPage() {
                               {contact.engagementScore > 0 && (
                                 <Badge variant="outline" className="text-xs">Score: {contact.engagementScore}</Badge>
                               )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
-                                onClick={() => handleRemoveContact(contact.id)}
-                                title="Remove from segment"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              {segment.segment_type === "static" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
+                                  onClick={() => handleRemoveContact(contact.id)}
+                                  title="Remove from segment"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))
@@ -551,11 +603,136 @@ export default function SegmentDashboardPage() {
                 rows={3}
               />
             </div>
+            <div className="space-y-3">
+              <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={editForm.segmentType === "static"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setEditForm(prev => ({
+                        ...prev,
+                        segmentType: "static",
+                        hasDynamicCondition: false,
+                      }))
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Static</span>
+                    <p className="text-xs text-muted-foreground">
+                      Manual segment membership.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={editForm.segmentType === "dynamic"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setEditForm(prev => ({
+                        ...prev,
+                        segmentType: "dynamic",
+                      }))
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Dynamic</span>
+                    <p className="text-xs text-muted-foreground">
+                      Membership updates from conditions.
+                    </p>
+                  </div>
+                </label>
+              </div>
+              {editForm.segmentType === "dynamic" && (
+                <div className="pt-6 space-y-6">
+                  {editForm.hasDynamicCondition ? (
+                    <div className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-medium">Last engaged</h3>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setEditForm(prev => ({ ...prev, hasDynamicCondition: false }))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                          <Select
+                            value={editForm.dynamicOperator}
+                            onValueChange={(value: SegmentDynamicRuleOperator) => setEditForm(prev => ({ ...prev, dynamicOperator: value }))}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="is">Is</SelectItem>
+                              <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            id="segment-dynamic-days"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={editForm.dynamicDays}
+                            onChange={e => setEditForm(prev => ({ ...prev, dynamicDays: e.target.value }))}
+                            placeholder="Days"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Dynamic segments add and remove contacts automatically.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                      No conditions added yet.
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="outline" disabled={editForm.hasDynamicCondition}>
+                          Add Condition
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => setEditForm(prev => ({
+                            ...prev,
+                            hasDynamicCondition: true,
+                            dynamicDays: prev.dynamicDays || "30",
+                          }))}
+                        >
+                          Last engaged
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              )}
+              {segment?.segment_type !== editForm.segmentType && (
+                <p className="text-xs text-muted-foreground">
+                  {editForm.segmentType === "dynamic"
+                    ? "Switching to dynamic replaces the current members with contacts matching this rule."
+                    : "Switching to static freezes the current members as a manual list."}
+                </p>
+              )}
+            </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving || !editForm.name.trim()}>
+              <Button type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicDays}>
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
