@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, or, sql, desc, inArray, gte, lte, type SQL } from 'drizzle-orm'
+import { eq, and, or, sql, desc, inArray, gte, lte, ilike, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterEvents, newsletters, newsletterSegments, newsletterSegmentContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -300,6 +300,51 @@ function buildContactFilterWhere(siteId: string, group?: ContactFilterGroup | nu
   return and(baseCondition, combinedRules)!
 }
 
+function normalizeSearchQuery(value: unknown) {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function buildContactSearchCondition(query?: string | null): SQL | null {
+  const normalizedQuery = normalizeSearchQuery(query)
+  if (!normalizedQuery) return null
+
+  const likeQuery = `%${normalizedQuery}%`
+
+  return or(
+    ilike(newsletterContacts.email, likeQuery),
+    sql`coalesce(${newsletterContacts.metadata}->>'first_name', '') ilike ${likeQuery}`,
+    sql`coalesce(${newsletterContacts.metadata}->>'last_name', '') ilike ${likeQuery}`,
+    sql`concat_ws(' ', coalesce(${newsletterContacts.metadata}->>'first_name', ''), coalesce(${newsletterContacts.metadata}->>'last_name', '')) ilike ${likeQuery}`,
+  )!
+}
+
+function buildContactsWhere(siteId: string, group?: ContactFilterGroup | null, searchQuery?: string | null): SQL {
+  const conditions: SQL[] = [buildContactFilterWhere(siteId, group)]
+  const searchCondition = buildContactSearchCondition(searchQuery)
+  if (searchCondition) conditions.push(searchCondition)
+  return conditions.length === 1 ? conditions[0] : and(...conditions)!
+}
+
+async function repairPermanentBouncedContacts(siteId: string) {
+  await db.execute(sql`
+    update newsletter_contacts as contact
+    set status = 'bounced',
+        bounce_count = greatest(coalesce(contact.bounce_count, 0), 1),
+        updated_at = now()
+    where contact.site_id = ${siteId}
+      and contact.status = 'active'
+      and exists (
+        select 1
+        from newsletter_events as event
+        where event.contact_id = contact.id
+          and event.event_type = 'bounced'
+          and lower(coalesce(event.metadata->>'bounce_type', '')) in ('hard', 'permanent')
+      )
+  `)
+}
+
 export async function createOrUpsertContact(input: {
   siteId: string
   email: string
@@ -545,6 +590,7 @@ export async function getContactIdsAction(
   siteId: string,
   options?: {
     filterGroup?: ContactFilterGroup
+    searchQuery?: string
   }
 ): Promise<{ ids: string[]; error: string | null }> {
   try {
@@ -557,8 +603,10 @@ export async function getContactIdsAction(
       return { ids: [], error: 'Access denied' }
     }
 
+    await repairPermanentBouncedContacts(siteId)
+
     const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
-    const whereClause = buildContactFilterWhere(siteId, normalizedGroup)
+    const whereClause = buildContactsWhere(siteId, normalizedGroup, options?.searchQuery)
 
     const rows = await db
       .select({ id: newsletterContacts.id })
@@ -575,6 +623,7 @@ export async function getContactsWithStats(
   siteId: string,
   options?: {
     filterGroup?: ContactFilterGroup
+    searchQuery?: string
     page?: number
     pageSize?: number
   }
@@ -594,12 +643,14 @@ export async function getContactsWithStats(
       return { data: null, total: 0, stats: null, error: 'Access denied' }
     }
 
+    await repairPermanentBouncedContacts(siteId)
+
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const offset = (page - 1) * pageSize
 
     const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
-    const whereClause = buildContactFilterWhere(siteId, normalizedGroup)
+    const whereClause = buildContactsWhere(siteId, normalizedGroup, options?.searchQuery)
 
     const [contactsResult, countResult, statsResult] = await Promise.all([
       db
@@ -669,7 +720,17 @@ export async function getContactById(
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: rowToContact(contact), error: null }
+    await repairPermanentBouncedContacts(contact.siteId)
+
+    const [repairedContact] = await db
+      .select()
+      .from(newsletterContacts)
+      .where(eq(newsletterContacts.id, contactId))
+      .limit(1)
+
+    if (!repairedContact) return { data: null, error: 'Contact not found' }
+
+    return { data: rowToContact(repairedContact), error: null }
   } catch (err) {
     console.error('getContactById error:', err)
     return { data: null, error: 'Server error' }

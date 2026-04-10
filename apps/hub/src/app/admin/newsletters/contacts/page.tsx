@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon, Search } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils/tailwind"
@@ -154,6 +154,8 @@ export default function ContactsPage() {
   const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [total, setTotal] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
 
   // Add Contact state
@@ -189,10 +191,6 @@ export default function ContactsPage() {
   const [filterModalOpen, setFilterModalOpen] = useState(false)
 
   useEffect(() => {
-    loadContacts()
-  }, [currentSite?.id, filters, currentPage])
-
-  useEffect(() => {
     if (currentSite?.id) {
       getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
     }
@@ -214,6 +212,7 @@ export default function ContactsPage() {
     const timeoutId = window.setTimeout(async () => {
       const result = await getContactsWithStats(currentSite.id, {
         filterGroup: previewFilters,
+        searchQuery: deferredSearchQuery,
         page: 1,
         pageSize,
       })
@@ -226,9 +225,9 @@ export default function ContactsPage() {
       cancelled = true
       window.clearTimeout(timeoutId)
     }
-  }, [currentSite?.id, filterModalOpen, pageSize, pendingFilters, pendingDataFieldInputs])
+  }, [currentSite?.id, filterModalOpen, pageSize, pendingFilters, pendingDataFieldInputs, deferredSearchQuery])
 
-  async function loadContacts() {
+  const loadContacts = useCallback(async () => {
     if (!currentSite?.id) {
       setLoading(true)
       setContacts([])
@@ -241,6 +240,7 @@ export default function ContactsPage() {
 
       const result = await getContactsWithStats(currentSite.id, {
         filterGroup: filters.rules.length ? filters : undefined,
+        searchQuery: deferredSearchQuery,
         page: currentPage,
         pageSize,
       })
@@ -259,7 +259,11 @@ export default function ContactsPage() {
       setError(err instanceof Error ? err.message : "Failed to load contacts")
       setLoading(false)
     }
-  }
+  }, [currentSite?.id, currentPage, deferredSearchQuery, filters, pageSize])
+
+  useEffect(() => {
+    loadContacts()
+  }, [loadContacts])
 
   const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged') => {
     if (sortColumn === column) {
@@ -332,6 +336,7 @@ export default function ContactsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getContactIdsAction(currentSite.id, {
       filterGroup: filters.rules.length ? filters : undefined,
+      searchQuery: deferredSearchQuery,
     })
     if (ids) {
       setSelectedIds(new Set(ids))
@@ -689,6 +694,7 @@ export default function ContactsPage() {
   }
 
   const activeFilterCount = filters.rules.length
+  const hasSearchQuery = deferredSearchQuery.trim().length > 0
   function resetSelectionForFilteredView() {
     setCurrentPage(1)
     setSelectedIds(new Set())
@@ -888,6 +894,35 @@ export default function ContactsPage() {
                     <p className="text-green-800 text-sm">{successMessage}</p>
                   </div>
                 )}
+                <div className="relative w-[220px] max-w-[45vw] sm:w-[280px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value)
+                      setCurrentPage(1)
+                      setSelectedIds(new Set())
+                      setAllSelected(false)
+                    }}
+                    placeholder="Search contacts..."
+                    className="h-10 pl-9 pr-9"
+                  />
+                  {searchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("")
+                        setCurrentPage(1)
+                        setSelectedIds(new Set())
+                        setAllSelected(false)
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
                 <Button
                   variant="outline"
                   className="relative"
@@ -1065,7 +1100,13 @@ export default function ContactsPage() {
                 <div className="p-8 text-center">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
-                    {total === 0 ? "No contacts yet" : "No contacts match this filter"}
+                    {hasSearchQuery && activeFilterCount > 0
+                      ? "No contacts match this search and filter"
+                      : hasSearchQuery
+                        ? "No contacts match this search"
+                        : activeFilterCount > 0
+                          ? "No contacts match this filter"
+                          : "No contacts yet"}
                   </p>
                   <Button onClick={() => fileInputRef.current?.click()} variant="outline">
                     <Upload className="h-4 w-4 mr-2" />

@@ -7,6 +7,15 @@ import { sql } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
 
+function normalizeBounceType(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+function isPermanentBounce(value: unknown) {
+  const bounceType = normalizeBounceType(value)
+  return bounceType === 'hard' || bounceType === 'permanent'
+}
+
 /**
  * POST /api/webhooks/resend
  * Handle Resend webhook events and keep local contact suppression state in sync.
@@ -128,13 +137,17 @@ export async function POST(request: NextRequest) {
           // Update contact status on bounces/complaints
           if (eventType === 'bounced' && existingEvent.contactId) {
             const bounceType = data?.bounce?.type
-            if (bounceType === 'hard') {
+            if (isPermanentBounce(bounceType)) {
               await db
                 .update(newsletterContacts)
-                .set({ status: 'bounced' })
+                .set({
+                  status: 'bounced',
+                  bounceCount: sql`${newsletterContacts.bounceCount} + 1`,
+                  updatedAt: new Date(),
+                })
                 .where(eq(newsletterContacts.id, existingEvent.contactId))
             } else {
-              // Soft bounce — increment count, suppress after 3
+              // Temporary bounce — increment count, suppress after 3
               const [contact] = await db
                 .select({ bounceCount: newsletterContacts.bounceCount })
                 .from(newsletterContacts)
@@ -142,7 +155,11 @@ export async function POST(request: NextRequest) {
               const newCount = (contact?.bounceCount || 0) + 1
               await db
                 .update(newsletterContacts)
-                .set({ bounceCount: newCount, ...(newCount >= 3 ? { status: 'bounced' } : {}) })
+                .set({
+                  bounceCount: newCount,
+                  updatedAt: new Date(),
+                  ...(newCount >= 3 ? { status: 'bounced' } : {}),
+                })
                 .where(eq(newsletterContacts.id, existingEvent.contactId))
             }
           }
@@ -150,7 +167,7 @@ export async function POST(request: NextRequest) {
           if (eventType === 'complained' && existingEvent.contactId) {
             await db
               .update(newsletterContacts)
-              .set({ status: 'complained' })
+              .set({ status: 'complained', updatedAt: new Date() })
               .where(eq(newsletterContacts.id, existingEvent.contactId))
           }
 
