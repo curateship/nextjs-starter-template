@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -40,11 +41,81 @@ import {
   updateSegment,
   deleteSegments,
   getSegmentIdsAction,
+  getAvailableSegmentTags,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { formatSegmentDynamicRule, type SegmentDynamicRuleOperator, type SegmentType } from "@/lib/newsletters/segment-rules"
+import {
+  formatSegmentDynamicRule,
+  type SegmentDynamicCondition,
+  type SegmentDynamicRule,
+  type SegmentDynamicRuleOperator,
+  type SegmentTagRuleOperator,
+  type SegmentType,
+} from "@/lib/newsletters/segment-rules"
+
+type DynamicConditionForm =
+  | { id: string; type: "last_engaged_within_days"; operator: SegmentDynamicRuleOperator; days: string }
+  | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
+
+function makeConditionId() {
+  return `condition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function mapDynamicRuleToForm(rule: SegmentDynamicRule | null | undefined): DynamicConditionForm[] {
+  if (!rule) return []
+
+  return rule.conditions.map((condition) => {
+    if (condition.type === "last_engaged_within_days") {
+      return {
+        id: makeConditionId(),
+        type: "last_engaged_within_days",
+        operator: condition.operator,
+        days: String(condition.days),
+      }
+    }
+
+    return {
+      id: makeConditionId(),
+      type: "tag_match",
+      operator: condition.operator,
+      tags: [...condition.tags],
+    }
+  })
+}
+
+function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDynamicRule | null {
+  const normalizedConditions: SegmentDynamicCondition[] = []
+
+  for (const condition of conditions) {
+    if (condition.type === "last_engaged_within_days") {
+      const days = Number(condition.days)
+      if (!Number.isInteger(days) || days < 1) return null
+      normalizedConditions.push({
+        type: "last_engaged_within_days",
+        operator: condition.operator,
+        days,
+      })
+      continue
+    }
+
+    const tags = [...new Set(condition.tags.map((tag) => tag.trim()).filter(Boolean))]
+    if (!tags.length) return null
+    normalizedConditions.push({
+      type: "tag_match",
+      operator: condition.operator,
+      tags,
+    })
+  }
+
+  return normalizedConditions.length ? { conditions: normalizedConditions } : null
+}
+
+function formatDynamicConditionLabel(condition: DynamicConditionForm) {
+  if (condition.type === "last_engaged_within_days") return "Last engaged"
+  return "Tags"
+}
 
 export default function SegmentsPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -71,16 +142,20 @@ export default function SegmentsPage() {
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
   const [formSegmentType, setFormSegmentType] = useState<SegmentType>("static")
-  const [formDynamicOperator, setFormDynamicOperator] = useState<SegmentDynamicRuleOperator>("is")
-  const [formDynamicDays, setFormDynamicDays] = useState("30")
-  const [hasDynamicCondition, setHasDynamicCondition] = useState(false)
+  const [formDynamicConditions, setFormDynamicConditions] = useState<DynamicConditionForm[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    loadSegments()
-  }, [currentSite?.id, currentPage])
+    if (!currentSite?.id) {
+      setAvailableTags([])
+      return
+    }
 
-  async function loadSegments() {
+    getAvailableSegmentTags(currentSite.id).then(({ data }) => setAvailableTags(data || []))
+  }, [currentSite?.id])
+
+  const loadSegments = useCallback(async () => {
     if (!currentSite?.id) {
       setLoading(true)
       setSegments([])
@@ -104,16 +179,18 @@ export default function SegmentsPage() {
       setError(err instanceof Error ? err.message : "Failed to load segments")
       setLoading(false)
     }
-  }
+  }, [currentSite?.id, currentPage, pageSize])
+
+  useEffect(() => {
+    loadSegments()
+  }, [loadSegments])
 
   function openCreateModal() {
     setEditingSegment(null)
     setFormName("")
     setFormDescription("")
     setFormSegmentType("static")
-    setFormDynamicOperator("is")
-    setFormDynamicDays("30")
-    setHasDynamicCondition(false)
+    setFormDynamicConditions([])
     setModalOpen(true)
   }
 
@@ -122,18 +199,16 @@ export default function SegmentsPage() {
     setFormName(segment.name)
     setFormDescription(segment.description || "")
     setFormSegmentType(segment.segment_type)
-    setFormDynamicOperator(segment.dynamic_rule?.operator ?? "is")
-    setFormDynamicDays(String(segment.dynamic_rule?.days ?? 30))
-    setHasDynamicCondition(Boolean(segment.dynamic_rule))
+    setFormDynamicConditions(mapDynamicRuleToForm(segment.dynamic_rule))
     setModalOpen(true)
   }
 
   async function handleSave() {
     if (!currentSite?.id || !formName.trim()) return
 
-    const days = Number(formDynamicDays)
-    if (formSegmentType === "dynamic" && (!Number.isInteger(days) || days < 1)) {
-      setError("Dynamic segments need a whole number of days")
+    const dynamicRule = buildDynamicRuleFromForm(formDynamicConditions)
+    if (formSegmentType === "dynamic" && !dynamicRule) {
+      setError("Dynamic segments need at least one valid condition")
       return
     }
 
@@ -144,9 +219,7 @@ export default function SegmentsPage() {
         name: formName.trim(),
         description: formDescription,
         segmentType: formSegmentType,
-        dynamicRule: formSegmentType === "dynamic" && hasDynamicCondition
-          ? { type: "last_engaged_within_days", operator: formDynamicOperator, days }
-          : null,
+        dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
       })
       if (updateError) {
         setError(updateError)
@@ -159,9 +232,7 @@ export default function SegmentsPage() {
         name: formName.trim(),
         description: formDescription,
         segmentType: formSegmentType,
-        dynamicRule: formSegmentType === "dynamic" && hasDynamicCondition
-          ? { type: "last_engaged_within_days", operator: formDynamicOperator, days }
-          : null,
+        dynamicRule: formSegmentType === "dynamic" ? dynamicRule : null,
       })
       if (createError) {
         setError(createError)
@@ -265,9 +336,38 @@ export default function SegmentsPage() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
 
-  const invalidDynamicDays = formSegmentType === "dynamic" && (
-    !hasDynamicCondition || !Number.isInteger(Number(formDynamicDays)) || Number(formDynamicDays) < 1
-  )
+  const invalidDynamicConditions = formSegmentType === "dynamic" && !buildDynamicRuleFromForm(formDynamicConditions)
+
+  function addDynamicCondition(type: DynamicConditionForm["type"]) {
+    setFormDynamicConditions((prev) => [
+      ...prev,
+      type === "last_engaged_within_days"
+        ? { id: makeConditionId(), type, operator: "is", days: "30" }
+        : { id: makeConditionId(), type, operator: "includes", tags: [] },
+    ])
+  }
+
+  function updateDynamicCondition(conditionId: string, updater: (condition: DynamicConditionForm) => DynamicConditionForm) {
+    setFormDynamicConditions((prev) => prev.map((condition) => (
+      condition.id === conditionId ? updater(condition) : condition
+    )))
+  }
+
+  function removeDynamicCondition(conditionId: string) {
+    setFormDynamicConditions((prev) => prev.filter((condition) => condition.id !== conditionId))
+  }
+
+  function toggleDynamicConditionTag(conditionId: string, tag: string) {
+    updateDynamicCondition(conditionId, (condition) => {
+      if (condition.type !== "tag_match") return condition
+      return {
+        ...condition,
+        tags: condition.tags.includes(tag)
+          ? condition.tags.filter((existingTag) => existingTag !== tag)
+          : [...condition.tags, tag],
+      }
+    })
+  }
 
   return (
     <>
@@ -530,7 +630,7 @@ export default function SegmentsPage() {
                     onCheckedChange={(checked) => {
                       if (checked !== true) return
                       setFormSegmentType("static")
-                      setHasDynamicCondition(false)
+                      setFormDynamicConditions([])
                     }}
                   />
                   <div className="space-y-1 pt-0.5">
@@ -559,48 +659,107 @@ export default function SegmentsPage() {
               </div>
               {formSegmentType === "dynamic" && (
                 <div className="pt-6 space-y-6">
-                  {hasDynamicCondition ? (
-                    <div className="rounded-2xl bg-muted/65 p-5 space-y-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-medium">Last engaged</h3>
+                  {formDynamicConditions.length ? (
+                    formDynamicConditions.map((condition) => (
+                      <div key={condition.id} className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-medium">{formatDynamicConditionLabel(condition)}</h3>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => removeDynamicCondition(condition.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => setHasDynamicCondition(false)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+
+                        {condition.type === "last_engaged_within_days" && (
+                          <div className="space-y-2">
+                            <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                              <Select
+                                value={condition.operator}
+                                onValueChange={(value: SegmentDynamicRuleOperator) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "last_engaged_within_days" ? { ...current, operator: value } : current
+                                ))}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="is">Is</SelectItem>
+                                  <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={condition.days}
+                                onChange={(e) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "last_engaged_within_days" ? { ...current, days: e.target.value } : current
+                                ))}
+                                placeholder="Days"
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Contacts are added and removed automatically based on engagement.
+                            </p>
+                          </div>
+                        )}
+
+                        {condition.type === "tag_match" && (
+                          <div className="space-y-3">
+                            <Select
+                              value={condition.operator}
+                              onValueChange={(value: SegmentTagRuleOperator) => updateDynamicCondition(condition.id, (current) => (
+                                current.type === "tag_match" ? { ...current, operator: value } : current
+                              ))}
+                            >
+                              <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="includes">Includes</SelectItem>
+                                <SelectItem value="excludes">Excludes</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {availableTags.length ? (
+                              <ScrollArea className="h-48 rounded-xl border bg-background">
+                                <div className="flex flex-wrap gap-2 p-3">
+                                  {availableTags.map((tag) => {
+                                    const selected = condition.tags.includes(tag)
+                                    return (
+                                      <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => toggleDynamicConditionTag(condition.id, tag)}
+                                        className={cn(
+                                          "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                                          selected
+                                            ? "border-foreground text-foreground shadow-sm"
+                                            : "border-border bg-background text-muted-foreground hover:text-foreground"
+                                        )}
+                                      >
+                                        {tag}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </ScrollArea>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No tags available yet.</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Contacts update automatically when their tags change.
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
-                          <Select value={formDynamicOperator} onValueChange={(value: SegmentDynamicRuleOperator) => setFormDynamicOperator(value)}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="is">Is</SelectItem>
-                              <SelectItem value="isnt">Isn&apos;t</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            id="segment-dynamic-days"
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={formDynamicDays}
-                            onChange={(e) => setFormDynamicDays(e.target.value)}
-                            placeholder="Days"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Contacts are added and removed automatically based on engagement.
-                        </p>
-                      </div>
-                    </div>
+                    ))
                   ) : (
                     <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                       No conditions added yet.
@@ -610,18 +769,18 @@ export default function SegmentsPage() {
                   <div className="flex justify-end">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button type="button" variant="outline" disabled={hasDynamicCondition}>
+                        <Button type="button" variant="outline">
                           Add Condition
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onSelect={() => {
-                            setHasDynamicCondition(true)
-                            if (!formDynamicDays) setFormDynamicDays("30")
-                          }}
+                          onSelect={() => addDynamicCondition("last_engaged_within_days")}
                         >
                           Last engaged
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => addDynamicCondition("tag_match")}>
+                          Tags
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -640,7 +799,7 @@ export default function SegmentsPage() {
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicDays}>
+              <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
                 {saving ? "Saving..." : editingSegment ? "Update Segment" : "Create Segment"}
               </Button>
             </div>

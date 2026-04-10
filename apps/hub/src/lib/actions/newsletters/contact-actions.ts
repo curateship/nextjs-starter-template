@@ -396,6 +396,8 @@ export async function createOrUpsertContact(input: {
       return { data: null, error: 'Failed to save contact' }
     }
 
+    await syncDynamicSegmentsForContacts([data.id])
+
     return { data: rowToContact(data), error: null }
   } catch (err) {
     console.error('createOrUpsertContact error:', err)
@@ -539,6 +541,8 @@ export async function updateContact(
     if (!data) {
       return { data: null, error: 'Failed to update contact' }
     }
+
+    await syncDynamicSegmentsForContacts([data.id])
 
     return { data: rowToContact(data), error: null }
   } catch (err) {

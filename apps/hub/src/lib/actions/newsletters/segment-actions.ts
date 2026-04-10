@@ -5,7 +5,13 @@ import { db } from '@/lib/db'
 import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { findActiveAutomations } from './automation-actions'
-import { formatSegmentDynamicRule, normalizeSegmentDynamicRule, type SegmentDynamicRule, type SegmentType } from '@/lib/newsletters/segment-rules'
+import {
+  formatSegmentDynamicRule,
+  normalizeSegmentDynamicRule,
+  type SegmentDynamicCondition,
+  type SegmentDynamicRule,
+  type SegmentType,
+} from '@/lib/newsletters/segment-rules'
 
 export interface Segment {
   id: string
@@ -107,6 +113,35 @@ async function enrollSegmentAutomationContacts(
     .onConflictDoNothing()
 }
 
+function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
+  if (condition.type === 'last_engaged_within_days') {
+    const cutoff = new Date(Date.now() - condition.days * 24 * 60 * 60 * 1000)
+    return condition.operator === 'is'
+      ? and(
+          sql`${newsletterContacts.lastEngagedAt} IS NOT NULL`,
+          sql`${newsletterContacts.lastEngagedAt} >= ${cutoff}`,
+        )
+      : or(
+          sql`${newsletterContacts.lastEngagedAt} IS NULL`,
+          sql`${newsletterContacts.lastEngagedAt} < ${cutoff}`,
+        )
+  }
+
+  const tagArray = sql`CASE WHEN jsonb_typeof(${newsletterContacts.metadata}->'tags') = 'array' THEN ${newsletterContacts.metadata}->'tags' ELSE '[]'::jsonb END`
+  const tags = condition.tags.map((tag) => tag.toLowerCase())
+
+  const matchesTags = sql`exists (
+    select 1
+    from jsonb_array_elements_text(${tagArray}) as raw_tag(value)
+    cross join lateral unnest(string_to_array(raw_tag.value, ',')) as split_tag(value)
+    where lower(trim(split_tag.value)) in (${sql.join(tags.map((tag) => sql`${tag}`), sql`, `)})
+  )`
+
+  return condition.operator === 'includes'
+    ? matchesTags
+    : sql`not ${matchesTags}`
+}
+
 async function syncDynamicSegmentMembership(
   executor: any,
   segment: { id: string; siteId: string; segmentType: string; dynamicRule: unknown },
@@ -119,24 +154,14 @@ async function syncDynamicSegmentMembership(
 
   const normalizedContactIds = options?.contactIds?.filter((id) => UUID_REGEX.test(id)) ?? []
   const useScopedContacts = normalizedContactIds.length > 0
-  const cutoff = new Date(Date.now() - dynamicRule.days * 24 * 60 * 60 * 1000)
-
-  const matchesRuleCondition = dynamicRule.operator === 'is'
-    ? and(
-        sql`${newsletterContacts.lastEngagedAt} IS NOT NULL`,
-        sql`${newsletterContacts.lastEngagedAt} >= ${cutoff}`,
-      )
-    : or(
-        sql`${newsletterContacts.lastEngagedAt} IS NULL`,
-        sql`${newsletterContacts.lastEngagedAt} < ${cutoff}`,
-      )
+  const ruleConditions = dynamicRule.conditions.map(buildDynamicSegmentCondition)
 
   const matchingContacts = await executor
     .select({ id: newsletterContacts.id })
     .from(newsletterContacts)
     .where(and(
       eq(newsletterContacts.siteId, segment.siteId),
-      matchesRuleCondition!,
+      ...ruleConditions,
       ...(useScopedContacts ? [inArray(newsletterContacts.id, normalizedContactIds)] : []),
     ))
 
@@ -313,6 +338,39 @@ export async function getSegmentById(
   } catch (err) {
     console.error('getSegmentById error:', err)
     return { data: null, error: 'Server error' }
+  }
+}
+
+export async function getAvailableSegmentTags(siteId: string): Promise<{ data: string[]; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { data: [], error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: [], error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { data: [], error: 'Access denied' }
+    }
+
+    const rows = await db.execute<{ tag: string }>(sql`
+      select distinct trim(tag.value) as tag
+      from newsletter_contacts as contact,
+      lateral jsonb_array_elements_text(
+        case
+          when jsonb_typeof(contact.metadata->'tags') = 'array' then contact.metadata->'tags'
+          else '[]'::jsonb
+        end
+      ) as raw_tag(value),
+      lateral unnest(string_to_array(raw_tag.value, ',')) as tag(value)
+      where contact.site_id = ${siteId}
+        and trim(tag.value) <> ''
+      order by trim(tag.value)
+    `)
+
+    return { data: rows.rows.map((row) => row.tag), error: null }
+  } catch (err) {
+    console.error('getAvailableSegmentTags error:', err)
+    return { data: [], error: 'Server error' }
   }
 }
 
