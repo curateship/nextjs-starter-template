@@ -144,7 +144,7 @@ export function PostPreview({ blocks, post, site, className = "", blocksLoading 
   return (
     <div
       ref={containerRef}
-      className={`overflow-x-hidden ${className} preview-container`}
+      className={`overflow-x-clip ${className} preview-container`}
       style={{
         ['--font-primary' as string]: primaryFontFamilyValue,
         ['--font-secondary' as string]: secondaryFontFamilyValue,
