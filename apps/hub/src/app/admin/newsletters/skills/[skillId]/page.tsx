@@ -12,6 +12,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -484,14 +485,14 @@ export default function SkillOutputsPage() {
             </div>
             <div className="flex-1 min-h-0 flex flex-col">
               <Label className="shrink-0">Content</Label>
-              <div className="mt-1 flex-1 min-h-0 overflow-y-auto builder-scroll">
+              <ScrollArea className="mt-1 min-h-0 flex-1">
                 <RichTextEditor
                   content={{ content: editContent, hideHeader: true, hideEditorHeader: true }}
                   onContentChange={(updated) => setEditContent(updated.content)}
                   inline
                   placeholder="Start writing..."
                 />
-              </div>
+              </ScrollArea>
             </div>
             <div className="flex justify-end gap-2 pt-2 shrink-0">
               <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={saving}>

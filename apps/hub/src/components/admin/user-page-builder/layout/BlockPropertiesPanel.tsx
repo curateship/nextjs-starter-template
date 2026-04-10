@@ -2,6 +2,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { UserPageNavigationBlock } from "../blocks/UserPageNavigationBlock"
 import { UserPageFooterBlock } from "../blocks/UserPageFooterBlock"
 import { UserProfileEditorBlock } from "../blocks/UserProfileEditorBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PagePreview } from "../../page-builder/layout/PagePreview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -46,8 +47,10 @@ export function BlockPropertiesPanel({
   blocksLoading = false
 }: BlockPropertiesPanelProps) {
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {selectedBlock.type === 'navigation' && (
               <UserPageNavigationBlock
@@ -76,13 +79,14 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           {currentPage ? (
             <PagePreview 
               blocks={currentPage.blocks} 
               site={site}
-              className="h-full"
+              className="min-h-full"
               blocksLoading={blocksLoading}
             />
           ) : (
@@ -95,6 +99,7 @@ export function BlockPropertiesPanel({
           )}
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

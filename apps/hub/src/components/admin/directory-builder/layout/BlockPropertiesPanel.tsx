@@ -1,6 +1,7 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "./DirectoryPreview"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
@@ -65,8 +66,10 @@ export function BlockPropertiesPanel({
   const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content ?? site?.settings?.footer
 
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {selectedBlock.type === 'directory-content' && (
               <DirectoryContentBlock
@@ -93,8 +96,9 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           <DirectoryPreview
             blocks={currentDirectory?.blocks || []}
             directory={currentDirectory ? {
@@ -115,7 +119,7 @@ export function BlockPropertiesPanel({
                 footer
               }
             } : undefined}
-            className="h-full"
+            className="min-h-full"
             blocksLoading={blocksLoading}
             allBlocks={currentDirectory?.blocks || []}
             customBlockTemplates={customBlockTemplates}
@@ -123,6 +127,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

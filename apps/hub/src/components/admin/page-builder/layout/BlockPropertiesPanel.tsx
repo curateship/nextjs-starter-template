@@ -11,6 +11,7 @@ import { PageDividerBlock } from "../blocks/divider/PageDividerBlock"
 import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
 import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PagePreview } from "./PagePreview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -58,8 +59,10 @@ export function BlockPropertiesPanel({
   onSelectBlock
 }: BlockPropertiesPanelProps) {
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {selectedBlock.type === 'hero' && (
               <PageHeroBlock
@@ -185,13 +188,14 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           {currentPage ? (
             <PagePreview
               blocks={currentPage.blocks}
               site={site}
-              className="h-full"
+              className="min-h-full"
               blocksLoading={blocksLoading}
               allBlocks={currentPage.blocks}
               onSelectBlock={onSelectBlock}
@@ -206,6 +210,7 @@ export function BlockPropertiesPanel({
           )}
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

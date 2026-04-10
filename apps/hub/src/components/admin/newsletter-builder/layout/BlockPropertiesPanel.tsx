@@ -7,6 +7,7 @@ import { NewsletterRichTextBlock } from "../blocks/rich-text/NewsletterRichTextB
 import { NewsletterHeaderBlock } from "../blocks/header/NewsletterHeaderBlock"
 import { NewsletterDividerBlock } from "../blocks/divider/NewsletterDividerBlock"
 import { NewsletterFooterBlock } from "../blocks/footer/NewsletterFooterBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import type { NewsletterBlock } from "../config/useNewsletterBuilder"
 
 interface BlockPropertiesPanelProps {
@@ -89,8 +90,10 @@ export function BlockPropertiesPanel({
   }, [editingBlockId])
 
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
           {selectedBlock.type === 'newsletter-rich-text' && (
             <NewsletterRichTextBlock
@@ -128,8 +131,9 @@ export function BlockPropertiesPanel({
             />
           )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           <NewsletterCanvas
             blocks={blocks}
             previewWidth={previewWidth}
@@ -147,6 +151,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -59,8 +60,10 @@ export function BlockPropertiesPanel({
   onBack
 }: BlockPropertiesPanelProps) {
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {selectedBlock.type === 'post-content' && (
               <PostContentBlock
@@ -110,8 +113,9 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           <PostPreview 
             blocks={(currentPost?.blocks || []) as any} 
             post={currentPost ? {
@@ -134,13 +138,14 @@ export function BlockPropertiesPanel({
                 show_featured_image: siteBlocks?.show_featured_image
               }
             } : undefined}
-            className="h-full"
+            className="min-h-full"
             blocksLoading={blocksLoading}
             allBlocks={(currentPost?.blocks || []) as any}
             onSelectBlock={onSelectBlock}
           />
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

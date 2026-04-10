@@ -22,6 +22,7 @@ import { Check, GripVertical, Link2, Plus, Search, Trash2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -123,7 +124,7 @@ function IconPickerButton({
               />
             </div>
 
-            <div className="builder-scroll max-h-[420px] overflow-y-auto pr-2">
+            <ScrollArea className="h-[420px] pr-2">
               {filteredOptions.length === 0 && !showDefaultOption ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">
                   No icons match that search.
@@ -192,7 +193,7 @@ function IconPickerButton({
                   })}
                 </div>
               )}
-            </div>
+            </ScrollArea>
           </div>
         </DialogContent>
       </Dialog>

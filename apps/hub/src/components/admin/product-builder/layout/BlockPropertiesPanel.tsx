@@ -11,6 +11,7 @@ import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/P
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
 import { ProductVideoBlock } from "@/components/admin/product-builder/blocks/video/ProductVideoBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { ProductPreview } from "./ProductPreview"
 
 interface ProductBlock {
@@ -72,8 +73,10 @@ export function BlockPropertiesPanel({
   onBack
 }: BlockPropertiesPanelProps) {
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {(selectedBlock.type === 'product-content' || selectedBlock.type === 'product-default') && (
               <ProductContentBlock
@@ -300,8 +303,8 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
           <ProductPreview 
             blocks={currentProduct?.blocks || []} 
             product={currentProduct ? {
@@ -315,13 +318,13 @@ export function BlockPropertiesPanel({
               is_published: currentProduct.is_published || false
             } : undefined}
             site={site}
-            className="h-full"
+            className="min-h-full"
             blocksLoading={blocksLoading}
             allBlocks={currentProduct?.blocks || []}
             onSelectBlock={onSelectBlock}
           />
-        </div>
       )}
+      </ScrollArea>
     </div>
   )
 }

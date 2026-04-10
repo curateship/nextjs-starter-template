@@ -1,5 +1,6 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { EventContentBlock } from "@/components/admin/event-builder/blocks/EventContentBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { EventPreview } from "./EventPreview"
 
 interface EventBlock {
@@ -59,8 +60,10 @@ export function BlockPropertiesPanel({
   const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content
 
   return (
-    <div className={`flex-1 border-r bg-background builder-scroll ${selectedBlock ? 'overflow-y-auto pb-10' : 'overflow-y-auto'}`}>
+    <div className="flex-1 overflow-hidden border-r bg-background">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
+        <div className="pb-10">
         <AdminLayout>
             {selectedBlock.type === 'event-content' && (
               <EventContentBlock
@@ -77,8 +80,9 @@ export function BlockPropertiesPanel({
               />
             )}
         </AdminLayout>
+        </div>
       ) : (
-        <div className="h-full">
+        <div className="min-h-full">
           <EventPreview
             blocks={currentEvent?.blocks || []}
             event={currentEvent ? {
@@ -99,13 +103,14 @@ export function BlockPropertiesPanel({
                 footer
               }
             } : undefined}
-            className="h-full"
+            className="min-h-full"
             blocksLoading={blocksLoading}
             allBlocks={currentEvent?.blocks || []}
             onSelectBlock={onSelectBlock}
           />
         </div>
       )}
+      </ScrollArea>
     </div>
   )
 }
