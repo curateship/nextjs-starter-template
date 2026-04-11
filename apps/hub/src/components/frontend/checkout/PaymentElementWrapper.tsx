@@ -48,6 +48,7 @@ interface Product {
 
 interface PaymentElementWrapperProps {
   product: Product
+  siteId: string
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
   selectedBumps: string[]
@@ -170,6 +171,7 @@ function CheckoutForm({
 
 export function PaymentElementWrapper({
   product,
+  siteId,
   selectedTier,
   checkoutSettings,
   selectedBumps,
@@ -188,6 +190,15 @@ export function PaymentElementWrapper({
 
   // Create payment intent only once on mount
   useEffect(() => {
+    if (!siteId) {
+      setError('Stripe configuration error. Please check your site settings.')
+      return
+    }
+
+    if (!stripePromiseRef.current) {
+      return
+    }
+
     // Prevent double execution in React Strict Mode
     if (hasInitialized.current) {
       return
@@ -218,6 +229,7 @@ export function PaymentElementWrapper({
           tierId: selectedTier.id,
           tierName: selectedTier.name,
           selectedBumps: selectedOrderBumps,
+          siteId,
         })
 
         if (!result.success || !result.clientSecret) {
@@ -279,6 +291,7 @@ export function PaymentElementWrapper({
           paymentIntentId,
           mainPriceId: selectedTier.stripePriceId,
           selectedBumps: selectedOrderBumps,
+          siteId,
         })
 
         if (!result.success) {

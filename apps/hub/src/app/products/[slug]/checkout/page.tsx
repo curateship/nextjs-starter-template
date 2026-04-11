@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { CheckoutForm } from '@/components/frontend/checkout/CheckoutForm'
+import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 
 interface CheckoutPageProps {
   params: Promise<{ slug: string }>
@@ -20,6 +21,7 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
 
   const product = result.product
   const site = result.site
+  const stripeConfig = site?.id ? await getStripeConfig(site.id) : null
 
   // Get checkout block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
@@ -56,12 +58,14 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
         featuredImage: product.featured_image || undefined,
       }}
       site={{
+        id: site.id,
         name: site?.name || 'Store',
         logo: site?.settings?.logo,
         favicon: site?.settings?.favicon,
       }}
       selectedTier={selectedTier}
       checkoutSettings={checkoutSettings}
+      stripePublishableKey={stripeConfig?.publishableKey}
     />
   )
 }

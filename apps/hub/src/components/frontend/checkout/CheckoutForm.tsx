@@ -45,6 +45,7 @@ interface Product {
 }
 
 interface Site {
+  id: string
   name: string
   logo?: string
   favicon?: string
@@ -55,6 +56,7 @@ interface CheckoutFormProps {
   site: Site
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
+  stripePublishableKey?: string
 }
 
 export function CheckoutForm({
@@ -62,6 +64,7 @@ export function CheckoutForm({
   site,
   selectedTier,
   checkoutSettings,
+  stripePublishableKey,
 }: CheckoutFormProps) {
   const router = useRouter()
 
@@ -219,9 +222,11 @@ export function CheckoutForm({
             <div className="bg-white p-8 lg:p-12 flex-1">
               <PaymentElementWrapper
                 product={product}
+                siteId={site.id}
                 selectedTier={selectedTier}
                 checkoutSettings={checkoutSettings}
                 selectedBumps={selectedBumpsArray}
+                stripePublishableKey={stripePublishableKey}
               />
             </div>
           </div>

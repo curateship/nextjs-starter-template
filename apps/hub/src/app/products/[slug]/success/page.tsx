@@ -20,6 +20,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
   }
 
   const product = result.product
+  const siteId = result.site?.id
 
   // Get checkout block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')
@@ -32,7 +33,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
 
   if (payment_intent) {
     // Payment Element flow
-    const verificationResult = await verifyPaymentIntent(payment_intent)
+    const verificationResult = await verifyPaymentIntent(payment_intent, siteId)
     if (verificationResult.success && verificationResult.paymentIntent) {
       // Convert payment intent to session-like structure for SuccessContent
       const metadata = verificationResult.paymentIntent.metadata
@@ -55,7 +56,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
     }
   } else if (session_id) {
     // Legacy Checkout Session flow
-    const verificationResult = await verifyCheckoutSession(session_id)
+    const verificationResult = await verifyCheckoutSession(session_id, siteId)
     if (verificationResult.success && verificationResult.session) {
       const session = verificationResult.session
       const metadata = session.metadata
