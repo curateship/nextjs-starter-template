@@ -3,6 +3,7 @@
 import { useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
@@ -15,7 +16,7 @@ import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/conf
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
-import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, AlertTriangle, Send } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, Send } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -56,41 +57,46 @@ function formatSendWindow(dripConfig: Record<string, any> | undefined) {
   return `${formatTime(dripConfig.send_window_start)} - ${formatTime(dripConfig.send_window_end)}`
 }
 
-function formatDripStatus(newsletter: { status: string; total_sent: number; total_recipients: number; metadata?: Record<string, any> }) {
+function getDripStatusLabel(newsletter: { status: string; metadata?: Record<string, any> }) {
   const dripConfig = newsletter.metadata?.drip_config
-  const parts = [`${newsletter.status === 'paused' ? 'Paused' : 'Drip sending'}: ${newsletter.total_sent}/${newsletter.total_recipients} sent`]
 
-  if (dripConfig?.batches_sent > 0) {
-    const label = dripConfig.batches_sent === 1 ? 'batch' : 'batches'
-    parts.push(`${dripConfig.batches_sent} ${label}`)
-  }
-
-  if (dripConfig?.total_bounced > 0) {
-    parts.push(`${dripConfig.total_bounced} bounced`)
-  }
-
-  if (newsletter.status === 'paused') {
-    if (dripConfig?.paused_reason && dripConfig.paused_reason !== 'manual') {
-      parts.push(dripConfig.paused_reason)
-    }
-    return parts.join(' · ')
-  }
-
-  if (!isWithinSendWindow(dripConfig)) {
-    parts.push(`Waiting for ${formatSendWindow(dripConfig)} send window`)
-    return parts.join(' · ')
-  }
+  if (newsletter.status === 'paused') return 'Paused'
+  if (!isWithinSendWindow(dripConfig)) return `Waiting for ${formatSendWindow(dripConfig)}`
 
   if (typeof dripConfig?.next_batch_at === 'string') {
     const nextBatchAt = new Date(dripConfig.next_batch_at)
     if (nextBatchAt > new Date()) {
-      parts.push(`Next batch: ${nextBatchAt.toLocaleTimeString()}`)
-    } else {
-      parts.push('Waiting for next cron run')
+      return `Next batch: ${nextBatchAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
     }
+    return 'Waiting for cron'
   }
 
-  return parts.join(' · ')
+  return 'Drip sending'
+}
+
+function getDripRowChips(newsletter: { total_sent: number; total_recipients: number; metadata?: Record<string, any> }) {
+  const dripConfig = newsletter.metadata?.drip_config
+  const batchesSent = dripConfig?.batches_sent || 0
+  const totalBounced = dripConfig?.total_bounced || 0
+  const batchLabel = batchesSent === 1 ? 'batch' : 'batches'
+
+  return [
+    {
+      key: 'sent',
+      label: `${newsletter.total_sent} of ${newsletter.total_recipients} sent`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'batches',
+      label: `${batchesSent} ${batchLabel}`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'bounced',
+      label: `${totalBounced} bounced`,
+      className: 'border-red-200 bg-red-50 text-red-700',
+    },
+  ]
 }
 
 export default function NewsletterBuilderPage({ params }: PageProps) {
@@ -297,14 +303,10 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
 
       {/* Drip progress / paused alert bar */}
       {builder.newsletter && (builder.newsletter.status === 'sending' || builder.newsletter.status === 'paused') && builder.newsletter.metadata?.drip_config?.enabled && (
-        <div className={`px-4 py-2.5 flex items-center justify-between text-sm ${builder.newsletter.status === 'paused' ? 'bg-orange-50 border-b border-orange-200' : 'bg-blue-50 border-b border-blue-200'}`}>
-          <div className="flex items-center gap-3">
-            {builder.newsletter.status === 'paused' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
-            <span>{formatDripStatus(builder.newsletter)}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
+        <div className={`flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-4 py-2.5 text-sm ${builder.newsletter.status === 'paused' ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'}`}>
+          <button
+            type="button"
+            className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${builder.newsletter.status === 'sending' ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}`}
             onClick={async () => {
               if (builder.newsletter!.status === 'sending') {
                 await pauseNewsletter(builder.newsletter!.id)
@@ -315,11 +317,19 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
             }}
           >
             {builder.newsletter.status === 'sending' ? (
-              <><Pause className="h-3.5 w-3.5 mr-1" /> Pause</>
+              <><Pause className="h-3 w-3" /> Pause</>
             ) : (
-              <><Play className="h-3.5 w-3.5 mr-1" /> Resume</>
+              <><Play className="h-3 w-3" /> Resume</>
             )}
-          </Button>
+          </button>
+          <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-medium">
+            {getDripStatusLabel(builder.newsletter)}
+          </Badge>
+          {getDripRowChips(builder.newsletter).map((chip) => (
+            <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
+              {chip.label}
+            </Badge>
+          ))}
         </div>
       )}
 

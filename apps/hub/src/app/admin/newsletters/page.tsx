@@ -77,31 +77,29 @@ function getDripStatusLabel(newsletter: Newsletter) {
   return 'Sending'
 }
 
-function formatDripRowStatus(newsletter: Newsletter) {
+function getDripRowChips(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
-  const parts = [`${newsletter.total_sent}/${newsletter.total_recipients} sent`]
+  const batchesSent = dripConfig?.batches_sent || 0
+  const totalBounced = dripConfig?.total_bounced || 0
+  const batchLabel = batchesSent === 1 ? 'batch' : 'batches'
 
-  if (dripConfig?.batches_sent > 0) {
-    const label = dripConfig.batches_sent === 1 ? 'batch' : 'batches'
-    parts.push(`${dripConfig.batches_sent} ${label}`)
-  }
-
-  if (dripConfig?.total_bounced > 0) {
-    parts.push(`${dripConfig.total_bounced} bounced`)
-  }
-
-  if (newsletter.status === 'paused' && dripConfig?.paused_reason) {
-    parts.push(dripConfig.paused_reason)
-    return parts.join(' · ')
-  }
-
-  if (newsletter.status === 'sending') {
-    if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date() && isWithinSendWindow(dripConfig)) {
-      parts.push('Waiting for next cron run')
-    }
-  }
-
-  return parts.join(' · ')
+  return [
+    {
+      key: 'sent',
+      label: `${newsletter.total_sent} of ${newsletter.total_recipients} sent`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'batches',
+      label: `${batchesSent} ${batchLabel}`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'bounced',
+      label: `${totalBounced} bounced`,
+      className: 'border-red-200 bg-red-50 text-red-700',
+    },
+  ]
 }
 
 export default function NewslettersPage() {
@@ -126,7 +124,7 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const [sortColumn, setSortColumn] = useState<'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified' | null>(null)
+  const [sortColumn, setSortColumn] = useState<'name' | 'recipients' | 'opens' | 'clicks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
@@ -271,7 +269,7 @@ export default function NewslettersPage() {
     return true
   })
 
-  const toggleSort = (column: 'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
+  const toggleSort = (column: 'name' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
         setSortColumn(null)
@@ -285,7 +283,7 @@ export default function NewslettersPage() {
     }
   }
 
-  const getSortIcon = (column: 'name' | 'status' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
+  const getSortIcon = (column: 'name' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
     if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
@@ -295,7 +293,6 @@ export default function NewslettersPage() {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
-    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
     if (sortColumn === 'recipients') return (a.total_sent - b.total_sent) * dir
     if (sortColumn === 'opens') {
       const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
@@ -403,7 +400,7 @@ export default function NewslettersPage() {
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-10 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-3 flex items-center space-x-4">
+                <div className="col-span-4 flex items-center space-x-4">
                   <Checkbox
                     checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
                     onCheckedChange={toggleSelectAll}
@@ -422,18 +419,6 @@ export default function NewslettersPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => toggleSort('recipients')}
@@ -504,7 +489,7 @@ export default function NewslettersPage() {
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
                       <div className="grid grid-cols-10 gap-4 items-center">
-                        <div className="col-span-3 flex items-center space-x-4">
+                        <div className="col-span-4 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
                           <div>
@@ -512,7 +497,6 @@ export default function NewslettersPage() {
                             <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
                           </div>
                         </div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
@@ -539,7 +523,7 @@ export default function NewslettersPage() {
                 sortedNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-10 gap-4 items-center">
-                      <div className="col-span-3">
+                      <div className="col-span-4">
                         <div className="flex items-center space-x-4">
                           <Checkbox
                             checked={selectedIds.has(newsletter.id)}
@@ -549,41 +533,47 @@ export default function NewslettersPage() {
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center ml-2">
                             <Mail className="h-6 w-6 text-muted-foreground" />
                           </div>
-                          <Link
-                            href={`/admin/newsletters/${newsletter.id}`}
-                            className="hover:opacity-80 transition-opacity"
-                          >
-                            <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
-                          </Link>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          {getStatusBadge(newsletter)}
-                          {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-center h-6 w-6 rounded ${newsletter.status === 'sending' ? 'text-orange-600 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'}`}
-                              title={newsletter.status === 'sending' ? 'Pause' : 'Resume'}
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                if (newsletter.status === 'sending') {
-                                  await pauseNewsletter(newsletter.id)
-                                } else {
-                                  await resumeNewsletter(newsletter.id)
-                                }
-                                await loadNewsletters(false)
-                              }}
+                          <div className="min-w-0">
+                            <Link
+                              href={`/admin/newsletters/${newsletter.id}`}
+                              className="hover:opacity-80 transition-opacity"
                             >
-                              {newsletter.status === 'sending' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
-                        </div>
-                        {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {formatDripRowStatus(newsletter)}
+                              <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
+                            </Link>
+                            <div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
+                              {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === 'sending' ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}`}
+                                    title={newsletter.status === 'sending' ? 'Pause' : 'Resume'}
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      if (newsletter.status === 'sending') {
+                                        await pauseNewsletter(newsletter.id)
+                                      } else {
+                                        await resumeNewsletter(newsletter.id)
+                                      }
+                                      await loadNewsletters(false)
+                                    }}
+                                  >
+                                    {newsletter.status === 'sending' ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                                    {newsletter.status === 'sending' ? 'Pause' : 'Resume'}
+                                  </button>
+                                  <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-medium">
+                                    {getDripStatusLabel(newsletter)}
+                                  </Badge>
+                                  {getDripRowChips(newsletter).map((chip) => (
+                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
+                                      {chip.label}
+                                    </Badge>
+                                  ))}
+                                </>
+                              )}
+                              {!(newsletter.status === 'sending' || newsletter.status === 'paused') || !newsletter.metadata?.drip_config?.enabled ? getStatusBadge(newsletter) : null}
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">

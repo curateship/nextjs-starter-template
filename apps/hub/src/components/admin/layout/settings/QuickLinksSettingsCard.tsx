@@ -52,7 +52,7 @@ interface SortableQuickLinkItemProps {
 }
 
 const ACTION_BUTTON_CLASS =
-  "h-9 w-9 flex-shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
+  "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
 function IconPickerButton({
   value,
@@ -284,7 +284,7 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
           type="button"
           {...attributes}
           {...listeners}
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           aria-label={`Reorder ${link.label || "quick link"}`}
         >
           <GripVertical className="h-4 w-4" />
