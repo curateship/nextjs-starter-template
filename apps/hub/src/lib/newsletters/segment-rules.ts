@@ -3,6 +3,7 @@ export const SEGMENT_TYPES = ['static', 'dynamic'] as const
 export type SegmentType = typeof SEGMENT_TYPES[number]
 export type SegmentDynamicRuleOperator = 'is' | 'isnt'
 export type SegmentTagRuleOperator = 'includes' | 'excludes'
+export type SegmentOpenCountRuleOperator = 'has_opened' | 'hasnt_opened'
 
 export interface LastEngagedWithinDaysRule {
   type: 'last_engaged_within_days'
@@ -16,7 +17,13 @@ export interface TagMatchRule {
   tags: string[]
 }
 
-export type SegmentDynamicCondition = LastEngagedWithinDaysRule | TagMatchRule
+export interface EmailOpenCountRule {
+  type: 'email_open_count'
+  operator: SegmentOpenCountRuleOperator
+  times: number
+}
+
+export type SegmentDynamicCondition = LastEngagedWithinDaysRule | TagMatchRule | EmailOpenCountRule
 
 export interface SegmentDynamicRule {
   conditions: SegmentDynamicCondition[]
@@ -67,6 +74,25 @@ function normalizeTagMatchRule(value: unknown): TagMatchRule | null {
   }
 }
 
+function normalizeEmailOpenCountRule(value: unknown): EmailOpenCountRule | null {
+  if (!value || typeof value !== 'object') return null
+
+  const type = (value as { type?: unknown }).type
+  const operator = (value as { operator?: unknown }).operator
+  const rawTimes = (value as { times?: unknown }).times
+  const times = typeof rawTimes === 'string' ? Number(rawTimes) : rawTimes
+
+  if (type !== 'email_open_count') return null
+  if (operator !== 'has_opened' && operator !== 'hasnt_opened') return null
+  if (!Number.isInteger(times) || Number(times) < 1) return null
+
+  return {
+    type: 'email_open_count',
+    operator,
+    times: Number(times),
+  }
+}
+
 function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicCondition | null {
   if (!value || typeof value !== 'object') return null
 
@@ -76,6 +102,9 @@ function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicConditi
   }
   if (type === 'tag_match') {
     return normalizeTagMatchRule(value)
+  }
+  if (type === 'email_open_count') {
+    return normalizeEmailOpenCountRule(value)
   }
 
   return null
@@ -104,6 +133,13 @@ export function normalizeSegmentDynamicRule(value: unknown): SegmentDynamicRule 
 export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition): string {
   if (condition.type === 'last_engaged_within_days') {
     return `Last engaged ${condition.operator === 'is' ? 'is' : "isn't"} within ${condition.days} day${condition.days === 1 ? '' : 's'}`
+  }
+
+  if (condition.type === 'email_open_count') {
+    const timesLabel = `${condition.times} email${condition.times === 1 ? '' : 's'}`
+    return condition.operator === 'has_opened'
+      ? `Opened any of last ${timesLabel}`
+      : `Opened none of last ${timesLabel}`
   }
 
   return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${condition.tags.join(', ')}`

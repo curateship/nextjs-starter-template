@@ -127,6 +127,33 @@ function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
         )
   }
 
+  if (condition.type === 'email_open_count') {
+    const recentEmails = sql`
+      select sent.source_type, sent.source_id
+      from newsletter_events as sent
+      where sent.site_id = ${newsletterContacts.siteId}
+        and sent.event_type = 'sent'
+        and sent.source_id is not null
+      group by sent.source_type, sent.source_id
+      order by max(sent.created_at) desc
+      limit ${condition.times}
+    `
+    const hasOpenedRecentEmail = sql`exists (
+      select 1
+      from newsletter_events as opened
+      inner join (${recentEmails}) as recent_email
+        on opened.source_type = recent_email.source_type
+        and opened.source_id = recent_email.source_id
+      where opened.contact_id = ${newsletterContacts.id}
+        and opened.site_id = ${newsletterContacts.siteId}
+        and opened.event_type = 'opened'
+    )`
+
+    return condition.operator === 'has_opened'
+      ? hasOpenedRecentEmail
+      : sql`not ${hasOpenedRecentEmail}`
+  }
+
   const tagArray = sql`CASE WHEN jsonb_typeof(${newsletterContacts.metadata}->'tags') = 'array' THEN ${newsletterContacts.metadata}->'tags' ELSE '[]'::jsonb END`
   const tags = condition.tags.map((tag) => tag.toLowerCase())
 

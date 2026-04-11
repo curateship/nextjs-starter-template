@@ -51,12 +51,14 @@ import {
   type SegmentDynamicCondition,
   type SegmentDynamicRule,
   type SegmentDynamicRuleOperator,
+  type SegmentOpenCountRuleOperator,
   type SegmentTagRuleOperator,
   type SegmentType,
 } from "@/lib/newsletters/segment-rules"
 
 type DynamicConditionForm =
   | { id: string; type: "last_engaged_within_days"; operator: SegmentDynamicRuleOperator; days: string }
+  | { id: string; type: "email_open_count"; operator: SegmentOpenCountRuleOperator; times: string }
   | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
 
 function makeConditionId() {
@@ -73,6 +75,15 @@ function mapDynamicRuleToForm(rule: SegmentDynamicRule | null | undefined): Dyna
         type: "last_engaged_within_days",
         operator: condition.operator,
         days: String(condition.days),
+      }
+    }
+
+    if (condition.type === "email_open_count") {
+      return {
+        id: makeConditionId(),
+        type: "email_open_count",
+        operator: condition.operator,
+        times: String(condition.times),
       }
     }
 
@@ -100,6 +111,17 @@ function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDy
       continue
     }
 
+    if (condition.type === "email_open_count") {
+      const times = Number(condition.times)
+      if (!Number.isInteger(times) || times < 1) return null
+      normalizedConditions.push({
+        type: "email_open_count",
+        operator: condition.operator,
+        times,
+      })
+      continue
+    }
+
     const tags = [...new Set(condition.tags.map((tag) => tag.trim()).filter(Boolean))]
     if (!tags.length) return null
     normalizedConditions.push({
@@ -114,6 +136,7 @@ function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDy
 
 function formatDynamicConditionLabel(condition: DynamicConditionForm) {
   if (condition.type === "last_engaged_within_days") return "Last engaged"
+  if (condition.type === "email_open_count") return "Email opens"
   return "Tags"
 }
 
@@ -339,12 +362,17 @@ export default function SegmentsPage() {
   const invalidDynamicConditions = formSegmentType === "dynamic" && !buildDynamicRuleFromForm(formDynamicConditions)
 
   function addDynamicCondition(type: DynamicConditionForm["type"]) {
-    setFormDynamicConditions((prev) => [
-      ...prev,
-      type === "last_engaged_within_days"
-        ? { id: makeConditionId(), type, operator: "is", days: "30" }
-        : { id: makeConditionId(), type, operator: "includes", tags: [] },
-    ])
+    if (type === "last_engaged_within_days") {
+      setFormDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "is", days: "30" }])
+      return
+    }
+
+    if (type === "email_open_count") {
+      setFormDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "has_opened", times: "1" }])
+      return
+    }
+
+    setFormDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "includes", tags: [] }])
   }
 
   function updateDynamicCondition(conditionId: string, updater: (condition: DynamicConditionForm) => DynamicConditionForm) {
@@ -711,6 +739,40 @@ export default function SegmentsPage() {
                           </div>
                         )}
 
+                        {condition.type === "email_open_count" && (
+                          <div className="space-y-2">
+                            <div className="grid gap-3 sm:grid-cols-[170px,1fr]">
+                              <Select
+                                value={condition.operator}
+                                onValueChange={(value: SegmentOpenCountRuleOperator) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "email_open_count" ? { ...current, operator: value } : current
+                                ))}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="has_opened">Opened any of the last</SelectItem>
+                                  <SelectItem value="hasnt_opened">Opened none of the last</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={condition.times}
+                                onChange={(e) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "email_open_count" ? { ...current, times: e.target.value } : current
+                                ))}
+                                placeholder="Emails"
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Checks every contact against the latest emails sent from this site.
+                            </p>
+                          </div>
+                        )}
+
                         {condition.type === "tag_match" && (
                           <div className="space-y-3">
                             <Select
@@ -778,6 +840,9 @@ export default function SegmentsPage() {
                           onSelect={() => addDynamicCondition("last_engaged_within_days")}
                         >
                           Last engaged
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => addDynamicCondition("email_open_count")}>
+                          Email opens
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => addDynamicCondition("tag_match")}>
                           Tags
