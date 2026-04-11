@@ -18,7 +18,6 @@ import {
   ClipboardCheck,
   HeartPulse,
   AppWindow,
-  Paintbrush,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -156,16 +155,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       name: "Sites",
       url: "/admin/sites",
       icon: Globe,
+      items: [
+        { title: "Themes", url: "/admin/themes" },
+      ],
     },
     {
       name: "Users",
       url: "/admin/users",
       icon: Users,
-    },
-    {
-      name: "Themes",
-      url: "/admin/themes",
-      icon: Paintbrush,
     },
     {
       name: "Automations",

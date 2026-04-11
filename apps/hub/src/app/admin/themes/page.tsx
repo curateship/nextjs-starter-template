@@ -142,7 +142,16 @@ export default function ThemesPage() {
 
   return (
     <>
-      <StickyHeader />
+      <StickyHeader
+        rightActions={
+          <Button asChild size="sm">
+            <Link href="/admin/themes">
+              <Paintbrush className="h-4 w-4" />
+              <span className="hidden sm:inline">Themes</span>
+            </Link>
+          </Button>
+        }
+      />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

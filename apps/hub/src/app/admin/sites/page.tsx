@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 
-import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban, Copy } from "lucide-react"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Copy, Paintbrush } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils/tailwind"
@@ -17,7 +18,39 @@ import { getAllSitesAction, deleteSiteAction, cloneSiteAction, type SiteWithThem
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
-type FilterStatus = 'all' | 'active' | 'inactive' | 'draft' | 'suspended'
+type FilterStatus = 'all' | 'active' | 'inactive' | 'draft'
+
+function SitesTableSkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="p-6" aria-hidden="true">
+          <div className="grid grid-cols-6 gap-4 items-center">
+            <div className="col-span-2 flex items-center space-x-4">
+              <Skeleton className="h-12 w-12 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <Skeleton className="h-4 w-10" />
+            </div>
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+            <div className="flex items-center space-x-1">
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
 
 export default function SitesPage() {
   const { refreshSites } = useSiteSwitcher()
@@ -173,12 +206,18 @@ export default function SitesPage() {
     return 0
   })
 
+  const siteCounts = {
+    all: sites.length,
+    active: sites.filter(site => site.status === 'active').length,
+    inactive: sites.filter(site => site.status === 'inactive').length,
+    draft: sites.filter(site => site.status === 'draft').length,
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-800'
       case 'inactive': return 'bg-red-100 text-red-800'
       case 'draft': return 'bg-yellow-100 text-yellow-800'
-      case 'suspended': return 'bg-gray-100 text-gray-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -197,7 +236,16 @@ export default function SitesPage() {
   
   return (
     <>
-    <StickyHeader />
+    <StickyHeader
+      rightActions={
+        <Button asChild variant="outline" size="sm">
+          <Link href="/admin/themes">
+            <Paintbrush className="h-4 w-4" />
+            <span className="hidden sm:inline">Themes</span>
+          </Link>
+        </Button>
+      }
+    />
     <AdminLayout>
       <div className="w-full">
         <DashboardSubheader
@@ -206,11 +254,10 @@ export default function SitesPage() {
             value: filter,
             onValueChange: (value) => setFilter(value as FilterStatus),
             items: [
-              { value: "all", label: "All", icon: List },
-              { value: "active", label: "Active", icon: CircleCheck },
-              { value: "inactive", label: "Inactive", icon: CircleX },
-              { value: "draft", label: "Draft", icon: FileEdit },
-              { value: "suspended", label: "Suspended", icon: Ban },
+              { value: "all", label: "All", icon: List, count: siteCounts.all },
+              { value: "active", label: "Active", icon: CircleCheck, count: siteCounts.active },
+              { value: "inactive", label: "Inactive", icon: CircleX, count: siteCounts.inactive },
+              { value: "draft", label: "Draft", icon: FileEdit, count: siteCounts.draft },
             ],
           }}
           actions={
@@ -266,12 +313,9 @@ export default function SitesPage() {
             </div>
           </div>
           
-          <div className="divide-y divide-muted/80">
+          <div className="divide-y divide-muted/80" aria-busy={loading}>
             {loading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading sites...</p>
-              </div>
+              <SitesTableSkeletonRows />
             ) : error ? (
               <div className="p-8 text-center">
                 <p className="text-red-600 mb-4">{error}</p>
