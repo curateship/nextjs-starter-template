@@ -5,7 +5,7 @@ description: Validates code changes by opening the app in a real browser, loggin
 
 # Validate UI Changes
 
-After making code changes, open a real browser to verify the page works as intended.
+When triggered with "validate live", open a real browser to verify the page works as intended.
 
 ## Auth State
 

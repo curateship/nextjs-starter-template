@@ -88,7 +88,6 @@ Available skills:
 - `.codex/skills/block-builder`
 - `.codex/skills/commit`
 - `.codex/skills/playwright-cli`
-- `.codex/skills/validate-live`
 - `.codex/skills/vulnerability-validater`
 
 When a task matches one of these skills, prefer using the local `SKILL.md` in that folder before falling back to generic behavior.
