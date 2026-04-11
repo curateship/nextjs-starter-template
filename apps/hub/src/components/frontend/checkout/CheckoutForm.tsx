@@ -58,6 +58,7 @@ interface CheckoutFormProps {
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
   stripePublishableKey?: string
+  checkoutOrigin?: string
 }
 
 export function CheckoutForm({
@@ -66,6 +67,7 @@ export function CheckoutForm({
   selectedTier,
   checkoutSettings,
   stripePublishableKey,
+  checkoutOrigin,
 }: CheckoutFormProps) {
   const router = useRouter()
 
@@ -219,6 +221,7 @@ export function CheckoutForm({
                 checkoutSettings={checkoutSettings}
                 selectedBumps={selectedBumpsArray}
                 stripePublishableKey={stripePublishableKey}
+                checkoutOrigin={checkoutOrigin}
               />
             </div>
           </div>

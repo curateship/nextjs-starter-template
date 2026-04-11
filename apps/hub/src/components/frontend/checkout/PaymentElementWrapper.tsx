@@ -53,12 +53,13 @@ interface PaymentElementWrapperProps {
   checkoutSettings: CheckoutSettings
   selectedBumps: string[]
   stripePublishableKey?: string
+  checkoutOrigin?: string
 }
 
-function getReturnUrl(path: string) {
+function getReturnUrl(path: string, checkoutOrigin?: string) {
   if (/^https?:\/\//i.test(path)) return path
 
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || window.location.origin
+  const appDomain = checkoutOrigin || process.env.NEXT_PUBLIC_APP_DOMAIN || window.location.origin
   const base = /^https?:\/\//i.test(appDomain)
     ? appDomain
     : appDomain.startsWith('localhost') || appDomain.startsWith('127.')
@@ -73,11 +74,13 @@ function CheckoutForm({
   checkoutSettings,
   totalAmount,
   isUpdating,
+  checkoutOrigin,
 }: {
   product: Product;
   checkoutSettings: CheckoutSettings;
   totalAmount: number;
   isUpdating: boolean;
+  checkoutOrigin?: string;
 }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -107,7 +110,7 @@ function CheckoutForm({
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: getReturnUrl(checkoutSettings.successUrl.replace('[slug]', product.slug)),
+        return_url: getReturnUrl(checkoutSettings.successUrl.replace('[slug]', product.slug), checkoutOrigin),
         payment_method_data: {
           billing_details: {
             email: email,
@@ -189,6 +192,7 @@ export function PaymentElementWrapper({
   checkoutSettings,
   selectedBumps,
   stripePublishableKey,
+  checkoutOrigin,
 }: PaymentElementWrapperProps) {
   const resolvedKey = stripePublishableKey
   const stripePromiseRef = useRef(resolvedKey ? loadStripe(resolvedKey) : null)
@@ -419,6 +423,7 @@ export function PaymentElementWrapper({
         checkoutSettings={checkoutSettings}
         totalAmount={totalAmount}
         isUpdating={isUpdating}
+        checkoutOrigin={checkoutOrigin}
       />
     </Elements>
   )

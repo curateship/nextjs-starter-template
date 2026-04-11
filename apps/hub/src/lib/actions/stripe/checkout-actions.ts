@@ -21,10 +21,10 @@ async function getStripeClient(siteId: string | undefined): Promise<Stripe> {
   })
 }
 
-function getAppUrl(path: string) {
+function getAppUrl(path: string, checkoutOrigin?: string) {
   if (/^https?:\/\//i.test(path)) return path
 
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+  const appDomain = checkoutOrigin || process.env.NEXT_PUBLIC_APP_DOMAIN
   if (!appDomain) {
     throw new Error('NEXT_PUBLIC_APP_DOMAIN is required for Stripe checkout URLs')
   }
@@ -58,6 +58,7 @@ export interface CheckoutSessionData {
   successUrl: string
   uiMode?: 'hosted' | 'embedded'
   siteId?: string
+  checkoutOrigin?: string
 }
 
 /**
@@ -105,9 +106,9 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
     // Add UI mode specific parameters
     if (data.uiMode === 'embedded') {
       sessionParams.ui_mode = 'embedded'
-      sessionParams.return_url = `${getAppUrl(data.successUrl)}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.return_url = `${getAppUrl(data.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
     } else {
-      sessionParams.success_url = `${getAppUrl(data.successUrl)}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.success_url = `${getAppUrl(data.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams)
