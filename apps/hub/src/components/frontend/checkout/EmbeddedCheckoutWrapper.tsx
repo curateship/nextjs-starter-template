@@ -28,6 +28,7 @@ interface PricingTier {
   description: string
   features: string[]
   stripePriceId: string
+  enableOrderBumps?: boolean
   orderBumps?: OrderBump[]
 }
 
@@ -66,7 +67,7 @@ export function EmbeddedCheckoutWrapper({
     const createSession = async () => {
       try {
         // Get selected order bumps from the selected tier
-        const tierOrderBumps = selectedTier.orderBumps || []
+        const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
         const selectedOrderBumps = tierOrderBumps.filter((bump) =>
           selectedBumps.includes(bump.id)
         )

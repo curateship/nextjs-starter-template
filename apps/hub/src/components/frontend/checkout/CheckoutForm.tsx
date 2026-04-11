@@ -32,6 +32,7 @@ interface PricingTier {
   description: string
   features: string[]
   stripePriceId: string
+  enableOrderBumps?: boolean
   orderBumps?: OrderBump[]
 }
 
@@ -64,8 +65,7 @@ export function CheckoutForm({
 }: CheckoutFormProps) {
   const router = useRouter()
 
-  // Get order bumps from the selected tier
-  const tierOrderBumps = selectedTier.orderBumps || []
+  const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
 
   const [selectedBumps, setSelectedBumps] = useState<Set<string>>(
     new Set(

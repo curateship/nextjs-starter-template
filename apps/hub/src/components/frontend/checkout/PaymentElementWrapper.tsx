@@ -36,6 +36,7 @@ interface PricingTier {
   description: string
   features: string[]
   stripePriceId: string
+  enableOrderBumps?: boolean
   orderBumps?: OrderBump[]
 }
 
@@ -198,7 +199,7 @@ export function PaymentElementWrapper({
     const createIntent = async () => {
       try {
         // Get initial order bumps from the selected tier
-        const tierOrderBumps = selectedTier.orderBumps || []
+        const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
         const selectedOrderBumps = tierOrderBumps.filter((bump) =>
           selectedBumps.includes(bump.id)
         )
@@ -262,7 +263,7 @@ export function PaymentElementWrapper({
         setIsUpdating(true)
 
         // Get current order bumps from the selected tier
-        const tierOrderBumps = selectedTier.orderBumps || []
+        const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
         const selectedOrderBumps = tierOrderBumps.filter((bump) =>
           selectedBumps.includes(bump.id)
         )
