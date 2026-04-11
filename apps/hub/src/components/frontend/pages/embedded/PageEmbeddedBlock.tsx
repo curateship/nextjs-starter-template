@@ -103,7 +103,13 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
 
                 // Copy script content
                 if (oldScript.textContent) {
-                  newScript.textContent = oldScript.textContent
+                  newScript.textContent = `
+                    try {
+                      ${oldScript.textContent}
+                    } catch (error) {
+                      console.error('Error executing embedded inline script:', error)
+                    }
+                  `
                 }
 
                 // Add error handling
