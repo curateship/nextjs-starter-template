@@ -1,8 +1,7 @@
 import { randomBytes } from 'crypto'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationEnrollments, newsletterContacts, productOrders, products } from '@/lib/db/schema'
-import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
+import { newsletterContacts, productOrders, products } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { emailService } from '@/lib/actions/email/email-service'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
@@ -66,12 +65,28 @@ export async function recordPaidPurchase(params: {
 
   if (existingChecks.length) {
     const [existingOrder] = await db
-      .select({ id: productOrders.id })
+      .select({
+        id: productOrders.id,
+        accessToken: productOrders.accessToken,
+        emailSentAt: productOrders.emailSentAt,
+      })
       .from(productOrders)
       .where(existingChecks.length === 1 ? existingChecks[0] : or(...existingChecks))
       .limit(1)
 
-    if (existingOrder) return
+    if (existingOrder) {
+      if (!existingOrder.emailSentAt) {
+        await sendPaidProductEmail({
+          siteId,
+          productId,
+          customerEmail,
+          orderId: existingOrder.id,
+          accessToken: existingOrder.accessToken,
+          tierId: params.metadata?.tier_id || params.metadata?.tierId,
+        })
+      }
+      return
+    }
   }
 
   const [order] = await db.insert(productOrders).values({
@@ -91,59 +106,29 @@ export async function recordPaidPurchase(params: {
     accessToken: productOrders.accessToken,
   })
 
-  const [contact] = await db
-    .insert(newsletterContacts)
-    .values({
-      siteId,
-      email: customerEmail.toLowerCase(),
-      metadata: {
-        source: 'paid_purchase',
-        source_product_id: productId,
-      },
-    })
-    .onConflictDoUpdate({
-      target: [newsletterContacts.siteId, newsletterContacts.email],
-      set: {
-        metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
+  try {
+    await db
+      .insert(newsletterContacts)
+      .values({
+        siteId,
+        email: customerEmail.toLowerCase(),
+        metadata: {
           source: 'paid_purchase',
           source_product_id: productId,
-        })}::jsonb`,
-        updatedAt: new Date(),
-      },
-    })
-    .returning({ id: newsletterContacts.id })
-
-  if (!contact) return
-
-  const activeEnrollments = await db
-    .select({ id: emailAutomationEnrollments.id, automationId: emailAutomationEnrollments.automationId })
-    .from(emailAutomationEnrollments)
-    .where(and(
-      eq(emailAutomationEnrollments.contactId, contact.id),
-      eq(emailAutomationEnrollments.status, 'active'),
-    ))
-
-  for (const enrollment of activeEnrollments) {
-    const [automation] = await db
-      .select({ goalType: emailAutomations.goalType, goalConfig: emailAutomations.goalConfig })
-      .from(emailAutomations)
-      .where(eq(emailAutomations.id, enrollment.automationId))
-
-    if (automation?.goalType === 'purchase') {
-      const goalConfig = automation.goalConfig as Record<string, any> | null
-      const goalProductId = goalConfig?.product_id
-      if (!goalProductId || goalProductId === productId) {
-        await db
-          .update(emailAutomationEnrollments)
-          .set({ status: 'goal_met', goalMetAt: new Date() })
-          .where(eq(emailAutomationEnrollments.id, enrollment.id))
-      }
-    }
-  }
-
-  const automations = await findActiveAutomations(siteId, 'paid_purchase', productId)
-  for (const automation of automations) {
-    await enrollContact(automation.id, contact.id)
+        },
+      })
+      .onConflictDoUpdate({
+        target: [newsletterContacts.siteId, newsletterContacts.email],
+        set: {
+          metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
+            source: 'paid_purchase',
+            source_product_id: productId,
+          })}::jsonb`,
+          updatedAt: new Date(),
+        },
+      })
+  } catch (error) {
+    console.error('Failed to record paid purchase contact:', error)
   }
 
   if (order) {
