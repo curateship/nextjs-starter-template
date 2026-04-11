@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CheckCircle, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
@@ -53,6 +54,7 @@ function IntegrationCard({
 
   const isConfigured = integration !== null
   const isEnabled = integration?.isEnabled ?? false
+  const stripeMode = (formValues.mode || integration?.config?.mode) === 'sandbox' ? 'Sandbox' : 'Live'
 
   const handleToggle = async (checked: boolean) => {
     if (!integration) return
@@ -95,6 +97,15 @@ function IntegrationCard({
                   Not configured
                 </span>
               )}
+              {entry.type === 'stripe' && isConfigured && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  stripeMode === 'Sandbox'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  Using {stripeMode}
+                </span>
+              )}
             </CardTitle>
             <CardDescription className="mt-1">{entry.description}</CardDescription>
           </div>
@@ -113,19 +124,43 @@ function IntegrationCard({
         <CardContent className="pt-0 space-y-4">
           {entry.fields.map((field) => (
             <div key={field.key} className="space-y-2">
+              {entry.type === 'stripe' && field.key === 'secret_key' && (
+                <h3 className="pt-4 text-base font-semibold">Live Credentials</h3>
+              )}
+              {entry.type === 'stripe' && field.key === 'sandbox_secret_key' && (
+                <h3 className="pt-4 text-base font-semibold">Sandbox Credentials</h3>
+              )}
               <Label htmlFor={`${entry.type}-${field.key}`}>
                 {field.label}
                 {field.required && <span className="text-destructive ml-1">*</span>}
               </Label>
               <div className="relative">
-                <Input
-                  id={`${entry.type}-${field.key}`}
-                  type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : 'text'}
-                  placeholder={field.placeholder}
-                  value={formValues[field.key] || ''}
-                  onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
-                  className={field.type === 'password' ? 'pr-10' : ''}
-                />
+                {field.type === 'select' ? (
+                  <Select
+                    value={formValues[field.key] || field.options?.[0]?.value || ''}
+                    onValueChange={(value) => onFormChange(entry.type, field.key, value)}
+                  >
+                    <SelectTrigger id={`${entry.type}-${field.key}`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.options?.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id={`${entry.type}-${field.key}`}
+                    type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : field.type}
+                    placeholder={field.placeholder}
+                    value={formValues[field.key] || ''}
+                    onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
+                    className={field.type === 'password' ? 'pr-10' : ''}
+                  />
+                )}
                 {field.type === 'password' && (
                   <button
                     type="button"
@@ -140,6 +175,11 @@ function IntegrationCard({
                   </button>
                 )}
               </div>
+              {entry.type === 'stripe' && field.key === 'mode' && (
+                <p className="text-sm text-muted-foreground">
+                  This selects whether checkout payments and Stripe webhooks use the live keys or sandbox keys below.
+                </p>
+              )}
             </div>
           ))}
         </CardContent>
@@ -177,7 +217,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
         const integration = data.find((i) => i.integrationType ===entry.type)
         values[entry.type] = {}
         for (const field of entry.fields) {
-          values[entry.type][field.key] = integration?.config?.[field.key] || ''
+          values[entry.type][field.key] = integration?.config?.[field.key] || field.options?.[0]?.value || ''
         }
       }
       setAllFormValues(values)

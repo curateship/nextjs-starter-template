@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // We need to find which site this webhook belongs to.
     // Try all sites with Stripe integrations and verify signature against each.
     const integrations = await db
-      .select({ siteId: siteIntegrations.siteId, config: siteIntegrations.config })
+      .select({ siteId: siteIntegrations.siteId })
       .from(siteIntegrations)
       .where(and(
         eq(siteIntegrations.integrationType, 'stripe'),
@@ -43,15 +43,14 @@ export async function POST(req: NextRequest) {
     let event: Stripe.Event | null = null
 
     for (const integration of integrations) {
-      const config = integration.config as Record<string, any>
-      const webhookSecret = config?.webhook_secret
-      if (!webhookSecret) continue
+      const config = await getStripeConfig(integration.siteId)
+      if (!config?.webhookSecret) continue
 
       try {
-        const stripe = new Stripe(config.secret_key, {
+        const stripe = new Stripe(config.secretKey, {
           apiVersion: '2025-10-29.clover',
         })
-        event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+        event = stripe.webhooks.constructEvent(body, signature, config.webhookSecret)
         break
       } catch {
         // Signature didn't match this site, try next

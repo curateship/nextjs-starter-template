@@ -10,16 +10,22 @@ export async function getStripeConfig(siteId: string): Promise<{
   secretKey: string
   publishableKey: string
   webhookSecret?: string
+  mode: 'live' | 'sandbox'
 } | null> {
   const integration = await getSiteIntegration(siteId, 'stripe')
 
   if (integration && integration.isEnabled) {
-    const { secret_key, publishable_key, webhook_secret } = integration.config
-    if (secret_key && publishable_key) {
+    const mode = integration.config.mode === 'sandbox' ? 'sandbox' : 'live'
+    const secretKey = mode === 'sandbox' ? integration.config.sandbox_secret_key : integration.config.secret_key
+    const publishableKey = mode === 'sandbox' ? integration.config.sandbox_publishable_key : integration.config.publishable_key
+    const webhookSecret = mode === 'sandbox' ? integration.config.sandbox_webhook_secret : integration.config.webhook_secret
+
+    if (secretKey && publishableKey) {
       return {
-        secretKey: secret_key,
-        publishableKey: publishable_key,
-        webhookSecret: webhook_secret,
+        secretKey,
+        publishableKey,
+        webhookSecret,
+        mode,
       }
     }
   }

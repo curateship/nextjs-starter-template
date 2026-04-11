@@ -12,7 +12,7 @@ export type IntegrationType =
  */
 export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   resend: ['api_key', 'webhook_secret'],
-  stripe: ['secret_key', 'webhook_secret'],
+  stripe: ['secret_key', 'webhook_secret', 'sandbox_secret_key', 'sandbox_webhook_secret'],
   anthropic: ['api_key'],
   openai: ['api_key'],
   perplexity: ['api_key'],
@@ -22,9 +22,10 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
 export interface IntegrationFieldDefinition {
   key: string
   label: string
-  type: 'text' | 'password' | 'email'
+  type: 'text' | 'password' | 'email' | 'select'
   placeholder?: string
   required?: boolean
+  options?: Array<{ value: string; label: string }>
 }
 
 export type IntegrationCategory = 'payments' | 'email' | 'ai' | 'seo'
@@ -45,9 +46,22 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     description: 'Payment processing for products and subscriptions',
     category: 'payments',
     fields: [
-      { key: 'secret_key', label: 'Secret Key', type: 'password', placeholder: 'sk_...', required: true },
-      { key: 'publishable_key', label: 'Publishable Key', type: 'text', placeholder: 'pk_...', required: true },
-      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
+      {
+        key: 'mode',
+        label: 'Active Stripe Credentials',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'live', label: 'Use live keys' },
+          { value: 'sandbox', label: 'Use sandbox keys' },
+        ],
+      },
+      { key: 'secret_key', label: 'Live Secret Key', type: 'password', placeholder: 'sk_live_...' },
+      { key: 'publishable_key', label: 'Live Publishable Key', type: 'text', placeholder: 'pk_live_...' },
+      { key: 'webhook_secret', label: 'Live Webhook Secret', type: 'password' },
+      { key: 'sandbox_secret_key', label: 'Sandbox Secret Key', type: 'password', placeholder: 'sk_test_...' },
+      { key: 'sandbox_publishable_key', label: 'Sandbox Publishable Key', type: 'text', placeholder: 'pk_test_...' },
+      { key: 'sandbox_webhook_secret', label: 'Sandbox Webhook Secret', type: 'password' },
     ],
   },
   // Email
