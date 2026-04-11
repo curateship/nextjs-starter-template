@@ -21,6 +21,23 @@ async function getStripeClient(siteId: string | undefined): Promise<Stripe> {
   })
 }
 
+function getAppUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path
+
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('NEXT_PUBLIC_APP_DOMAIN is required for Stripe checkout URLs')
+  }
+
+  const base = /^https?:\/\//i.test(appDomain)
+    ? appDomain
+    : appDomain.startsWith('localhost') || appDomain.startsWith('127.')
+      ? `http://${appDomain}`
+      : `https://${appDomain}`
+
+  return `${base.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 export interface OrderBump {
   id: string
   title: string
@@ -88,9 +105,9 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
     // Add UI mode specific parameters
     if (data.uiMode === 'embedded') {
       sessionParams.ui_mode = 'embedded'
-      sessionParams.return_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.return_url = `${getAppUrl(data.successUrl)}?session_id={CHECKOUT_SESSION_ID}`
     } else {
-      sessionParams.success_url = `${process.env.NEXT_PUBLIC_APP_DOMAIN}${data.successUrl}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.success_url = `${getAppUrl(data.successUrl)}?session_id={CHECKOUT_SESSION_ID}`
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams)

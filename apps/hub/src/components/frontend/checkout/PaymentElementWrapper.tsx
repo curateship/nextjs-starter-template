@@ -55,6 +55,19 @@ interface PaymentElementWrapperProps {
   stripePublishableKey?: string
 }
 
+function getReturnUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path
+
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || window.location.origin
+  const base = /^https?:\/\//i.test(appDomain)
+    ? appDomain
+    : appDomain.startsWith('localhost') || appDomain.startsWith('127.')
+      ? `http://${appDomain}`
+      : `https://${appDomain}`
+
+  return `${base.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 function CheckoutForm({
   product,
   checkoutSettings,
@@ -94,7 +107,7 @@ function CheckoutForm({
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${process.env.NEXT_PUBLIC_APP_DOMAIN}${checkoutSettings.successUrl.replace('[slug]', product.slug)}`,
+        return_url: getReturnUrl(checkoutSettings.successUrl.replace('[slug]', product.slug)),
         payment_method_data: {
           billing_details: {
             email: email,
