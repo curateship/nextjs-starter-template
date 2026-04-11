@@ -1,9 +1,9 @@
 'use server'
 
-import { eq, and, ne, desc } from 'drizzle-orm'
+import { eq, and, ne, desc, asc } from 'drizzle-orm'
 import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { sites } from '@/lib/db/schema'
+import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Site {
@@ -55,6 +55,12 @@ export interface CreateSiteData {
   default_theme?: 'system' | 'light' | 'dark'
 }
 
+export interface CloneSiteData {
+  name: string
+  clone_settings?: boolean
+  clone_pages?: boolean
+}
+
 function sanitizeCustomDomain(input?: string | null): string | null {
   if (!input) return null
   let d = String(input).trim().toLowerCase()
@@ -64,6 +70,35 @@ function sanitizeCustomDomain(input?: string | null): string | null {
   d = d.split('/')[0].split('?')[0].split('#')[0]
   if (!d) return null
   return d
+}
+
+function buildSubdomain(input: string): string {
+  const subdomain = input.toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
+  return subdomain || 'site'
+}
+
+// Duplicated sites need a fresh public slug because subdomains are globally unique.
+async function getAvailableSubdomain(input: string): Promise<string> {
+  const baseSubdomain = buildSubdomain(input)
+  let subdomain = baseSubdomain
+  let attempts = 0
+
+  while (attempts < 10) {
+    const existing = await db.query.sites.findFirst({
+      where: eq(sites.subdomain, subdomain),
+      columns: { id: true },
+    })
+    if (!existing) return subdomain
+
+    attempts++
+    subdomain = `${baseSubdomain}-${attempts}`
+  }
+
+  return `${baseSubdomain}-${Date.now()}`
 }
 
 export async function getAllSitesAction(): Promise<{ data: Site[] | null; error: string | null }> {
@@ -138,6 +173,114 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
 
     if (!created) return { data: null, error: 'Failed to create site' }
     return { data: normalizeSite(created), error: null }
+  } catch (error) {
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
+export async function cloneSiteAction(
+  sourceSiteId: string,
+  cloneData: CloneSiteData
+): Promise<{ data: Site | null; error: string | null }> {
+  try {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(sourceSiteId)) return { data: null, error: 'Invalid site ID format' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
+
+    const name = cloneData.name.trim()
+    if (!name) return { data: null, error: 'Site name is required' }
+
+    // Only real user-owned sites can be duplicated; templates stay managed by theme flows.
+    const sourceSite = await db.query.sites.findFirst({
+      where: and(eq(sites.id, sourceSiteId), eq(sites.userId, user.id), eq(sites.isTemplate, false)),
+    })
+    if (!sourceSite) return { data: null, error: 'Site not found or access denied' }
+
+    const cloneSettings = cloneData.clone_settings !== false
+    const clonePages = cloneData.clone_pages !== false
+    const subdomain = await getAvailableSubdomain(name)
+    const settings: Record<string, any> = cloneSettings
+      ? { ...((sourceSite.settings || {}) as Record<string, any>), site_title: name }
+      : {
+        site_title: name,
+        analytics_enabled: false,
+        seo_enabled: true,
+        font_family: 'playfair-display',
+        font_weights: ['400', '500', '600', '700', '800', '900'],
+        secondary_font_family: 'inter',
+        secondary_font_weights: ['300', '400', '500', '600', '700'],
+        favicon: null,
+        default_theme: 'system',
+      }
+    // A duplicate gets its own domain decisions, so do not inherit canonical-domain settings.
+    delete settings.seo_canonical_domain
+
+    // Create the draft site and copy pages in one transaction so clones are never partial.
+    const cloned = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(sites)
+        .values({
+          name,
+          userId: user.id,
+          subdomain,
+          status: 'draft',
+          isTemplate: false,
+          customDomain: null,
+          settings,
+        })
+        .returning()
+
+      if (!created) return null
+
+      if (clonePages) {
+        const sourcePages = await tx
+          .select({
+            title: pages.title,
+            slug: pages.slug,
+            metaDescription: pages.metaDescription,
+            metaKeywords: pages.metaKeywords,
+            template: pages.template,
+            isHomepage: pages.isHomepage,
+            isPublished: pages.isPublished,
+            displayOrder: pages.displayOrder,
+            contentBlocks: pages.contentBlocks,
+          })
+          .from(pages)
+          .where(eq(pages.siteId, sourceSite.id))
+          .orderBy(asc(pages.displayOrder))
+
+        // Some site inserts create default pages automatically; replace them with source pages.
+        await tx.delete(pages).where(eq(pages.siteId, created.id))
+
+        if (sourcePages.length > 0) {
+          await tx.insert(pages).values(sourcePages.map((page) => ({
+            siteId: created.id,
+            title: page.title,
+            slug: page.slug,
+            metaDescription: page.metaDescription,
+            metaKeywords: page.metaKeywords,
+            template: page.template,
+            isHomepage: page.isHomepage,
+            isPublished: page.isPublished,
+            displayOrder: page.displayOrder,
+            contentBlocks: page.contentBlocks || {},
+          })))
+        }
+      }
+
+      return created
+    })
+
+    if (!cloned) return { data: null, error: 'Failed to duplicate site' }
+
+    // Refresh admin lists and public site lookup caches after the new draft exists.
+    revalidateTag('site-lookup')
+    revalidateTag('all')
+    revalidatePath('/admin/sites')
+
+    return { data: normalizeSite(cloned), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }

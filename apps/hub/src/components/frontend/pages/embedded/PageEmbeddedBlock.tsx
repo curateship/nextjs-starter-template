@@ -25,20 +25,15 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
   }, [])
 
   useEffect(() => {
-    // Handle both HTML and script type embedding
     if (code && containerRef.current && isMounted) {
       try {
-        // Clear previous content
         containerRef.current.innerHTML = ''
 
-        // Create a temporary div to parse the HTML
+        // Parse embed HTML off-DOM so scripts can be controlled before anything renders.
         const tempDiv = document.createElement('div')
         tempDiv.innerHTML = code
 
-        // Find all script tags
         const scripts = tempDiv.querySelectorAll('script')
-
-        // Separate external scripts and inline scripts
         const externalScripts: HTMLScriptElement[] = []
         const inlineScripts: HTMLScriptElement[] = []
 
@@ -50,7 +45,7 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
           }
         })
 
-        // First, append any non-script content
+        // Render markup first, then load external scripts and finally run inline scripts.
         const nonScriptContent = Array.from(tempDiv.childNodes).filter(
           node => node.nodeName !== 'SCRIPT'
         )
@@ -58,69 +53,54 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
           try {
             containerRef.current?.appendChild(node.cloneNode(true))
           } catch (error) {
-            console.error('Error appending non-script content:', error)
+            // Ignore invalid embedded markup without breaking the page.
           }
         })
 
-        // Main execution flow
         const executeScripts = async () => {
-          // Load external scripts first (in sequence)
+          // Keep external script order stable because inline snippets often depend on them.
           for (const oldScript of externalScripts) {
             await new Promise<void>((resolve) => {
               try {
                 const newScript = document.createElement('script')
 
-                // Copy attributes
                 Array.from(oldScript.attributes).forEach(attr => {
                   newScript.setAttribute(attr.name, attr.value)
                 })
 
                 newScript.onload = () => resolve()
                 newScript.onerror = (error) => {
-                  console.error('Error loading external script:', error)
                   resolve() // Continue even if one script fails
                 }
 
-                // Append to container
                 containerRef.current?.appendChild(newScript)
               } catch (error) {
-                console.error('Error processing external script:', error)
                 resolve()
               }
             })
           }
 
-          // Execute inline scripts after external scripts are loaded
+          // Non-JS script tags, such as JSON-LD, should be preserved instead of evaluated.
           setTimeout(() => {
             inlineScripts.forEach((oldScript) => {
               try {
-                const newScript = document.createElement('script')
+                const scriptType = oldScript.type.trim().toLowerCase()
+                const executableTypes = ['', 'text/javascript', 'application/javascript', 'text/ecmascript', 'application/ecmascript']
 
-                // Copy attributes
-                Array.from(oldScript.attributes).forEach(attr => {
-                  newScript.setAttribute(attr.name, attr.value)
-                })
+                if (!executableTypes.includes(scriptType)) {
+                  containerRef.current?.appendChild(oldScript.cloneNode(true))
+                  return
+                }
 
-                // Copy script content
                 if (oldScript.textContent) {
-                  newScript.textContent = `
-                    try {
-                      ${oldScript.textContent}
-                    } catch (error) {
-                      console.error('Error executing embedded inline script:', error)
-                    }
-                  `
+                  try {
+                    new Function(oldScript.textContent).call(window)
+                  } catch (error) {
+                    // Ignore failed embedded scripts so third-party snippets cannot crash rendering.
+                  }
                 }
-
-                // Add error handling
-                newScript.onerror = (error) => {
-                  console.error('Error loading inline script:', error)
-                }
-
-                // Append to container
-                containerRef.current?.appendChild(newScript)
               } catch (error) {
-                console.error('Error processing inline script:', error)
+                // Ignore invalid embedded scripts without breaking the page.
               }
             })
           }, 100)
@@ -129,7 +109,7 @@ export function EmbeddedBlock({ content, className = "", siteWidth = 'custom', c
         executeScripts()
 
       } catch (error) {
-        console.error('Error embedding script content:', error)
+        // Ignore invalid embed code without breaking the page.
       }
     }
   }, [code, type, isMounted])

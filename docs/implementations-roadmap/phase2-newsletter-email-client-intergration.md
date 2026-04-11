@@ -109,7 +109,7 @@ Create `supabase/migrations/109_create_conversations.sql` with both tables, inde
    - Find or create `conversations` record by (site_id, contact_email)
    - Insert `conversation_messages` record (direction: 'inbound')
    - Update conversation: last_message_at, increment message_count, set is_read = false
-   - Return early (skip Flodesk logic — inbound events are not Flodesk-related)
+   - Return early after recording inbound email events
 
 ### Step 3: Server Actions
 

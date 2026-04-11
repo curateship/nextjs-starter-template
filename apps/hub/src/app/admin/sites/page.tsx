@@ -5,12 +5,15 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
-import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban } from "lucide-react"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Ban, Copy } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { cn } from "@/lib/utils/tailwind"
-import { getAllSitesAction, deleteSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { getAllSitesAction, deleteSiteAction, cloneSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
@@ -24,6 +27,13 @@ export default function SitesPage() {
   const [filter, setFilter] = useState<FilterStatus>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
+  // Duplicate flow keeps its own state so cloning cannot interfere with delete/edit actions.
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [duplicateName, setDuplicateName] = useState("")
+  const [duplicateSettings, setDuplicateSettings] = useState(true)
+  const [duplicatePages, setDuplicatePages] = useState(true)
+  const [duplicating, setDuplicating] = useState(false)
+  const [duplicateError, setDuplicateError] = useState<string | null>(null)
   const [sortColumn, setSortColumn] = useState<'name' | 'created' | 'status' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -39,7 +49,6 @@ export default function SitesPage() {
       const { data, error } = await getAllSitesAction()
       
       if (error) {
-        console.error('Error loading sites:', error)
         setError(error)
         return
       }
@@ -48,7 +57,6 @@ export default function SitesPage() {
         setSites(data)
       }
     } catch (err) {
-      console.error('Error loading sites:', err)
       setError('Failed to load sites')
     } finally {
       setLoading(false)
@@ -61,7 +69,6 @@ export default function SitesPage() {
       const { success, error } = await deleteSiteAction(siteId)
 
       if (error) {
-        console.error('Error deleting site:', error)
         setError(`Failed to delete site: ${error}`)
         return
       }
@@ -71,11 +78,63 @@ export default function SitesPage() {
         await refreshSites()
       }
     } catch (err) {
-      console.error('Error deleting site:', err)
       setError('Failed to delete site')
     } finally {
       setDeleting(null)
       setDeleteConfirm(null)
+    }
+  }
+
+  // Start each duplicate from the original name and default to copying the safe site surface.
+  const openDuplicateDialog = (site: SiteWithTheme) => {
+    setDuplicateConfirm({ id: site.id, name: site.name })
+    setDuplicateName(`${site.name} Copy`)
+    setDuplicateSettings(true)
+    setDuplicatePages(true)
+    setDuplicateError(null)
+  }
+
+  // Keep the modal locked while the server action is creating the clone.
+  const closeDuplicateDialog = () => {
+    if (duplicating) return
+    setDuplicateConfirm(null)
+    setDuplicateName("")
+    setDuplicateError(null)
+  }
+
+  const handleDuplicate = async () => {
+    if (!duplicateConfirm) return
+
+    const name = duplicateName.trim()
+    if (!name) {
+      setDuplicateError("Site name is required")
+      return
+    }
+
+    try {
+      setDuplicating(true)
+      setDuplicateError(null)
+
+      // The server action owns the transaction and decides exactly what can be copied.
+      const { data, error } = await cloneSiteAction(duplicateConfirm.id, {
+        name,
+        clone_settings: duplicateSettings,
+        clone_pages: duplicatePages,
+      })
+
+      if (error || !data) {
+        setDuplicateError(error || "Failed to duplicate site")
+        return
+      }
+
+      await loadSites()
+      await refreshSites()
+      setDuplicateConfirm(null)
+      setDuplicateName("")
+    } catch {
+      setDuplicateError('Failed to duplicate site')
+    } finally {
+      setDuplicating(false)
     }
   }
 
@@ -301,6 +360,18 @@ export default function SitesPage() {
                             <span className="sr-only">Site Settings</span>
                           </Link>
                         </Button>
+                        {/* Duplicate opens a settings modal instead of immediately cloning. */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => openDuplicateDialog(site)}
+                          disabled={duplicating}
+                          title="Duplicate Site"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span className="sr-only">Duplicate Site</span>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -347,6 +418,82 @@ export default function SitesPage() {
                 disabled={!!deleting}
               >
                 {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Site clones are draft-only and intentionally exclude business/runtime data. */}
+      {duplicateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={closeDuplicateDialog}
+          />
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+            <h2 className="text-lg font-semibold mb-2">Duplicate Site</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Create a draft copy of <strong>{duplicateConfirm.name}</strong>. Contacts, orders, events, newsletter activity, domains, and integrations are not copied.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="duplicate-site-name">New site name</Label>
+                <Input
+                  id="duplicate-site-name"
+                  value={duplicateName}
+                  onChange={(event) => setDuplicateName(event.target.value)}
+                  disabled={duplicating}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label>Copy</Label>
+                <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                  <Checkbox
+                    id="duplicate-site-settings"
+                    checked={duplicateSettings}
+                    onCheckedChange={(checked) => setDuplicateSettings(checked === true)}
+                    disabled={duplicating}
+                  />
+                  <span>
+                    <Label htmlFor="duplicate-site-settings" className="block font-medium">Site settings</Label>
+                    <span className="block text-muted-foreground">Branding, layout, typography, and public site settings.</span>
+                  </span>
+                </div>
+                <div className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                  <Checkbox
+                    id="duplicate-site-pages"
+                    checked={duplicatePages}
+                    onCheckedChange={(checked) => setDuplicatePages(checked === true)}
+                    disabled={duplicating}
+                  />
+                  <span>
+                    <Label htmlFor="duplicate-site-pages" className="block font-medium">Pages</Label>
+                    <span className="block text-muted-foreground">Page titles, slugs, metadata, order, and content blocks.</span>
+                  </span>
+                </div>
+              </div>
+
+              {duplicateError && (
+                <p className="text-sm text-red-600">{duplicateError}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                onClick={closeDuplicateDialog}
+                variant="outline"
+                disabled={duplicating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDuplicate}
+                disabled={duplicating}
+              >
+                {duplicating ? "Duplicating..." : "Duplicate Site"}
               </Button>
             </div>
           </div>

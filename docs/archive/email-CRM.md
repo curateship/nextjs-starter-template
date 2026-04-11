@@ -60,7 +60,7 @@
 
 **Contacts** — `/src/app/admin/newsletters/contacts/page.tsx`
 - Table with checkboxes, bulk delete, source tabs
-- CSV import with Flodesk-style column mapping (shows each CSV column → dropdown to map to our field)
+- CSV import with external CRM-style column mapping (shows each CSV column → dropdown to map to our field)
 - Add contact modal, edit contact modal (Dialog pattern, 840px)
 - Cog icon → edit, trash icon → delete
 - Server-side pagination

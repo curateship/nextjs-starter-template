@@ -6,7 +6,7 @@
 
 ## Context
 
-Moving the entire stack from Supabase (auth + database) and Vercel (hosting) to a self-hosted Hetzner VPS managed by Coolify. Motivated by cost, control, performance, and data sovereignty. Cloudflare R2, Stripe, Resend, and Flodesk remain unchanged.
+Moving the entire stack from Supabase (auth + database) and Vercel (hosting) to a self-hosted Hetzner VPS managed by Coolify. Motivated by cost, control, performance, and data sovereignty. Cloudflare R2, Stripe, and Resend remain unchanged.
 
 **Key finding:** The codebase already bypasses Supabase RLS — every server action uses `supabaseAdmin` (service role) for all DB queries and manually checks `auth.getUser()` for authentication. This means we don't need to replicate RLS at all, just keep the same auth-check-then-query pattern.
 
