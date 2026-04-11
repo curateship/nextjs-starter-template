@@ -109,7 +109,7 @@ export function CheckoutForm({
         {/* Logo/Brand */}
         <div className="flex items-center justify-center gap-2 mb-6 pt-4">
           {(site.logo || site.favicon) && (
-            <div className="relative w-8 h-8 flex-shrink-0">
+            <div className="relative w-8 h-8 shrink-0">
               <Image
                 src={site.logo || site.favicon || ''}
                 alt={site.name}

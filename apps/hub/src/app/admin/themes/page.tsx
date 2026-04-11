@@ -227,7 +227,7 @@ export default function ThemesPage() {
                           href={`/admin/pages/${template.id}`}
                           className="flex items-center space-x-4 transition-opacity hover:opacity-80"
                         >
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-purple-600">
                             <span className="text-sm font-medium text-white">
                               {template.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                             </span>
