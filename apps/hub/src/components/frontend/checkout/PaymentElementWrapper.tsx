@@ -8,7 +8,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js'
-import { createPaymentIntent, updatePaymentIntent } from '@/lib/actions/stripe/checkout-actions'
+import { createPaymentIntent, updatePaymentIntent, updatePaymentIntentCustomer } from '@/lib/actions/stripe/checkout-actions'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,12 +75,16 @@ function CheckoutForm({
   totalAmount,
   isUpdating,
   checkoutOrigin,
+  paymentIntentId,
+  siteId,
 }: {
   product: Product;
   checkoutSettings: CheckoutSettings;
   totalAmount: number;
   isUpdating: boolean;
   checkoutOrigin?: string;
+  paymentIntentId: string;
+  siteId: string;
 }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -106,6 +110,18 @@ function CheckoutForm({
 
     // Add a small delay to ensure payment intent update has propagated
     await new Promise(resolve => setTimeout(resolve, 500))
+
+    const customerResult = await updatePaymentIntentCustomer({
+      paymentIntentId,
+      email,
+      siteId,
+    })
+
+    if (!customerResult.success) {
+      setErrorMessage(customerResult.error || 'Failed to update customer email')
+      setIsProcessing(false)
+      return
+    }
 
     const { error } = await stripe.confirmPayment({
       elements,
@@ -240,6 +256,7 @@ export function PaymentElementWrapper({
 
         // Create payment intent with initial bumps
         const result = await createPaymentIntent({
+          productId: product.id,
           productSlug: product.slug,
           productName: product.title,
           mainPriceId: selectedTier.stripePriceId,
@@ -341,7 +358,7 @@ export function PaymentElementWrapper({
     )
   }
 
-  if (!clientSecret) {
+  if (!clientSecret || !paymentIntentId) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -424,6 +441,8 @@ export function PaymentElementWrapper({
         totalAmount={totalAmount}
         isUpdating={isUpdating}
         checkoutOrigin={checkoutOrigin}
+        paymentIntentId={paymentIntentId}
+        siteId={siteId}
       />
     </Elements>
   )

@@ -49,6 +49,7 @@ export interface OrderBump {
 }
 
 export interface CheckoutSessionData {
+  productId?: string
   productSlug: string
   productName: string
   mainPriceId: string
@@ -95,6 +96,7 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
       metadata: {
         productSlug: data.productSlug,
         productName: data.productName,
+        ...(data.productId && { productId: data.productId }),
         ...(data.tierId && { tierId: data.tierId }),
         ...(data.tierName && { tierName: data.tierName }),
         ...(data.siteId && { siteId: data.siteId }),
@@ -175,6 +177,7 @@ export async function verifyCheckoutSession(sessionId: string, siteId?: string) 
  * Create a Payment Intent for Payment Element
  */
 export async function createPaymentIntent(data: {
+  productId?: string
   productSlug: string
   productName: string
   mainPriceId: string
@@ -204,6 +207,7 @@ export async function createPaymentIntent(data: {
       metadata: {
         productSlug: data.productSlug,
         productName: data.productName,
+        ...(data.productId && { productId: data.productId }),
         mainPriceId: data.mainPriceId,
         ...(data.tierId && { tierId: data.tierId }),
         ...(data.tierName && { tierName: data.tierName }),
@@ -286,6 +290,31 @@ export async function updatePaymentIntent(data: {
   }
 }
 
+export async function updatePaymentIntentCustomer(data: {
+  paymentIntentId: string
+  email: string
+  siteId?: string
+}) {
+  try {
+    const stripe = await getStripeClient(data.siteId)
+
+    await stripe.paymentIntents.update(data.paymentIntentId, {
+      receipt_email: data.email,
+      metadata: {
+        customerEmail: data.email,
+      },
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error updating payment intent customer:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update payment intent customer',
+    }
+  }
+}
+
 /**
  * Verify a payment intent and retrieve details
  */
@@ -293,7 +322,9 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
   try {
     const stripe = await getStripeClient(siteId)
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge'],
+    })
 
     if (paymentIntent.status !== 'succeeded') {
       return {
@@ -306,6 +337,7 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
       success: true,
       paymentIntent: {
         id: paymentIntent.id,
+        customerEmail: paymentIntent.receipt_email || (paymentIntent.latest_charge && typeof paymentIntent.latest_charge === 'object' ? paymentIntent.latest_charge.billing_details?.email : null) || paymentIntent.metadata?.customerEmail || null,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         status: paymentIntent.status,

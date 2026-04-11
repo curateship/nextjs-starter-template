@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
-import { siteIntegrations, newsletterContacts, emailAutomationEnrollments, emailAutomations } from '@/lib/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
-import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
+import { siteIntegrations } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { getProductIdFromPurchaseMetadata, recordPaidPurchase } from '@/lib/checkout/paid-purchase-recording'
 
 /**
  * Stripe Webhook Handler
@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
     }
 
     let event: Stripe.Event | null = null
+    let matchedStripe: Stripe | null = null
+    let matchedSiteId: string | null = null
 
     for (const integration of integrations) {
       const config = await getStripeConfig(integration.siteId)
@@ -51,6 +53,8 @@ export async function POST(req: NextRequest) {
           apiVersion: '2025-10-29.clover',
         })
         event = stripe.webhooks.constructEvent(body, signature, config.webhookSecret)
+        matchedStripe = stripe
+        matchedSiteId = integration.siteId
         break
       } catch {
         // Signature didn't match this site, try next
@@ -72,8 +76,13 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
 
         const customerEmail = session.customer_details?.email
-        const sessionSiteId = session.metadata?.siteId
-        const sessionProductId = session.metadata?.productId
+        const sessionSiteId = matchedSiteId || session.metadata?.siteId
+        const sessionProductId = sessionSiteId
+          ? await getProductIdFromPurchaseMetadata(sessionSiteId, session.metadata)
+          : null
+        const sessionPaymentIntentId = typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null
 
         console.log('Payment successful:', {
           sessionId: session.id,
@@ -83,69 +92,22 @@ export async function POST(req: NextRequest) {
           siteId: sessionSiteId,
         })
 
-        // Add to newsletter contacts + enroll in automations
-        if (customerEmail && sessionSiteId) {
-          try {
-            const [contact] = await db
-              .insert(newsletterContacts)
-              .values({
-                siteId: sessionSiteId,
-                email: customerEmail.toLowerCase(),
-                metadata: {
-                  source: 'paid_purchase',
-                  source_product_id: sessionProductId || null,
-                },
-              })
-              .onConflictDoUpdate({
-                target: [newsletterContacts.siteId, newsletterContacts.email],
-                set: {
-                  metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
-                    source: 'paid_purchase',
-                    source_product_id: sessionProductId || null,
-                  })}::jsonb`,
-                  updatedAt: new Date(),
-                },
-              })
-              .returning({ id: newsletterContacts.id })
-
-            if (contact) {
-              // Enroll in purchase-triggered automations
-              const automations = await findActiveAutomations(sessionSiteId, 'paid_purchase', sessionProductId)
-              for (const automation of automations) {
-                await enrollContact(automation.id, contact.id)
-              }
-
-              // Check if this purchase fulfills any automation goals
-              const activeEnrollments = await db
-                .select({ id: emailAutomationEnrollments.id, automationId: emailAutomationEnrollments.automationId })
-                .from(emailAutomationEnrollments)
-                .where(and(
-                  eq(emailAutomationEnrollments.contactId, contact.id),
-                  eq(emailAutomationEnrollments.status, 'active'),
-                ))
-
-              for (const enrollment of activeEnrollments) {
-                const [automation] = await db
-                  .select({ goalType: emailAutomations.goalType, goalConfig: emailAutomations.goalConfig })
-                  .from(emailAutomations)
-                  .where(eq(emailAutomations.id, enrollment.automationId))
-
-                if (automation?.goalType === 'purchase') {
-                  const goalConfig = automation.goalConfig as Record<string, any> | null
-                  const goalProductId = goalConfig?.product_id
-                  if (!goalProductId || goalProductId === sessionProductId) {
-                    await db
-                      .update(emailAutomationEnrollments)
-                      .set({ status: 'goal_met', goalMetAt: new Date() })
-                      .where(eq(emailAutomationEnrollments.id, enrollment.id))
-                  }
-                }
-              }
-            }
-          } catch (err) {
-            console.error('Newsletter contact/enrollment error:', err)
-          }
-        }
+        await recordPaidPurchase({
+          siteId: sessionSiteId,
+          productId: sessionProductId,
+          customerEmail,
+          stripeSessionId: session.id,
+          stripePaymentIntentId: sessionPaymentIntentId,
+          amountTotal: session.amount_total,
+          currency: session.currency,
+          paymentStatus: session.payment_status === 'paid' ? 'succeeded' : 'pending',
+          metadata: {
+            stripe_event_type: event.type,
+            product_slug: session.metadata?.productSlug || null,
+            tier_id: session.metadata?.tierId || null,
+            tier_name: session.metadata?.tierName || null,
+          },
+        })
 
         break
       }
@@ -158,7 +120,51 @@ export async function POST(req: NextRequest) {
 
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent
-        console.log('Payment intent succeeded:', paymentIntent.id)
+        let fullPaymentIntent = paymentIntent
+
+        if (matchedStripe) {
+          try {
+            fullPaymentIntent = await matchedStripe.paymentIntents.retrieve(paymentIntent.id, {
+              expand: ['latest_charge'],
+            })
+          } catch (err) {
+            console.error('Failed to retrieve payment intent details:', err)
+          }
+        }
+
+        const charge = typeof fullPaymentIntent.latest_charge === 'object'
+          ? fullPaymentIntent.latest_charge as Stripe.Charge
+          : null
+        const customerEmail = fullPaymentIntent.receipt_email || charge?.billing_details?.email || null
+        const intentSiteId = matchedSiteId || fullPaymentIntent.metadata?.siteId
+        const intentProductId = intentSiteId
+          ? await getProductIdFromPurchaseMetadata(intentSiteId, fullPaymentIntent.metadata)
+          : null
+
+        console.log('Payment intent succeeded:', {
+          paymentIntentId: fullPaymentIntent.id,
+          customerEmail,
+          amount: fullPaymentIntent.amount,
+          productSlug: fullPaymentIntent.metadata?.productSlug,
+          siteId: intentSiteId,
+        })
+
+        await recordPaidPurchase({
+          siteId: intentSiteId,
+          productId: intentProductId,
+          customerEmail,
+          stripePaymentIntentId: fullPaymentIntent.id,
+          amountTotal: fullPaymentIntent.amount,
+          currency: fullPaymentIntent.currency,
+          paymentStatus: 'succeeded',
+          metadata: {
+            stripe_event_type: event.type,
+            product_slug: fullPaymentIntent.metadata?.productSlug || null,
+            tier_id: fullPaymentIntent.metadata?.tierId || null,
+            tier_name: fullPaymentIntent.metadata?.tierName || null,
+          },
+        })
+
         break
       }
 

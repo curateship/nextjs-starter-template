@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { verifyCheckoutSession, verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
+import { recordPaidPurchase } from '@/lib/checkout/paid-purchase-recording'
 
 interface SuccessPageProps {
   params: Promise<{ slug: string }>
@@ -40,7 +41,7 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
       tierId = metadata?.tierId as string | null
       sessionData = {
         id: verificationResult.paymentIntent.id,
-        customerEmail: null, // Payment Intent doesn't have customer email by default
+        customerEmail: verificationResult.paymentIntent.customerEmail ?? null,
         amountTotal: verificationResult.paymentIntent.amount ?? null,
         currency: verificationResult.paymentIntent.currency ?? null,
         paymentStatus: verificationResult.paymentIntent.status ?? 'unknown',
@@ -51,6 +52,22 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
           tierName: metadata.tierName as string | undefined,
         } : undefined,
       }
+
+      await recordPaidPurchase({
+        siteId,
+        productId: product.id,
+        customerEmail: verificationResult.paymentIntent.customerEmail ?? null,
+        stripePaymentIntentId: verificationResult.paymentIntent.id,
+        amountTotal: verificationResult.paymentIntent.amount ?? null,
+        currency: verificationResult.paymentIntent.currency ?? null,
+        paymentStatus: 'succeeded',
+        metadata: {
+          source: 'success_page_verification',
+          product_slug: product.slug,
+          tier_id: metadata?.tierId || null,
+          tier_name: metadata?.tierName || null,
+        },
+      })
     } else {
       sessionError = verificationResult.error
     }
@@ -70,6 +87,22 @@ export default async function SuccessPage({ params, searchParams }: SuccessPageP
           tierName: metadata.tierName as string | undefined,
         } : undefined,
       }
+
+      await recordPaidPurchase({
+        siteId,
+        productId: product.id,
+        customerEmail: session.customerEmail ?? null,
+        stripeSessionId: session.id,
+        amountTotal: session.amountTotal ?? null,
+        currency: session.currency ?? null,
+        paymentStatus: 'succeeded',
+        metadata: {
+          source: 'success_page_verification',
+          product_slug: product.slug,
+          tier_id: metadata?.tierId || null,
+          tier_name: metadata?.tierName || null,
+        },
+      })
     } else {
       sessionError = verificationResult.error
     }
