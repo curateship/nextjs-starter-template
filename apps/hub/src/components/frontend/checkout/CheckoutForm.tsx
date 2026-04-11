@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Check } from 'lucide-react'
+import { ArrowLeft, Check } from 'lucide-react'
 import { PaymentElementWrapper } from './PaymentElementWrapper'
 import Image from 'next/image'
 
@@ -123,8 +124,14 @@ export function CheckoutForm({
           )}
           <span className="font-semibold text-lg">{site.name}</span>
         </div>
+        <div className="mb-6 text-center">
+          <Link href={`/products/${product.slug}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+            Back to product page
+          </Link>
+        </div>
 
-        <Card className="shadow-lg overflow-hidden border-0">
+        <Card className="overflow-hidden border-0 p-0 shadow-lg">
           <div className="flex flex-col lg:flex-row">
             {/* Left Column - Product Info with light gray background */}
             <div className="bg-gray-50 p-8 lg:p-12 space-y-6 flex-1">
@@ -134,23 +141,23 @@ export function CheckoutForm({
                 <div className="text-2xl font-semibold">{selectedTier.price}</div>
               </div>
 
-              {/* Product Image */}
-              {product.featuredImage && (
-                <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-border">
-                  <Image
-                    src={product.featuredImage}
-                    alt={product.title}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              )}
-
               {/* Product Description */}
               {selectedTier.description && (
                 <p className="text-base leading-relaxed">
                   {selectedTier.description}
                 </p>
+              )}
+
+              {/* Product Image */}
+              {product.featuredImage && (
+                <div className="w-full overflow-hidden rounded-lg border border-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={product.featuredImage}
+                    alt={product.title}
+                    className="h-auto w-full"
+                  />
+                </div>
               )}
 
               {/* Order Bumps */}
@@ -201,21 +208,6 @@ export function CheckoutForm({
                   ))}
                 </div>
               )}
-
-              {/* Footer */}
-              <div className="pt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                {site.favicon && (
-                  <div className="relative w-4 h-4">
-                    <Image
-                      src={site.favicon}
-                      alt=""
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                )}
-                <span>Made with care at {site.name}</span>
-              </div>
             </div>
 
             {/* Right Column - Payment Element with white background */}
@@ -231,6 +223,20 @@ export function CheckoutForm({
             </div>
           </div>
         </Card>
+
+        <div className="mt-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          {site.favicon && (
+            <div className="relative h-4 w-4">
+              <Image
+                src={site.favicon}
+                alt=""
+                fill
+                className="object-contain"
+              />
+            </div>
+          )}
+          <span>Made with love ❤️</span>
+        </div>
       </div>
     </div>
   )
