@@ -36,6 +36,11 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 - Only add code that directly solves the stated problem
 - Trace code flow -> identify root cause -> implement direct fix
 
+### Live Validation
+- Do not proactively use live/browser validation
+- Only run browser validation when the user explicitly asks to validate, test, verify, or check it
+- Build and typecheck are allowed without asking unless the user says otherwise
+
 ## Repository Structure
 
 This is a Turborepo monorepo with npm workspaces:
