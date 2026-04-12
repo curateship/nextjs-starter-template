@@ -4,7 +4,12 @@ import { db } from '@/lib/db'
 import { newsletterContacts, productOrders, products } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { emailService } from '@/lib/actions/email/email-service'
-import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
 
 function generateAccessToken() {
   return randomBytes(32).toString('base64url')
@@ -83,6 +88,7 @@ export async function recordPaidPurchase(params: {
           orderId: existingOrder.id,
           accessToken: existingOrder.accessToken,
           tierId: params.metadata?.tier_id || params.metadata?.tierId,
+          tierName: params.metadata?.tier_name || params.metadata?.tierName,
         })
       }
       return
@@ -139,6 +145,7 @@ export async function recordPaidPurchase(params: {
       orderId: order.id,
       accessToken: order.accessToken,
       tierId: params.metadata?.tier_id || params.metadata?.tierId,
+      tierName: params.metadata?.tier_name || params.metadata?.tierName,
     })
   }
 }
@@ -150,12 +157,12 @@ async function sendPaidProductEmail(params: {
   orderId: string
   accessToken: string
   tierId?: string | null
+  tierName?: string | null
 }) {
   const [product] = await db
     .select({
       title: products.title,
       slug: products.slug,
-      contentBlocks: products.contentBlocks,
     })
     .from(products)
     .where(and(eq(products.id, params.productId), eq(products.siteId, params.siteId)))
@@ -163,27 +170,36 @@ async function sendPaidProductEmail(params: {
 
   if (!product) return
 
-  const blocks = convertContentBlocksToArray((product.contentBlocks || {}) as Record<string, any>, params.productId)
-  const checkoutBlock = blocks.find(block => block.type === 'product-checkout')
-  const tiers = checkoutBlock?.content?.productPricingTiers || []
-  const purchasedTier = params.tierId ? tiers.find((tier: any) => tier.id === params.tierId) : null
-  const downloadContent = purchasedTier?.enableDownloadPage ? purchasedTier.downloadContent : null
-  const content = downloadContent || `<p>Thank you for your purchase of ${product.title}.</p>`
-
   const config = await getEmailConfig(params.siteId)
   if (!config?.apiKey || !config.fromEmail) {
     console.error('Skipping paid product email: Resend is not configured for site', params.siteId)
     return
   }
 
+  const template = await getSystemEmailTemplate('paid_purchase_delivery', params.siteId)
+  const tokens = await buildSystemEmailTokens({
+    templateKey: 'paid_purchase_delivery',
+    siteId: params.siteId,
+    productId: params.productId,
+    productName: product.title,
+    productSlug: product.slug,
+    tierName: params.tierName || undefined,
+  })
+
   const result = await emailService.sendProductDeliveryEmail({
     to: params.customerEmail,
-    subject: `Your ${product.title} is ready!`,
+    subject: renderSystemEmailSubject(template.subject, tokens),
     productTitle: product.title,
-    content,
+    content: '',
     productSlug: product.slug,
     token: params.accessToken,
-    config,
+    replyTo: template.reply_to || undefined,
+    rawHtml: renderSystemEmailContent(template, tokens),
+    config: {
+      ...config,
+      fromName: template.from_name || config.fromName,
+      replyTo: template.reply_to || undefined,
+    },
   })
 
   if (!result.success) {

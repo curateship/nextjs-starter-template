@@ -37,7 +37,9 @@ export function StickyHeader({
   const { currentSite } = useSiteSwitcher()
   const pathname = usePathname()
   const newsletterSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings/newsletters` : null
+  const emailSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings?tab=email` : null
   const isNewsletterSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/newsletters")))
+  const isPlatformEmailSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/platforms/emails")))
   const isProductSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/products") || link.href.startsWith("/admin/orders")))
   const isDirectorySection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/directories")))
   const productAnalyticsActive = pathname.startsWith("/admin/products/analytics")
@@ -45,6 +47,7 @@ export function StickyHeader({
   const directoryTemplatesActive = pathname.startsWith("/admin/directories/templates")
   const showNewsletterTemplatesButton = isNewsletterSection
   const showNewsletterSettingsButton = Boolean(newsletterSettingsHref) && isNewsletterSection
+  const showEmailSettingsButton = Boolean(emailSettingsHref) && isPlatformEmailSection
   const newsletterTemplatesActive = pathname.startsWith("/admin/newsletters/templates")
 
   return (
@@ -146,6 +149,14 @@ export function StickyHeader({
               <Link href={newsletterSettingsHref}>
                 <Settings2 className="h-4 w-4" />
                 Settings
+              </Link>
+            </Button>
+          )}
+          {showEmailSettingsButton && emailSettingsHref && (
+            <Button variant="outline" asChild size="sm">
+              <Link href={emailSettingsHref}>
+                <Settings2 className="h-4 w-4" />
+                Email Settings
               </Link>
             </Button>
           )}

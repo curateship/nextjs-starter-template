@@ -2,6 +2,12 @@ import { randomBytes } from 'crypto'
 import { sql } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { db } from '@/lib/db'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
 
 const DEFAULT_REDIRECT_PATH = '/login/reset-password'
 const VERIFICATION_TABLE = 'user_verifications'
@@ -48,13 +54,23 @@ async function sendResetEmail(email: string, resetUrl: string) {
 
   if (!apiKey || !from) return false
 
+  const template = await getSystemEmailTemplate('password_reset')
+  const tokens = await buildSystemEmailTokens({
+    templateKey: 'password_reset',
+    resetUrl,
+  })
+  const subject = renderSystemEmailSubject(template.subject, tokens)
+  const html = renderSystemEmailContent(template, tokens)
+  const text = `Reset your password: ${resetUrl}`
+
   const resend = new Resend(apiKey)
   await resend.emails.send({
-    from,
+    from: template.from_name ? `${template.from_name} <${from}>` : from,
     to: email,
-    subject: 'Reset your password',
-    text: `Reset your password: ${resetUrl}`,
-    html: `<p>Reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`,
+    subject,
+    text,
+    html,
+    ...(template.reply_to ? { replyTo: template.reply_to } : {}),
   })
 
   return true

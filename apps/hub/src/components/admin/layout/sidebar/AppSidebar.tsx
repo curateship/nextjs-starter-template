@@ -175,6 +175,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: AppWindow,
     },
     {
+      name: "Emails",
+      url: "/admin/platforms/emails",
+      icon: Mail,
+    },
+    {
       name: "Settings",
       url: "/admin/platforms/settings",
       icon: Settings,

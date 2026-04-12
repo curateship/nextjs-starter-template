@@ -1,12 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { products, newsletterContacts } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
-import { getSiteByIdAction } from '@/lib/actions/sites/site-actions'
+import { newsletterContacts, products, sites } from '@/lib/db/schema'
+import { and, eq, gte, sql } from 'drizzle-orm'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
 import { getEmailConfig } from '@/lib/actions/email/integration-actions'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
+import { getSiteUrl } from '@/lib/utils/site-url-generator'
+
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX_REQUESTS = 5
+
+const signupRateLimitStore = new Map<string, number[]>()
+
+function getClientIp(request: NextRequest) {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown'
+}
+
+function isRateLimited(key: string) {
+  const now = Date.now()
+  const windowStart = now - RATE_LIMIT_WINDOW_MS
+  const recentAttempts = (signupRateLimitStore.get(key) || []).filter((timestamp) => timestamp > windowStart)
+
+  if (recentAttempts.length >= RATE_LIMIT_MAX_REQUESTS) {
+    signupRateLimitStore.set(key, recentAttempts)
+    return true
+  }
+
+  recentAttempts.push(now)
+  signupRateLimitStore.set(key, recentAttempts)
+  return false
+}
+
+function hasAllowedOrigin(request: NextRequest, siteUrl: string) {
+  const allowedOrigin = new URL(siteUrl).origin
+  const origin = request.headers.get('origin')
+  const referer = request.headers.get('referer')
+
+  try {
+    if (origin) {
+      return new URL(origin).origin === allowedOrigin
+    }
+
+    if (referer) {
+      return new URL(referer).origin === allowedOrigin
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
 
 /**
  * POST /api/products/lead-magnet/signup
@@ -43,11 +95,53 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get product details
+    const [site] = await db
+      .select({
+        id: sites.id,
+        name: sites.name,
+        subdomain: sites.subdomain,
+        customDomain: sites.customDomain,
+      })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+
+    if (!site) {
+      return NextResponse.json(
+        { success: false, error: 'Site not found' },
+        { status: 404 }
+      )
+    }
+
+    const siteUrl = getSiteUrl({
+      subdomain: site.subdomain,
+      customDomain: site.customDomain,
+    })
+
+    if (!hasAllowedOrigin(request, siteUrl)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid origin' },
+        { status: 403 }
+      )
+    }
+
+    const rateLimitKey = `${getClientIp(request)}:${siteId}:${productId}`
+    if (isRateLimited(rateLimitKey)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests' },
+        { status: 429 }
+      )
+    }
+
+    // Get product details scoped to the site
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.id, productId))
+      .where(and(
+        eq(products.id, productId),
+        eq(products.siteId, siteId),
+      ))
+      .limit(1)
 
     if (!product) {
       return NextResponse.json(
@@ -66,26 +160,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // Get site details
-    const siteResult = await getSiteByIdAction(siteId)
-    if (!siteResult.data) {
-      return NextResponse.json(
-        { success: false, error: 'Site not found' },
-        { status: 404 }
-      )
-    }
-
-    const site = siteResult.data
-
-    // Determine site URL
-    const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
-    const isLocalDev = appDomain.includes('localhost')
-    const siteUrl = isLocalDev
-      ? appDomain
-      : (site.custom_domain
-          ? `https://${site.custom_domain}`
-          : `https://${site.subdomain}.yourdomain.com`)
 
     // Create order in product_orders table
     const order = await createFreeSignup({
@@ -131,12 +205,6 @@ export async function POST(request: NextRequest) {
       // Don't fail the signup
     }
 
-    // Get email settings from lead magnet block
-    const emailSettings = leadMagnetBlock.emailSettings || {}
-
-    // Get email content
-    const emailContent = emailSettings.content || ''
-
     // Get per-site email config
     const emailConfig = await getEmailConfig(siteId)
 
@@ -147,13 +215,22 @@ export async function POST(request: NextRequest) {
 
     // Send delivery email with content
     try {
+      const template = await getSystemEmailTemplate('lead_magnet_delivery', siteId)
+      const tokens = await buildSystemEmailTokens({
+        templateKey: 'lead_magnet_delivery',
+        siteId,
+        productId,
+        productName: product.title,
+        productSlug: product.slug,
+      })
+
       await sendLeadMagnetDeliveryEmail({
         to: email,
-        subject: emailSettings.subject || `Your ${product.title} is ready!`,
-        fromName: emailSettings.fromName || site.name || 'Your Company',
+        subject: renderSystemEmailSubject(template.subject, tokens),
+        fromName: template.from_name || emailConfig.fromName || site.name || 'Your Company',
         fromEmail: emailConfig.fromEmail,
-        replyTo: emailSettings.replyTo,
-        content: emailContent,
+        replyTo: template.reply_to || undefined,
+        content: renderSystemEmailContent(template, tokens),
         productName: product.title,
         siteUrl,
         apiKey: emailConfig.apiKey,
@@ -162,8 +239,6 @@ export async function POST(request: NextRequest) {
 
       // Mark email as sent
       await markEmailSent(order.id)
-
-      console.log('Lead magnet email sent successfully')
     } catch (emailError) {
       console.error('Failed to send lead magnet email:', emailError)
       // Don't fail the request - order was still created

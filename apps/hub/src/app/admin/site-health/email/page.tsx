@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Card } from "@/components/ui/card"
@@ -15,9 +16,11 @@ import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-r
 
 export default function EmailHealthPage() {
   const { currentSite } = useSiteSwitcher()
+  const searchParams = useSearchParams()
   const [report, setReport] = useState<DeliverabilityReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const selectedSender = searchParams.get("sender")
 
   useEffect(() => {
     loadReport()
@@ -51,13 +54,13 @@ export default function EmailHealthPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getSiteHealthAdminTopNavLinks("email")} />
+      <StickyHeader navLinks={getPlatformEmailAdminTopNavLinks("emails")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
             items={[
-              { label: "Site Health", href: "/admin/site-health" },
-              { label: "Email Health" },
+              { label: "Email Accounts", href: "/admin/platforms/emails/senders" },
+              { label: selectedSender || "Email Health" },
             ]}
             actions={
               <Button variant="outline" onClick={loadReport} disabled={loading}>
@@ -83,6 +86,16 @@ export default function EmailHealthPage() {
             </div>
           ) : report ? (
             <div className="pb-8">
+              {selectedSender && (
+                <Card className="p-6">
+                  <h3 className="font-semibold mb-2">Sender</h3>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm font-medium">{selectedSender}</p>
+                    <Badge variant="secondary">Resend</Badge>
+                  </div>
+                </Card>
+              )}
+
               {/* Domain Health */}
               <Card className="p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">

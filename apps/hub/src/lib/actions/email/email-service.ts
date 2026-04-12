@@ -8,6 +8,7 @@ interface EmailConfig {
   apiKey?: string
   fromEmail?: string
   fromName?: string
+  replyTo?: string
   providerType?: string
 }
 
@@ -21,6 +22,8 @@ interface SendProductEmailParams {
   content: string // HTML content from admin
   productSlug: string
   token: string // Access token for link tracking
+  replyTo?: string
+  rawHtml?: string
   config?: EmailConfig
 }
 
@@ -53,7 +56,10 @@ class EmailService {
 
     const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail
 
-    return { from }
+    return {
+      from,
+      replyTo: config?.replyTo,
+    }
   }
 
   /**
@@ -106,6 +112,8 @@ class EmailService {
         content,
         productSlug,
         token,
+        replyTo,
+        rawHtml,
         config,
       } = params
 
@@ -124,18 +132,17 @@ class EmailService {
       const provider = getEmailProvider(config.apiKey, config.providerType)
 
       // Get sender info
-      const { from, replyTo } = this.getSenderInfo(config)
+      const { from, replyTo: configReplyTo } = this.getSenderInfo(config)
 
       // Transform content to add link tracking
-      const transformedContent = this.transformLinksToTracking(content, token)
-
-      // Generate full email HTML with template
-      const htmlContent = generateProductEmail({
-        productTitle,
-        content: transformedContent,
-        recipientEmail: to,
-        trackingToken: token,
-      })
+      const htmlContent = rawHtml
+        ? this.transformLinksToTracking(rawHtml, token)
+        : generateProductEmail({
+            productTitle,
+            content: this.transformLinksToTracking(content, token),
+            recipientEmail: to,
+            trackingToken: token,
+          })
 
       // Send email via provider
       return await provider.send({
@@ -143,7 +150,7 @@ class EmailService {
         to,
         subject,
         html: htmlContent,
-        replyTo,
+        replyTo: replyTo || configReplyTo,
       })
     } catch (error) {
       console.error('Error sending product delivery email:', error)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, use } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
@@ -349,11 +349,19 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
+function isTabId(value: string | null): value is TabId {
+  return TABS.some((tab) => tab.id === value)
+}
+
 export default function SiteEditPage({ params }: SiteEditPageProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { siteId } = use(params)
   const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
-  const [activeTab, setActiveTab] = useState<TabId>('general')
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    const requestedTab = searchParams.get('tab')
+    return isTabId(requestedTab) ? requestedTab : 'general'
+  })
   const contextSite = sites.find((site) => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null)
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
   const [siteName, setSiteName] = useState(contextSite?.name || "")

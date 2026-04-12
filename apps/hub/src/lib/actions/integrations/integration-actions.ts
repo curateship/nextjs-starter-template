@@ -78,6 +78,8 @@ export async function getSiteIntegration(
   integrationType: string
 ): Promise<SiteIntegration | null> {
   try {
+    await verifyOwnership(siteId)
+
     const result = await db.query.siteIntegrations.findFirst({
       where: and(
         eq(siteIntegrations.siteId, siteId),
@@ -106,6 +108,8 @@ export async function getSiteIntegrations(
   siteId: string
 ): Promise<SiteIntegration[]> {
   try {
+    await verifyOwnership(siteId)
+
     const results = await db
       .select()
       .from(siteIntegrations)

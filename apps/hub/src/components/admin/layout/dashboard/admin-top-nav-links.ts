@@ -28,7 +28,8 @@ type NewsletterAdminSection =
   | "automations"
   | "templates"
 type DirectoryAdminSection = "directory" | "templates" | "custom-blocks"
-type SiteHealthAdminSection = "overview" | "email" | "cron"
+type PlatformEmailAdminSection = "templates" | "emails"
+type SiteHealthAdminSection = "overview" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
 
 export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTopNavLink[] {
@@ -60,10 +61,16 @@ export function getDirectoryAdminTopNavLinks(active: DirectoryAdminSection): Adm
   ]
 }
 
+export function getPlatformEmailAdminTopNavLinks(active: PlatformEmailAdminSection): AdminTopNavLink[] {
+  return [
+    { label: "Email Templates", href: "/admin/platforms/emails", icon: FileText, active: active === "templates" },
+    { label: "Email Accounts", href: "/admin/platforms/emails/senders", icon: Mail, active: active === "emails" },
+  ]
+}
+
 export function getSiteHealthAdminTopNavLinks(active: SiteHealthAdminSection): AdminTopNavLink[] {
   return [
     { label: "Overview", href: "/admin/site-health", active: active === "overview" },
-    { label: "Email Health", href: "/admin/site-health/email", active: active === "email" },
     { label: "Cron Jobs", href: "/admin/site-health/cron", active: active === "cron" },
   ]
 }

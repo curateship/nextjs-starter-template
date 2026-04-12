@@ -7,9 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { BlockTabs } from '@/components/admin/shared/BlockTabs'
 import { Check } from 'lucide-react'
 import { useCallback } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
 import { LEAD_MAGNET_STYLES } from '.'
 import { cn } from '@/lib/utils/tailwind'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
@@ -45,24 +42,6 @@ export function ProductLeadMagnetBlock({
   }, [styleConfig, leadMagnetStyle, currentStyleConfig, onContentChange])
 
   const ActivePanel = LEAD_MAGNET_STYLES[leadMagnetStyle]?.AdminPanel
-
-  // Email content editor
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: 'Write your email content here...',
-      }),
-    ],
-    content: content.emailSettings?.content || '',
-    onUpdate: ({ editor }) => {
-      onContentChange('emailSettings', {
-        ...content.emailSettings,
-        content: editor.getHTML(),
-      })
-    },
-  })
 
   return (
     <BlockTabs
@@ -128,70 +107,18 @@ export function ProductLeadMagnetBlock({
           ),
         },
         {
-          value: "email",
-          label: "Email",
+          value: "follow-up",
+          label: "After Signup",
           content: (
             <>
               <Card className="shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Email Settings</CardTitle>
+                  <CardTitle className="text-base">Delivery Email</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="emailSubject">Email Subject</Label>
-                    <Input
-                      id="emailSubject"
-                      value={content.emailSettings?.subject || ''}
-                      onChange={(e) =>
-                        onContentChange('emailSettings', {
-                          ...content.emailSettings,
-                          subject: e.target.value,
-                        })
-                      }
-                      placeholder="Your download is ready!"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="fromName">From Name</Label>
-                    <Input
-                      id="fromName"
-                      value={content.emailSettings?.fromName || ''}
-                      onChange={(e) =>
-                        onContentChange('emailSettings', {
-                          ...content.emailSettings,
-                          fromName: e.target.value,
-                        })
-                      }
-                      placeholder="Your Company"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="replyTo">Reply-To Email</Label>
-                    <Input
-                      id="replyTo"
-                      type="email"
-                      value={content.emailSettings?.replyTo || ''}
-                      onChange={(e) =>
-                        onContentChange('emailSettings', {
-                          ...content.emailSettings,
-                          replyTo: e.target.value,
-                        })
-                      }
-                      placeholder="support@yourcompany.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Email Content (Rich Text)</Label>
-                    <p className="text-sm text-gray-600">
-                      Add your content with links, text, and formatting. Include direct links to your downloadable resources.
-                    </p>
-                    <div className="mt-2 min-h-[200px] rounded-md border p-4">
-                      <EditorContent editor={editor} />
-                    </div>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Lead magnet delivery emails are now managed in Platform Management → Emails.
+                  </p>
                 </CardContent>
               </Card>
 

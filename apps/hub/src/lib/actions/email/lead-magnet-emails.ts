@@ -27,7 +27,9 @@ export async function sendLeadMagnetDeliveryEmail(
   }
   const provider = getEmailProvider(apiKey, providerType)
 
-  const html = `
+  const html = /^\s*<!doctype html/i.test(content) || /^\s*<html/i.test(content)
+    ? content
+    : `
     <!DOCTYPE html>
     <html>
       <head>

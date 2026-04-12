@@ -1,7 +1,44 @@
 'use server'
 
-import { getSiteIntegration } from './integration-actions'
+import { and, eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { siteIntegrations } from '@/lib/db/schema'
+import { safeDecrypt } from '@/lib/utils/encryption'
 import type { AIProvider } from '@/lib/utils/ai-models'
+import { SENSITIVE_FIELDS, type IntegrationType } from './types'
+
+function decryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
+  const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
+  if (sensitiveKeys.length === 0 || !process.env.INTEGRATION_ENCRYPTION_KEY) {
+    return config
+  }
+
+  const decrypted = { ...config }
+  for (const key of sensitiveKeys) {
+    if (decrypted[key] && typeof decrypted[key] === 'string') {
+      decrypted[key] = safeDecrypt(decrypted[key])
+    }
+  }
+  return decrypted
+}
+
+async function getServerIntegration(siteId: string, integrationType: string) {
+  const integration = await db.query.siteIntegrations.findFirst({
+    where: and(
+      eq(siteIntegrations.siteId, siteId),
+      eq(siteIntegrations.integrationType, integrationType),
+    ),
+  })
+
+  if (!integration || !integration.isEnabled) {
+    return null
+  }
+
+  return {
+    ...integration,
+    config: decryptConfig(integration.integrationType, integration.config as Record<string, any>),
+  }
+}
 
 /**
  * Get Stripe config for a site from site integrations.
@@ -12,9 +49,9 @@ export async function getStripeConfig(siteId: string): Promise<{
   webhookSecret?: string
   mode: 'live' | 'sandbox'
 } | null> {
-  const integration = await getSiteIntegration(siteId, 'stripe')
+  const integration = await getServerIntegration(siteId, 'stripe')
 
-  if (integration && integration.isEnabled) {
+  if (integration) {
     const mode = integration.config.mode === 'sandbox' ? 'sandbox' : 'live'
     const secretKey = mode === 'sandbox' ? integration.config.sandbox_secret_key : integration.config.secret_key
     const publishableKey = mode === 'sandbox' ? integration.config.sandbox_publishable_key : integration.config.publishable_key
@@ -48,8 +85,8 @@ export async function getEmailConfig(siteId: string): Promise<{
   const providerTypes = ['resend'] as const
 
   for (const providerType of providerTypes) {
-    const integration = await getSiteIntegration(siteId, providerType)
-    if (integration && integration.isEnabled) {
+    const integration = await getServerIntegration(siteId, providerType)
+    if (integration) {
       const { api_key, from_email, from_name, webhook_secret } = integration.config
       if (api_key) {
         return {
@@ -84,8 +121,8 @@ export async function getAIConfig(siteId: string, preferredProvider?: AIProvider
     : ['anthropic', 'openai', 'google_ai'] as const
 
   for (const providerType of providerTypes) {
-    const integration = await getSiteIntegration(siteId, providerType)
-    if (integration && integration.isEnabled) {
+    const integration = await getServerIntegration(siteId, providerType)
+    if (integration) {
       const { api_key } = integration.config
       if (api_key) {
         return { apiKey: api_key, provider: providerType }
@@ -102,9 +139,9 @@ export async function getAIConfig(siteId: string, preferredProvider?: AIProvider
 export async function getResearchConfig(siteId: string): Promise<{
   apiKey: string
 } | null> {
-  const integration = await getSiteIntegration(siteId, 'perplexity')
+  const integration = await getServerIntegration(siteId, 'perplexity')
 
-  if (integration && integration.isEnabled) {
+  if (integration) {
     const { api_key } = integration.config
     if (api_key) {
       return { apiKey: api_key }
