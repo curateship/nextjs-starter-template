@@ -1,4 +1,5 @@
 export { AppSidebar } from "./components/sidebar"
+export { DataTable4 } from "./components/data-table4"
 export {
   SidebarCollapsible,
 } from "./components/sidebar-group-collapsible"
