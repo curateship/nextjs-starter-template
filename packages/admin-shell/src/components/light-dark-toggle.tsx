@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 
-import { useTheme } from "./theme-provider"
+import { useTheme } from "./light-dark-switcher"
 import { Button } from "./ui/button"
 import {
   DropdownMenu,
@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu"
 
-export function AdminThemeToggle() {
+export function LightDarkToggle() {
   const [mounted, setMounted] = React.useState(false)
   const { setTheme } = useTheme()
 

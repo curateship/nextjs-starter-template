@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "./ui/sidebar"
 
-export function TeamSwitcher({
+export function WorkspaceSwitcher({
   teams,
 }: {
   teams: {

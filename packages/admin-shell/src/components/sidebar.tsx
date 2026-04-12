@@ -1,8 +1,11 @@
 "use client"
 
-import { NavUser } from "./nav-user"
-import { ShellSidebarGroup, type SidebarGroupEntry } from "./sidebar-group"
-import { TeamSwitcher } from "./team-switcher"
+import { UserDropdown } from "./user-dropdown"
+import {
+  SidebarCollapsible,
+  type SidebarGroupEntry,
+} from "./sidebar-group-collapsible"
+import { WorkspaceSwitcher } from "./workspace-switcher"
 import {
   Sidebar,
   SidebarContent,
@@ -89,11 +92,11 @@ export function AppSidebar({ config, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={teams} />
+        <WorkspaceSwitcher teams={teams} />
       </SidebarHeader>
       <SidebarContent>
         {config.sections.map((section) => (
-          <ShellSidebarGroup
+          <SidebarCollapsible
             key={section.id}
             title={section.title}
             entries={mapSectionEntries(section, currentPath)}
@@ -101,7 +104,7 @@ export function AppSidebar({ config, ...props }: AppSidebarProps) {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser
+        <UserDropdown
           user={{
             name: "Tyler",
             email: "tyler@internal.dev",

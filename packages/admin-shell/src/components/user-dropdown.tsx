@@ -32,7 +32,7 @@ import {
   SparklesIcon,
 } from "lucide-react"
 
-export function NavUser({
+export function UserDropdown({
   user,
 }: {
   user: {

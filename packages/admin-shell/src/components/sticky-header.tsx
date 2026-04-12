@@ -3,7 +3,7 @@
 import * as React from "react"
 import { PanelLeftIcon } from "lucide-react"
 
-import { AdminThemeToggle } from "./admin-theme-toggle"
+import { LightDarkToggle } from "./light-dark-toggle"
 import { useSidebar } from "./ui/sidebar"
 import { cn } from "../lib/utils"
 
@@ -112,7 +112,7 @@ export function StickyHeader({
         </div>
         <div className="flex items-center gap-2 pr-1">
           {rightActions}
-          <AdminThemeToggle />
+          <LightDarkToggle />
         </div>
       </div>
     </header>

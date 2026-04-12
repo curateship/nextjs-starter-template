@@ -1,6 +1,6 @@
-export { AppSidebar } from "./components/app-sidebar"
+export { AppSidebar } from "./components/sidebar"
 export { StickyHeader } from "./components/sticky-header"
-export { ThemeProvider, useTheme } from "./components/theme-provider"
+export { ThemeProvider, useTheme } from "./components/light-dark-switcher"
 export { TooltipProvider } from "./components/ui/tooltip"
 export {
   Sidebar,

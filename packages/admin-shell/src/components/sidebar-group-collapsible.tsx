@@ -69,7 +69,7 @@ function getNavLinkProps(href: string, onClick: () => void) {
   }
 }
 
-export function ShellSidebarGroup({ title, entries }: SidebarGroupProps) {
+export function SidebarCollapsible({ title, entries }: SidebarGroupProps) {
   const { state, setOpenMobile } = useSidebar()
 
   if (!entries.length) {
