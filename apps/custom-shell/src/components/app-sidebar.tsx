@@ -1,39 +1,88 @@
 "use client"
 
-import { SidebarSection } from "@/components/sidebar-section"
 import { NavUser } from "@/components/nav-user"
+import { ShellSidebarGroup, type SidebarGroupEntry } from "@/components/sidebar-group"
 import { TeamSwitcher } from "@/components/team-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { appPages, type AppPage } from "@/lib/app-pages"
-import { renderShellIcon, type ShellConfig } from "@/lib/custom-shell"
+import {
+  isShellItem,
+  renderShellIcon,
+  type ShellConfig,
+  type ShellSection,
+} from "@/lib/custom-shell"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
-  currentPage: AppPage
 }
 
-export function AppSidebar({ config, currentPage, ...props }: AppSidebarProps) {
+function getCurrentHashPath() {
+  if (typeof window === "undefined") {
+    return "/"
+  }
+
+  const hash = window.location.hash
+  return hash.startsWith("#") ? hash.slice(1) || "/" : hash || "/"
+}
+
+function mapSectionEntries(
+  section: ShellSection,
+  currentPath: string
+): SidebarGroupEntry[] {
+  const entries: SidebarGroupEntry[] = []
+
+  section.entries.forEach((entry) => {
+    if (!isShellItem(entry)) {
+      entries.push({
+        type: "divider",
+        id: entry.id,
+        label: entry.label,
+      })
+      return
+    }
+
+    if (!entry.visible) {
+      return
+    }
+
+    entries.push({
+      type: "item",
+      id: entry.id,
+      label: entry.label,
+      href: entry.href,
+      icon: renderShellIcon(entry.icon),
+      active: currentPath === entry.href,
+      children: entry.children?.map((child) => ({
+        id: child.id,
+        label: child.label,
+        href: child.href,
+        active: currentPath === child.href,
+      })),
+    })
+  })
+
+  return entries
+}
+
+export function AppSidebar({ config, ...props }: AppSidebarProps) {
+  const currentPath = getCurrentHashPath()
   const teams = [
     {
       name: config.workspaceName,
       logo: renderShellIcon("briefcaseBusiness"),
       plan: config.workspacePlan,
+      href: "#/",
     },
     {
       name: "Hub baseline",
       logo: renderShellIcon("globe"),
       plan: "Reference",
+      href: "#/",
     },
   ]
 
@@ -43,27 +92,12 @@ export function AppSidebar({ config, currentPage, ...props }: AppSidebarProps) {
         <TeamSwitcher teams={teams} />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workbench</SidebarGroupLabel>
-          <SidebarMenu>
-            {appPages.map((page) => (
-              <SidebarMenuItem key={page.id}>
-                <SidebarMenuButton
-                  asChild
-                  tooltip={page.label}
-                  isActive={currentPage === page.id}
-                >
-                  <a href={page.href}>
-                    {renderShellIcon(page.icon)}
-                    <span>{page.label}</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
         {config.sections.map((section) => (
-          <SidebarSection key={section.id} section={section} />
+          <ShellSidebarGroup
+            key={section.id}
+            title={section.title}
+            entries={mapSectionEntries(section, currentPath)}
+          />
         ))}
       </SidebarContent>
       <SidebarFooter>
