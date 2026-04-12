@@ -70,7 +70,7 @@ export function SidebarMain({
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
-                    isActive={isActive || hasActiveChild}
+                    isActive={isActive}
                     className="flex-1"
                   >
                     <Link href={item.url} onClick={handleNavClick}>

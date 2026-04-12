@@ -1,6 +1,7 @@
 import * as React from "react"
 import { CalendarIcon, GlobeIcon, WorkflowIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
+import { useLocation } from "@tanstack/react-router"
 import { useNavigate } from "@tanstack/react-router"
 import { SidebarCollapsible } from "@/components/sidebar-group-collapsible"
 import {
@@ -34,6 +35,7 @@ function BrandLink() {
 
 export function ScraperSidebar() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   return (
     <Sidebar collapsible="icon">
@@ -57,18 +59,21 @@ export function ScraperSidebar() {
               label: "Google Maps",
               href: "/google-maps",
               icon: <GlobeIcon className="size-4" />,
+              active: pathname === "/google-maps",
               children: [
                 {
                   id: "google-maps-run",
                   label: "Run",
                   href: "/google-maps/runs",
                   icon: <WorkflowIcon className="size-4" />,
+                  active: pathname === "/google-maps/runs",
                 },
                 {
                   id: "google-maps-schedules",
                   label: "Schedules",
                   href: "/google-maps/schedules",
                   icon: <CalendarIcon className="size-4" />,
+                  active: pathname === "/google-maps/schedules",
                 },
               ],
             },

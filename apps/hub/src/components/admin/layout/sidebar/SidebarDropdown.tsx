@@ -70,7 +70,7 @@ export function SidebarDropdown({
                   <SidebarMenuButton
                     asChild
                     tooltip={item.name}
-                    isActive={isActive || hasActiveChild}
+                    isActive={isActive}
                     className="flex-1"
                   >
                     <Link href={item.url} onClick={handleNavClick}>

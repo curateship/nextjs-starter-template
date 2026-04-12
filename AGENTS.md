@@ -44,6 +44,7 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 - Do not proactively use live/browser validation
 - Only run browser validation when the user explicitly asks to validate, test, verify, or check it
 - Build and typecheck are allowed without asking unless the user says otherwise
+- Do not run build, typecheck, or other verification commands for styling-only changes unless the user explicitly asks for verification
 
 ## Repository Structure
 

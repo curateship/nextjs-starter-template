@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import { UserDropdown } from "./user-dropdown"
 import {
   SidebarCollapsible,
@@ -73,7 +75,17 @@ function mapSectionEntries(
 }
 
 export function AppSidebar({ config, ...props }: AppSidebarProps) {
-  const currentPath = getCurrentHashPath()
+  const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
+
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      setCurrentPath(getCurrentHashPath())
+    }
+
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
+  }, [])
+
   const teams = [
     {
       name: config.workspaceName,
