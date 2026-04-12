@@ -98,8 +98,8 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     description: 'Sent after a paid product checkout succeeds.',
     scopeLabel: 'Current Site',
     subject: 'Your {{product_name}} is ready',
-    bodyHtml: '<p>Thank you for purchasing {{product_name}}.</p><p><a href="{{product_url}}">Open {{product_name}}</a></p>',
-    tokens: ['{{product_name}}', '{{tier_name}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
+    bodyHtml: '<p>Thank you for purchasing {{product_name}}.</p>{{download_page_content}}',
+    tokens: ['{{product_name}}', '{{tier_name}}', '{{site_name}}', '{{site_url}}', '{{product_url}}', '{{download_page_content}}'],
   }
 }
 
@@ -269,6 +269,7 @@ export async function buildSystemEmailTokens(params: {
   productName?: string | null
   productSlug?: string | null
   tierName?: string | null
+  downloadPageContent?: string | null
 }) {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
@@ -278,6 +279,7 @@ export async function buildSystemEmailTokens(params: {
     product_name: params.productName || '',
     product_url: '',
     tier_name: params.tierName || '',
+    download_page_content: params.downloadPageContent || '',
   }
 
   if (params.siteId) {

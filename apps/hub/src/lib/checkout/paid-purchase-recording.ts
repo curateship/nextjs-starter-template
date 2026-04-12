@@ -10,6 +10,7 @@ import {
   renderSystemEmailContent,
   renderSystemEmailSubject,
 } from '@/lib/email/system-email'
+import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 
 function generateAccessToken() {
   return randomBytes(32).toString('base64url')
@@ -163,6 +164,7 @@ async function sendPaidProductEmail(params: {
     .select({
       title: products.title,
       slug: products.slug,
+      contentBlocks: products.contentBlocks,
     })
     .from(products)
     .where(and(eq(products.id, params.productId), eq(products.siteId, params.siteId)))
@@ -176,6 +178,11 @@ async function sendPaidProductEmail(params: {
     return
   }
 
+  const downloadPageContent = getTierDownloadPageContent(
+    product.contentBlocks as Record<string, any> | null | undefined,
+    params.tierId
+  )
+
   const template = await getSystemEmailTemplate('paid_purchase_delivery', params.siteId)
   const tokens = await buildSystemEmailTokens({
     templateKey: 'paid_purchase_delivery',
@@ -184,6 +191,7 @@ async function sendPaidProductEmail(params: {
     productName: product.title,
     productSlug: product.slug,
     tierName: params.tierName || undefined,
+    downloadPageContent,
   })
 
   const result = await emailService.sendProductDeliveryEmail({
@@ -214,4 +222,22 @@ async function sendPaidProductEmail(params: {
       updatedAt: new Date(),
     })
     .where(eq(productOrders.id, params.orderId))
+}
+
+function getTierDownloadPageContent(
+  contentBlocks: Record<string, any> | null | undefined,
+  tierId?: string | null
+) {
+  if (!contentBlocks || !tierId) return ''
+
+  const checkoutBlock = convertContentBlocksToArray(contentBlocks, '')
+    .find((block) => block.type === 'product-checkout')
+
+  const tiers = checkoutBlock?.content?.productPricingTiers || checkoutBlock?.content?.tiers
+  if (!Array.isArray(tiers)) return ''
+
+  const tier = tiers.find((entry: any) => entry?.id === tierId)
+  if (!tier || typeof tier.downloadContent !== 'string') return ''
+
+  return tier.downloadContent
 }
