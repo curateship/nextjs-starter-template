@@ -49,7 +49,9 @@ export function StickyHeaderLeftNav({
             href={link.href}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noreferrer" : undefined}
+            aria-label={isMobile ? link.label : undefined}
             onClick={link.onClick as React.MouseEventHandler<HTMLAnchorElement> | undefined}
+            title={isMobile ? link.label : undefined}
             className={cn(
               "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
               !isMobile && "px-3",
@@ -75,8 +77,9 @@ export function StickyHeaderLeftNav({
           <button
             key={`${link.href}-${link.label}`}
             type="button"
-            title={link.href}
+            aria-label={isMobile ? link.label : undefined}
             onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
+            title={isMobile ? link.label : undefined}
             className={cn(
               "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
               !isMobile && "px-3",

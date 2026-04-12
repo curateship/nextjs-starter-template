@@ -27,6 +27,16 @@ export function StickyHeader({
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
+  const headerNavLinks = isMobile
+    ? [
+        {
+          label: "Toggle sidebar",
+          icon: <PanelLeftIcon className="h-3.5 w-3.5" />,
+          onClick: () => toggleSidebar(),
+        },
+        ...(navLinks ?? []),
+      ]
+    : navLinks
 
   return (
     <header
@@ -37,21 +47,10 @@ export function StickyHeader({
     >
       <div className="flex h-full flex-1 items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          {isMobile ? (
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted/70"
-            >
-              <PanelLeftIcon className="h-3.5 w-3.5" />
-              <span className="sr-only">Toggle sidebar</span>
-            </button>
-          ) : null}
-
           {navContent}
 
-          {!navContent && navLinks && navLinks.length > 0 && (
-            <StickyHeaderLeftNav navLinks={navLinks} />
+          {!navContent && headerNavLinks && headerNavLinks.length > 0 && (
+            <StickyHeaderLeftNav navLinks={headerNavLinks} />
           )}
         </div>
         <div className="flex items-center gap-2 pr-1">
