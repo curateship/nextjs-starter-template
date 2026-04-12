@@ -37,14 +37,14 @@ export function TeamSwitcher({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex items-center gap-2 py-2">
+        <div className="relative flex min-h-8 items-center py-2">
           <a
             href={activeTeam.href || "#/"}
             className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
           >
             {activeTeam.logo}
           </a>
-          <div className="flex min-w-0 flex-1 items-center group-data-[collapsible=icon]:hidden">
+          <div className="absolute inset-y-0 left-10 right-0 flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:pointer-events-none">
             <a
               href={activeTeam.href || "#/"}
               className="grid min-w-0 flex-1 text-left text-sm leading-tight"
