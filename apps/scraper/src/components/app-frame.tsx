@@ -1,12 +1,9 @@
 import type { ReactNode } from "react"
+import { CalendarIcon, LayoutDashboardIcon, WorkflowIcon } from "lucide-react"
 import { useNavigate, useRouterState } from "@tanstack/react-router"
-import {
-  SidebarInset,
-  SidebarProvider,
-  StickyHeader,
-  renderShellIcon,
-} from "@repo/admin-shell"
+import { StickyHeader } from "@/components/sticky-header"
 import { ScraperSidebar } from "@/components/scraper-sidebar"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
@@ -20,7 +17,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       label: "Overview",
       href: "/google-maps",
       active: pathname === "/google-maps",
-      icon: renderShellIcon("layoutDashboard"),
+      icon: <LayoutDashboardIcon className="size-4" />,
       onClick: () => {
         void navigate({ to: "/google-maps" })
       },
@@ -32,7 +29,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         pathname === "/google-maps/runs" ||
         pathname === "/google-maps/runs/new" ||
         pathname.startsWith("/google-maps/runs/"),
-      icon: renderShellIcon("workflow"),
+      icon: <WorkflowIcon className="size-4" />,
       onClick: () => {
         void navigate({ to: "/google-maps/runs" })
       },
@@ -41,7 +38,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       label: "Schedules",
       href: "/google-maps/schedules",
       active: pathname === "/google-maps/schedules",
-      icon: renderShellIcon("calendar"),
+      icon: <CalendarIcon className="size-4" />,
       onClick: () => {
         void navigate({ to: "/google-maps/schedules" })
       },

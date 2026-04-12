@@ -1,15 +1,14 @@
 import * as React from "react"
 
+import { DataTable4 } from "@/components/data-table4"
+import { AppSidebar } from "@/components/sidebar"
+import { StickyHeader } from "@/components/sticky-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
-  AppSidebar,
   createDefaultShellConfig,
-  DataTable4,
   isShellItem,
   renderShellIcon,
-  SidebarInset,
-  SidebarProvider,
-  StickyHeader,
-} from "@repo/admin-shell"
+} from "@/lib/custom-shell"
 
 import { Button } from "@/components/ui/button"
 

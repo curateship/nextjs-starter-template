@@ -1,8 +1,9 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
-import "@repo/admin-shell/styles.css"
-import { ThemeProvider, TooltipProvider } from "@repo/admin-shell"
+import "@/styles.css"
+import { ThemeProvider } from "@/components/light-dark-switcher"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 import App from "./App.tsx"
 

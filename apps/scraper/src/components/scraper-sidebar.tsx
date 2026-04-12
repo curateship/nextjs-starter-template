@@ -1,16 +1,16 @@
 import * as React from "react"
+import { CalendarIcon, GlobeIcon, WorkflowIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 import { useNavigate } from "@tanstack/react-router"
+import { SidebarCollapsible } from "@/components/sidebar-group-collapsible"
 import {
   Sidebar,
-  SidebarCollapsible,
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarRail,
-  renderShellIcon,
-} from "@repo/admin-shell"
+} from "@/components/ui/sidebar"
 import { config } from "@/lib/config"
 
 function BrandLink() {
@@ -56,19 +56,19 @@ export function ScraperSidebar() {
               id: "google-maps",
               label: "Google Maps",
               href: "/google-maps",
-              icon: renderShellIcon("globe"),
+              icon: <GlobeIcon className="size-4" />,
               children: [
                 {
                   id: "google-maps-run",
                   label: "Run",
                   href: "/google-maps/runs",
-                  icon: renderShellIcon("workflow"),
+                  icon: <WorkflowIcon className="size-4" />,
                 },
                 {
                   id: "google-maps-schedules",
                   label: "Schedules",
                   href: "/google-maps/schedules",
-                  icon: renderShellIcon("calendar"),
+                  icon: <CalendarIcon className="size-4" />,
                 },
               ],
             },

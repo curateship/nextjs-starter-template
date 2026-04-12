@@ -1,7 +1,8 @@
 import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
 import { RouterProvider } from "@tanstack/react-router"
-import { ThemeProvider, TooltipProvider } from "@repo/admin-shell"
+import { ThemeProvider } from "@/components/light-dark-switcher"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { router } from "@/router"
 import "@/styles.css"
 

@@ -8,20 +8,6 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@repo/admin-shell/styles.css",
-        replacement: path.resolve(
-          __dirname,
-          "../../packages/admin-shell/src/styles.css"
-        ),
-      },
-      {
-        find: "@repo/admin-shell",
-        replacement: path.resolve(
-          __dirname,
-          "../../packages/admin-shell/src/index.ts"
-        ),
-      },
-      {
         find: "@",
         replacement: path.resolve(__dirname, "./src"),
       },

@@ -24,10 +24,9 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 - Ignore pre-existing issues unless specifically asked
 - Only fix build errors directly caused by your changes
 
-### Shared UI Boundaries
-- Never change `packages/admin-shell` UI directly for an app-specific need
-- Build app-specific branding, navigation, and layout in the app itself using shared primitives
-- Only change `packages/admin-shell` when the user explicitly asks for a shared package change
+### UI Boundaries
+- Build app-specific branding, navigation, and layout in the app itself
+- Do not introduce shared UI abstractions unless the user explicitly asks for them
 
 ### Response Format
 - Prefer structured answers over dense paragraphs when summarizing code, architecture, or project state

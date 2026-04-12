@@ -1,7 +1,6 @@
-@import "../../../packages/admin-shell/src/styles.css";
+@import "./theme.css";
 
 @source "./";
-@source "../../../packages/admin-shell/src";
 
 .scraper-shell {
   min-height: 100vh;
