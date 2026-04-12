@@ -11,6 +11,7 @@ export type StickyHeaderLeftNavLink = {
   href?: string
   icon?: React.ReactNode
   external?: boolean
+  onClick?: React.MouseEventHandler<HTMLElement>
 }
 
 type StickyHeaderLeftNavProps = {
@@ -48,6 +49,7 @@ export function StickyHeaderLeftNav({
             href={link.href}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noreferrer" : undefined}
+            onClick={link.onClick as React.MouseEventHandler<HTMLAnchorElement> | undefined}
             className={cn(
               "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
               !isMobile && "px-3",
@@ -74,6 +76,7 @@ export function StickyHeaderLeftNav({
             key={`${link.href}-${link.label}`}
             type="button"
             title={link.href}
+            onClick={link.onClick as React.MouseEventHandler<HTMLButtonElement> | undefined}
             className={cn(
               "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
               !isMobile && "px-3",

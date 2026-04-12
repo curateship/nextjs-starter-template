@@ -10,7 +10,7 @@ function isPollingStatus(status?: string) {
 }
 
 export function RunDetailPage() {
-  const { runId } = useParams({ from: "/runs/$runId" })
+  const { runId } = useParams({ from: "/google-maps/runs/$runId" })
   const [run, setRun] = useState<RunDetail | null>(null)
   const [results, setResults] = useState<RunResultRecord[]>([])
   const [error, setError] = useState<string | null>(null)

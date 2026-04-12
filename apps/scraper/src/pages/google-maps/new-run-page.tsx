@@ -38,7 +38,7 @@ export function NewRunPage() {
       })
 
       await navigate({
-        to: "/runs/$runId",
+        to: "/google-maps/runs/$runId",
         params: { runId: response.run.id },
       })
     } catch (caughtError) {

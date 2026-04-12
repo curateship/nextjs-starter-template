@@ -50,7 +50,7 @@ export function RunsPage() {
       description="Each run creates a fresh browser context and stores deduped places plus a per-run snapshot."
       actions={
         <Link
-          to="/runs/new"
+          to="/google-maps/runs/new"
           className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           Create run
@@ -83,7 +83,7 @@ export function RunsPage() {
               {runs.map((run) => (
                 <tr key={run.id} className="border-t border-border/70 align-top">
                   <td className="py-4 pr-4">
-                    <Link to="/runs/$runId" params={{ runId: run.id }} className="scraper-link font-medium">
+                    <Link to="/google-maps/runs/$runId" params={{ runId: run.id }} className="scraper-link font-medium">
                       {run.keyword}
                     </Link>
                     <p className="mt-1 text-muted-foreground">{run.area}</p>

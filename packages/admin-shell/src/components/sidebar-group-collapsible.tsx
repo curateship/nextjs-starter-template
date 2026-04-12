@@ -24,6 +24,7 @@ type SidebarGroupChild = {
   id: string
   label: string
   href: string
+  icon?: React.ReactNode
   active?: boolean
 }
 
@@ -46,9 +47,14 @@ export type SidebarGroupEntry =
 type SidebarGroupProps = {
   title: string
   entries: SidebarGroupEntry[]
+  onNavigate?: (href: string) => void
 }
 
-function getNavLinkProps(href: string, onClick: () => void) {
+function getNavLinkProps(
+  href: string,
+  onClick: () => void,
+  onNavigate?: (href: string) => void
+) {
   const isExternal =
     href.startsWith("http://") ||
     href.startsWith("https://") ||
@@ -62,6 +68,7 @@ function getNavLinkProps(href: string, onClick: () => void) {
     onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
       if (!usesRealNavigation) {
         event.preventDefault()
+        onNavigate?.(href)
       }
 
       onClick()
@@ -69,7 +76,11 @@ function getNavLinkProps(href: string, onClick: () => void) {
   }
 }
 
-export function SidebarCollapsible({ title, entries }: SidebarGroupProps) {
+export function SidebarCollapsible({
+  title,
+  entries,
+  onNavigate,
+}: SidebarGroupProps) {
   const { state, setOpenMobile } = useSidebar()
 
   if (!entries.length) {
@@ -122,7 +133,7 @@ export function SidebarCollapsible({ title, entries }: SidebarGroupProps) {
                     isActive={entry.active || hasActiveChild}
                     className="flex-1"
                   >
-                    <a {...getNavLinkProps(entry.href, handleNavClick)}>
+                    <a {...getNavLinkProps(entry.href, handleNavClick, onNavigate)}>
                       {entry.icon}
                       <span>{entry.label}</span>
                     </a>
@@ -146,7 +157,8 @@ export function SidebarCollapsible({ title, entries }: SidebarGroupProps) {
                       {entry.children?.map((child) => (
                         <SidebarMenuSubItem key={child.id}>
                           <SidebarMenuSubButton asChild isActive={child.active}>
-                            <a {...getNavLinkProps(child.href, handleNavClick)}>
+                            <a {...getNavLinkProps(child.href, handleNavClick, onNavigate)}>
+                              {child.icon}
                               <span>{child.label}</span>
                             </a>
                           </SidebarMenuSubButton>

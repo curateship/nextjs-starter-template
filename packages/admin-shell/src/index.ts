@@ -1,8 +1,14 @@
 export { AppSidebar } from "./components/sidebar"
+export {
+  SidebarCollapsible,
+} from "./components/sidebar-group-collapsible"
 export { StickyHeader } from "./components/sticky-header"
 export {
   StickyHeaderLeftNav,
 } from "./components/stickyheader-left-nav"
+export type {
+  SidebarGroupEntry,
+} from "./components/sidebar-group-collapsible"
 export type {
   StickyHeaderLeftNavLink,
 } from "./components/stickyheader-left-nav"

@@ -80,7 +80,7 @@ export function OverviewPage() {
           title="Recent Runs"
           description="The worker picks up queued runs from Postgres and stores normalized place snapshots per run."
           actions={
-            <Link to="/runs" className="scraper-link text-sm font-medium">
+            <Link to="/google-maps/runs" className="scraper-link text-sm font-medium">
               View all runs
             </Link>
           }
@@ -94,7 +94,7 @@ export function OverviewPage() {
               {runs.slice(0, 5).map((run) => (
                 <Link
                   key={run.id}
-                  to="/runs/$runId"
+                  to="/google-maps/runs/$runId"
                   params={{ runId: run.id }}
                   className="block rounded-2xl border border-border/70 bg-background/80 p-4 transition-colors hover:bg-muted/40"
                 >
@@ -119,7 +119,7 @@ export function OverviewPage() {
           title="Schedules"
           description="Recurring schedules enqueue normal runs with the same fixed Google Maps input shape."
           actions={
-            <Link to="/schedules" className="scraper-link text-sm font-medium">
+            <Link to="/google-maps/schedules" className="scraper-link text-sm font-medium">
               Manage schedules
             </Link>
           }
