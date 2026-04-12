@@ -1,12 +1,16 @@
 import * as React from "react"
 
+import {
+  AppSidebar,
+  createDefaultShellConfig,
+  SidebarInset,
+  SidebarProvider,
+  StickyHeader,
+} from "@repo/admin-shell"
+
 import { AdminCard } from "@/components/admin-card"
 import { AdminLayout } from "@/components/admin-layout"
-import { AppSidebar } from "@/components/app-sidebar"
-import { StickyHeader } from "@/components/sticky-header"
 import { Button } from "@/components/ui/button"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { createDefaultShellConfig } from "@/lib/custom-shell"
 
 export function App() {
   const [config, setConfig] = React.useState(() => createDefaultShellConfig())

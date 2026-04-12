@@ -3,14 +3,14 @@
 import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 
-import { useTheme } from "@/components/theme-provider"
-import { Button } from "@/components/ui/button"
+import { useTheme } from "./theme-provider"
+import { Button } from "./ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "./ui/dropdown-menu"
 
 export function AdminThemeToggle() {
   const [mounted, setMounted] = React.useState(false)

@@ -3,9 +3,9 @@
 import * as React from "react"
 import { PanelLeftIcon } from "lucide-react"
 
-import { AdminThemeToggle } from "@/components/admin-theme-toggle"
-import { useSidebar } from "@/components/ui/sidebar"
-import { cn } from "@/lib/utils"
+import { AdminThemeToggle } from "./admin-theme-toggle"
+import { useSidebar } from "./ui/sidebar"
+import { cn } from "../lib/utils"
 
 type NavLink = {
   label: string

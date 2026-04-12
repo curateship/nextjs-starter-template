@@ -7,7 +7,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@repo/admin-shell": ["../../packages/admin-shell/src/index.ts"],
+      "@repo/admin-shell/styles.css": ["../../packages/admin-shell/src/styles.css"]
     }
   }
 }

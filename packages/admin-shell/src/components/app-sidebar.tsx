@@ -1,21 +1,21 @@
 "use client"
 
-import { NavUser } from "@/components/nav-user"
-import { ShellSidebarGroup, type SidebarGroupEntry } from "@/components/sidebar-group"
-import { TeamSwitcher } from "@/components/team-switcher"
+import { NavUser } from "./nav-user"
+import { ShellSidebarGroup, type SidebarGroupEntry } from "./sidebar-group"
+import { TeamSwitcher } from "./team-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "./ui/sidebar"
 import {
   isShellItem,
   renderShellIcon,
   type ShellConfig,
   type ShellSection,
-} from "@/lib/custom-shell"
+} from "../lib/custom-shell"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
