@@ -2,11 +2,16 @@ import type { LucideIcon } from "lucide-react"
 import {
   BarChart3,
   Blocks,
+  ClipboardCheck,
+  Clock3,
   FileText,
   Filter,
   FolderOpen,
+  HeartPulse,
+  Link2,
   Mail,
   Package,
+  Search,
   ShoppingCart,
   Users,
   Zap,
@@ -70,15 +75,15 @@ export function getPlatformEmailAdminTopNavLinks(active: PlatformEmailAdminSecti
 
 export function getSiteHealthAdminTopNavLinks(active: SiteHealthAdminSection): AdminTopNavLink[] {
   return [
-    { label: "Overview", href: "/admin/site-health", active: active === "overview" },
-    { label: "Cron Jobs", href: "/admin/site-health/cron", active: active === "cron" },
+    { label: "Overview", href: "/admin/site-health", icon: HeartPulse, active: active === "overview" },
+    { label: "Cron Jobs", href: "/admin/site-health/cron", icon: Clock3, active: active === "cron" },
   ]
 }
 
 export function getSiteAuditAdminTopNavLinks(siteId: string, active: SiteAuditAdminSection): AdminTopNavLink[] {
   return [
-    { label: "Site Audit", href: `/admin/sites/${siteId}/site-audit`, active: active === "site-audit" },
-    { label: "Content Audit", href: `/admin/sites/${siteId}/site-audit/audit`, active: active === "audit" },
-    { label: "Internal Links", href: `/admin/sites/${siteId}/site-audit/links`, active: active === "links" },
+    { label: "Site Audit", href: `/admin/sites/${siteId}/site-audit`, icon: ClipboardCheck, active: active === "site-audit" },
+    { label: "Content Audit", href: `/admin/sites/${siteId}/site-audit/audit`, icon: Search, active: active === "audit" },
+    { label: "Internal Links", href: `/admin/sites/${siteId}/site-audit/links`, icon: Link2, active: active === "links" },
   ]
 }

@@ -20,6 +20,17 @@ interface NavLink {
   external?: boolean
 }
 
+interface HeaderNavItem {
+  key: string
+  label: string
+  href?: string
+  active?: boolean
+  icon?: LucideIcon
+  iconName?: string
+  external?: boolean
+  onClick?: () => void
+}
+
 interface StickyHeaderProps {
   className?: string
   navLinks?: NavLink[]
@@ -33,7 +44,7 @@ export function StickyHeader({
   navContent,
   rightActions,
 }: StickyHeaderProps) {
-  const { toggleSidebar } = useSidebar()
+  const { isMobile, toggleSidebar } = useSidebar()
   const { currentSite } = useSiteSwitcher()
   const pathname = usePathname()
   const newsletterSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings/newsletters` : null
@@ -49,6 +60,23 @@ export function StickyHeader({
   const showNewsletterSettingsButton = Boolean(newsletterSettingsHref) && isNewsletterSection
   const showEmailSettingsButton = Boolean(emailSettingsHref) && isPlatformEmailSection
   const newsletterTemplatesActive = pathname.startsWith("/admin/newsletters/templates")
+  const headerNavItems: HeaderNavItem[] = [
+    ...(isMobile
+      ? [
+          {
+            key: "toggle-sidebar",
+            label: "Toggle sidebar",
+            icon: PanelLeft,
+            onClick: () => toggleSidebar(),
+          },
+        ]
+      : []),
+    ...(navLinks?.map((link) => ({
+      ...link,
+      key: `${link.href}-${link.label}`,
+    })) ?? []),
+  ]
+  const showStandaloneSidebarToggle = isMobile && (Boolean(navContent) || !navLinks?.length)
 
   return (
     <header className={cn(
@@ -57,53 +85,95 @@ export function StickyHeader({
     )}>
       <div className="flex items-center justify-between flex-1 px-4 h-full">
         <div className="flex items-center gap-2">
-          {/* Sidebar trigger as tab pill */}
-          <button
-            onClick={toggleSidebar}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
-          >
-            <PanelLeft className="h-3.5 w-3.5" />
-          </button>
+          {showStandaloneSidebarToggle ? (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Toggle sidebar"
+              title="Toggle sidebar"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+            >
+              <PanelLeft className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
 
           {navContent}
 
-          {/* NavLinks as tab pills */}
-          {!navContent && navLinks && navLinks.length > 0 && (
+          {!navContent && headerNavItems.length > 0 && (
             <div className="inline-flex h-8 items-center rounded-md gap-1">
-              {navLinks.map((link) => {
-                const Icon = link.icon ?? (link.iconName ? getQuickLinkIcon(link.iconName) : null)
-
-                return link.external ? (
-                  <a
-                    key={`${link.href}-${link.label}`}
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={cn(
-                      "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
-                      link.active
-                        ? "bg-muted text-foreground rounded-md"
-                        : "hover:bg-muted/50 rounded-md"
-                    )}
-                  >
-                    {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
-                    {link.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={`${link.href}-${link.label}`}
-                    href={link.href}
-                    className={cn(
-                      "inline-flex h-full items-center justify-center px-3 text-sm font-medium transition-all",
-                      link.active
-                        ? "bg-muted text-foreground rounded-md"
-                        : "hover:bg-muted/50 rounded-md"
-                    )}
-                  >
-                    {Icon && <Icon className="h-3.5 w-3.5 mr-1.5" />}
-                    {link.label}
-                  </Link>
+              {headerNavItems.map((item) => {
+                const Icon =
+                  item.icon ?? (item.iconName || isMobile ? getQuickLinkIcon(item.iconName) : null)
+                const showItemLabel = !isMobile && item.key !== "toggle-sidebar"
+                const itemClassName = cn(
+                  "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
+                  !isMobile && "px-3",
+                  isMobile && "bg-muted",
+                  item.active
+                    ? "bg-muted text-foreground rounded-md"
+                    : "hover:bg-muted rounded-md"
                 )
+                const iconClassName = cn(
+                  "flex h-3.5 w-3.5 items-center justify-center",
+                  showItemLabel && "mr-1.5"
+                )
+
+                if (item.onClick) {
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={item.onClick}
+                      aria-label={item.label}
+                      title={item.label}
+                      className={itemClassName}
+                    >
+                      {Icon ? (
+                        <span className={iconClassName}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                }
+
+                if (item.external && item.href) {
+                  return (
+                    <a
+                      key={item.key}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={!showItemLabel ? item.label : undefined}
+                      title={!showItemLabel ? item.label : undefined}
+                      className={itemClassName}
+                    >
+                      {Icon && (
+                        <span className={iconClassName}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                      {showItemLabel ? item.label : null}
+                    </a>
+                  )
+                }
+
+                return item.href ? (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    aria-label={!showItemLabel ? item.label : undefined}
+                    title={!showItemLabel ? item.label : undefined}
+                    className={itemClassName}
+                  >
+                    {Icon && (
+                      <span className={iconClassName}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                    {showItemLabel ? item.label : null}
+                  </Link>
+                ) : null
               })}
             </div>
           )}
