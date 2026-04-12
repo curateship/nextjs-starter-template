@@ -3,6 +3,8 @@ import * as React from "react"
 import {
   AppSidebar,
   createDefaultShellConfig,
+  isShellItem,
+  renderShellIcon,
   SidebarInset,
   SidebarProvider,
   StickyHeader,
@@ -14,6 +16,22 @@ import { Button } from "@/components/ui/button"
 
 export function App() {
   const [config, setConfig] = React.useState(() => createDefaultShellConfig())
+  const currentPath =
+    typeof window === "undefined"
+      ? "/"
+      : window.location.hash.startsWith("#")
+        ? window.location.hash.slice(1) || "/"
+        : window.location.hash || "/"
+  const navLinks = config.sections.flatMap((section) =>
+    section.entries
+      .filter(isShellItem)
+      .map((entry) => ({
+        label: entry.label,
+        href: `#${entry.href}`,
+        icon: renderShellIcon(entry.icon, "h-3.5 w-3.5"),
+        active: currentPath === entry.href,
+      }))
+  )
 
   return (
     <div
@@ -25,14 +43,7 @@ export function App() {
         <AppSidebar config={config} />
         <SidebarInset>
           <StickyHeader
-            navContent={
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Admin Panel</span>
-                <span className="text-xs text-muted-foreground">
-                  Shared shell extracted from Hub
-                </span>
-              </div>
-            }
+            navLinks={navLinks}
             rightActions={
               <Button
                 variant="outline"

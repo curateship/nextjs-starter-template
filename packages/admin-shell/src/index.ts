@@ -1,5 +1,11 @@
 export { AppSidebar } from "./components/sidebar"
 export { StickyHeader } from "./components/sticky-header"
+export {
+  StickyHeaderLeftNav,
+} from "./components/stickyheader-left-nav"
+export type {
+  StickyHeaderLeftNavLink,
+} from "./components/stickyheader-left-nav"
 export { ThemeProvider, useTheme } from "./components/light-dark-switcher"
 export { TooltipProvider } from "./components/ui/tooltip"
 export {
