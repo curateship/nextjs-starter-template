@@ -6,6 +6,8 @@
     "dev": "turbo dev",
     "dev:custom-shell": "npm run dev --workspace=custom-shell",
     "dev:hub": "npm run dev --workspace=@repo/hub",
+    "dev:scraper": "npm run dev --workspace=@repo/scraper",
+    "dev:scraper-api": "cd services/scraper-api && uvicorn app.main:app --reload --port 8001",
     "dev:seo": "npm run dev --workspace=@repo/seo",
     "dev:seo-api": "cd services/seo-api && uvicorn app.main:app --reload",
     "build": "turbo build",

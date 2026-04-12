@@ -7,6 +7,7 @@ This document describes the current local dev server setup for the apps in this 
 - Hub: `http://localhost:3000`
 - SEO: `http://localhost:3001`
 - Custom Shell: `http://localhost:3002`
+- Scraper: `http://localhost:3003`
 
 ## Why These Ports
 
@@ -15,6 +16,7 @@ The local apps now use a simple sequential port layout so they are easier to rem
 - `3000`
 - `3001`
 - `3002`
+- `3003`
 
 This replaces the previous mix of `3000`, `5173`, and `5174`.
 
@@ -29,6 +31,9 @@ The fixed ports are configured in the app-level dev setup:
   - `server.strictPort = true`
 - `apps/custom-shell/vite.config.ts`
   - `server.port = 3002`
+  - `server.strictPort = true`
+- `apps/scraper/vite.config.ts`
+  - `server.port = 3003`
   - `server.strictPort = true`
 
 `strictPort: true` is enabled for the Vite apps so they fail instead of silently moving to another port.
@@ -52,4 +57,5 @@ Running `localapps` should show:
 hub: http://localhost:3000
 seo: http://localhost:3001
 custom-shell: http://localhost:3002
+scraper: http://localhost:3003
 ```

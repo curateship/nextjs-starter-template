@@ -1,0 +1,26 @@
+@import "../../../packages/admin-shell/src/styles.css";
+
+@source "./";
+@source "../../../packages/admin-shell/src";
+
+.scraper-shell {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 12%, transparent) 0, transparent 26rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--background) 88%, white 12%), var(--background));
+}
+
+.scraper-link {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.scraper-link:hover {
+  text-decoration: underline;
+}
+
+@layer base {
+  body {
+    margin: 0;
+  }
+}

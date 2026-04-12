@@ -1,0 +1,34 @@
+import path from "path"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: [
+      {
+        find: "@repo/admin-shell/styles.css",
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/admin-shell/src/styles.css"
+        ),
+      },
+      {
+        find: "@repo/admin-shell",
+        replacement: path.resolve(
+          __dirname,
+          "../../packages/admin-shell/src/index.ts"
+        ),
+      },
+      {
+        find: "@",
+        replacement: path.resolve(__dirname, "./src"),
+      },
+    ],
+  },
+  server: {
+    port: 3003,
+    strictPort: true,
+  },
+})
