@@ -224,7 +224,6 @@ export async function getNewslettersBySite(
         .filter((row) => row.sourceId)
         .map((row) => [row.sourceId as string, row.count]),
     )
-
     return {
       data: rows.map((row) => rowToNewsletter(
         row,

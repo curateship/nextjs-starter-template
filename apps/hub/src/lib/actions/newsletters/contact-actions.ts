@@ -327,7 +327,7 @@ function buildContactsWhere(siteId: string, group?: ContactFilterGroup | null, s
   return conditions.length === 1 ? conditions[0] : and(...conditions)!
 }
 
-async function repairPermanentBouncedContacts(siteId: string) {
+async function repairBouncedContacts(siteId: string) {
   await db.execute(sql`
     update newsletter_contacts as contact
     set status = 'bounced',
@@ -340,7 +340,6 @@ async function repairPermanentBouncedContacts(siteId: string) {
         from newsletter_events as event
         where event.contact_id = contact.id
           and event.event_type = 'bounced'
-          and lower(coalesce(event.metadata->>'bounce_type', '')) in ('hard', 'permanent')
       )
   `)
 }
@@ -607,7 +606,7 @@ export async function getContactIdsAction(
       return { ids: [], error: 'Access denied' }
     }
 
-    await repairPermanentBouncedContacts(siteId)
+    await repairBouncedContacts(siteId)
 
     const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
     const whereClause = buildContactsWhere(siteId, normalizedGroup, options?.searchQuery)
@@ -647,7 +646,7 @@ export async function getContactsWithStats(
       return { data: null, total: 0, stats: null, error: 'Access denied' }
     }
 
-    await repairPermanentBouncedContacts(siteId)
+    await repairBouncedContacts(siteId)
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
@@ -724,7 +723,7 @@ export async function getContactById(
       return { data: null, error: 'Access denied' }
     }
 
-    await repairPermanentBouncedContacts(contact.siteId)
+    await repairBouncedContacts(contact.siteId)
 
     const [repairedContact] = await db
       .select()

@@ -510,22 +510,18 @@ export default function NewslettersPage() {
               {loading ? (
                 <div className="space-y-0">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
+                    <div key={i} className="p-6">
                       <div className="grid grid-cols-9 gap-4 items-center">
                         <div className="col-span-4 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
-                          <div>
-                            <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40" />
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
-                          </div>
+                          <div className="h-4 w-56 max-w-full rounded bg-muted animate-pulse" />
                         </div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
                         <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
-                        <div><div className="h-8 w-8 bg-muted rounded animate-pulse" /></div>
+                        <div />
                       </div>
                     </div>
                   ))}
