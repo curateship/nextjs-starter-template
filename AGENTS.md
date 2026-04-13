@@ -8,6 +8,11 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 
 ## Rules
 
+## Conversation Rules
+- In Plan mode: explain to user like he's 5
+- Use bullet points for better readability.
+- When writing summaries, do not include the full file path.
+
 ### Simplicity & State
 - No fake "safety" systems - use database transactions, not backup/restore in app code
 - No staged deletions - just delete the data

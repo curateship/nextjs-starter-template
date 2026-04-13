@@ -24,3 +24,8 @@ Do not skip the runtime inspection step. HUB changes should be based on actual r
 ## Documentation Rule
 
 If a task changes HUB architecture or working conventions, update `apps/hub/README.md`, `apps/hub/architecture/architecture-overview.md`, and this file in the same change.
+
+## Conversation Rules
+- In Plan mode: explain to user like he's 5
+- Use bullet points for better readability.
+- When writing summaries, do not include the full file path.
