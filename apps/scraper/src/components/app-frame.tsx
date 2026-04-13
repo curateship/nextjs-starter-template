@@ -1,50 +1,14 @@
 import type { ReactNode } from "react"
-import { CalendarIcon, LayoutDashboardIcon, WorkflowIcon } from "lucide-react"
-import { useNavigate, useRouterState } from "@tanstack/react-router"
+import { useRouterState } from "@tanstack/react-router"
 import { StickyHeader } from "@/components/sticky-header"
 import { ScraperSidebar } from "@/components/scraper-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export function AppFrame({ children }: { children: ReactNode }) {
-  const navigate = useNavigate()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const isGoogleMapsRoute =
-    pathname === "/google-maps" || pathname.startsWith("/google-maps/")
   const isGoogleMapsOverviewRoute = pathname === "/google-maps"
-  const navLinks = [
-    {
-      label: "Overview",
-      href: "/google-maps",
-      active: pathname === "/google-maps",
-      icon: <LayoutDashboardIcon className="size-4" />,
-      onClick: () => {
-        void navigate({ to: "/google-maps" })
-      },
-    },
-    {
-      label: "Run",
-      href: "/google-maps/runs",
-      active:
-        pathname === "/google-maps/runs" ||
-        pathname === "/google-maps/runs/new" ||
-        pathname.startsWith("/google-maps/runs/"),
-      icon: <WorkflowIcon className="size-4" />,
-      onClick: () => {
-        void navigate({ to: "/google-maps/runs" })
-      },
-    },
-    {
-      label: "Schedules",
-      href: "/google-maps/schedules",
-      active: pathname === "/google-maps/schedules",
-      icon: <CalendarIcon className="size-4" />,
-      onClick: () => {
-        void navigate({ to: "/google-maps/schedules" })
-      },
-    },
-  ]
 
   return (
     <div
@@ -55,9 +19,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <SidebarProvider className="min-h-screen">
         <ScraperSidebar />
         <SidebarInset>
-          <StickyHeader
-            navLinks={isGoogleMapsRoute ? navLinks : undefined}
-          />
+          <StickyHeader />
           <div
             className={
               isGoogleMapsOverviewRoute

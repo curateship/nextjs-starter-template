@@ -10,8 +10,10 @@ Before planning or coding in `apps/hub/`:
 2. Read `apps/hub/architecture/architecture-overview.md`
 3. Inspect the runtime files directly related to the task
 4. Summarize the relevant architecture in 3-5 bullets
+5. Inspect the relevant runtime files for the task before proposing fixes or changes
+7. If a change alters HUB architecture or working conventions, update the relevant HUB docs in the same change
+8. Do not skip the runtime inspection step. HUB changes should be based on actual routes, actions, schema files, and renderers, not assumptions.
 
-Do not skip the runtime inspection step. HUB changes should be based on actual routes, actions, schema files, and renderers, not assumptions.
 
 ## Non-Negotiable Rules
 

@@ -8,56 +8,12 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 
 ## Rules
 
-## Conversation Rules
-- In Plan mode: explain to user like he's 5
-- Use bullet points for better readability.
-- When writing summaries, do not include the full file path.
+### App-Specific Instructions
+- Before working in a specific app or service directory, check for a local `AGENTS.md` in that directory and follow it for that scope.
+- App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app.
+- For work in `apps/hub/**`, follow `apps/hub/AGENTS.md`.
+- For work in `apps/scraper/**`, follow `apps/scraper/AGENTS.md`.
 
-### Simplicity & State
-- No fake "safety" systems - use database transactions, not backup/restore in app code
-- No staged deletions - just delete the data
-- No temporary UI state that doesn't map to the database - load fresh data when needed
-- No complex state synchronization or staged/pending/deleted tracking
-
-### Fail Fast
-- Report errors immediately. Never pretend success when operations fail
-- Never hide errors with complex error handling
-
-### No Scope Creep
-- Only fix the exact problem asked about - nothing more
-- Never "fix" unrelated TypeScript warnings or build errors unless they block your change
-- Ignore pre-existing issues unless specifically asked
-- Only fix build errors directly caused by your changes
-
-### UI Boundaries
-- Build app-specific branding, navigation, and layout in the app itself
-- Do not introduce shared UI abstractions unless the user explicitly asks for them
-
-### Response Format
-- Prefer structured answers over dense paragraphs when summarizing code, architecture, or project state
-- Use short sections with clear labels when the response covers more than one topic
-- Use flat bullets for distinct points, systems, or findings
-- Keep paragraphs short and easy to scan
-- Avoid wall-of-text explanations when a structured format would be clearer
-
-### Debugging
-- Never ask the user to test or debug for you - solve problems through code analysis
-- Only add code that directly solves the stated problem
-- Trace code flow -> identify root cause -> implement direct fix
-
-### Live Validation
-- Do not proactively use live/browser validation
-- Only run browser validation when the user explicitly asks to validate, test, verify, or check it
-- Build and typecheck are allowed without asking unless the user says otherwise
-- Do not run build, typecheck, or other verification commands for styling-only changes unless the user explicitly asks for verification
-
-### HUB Preflight
-- For any task touching `apps/hub/**`, read `apps/hub/AGENTS.md`, `apps/hub/README.md`, and `apps/hub/architecture/architecture-overview.md` before planning or coding
-- Inspect the relevant runtime files for the task before proposing fixes or changes
-- Summarize the relevant HUB architecture in 3-5 bullets before making code changes
-- Treat `apps/hub/src/lib/db/schema/**` and current runtime code as source of truth
-- Do not treat `apps/hub/migrations/**` as the current runtime authority
-- If a change alters HUB architecture or working conventions, update the relevant HUB docs in the same change
 
 ## Repository Structure
 
@@ -72,7 +28,6 @@ This is a Turborepo monorepo with npm workspaces:
 └── Dockerfile         # Builds apps/hub for production
 ```
 
-All app code lives in `apps/hub/`. The root `package.json` is the workspace root - app dependencies are in `apps/hub/package.json`.
 
 ## Infrastructure
 

@@ -1,10 +1,7 @@
 import { Outlet, createRootRoute, createRoute, createRouter } from "@tanstack/react-router"
 import { AppFrame } from "@/components/app-frame"
-import { NewRunPage } from "@/pages/google-maps/new-run-page"
 import { OverviewPage } from "@/pages/google-maps/overview-page"
 import { RunDetailPage } from "@/pages/google-maps/run-detail-page"
-import { RunsPage } from "@/pages/google-maps/runs-page"
-import { SchedulesPage } from "@/pages/google-maps/schedules-page"
 import { Dashboard } from "@/pages/layout/dashboard"
 
 const rootRoute = createRootRoute({
@@ -30,13 +27,13 @@ const googleMapsOverviewRoute = createRoute({
 const runsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/google-maps/runs",
-  component: RunsPage,
+  component: OverviewPage,
 })
 
 const newRunRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/google-maps/runs/new",
-  component: NewRunPage,
+  component: OverviewPage,
 })
 
 const runDetailRoute = createRoute({
@@ -48,7 +45,7 @@ const runDetailRoute = createRoute({
 const schedulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/google-maps/schedules",
-  component: SchedulesPage,
+  component: OverviewPage,
 })
 
 const routeTree = rootRoute.addChildren([

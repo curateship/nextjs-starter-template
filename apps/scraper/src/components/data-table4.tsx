@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   type Column,
   type ColumnDef,
@@ -12,10 +13,11 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react"
-import { z } from "zod"
 
+import type { RunSummary } from "../lib/api"
+import { formatDateTime, formatNumber } from "../lib/format"
 import { cn } from "../lib/utils"
-import { Badge } from "./ui/badge"
+import { StatusPill } from "./status-pill"
 import { Button } from "./ui/button"
 import { ScrollArea, ScrollBar } from "./ui/scroll-area"
 import {
@@ -95,123 +97,60 @@ export const DataTableColumnHeader = <TData, TValue>({
   )
 }
 
-export const schema = z.object({
-  id: z.string(),
-  item: z.string(),
-  type: z.string(),
-  stock: z.boolean(),
-  sku: z.string(),
-  price: z.number(),
-  availability: z.array(z.enum(["In store", "Online"])),
-})
-
-const data = [
+export const columns: ColumnDef<RunSummary>[] = [
   {
-    id: "prod-001",
-    item: "Tablet Case",
-    type: "Electronics",
-    stock: true,
-    sku: "TC-001",
-    price: 83.24,
-    availability: ["In store", "Online"],
-  },
-  {
-    id: "prod-002",
-    item: "Smart Watch",
-    type: "Electronics",
-    stock: true,
-    sku: "SW-002",
-    price: 246.27,
-    availability: ["In store", "Online"],
-  },
-  {
-    id: "prod-003",
-    item: "Wool Sweater",
-    type: "Accessories",
-    stock: true,
-    sku: "WS-003",
-    price: 168.27,
-    availability: ["In store"],
-  },
-  {
-    id: "prod-004",
-    item: "Wireless Earbuds",
-    type: "Electronics",
-    stock: true,
-    sku: "WE-004",
-    price: 107.75,
-    availability: ["In store", "Online"],
-  },
-  {
-    id: "prod-005",
-    item: "Laptop Sleeve",
-    type: "Electronics",
-    stock: true,
-    sku: "LS-005",
-    price: 248.02,
-    availability: ["In store", "Online"],
-  },
-  {
-    id: "prod-006",
-    item: "Running Shoes",
-    type: "Footwear",
-    stock: true,
-    sku: "RS-006",
-    price: 208.26,
-    availability: ["In store"],
-  },
-  {
-    id: "prod-007",
-    item: "Winter Jacket",
-    type: "Clothing",
-    stock: true,
-    sku: "WJ-007",
-    price: 148.06,
-    availability: ["In store"],
-  },
-  {
-    id: "prod-008",
-    item: "Phone Case",
-    type: "Accessories",
-    stock: true,
-    sku: "PC-008",
-    price: 298.08,
-    availability: ["In store", "Online"],
-  },
-  {
-    id: "prod-009",
-    item: "Fitness Tracker",
-    type: "Clothing",
-    stock: true,
-    sku: "FT-009",
-    price: 222.09,
-    availability: ["In store"],
-  },
-  {
-    id: "prod-010",
-    item: "Sunglasses",
-    type: "Accessories",
-    stock: true,
-    sku: "SG-010",
-    price: 60.17,
-    availability: ["In store"],
-  },
-]
-
-export const validatedData = schema.array().parse(data)
-
-export const columns: ColumnDef<z.infer<typeof schema>>[] = [
-  {
-    accessorKey: "sku",
+    accessorKey: "keyword",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="SKU" />
+      <DataTableColumnHeader column={column} title="Query" />
     ),
     cell: ({ row }) => {
-      const sku = row.getValue("sku") as string
+      const run = row.original
 
       return (
-        <span className="font-mono text-xs tracking-wide whitespace-nowrap text-muted-foreground uppercase">
-          {sku}
+        <div className="min-w-0 space-y-1">
+          <Link
+            to="/google-maps/runs/$runId"
+            params={{ runId: run.id }}
+            className="scraper-link block truncate font-medium"
+          >
+            {run.keyword}
+          </Link>
+          <p className="truncate text-xs text-muted-foreground sm:text-sm">{run.area}</p>
+        </div>
+      )
+    },
+    enableSorting: true,
+    enableHiding: false,
+  },
+  {
+    accessorKey: "status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => {
+      const run = row.original
+
+      return (
+        <div className="space-y-2">
+          <StatusPill status={run.status} />
+          {run.cancel_requested_at ? (
+            <p className="text-xs whitespace-nowrap text-muted-foreground">Cancel requested</p>
+          ) : null}
+        </div>
+      )
+    },
+    enableSorting: true,
+    enableHiding: false,
+  },
+  {
+    accessorKey: "total_places_saved",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Saved" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <span className="font-medium whitespace-nowrap tabular-nums">
+          {formatNumber(row.original.total_places_saved)}
         </span>
       )
     },
@@ -219,29 +158,14 @@ export const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "item",
+    accessorKey: "attempt_count",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Item" />
-    ),
-    cell: ({ row }) => (
-      <div className="max-w-[180px] truncate font-medium sm:max-w-[220px]">
-        {row.getValue("item")}
-      </div>
-    ),
-    enableSorting: true,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "type",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
+      <DataTableColumnHeader column={column} title="Attempts" />
     ),
     cell: ({ row }) => {
-      const type = row.getValue("type") as string
-
       return (
-        <span className="text-xs whitespace-nowrap text-muted-foreground sm:text-sm">
-          {type}
+        <span className="whitespace-nowrap tabular-nums">
+          {formatNumber(row.original.attempt_count)}
         </span>
       )
     },
@@ -249,78 +173,34 @@ export const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "stock",
+    accessorKey: "created_at",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="In Stock" />
+      <DataTableColumnHeader column={column} title="Created" />
     ),
     cell: ({ row }) => {
-      const inStock: boolean = row.getValue("stock")
-
       return (
-        <div className="flex justify-start">
-          <span className="inline-flex min-w-12 justify-center rounded-full border px-2 py-1 text-xs font-semibold tracking-wide whitespace-nowrap uppercase">
-            {inStock ? "Yes" : "No"}
-          </span>
-        </div>
-      )
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "price",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Price" />
-    ),
-    cell: ({ row }) => {
-      const price = parseFloat(row.getValue("price"))
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(price)
-
-      return (
-        <div className="font-medium whitespace-nowrap tabular-nums">
-          {formatted}
-        </div>
+        <span className="whitespace-nowrap text-muted-foreground">
+          {formatDateTime(row.original.created_at)}
+        </span>
       )
     },
     enableSorting: true,
     enableHiding: false,
   },
-  {
-    accessorKey: "availability",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Available In" />
-    ),
-    cell: ({ row }) => {
-      const availability: ("In store" | "Online")[] =
-        row.getValue("availability")
-
-      return (
-        <div className="flex space-x-2">
-          {availability.map((location) => (
-            <Badge
-              key={location}
-              variant="secondary"
-              className="text-xs whitespace-nowrap"
-            >
-              {location}
-            </Badge>
-          ))}
-        </div>
-      )
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
 ]
 
-export const DataTable4 = ({ className }: { className?: string }) => {
+export const DataTable4 = ({
+  className,
+  runs,
+}: {
+  className?: string
+  runs: RunSummary[]
+}) => {
   const { table } = useDataTable({
-    data: validatedData,
+    data: runs,
     columns,
     getRowId: (row) => row.id.toString(),
+    initialSorting: [{ id: "created_at", desc: true }],
   })
 
   return (
