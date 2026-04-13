@@ -258,7 +258,7 @@ export const columns: ColumnDef<z.infer<typeof schema>>[] = [
 
       return (
         <div className="flex justify-start">
-          <span className="inline-flex min-w-[3rem] justify-center rounded-full border px-2 py-1 text-xs font-semibold tracking-wide whitespace-nowrap uppercase">
+          <span className="inline-flex min-w-12 justify-center rounded-full border px-2 py-1 text-xs font-semibold tracking-wide whitespace-nowrap uppercase">
             {inStock ? "Yes" : "No"}
           </span>
         </div>
