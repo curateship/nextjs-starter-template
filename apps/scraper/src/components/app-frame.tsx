@@ -12,6 +12,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   })
   const isGoogleMapsRoute =
     pathname === "/google-maps" || pathname.startsWith("/google-maps/")
+  const isGoogleMapsOverviewRoute = pathname === "/google-maps"
   const navLinks = [
     {
       label: "Overview",
@@ -57,9 +58,15 @@ export function AppFrame({ children }: { children: ReactNode }) {
           <StickyHeader
             navLinks={isGoogleMapsRoute ? navLinks : undefined}
           />
-          <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">
+          <div
+            className={
+              isGoogleMapsOverviewRoute
+                ? "flex w-full flex-1 flex-col"
+                : "mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6"
+            }
+          >
             {children}
-          </main>
+          </div>
         </SidebarInset>
       </SidebarProvider>
     </div>
