@@ -46,6 +46,14 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 - Build and typecheck are allowed without asking unless the user says otherwise
 - Do not run build, typecheck, or other verification commands for styling-only changes unless the user explicitly asks for verification
 
+### HUB Preflight
+- For any task touching `apps/hub/**`, read `apps/hub/AGENTS.md`, `apps/hub/README.md`, and `apps/hub/architecture/architecture-overview.md` before planning or coding
+- Inspect the relevant runtime files for the task before proposing fixes or changes
+- Summarize the relevant HUB architecture in 3-5 bullets before making code changes
+- Treat `apps/hub/src/lib/db/schema/**` and current runtime code as source of truth
+- Do not treat `apps/hub/migrations/**` as the current runtime authority
+- If a change alters HUB architecture or working conventions, update the relevant HUB docs in the same change
+
 ## Repository Structure
 
 This is a Turborepo monorepo with npm workspaces:
