@@ -204,50 +204,6 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-primary) !important;
 }
 
-/* Force hand cursor on all links - outside of Tailwind layers */
-a[href] {
-  cursor: pointer !important;
-}
-
-a {
-  cursor: pointer !important;
-}
-
-/* Force hand cursor on clickable buttons */
-button[onclick], 
-button:hover,
-[role="button"],
-.cursor-pointer {
-  cursor: pointer !important;
-}
-
-* {
-  cursor: auto;
-}
-
-a, a *, button[onclick], button:hover {
-  cursor: pointer !important;
-}
-
-/* Override cursor for drag handles - must come after global cursor rules */
-.cursor-grab {
-  cursor: grab !important;
-}
-
-.cursor-grab:active,
-.active\:cursor-grabbing:active {
-  cursor: grabbing !important;
-}
-
-.cursor-not-allowed {
-  cursor: not-allowed !important;
-}
-
-@keyframes rainbow {
-  0% { background-position: 0%; }
-  100% { background-position: 200%; }
-}
-
 /* Custom Prose Styles */
 .prose {
   @apply text-foreground;
