@@ -1,14 +1,16 @@
-import { type FormEvent, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { DataTable4 } from "@/components/data-table4"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -61,8 +63,10 @@ function CreateScrapeModal({
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function handleCreate() {
+    if (submitting) {
+      return
+    }
 
     const trimmedKeyword = keyword.trim()
     const trimmedArea = area.trim()
@@ -101,81 +105,79 @@ function CreateScrapeModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create Scrape</DialogTitle>
           <DialogDescription>
-            Set the Google Maps input, cadence, and timezone for this scrape.
+            {error ?? "Set the Google Maps input, cadence, and timezone for this scrape."}
           </DialogDescription>
         </DialogHeader>
-
-        <form className="grid gap-4" onSubmit={handleSubmit}>
-          <label className="grid gap-2">
-            <span className="text-sm font-medium">Keyword</span>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="keyword">Keyword</Label>
             <Input
-              className="h-11 rounded-2xl px-4"
+              id="keyword"
               placeholder="dentist"
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium">Area</span>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="area">Area</Label>
             <Input
-              className="h-11 rounded-2xl px-4"
+              id="area"
               placeholder="Toronto, Ontario"
               value={area}
               onChange={(event) => setArea(event.target.value)}
             />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium">Max places</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="maxPlaces">Max places</Label>
+              <Input
+                id="maxPlaces"
+                inputMode="numeric"
+                value={maxPlaces}
+                onChange={(event) => setMaxPlaces(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cadence">Cadence</Label>
+              <Select
+                value={cadence}
+                onValueChange={(value) => setCadence(value as "daily" | "weekly" | "monthly")}
+              >
+                <SelectTrigger
+                  id="cadence"
+                  className="rounded-md data-[size=default]:h-9 data-[size=default]:px-3"
+                >
+                  <SelectValue placeholder="Select cadence" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
             <Input
-              className="h-11 rounded-2xl px-4"
-              inputMode="numeric"
-              value={maxPlaces}
-              onChange={(event) => setMaxPlaces(event.target.value)}
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium">Cadence</span>
-            <Select
-              value={cadence}
-              onValueChange={(value) => setCadence(value as "daily" | "weekly" | "monthly")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select cadence" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm font-medium">Timezone</span>
-            <Input
-              className="h-11 rounded-2xl px-4"
+              id="timezone"
               value={timezone}
               onChange={(event) => setTimezone(event.target.value)}
             />
-          </label>
-
-          {error ? (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-
-          <Button type="submit" size="lg" disabled={submitting} className="justify-center rounded-2xl">
-            {submitting ? "Saving..." : "Create Scrape"}
+          </div>
+        </div>
+        <DialogFooter className="mt-6">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
           </Button>
-        </form>
+          <Button type="button" onClick={() => void handleCreate()}>
+            Create Scrape
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
