@@ -59,7 +59,7 @@ export function renderSitemapIndex(urls: string[]) {
 export async function getPublishedDirectorySitemapCount(siteId: string) {
   const [result] = await db.select({ count: sql<number>`count(*)::int` })
     .from(directories)
-    .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+    .where(and(eq(directories.siteId, siteId), eq(directories.status, 'published')))
 
   return result?.count ?? 0
 }
@@ -98,7 +98,7 @@ export async function getDirectorySitemapEntries(siteId: string, baseUrl: string
 
   const rows = await db.select({ slug: directories.slug, updatedAt: directories.updatedAt })
     .from(directories)
-    .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+    .where(and(eq(directories.siteId, siteId), eq(directories.status, 'published')))
     .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
     .limit(DIRECTORY_SITEMAP_BATCH_SIZE)
     .offset(offset)

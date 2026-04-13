@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, jsonb, timestamp, uniqueIndex, index, pgEnum } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
+
+export const directoryStatusEnum = pgEnum('directory_status_enum', ['draft', 'published'])
 
 export const directories = pgTable('directory', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -9,8 +11,7 @@ export const directories = pgTable('directory', {
   title: varchar('title', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull(),
   metaDescription: text('meta_description'),
-  isPublished: boolean('is_published').notNull().default(true),
-  isPrivate: boolean('is_private').notNull().default(false),
+  status: directoryStatusEnum('status').notNull().default('draft'),
   displayOrder: integer('display_order').notNull().default(0),
   contentBlocks: jsonb('content_blocks').default({}),
   featuredImage: text('featured_image'),
@@ -20,7 +21,7 @@ export const directories = pgTable('directory', {
 }, (table) => [
   uniqueIndex('idx_directories_site_slug').on(table.siteId, table.slug),
   index('idx_directories_site_display_created').on(table.siteId, table.displayOrder, table.createdAt.desc(), table.id),
-  index('idx_directories_site_publish_private').on(table.siteId, table.isPublished, table.isPrivate, table.displayOrder, table.createdAt.desc(), table.id),
+  index('idx_directories_site_status').on(table.siteId, table.status, table.displayOrder, table.createdAt.desc(), table.id),
   index('idx_directories_site_updated').on(table.siteId, table.updatedAt.desc(), table.id),
   index('idx_directories_site_title_lower').on(table.siteId, sql`lower(${table.title})`, table.id),
 ])

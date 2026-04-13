@@ -53,11 +53,14 @@ The canonical table is still:
 
 - `src/lib/db/schema/directories.ts`
 
-We added one mirrored top-level field:
+We now use one top-level state field:
 
-- `is_private`
+- `status`
 
-This mirrors privacy state that previously only lived inside `content_blocks._settings`.
+Allowed values:
+
+- `draft`
+- `published`
 
 ### 2. Added Read-Path Indexes
 
@@ -82,7 +85,7 @@ This layer:
 - returns lightweight summary rows
 - avoids `content_blocks`
 - supports server-side search
-- supports server-side status/privacy/category filters
+- supports server-side status/category filters
 - uses cursor pagination instead of deep offset pagination in admin UI
 
 ### 4. Updated Admin Directory Listing
@@ -112,9 +115,16 @@ Relevant files:
 - `src/app/admin/directories/builder/[siteId]/page.tsx`
 - `src/components/admin/directory-builder/config/useDirectoryData.ts`
 
-### 6. Kept Mirrored Privacy In Sync
+### 6. Unified Directory State Around `status`
 
-Create/update flows now keep `is_private` synchronized whenever directory blocks change.
+Directory create/update flows now use a single `status` field.
+
+The rule is:
+
+- `draft` means not publicly visible
+- `published` means live
+
+There is no separate directory privacy state anymore.
 
 Relevant files:
 
@@ -152,13 +162,14 @@ Relevant file:
 
 Supporting pieces added:
 
-- migration for `is_private`, `pg_trgm`, and indexes
+- migration for directory scale indexes and the later `status` conversion
 - seed script for large directory datasets
 - env-driven Postgres pool sizing
 
 Relevant files:
 
 - `migrations/129_harden_directory_scale.sql`
+- `migrations/130_replace_directory_publish_privacy_with_status.sql`
 - `scripts/seed-directory-scale.ts`
 - `src/lib/db/index.ts`
 

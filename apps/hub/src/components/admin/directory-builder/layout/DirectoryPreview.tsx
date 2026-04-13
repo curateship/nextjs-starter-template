@@ -21,7 +21,7 @@ interface Directory {
   site_id: string
   featured_image?: string | null
   description?: string | null
-  is_published?: boolean
+  status?: 'draft' | 'published'
 }
 
 interface DirectoryPreviewProps {

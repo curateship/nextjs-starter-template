@@ -41,7 +41,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   // Get initial directory from URL params or default to first directory
   const initialDirectory = searchParams.get('directory') || ''
   const [selectedDirectory, setSelectedDirectory] = useState(initialDirectory)
-  const [directoryOptions, setDirectoryOptions] = useState<Array<Pick<Directory, 'id' | 'site_id' | 'title' | 'slug' | 'is_published'>>>(
+  const [directoryOptions, setDirectoryOptions] = useState<Array<Pick<Directory, 'id' | 'site_id' | 'title' | 'slug' | 'status'>>>(
     []
   )
   const [directorySearch, setDirectorySearch] = useState("")
@@ -84,7 +84,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             site_id: directory.site_id,
             title: directory.title,
             slug: directory.slug,
-            is_published: directory.is_published,
+            status: directory.status,
           }))
           setDirectoryOptions(options)
 
@@ -197,7 +197,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   // Handle directory information updates
-  const updateCurrentDirectory = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+  const updateCurrentDirectory = async (updates: { title?: string; description?: string; featured_image?: string; status?: 'draft' | 'published' }) => {
     if (!currentDirectoryData?.id) return
 
     try {
@@ -219,7 +219,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     if (!currentDirectoryData?.id) return
     try {
       setIsPublishing(true)
-      await updateCurrentDirectory({ is_published: true })
+      await updateCurrentDirectory({ status: 'published' })
     } finally {
       setIsPublishing(false)
     }

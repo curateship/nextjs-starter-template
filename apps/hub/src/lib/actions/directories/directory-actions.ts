@@ -8,17 +8,14 @@ import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
-import { extractDirectoryIsPrivate } from './directory-helpers'
-
-
+export type DirectoryStatus = 'draft' | 'published'
 
 export interface Directory {
   id: string
   site_id: string
   title: string
   slug: string
-  is_published: boolean
-  is_private: boolean
+  status: DirectoryStatus
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
@@ -38,7 +35,7 @@ export interface DirectoryWithDetails extends Directory {
 export interface UpdateDirectoryData {
   title?: string
   slug?: string
-  is_published?: boolean
+  status?: DirectoryStatus
   featured_image?: string | null
   description?: string | null
   meta_description?: string | null
@@ -50,8 +47,7 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
     site_id: row.siteId,
     title: row.title,
     slug: row.slug,
-    is_published: row.isPublished,
-    is_private: row.isPrivate,
+    status: row.status,
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks ?? {}) as Record<string, any>,
     featured_image: row.featuredImage,
@@ -288,7 +284,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description', 'meta_description'] as const
+    const allowedFields = ['title', 'slug', 'status', 'featured_image', 'description', 'meta_description'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((data as any)[field] !== undefined) {
@@ -306,7 +302,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     const drizzleUpdates: Record<string, any> = {}
     if (finalUpdates.title !== undefined) drizzleUpdates.title = finalUpdates.title
     if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
-    if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
+    if (finalUpdates.status !== undefined) drizzleUpdates.status = finalUpdates.status
     if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
     if (finalUpdates.description !== undefined) drizzleUpdates.description = finalUpdates.description
     if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
@@ -515,8 +511,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
         siteId: originalDirectory.siteId,
         title: newTitle,
         slug,
-        isPublished: false, // Always create duplicates as draft
-        isPrivate: originalDirectory.isPrivate,
+        status: 'draft',
         featuredImage: originalDirectory.featuredImage,
         description: originalDirectory.description,
         metaDescription: originalDirectory.metaDescription,
@@ -665,7 +660,6 @@ export async function updateDirectoryBlocksAction(directoryId: string, contentBl
     // Update the directory blocks
     await db.update(directories)
       .set({
-        isPrivate: extractDirectoryIsPrivate(contentBlocks),
         contentBlocks,
         updatedAt: new Date(),
       })

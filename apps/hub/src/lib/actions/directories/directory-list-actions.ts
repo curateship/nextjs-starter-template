@@ -5,9 +5,9 @@ import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, directories, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { normalizeDirectorySearchQuery } from './directory-helpers'
+import type { DirectoryStatus } from './directory-actions'
 
 export type DirectoryListStatus = 'all' | 'published' | 'draft'
-export type DirectoryListPrivacy = 'all' | 'public' | 'private'
 export type DirectoryListSort = 'default' | 'title' | 'modified'
 export type DirectoryListDirection = 'asc' | 'desc'
 
@@ -26,8 +26,7 @@ export interface DirectorySummary {
   site_id: string
   title: string
   slug: string
-  is_published: boolean
-  is_private: boolean
+  status: DirectoryStatus
   display_order: number
   featured_image: string | null
   description: string | null
@@ -41,7 +40,6 @@ export interface DirectoryListQuery {
   search?: string
   categoryId?: string
   status?: DirectoryListStatus
-  privacy?: DirectoryListPrivacy
   sortBy?: DirectoryListSort
   sortDirection?: DirectoryListDirection
   cursor?: string | null
@@ -53,7 +51,6 @@ export interface DirectoryListPage {
   categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]>
   totalCount: number
   statusCounts: Record<'all' | 'published' | 'draft', number>
-  privacyCounts: Record<'all' | 'public' | 'private', number>
   nextCursor: string | null
 }
 
@@ -76,8 +73,7 @@ function toDirectorySummary(row: {
   siteId: string
   title: string
   slug: string
-  isPublished: boolean
-  isPrivate: boolean
+  status: DirectoryStatus
   displayOrder: number
   featuredImage: string | null
   description: string | null
@@ -90,8 +86,7 @@ function toDirectorySummary(row: {
     site_id: row.siteId,
     title: row.title,
     slug: row.slug,
-    is_published: row.isPublished,
-    is_private: row.isPrivate,
+    status: row.status,
     display_order: row.displayOrder,
     featured_image: row.featuredImage,
     description: row.description,
@@ -296,7 +291,6 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
             categories: {},
             totalCount: 0,
             statusCounts: { all: 0, published: 0, draft: 0 },
-            privacyCounts: { all: 0, public: 0, private: 0 },
             nextCursor: null,
           },
           error: null,
@@ -308,10 +302,8 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
 
     const filteredConditions = [...baseConditions]
 
-    if (query.status === 'published') filteredConditions.push(eq(directories.isPublished, true))
-    if (query.status === 'draft') filteredConditions.push(eq(directories.isPublished, false))
-    if (query.privacy === 'private') filteredConditions.push(eq(directories.isPrivate, true))
-    if (query.privacy === 'public') filteredConditions.push(eq(directories.isPrivate, false))
+    if (query.status === 'published') filteredConditions.push(eq(directories.status, 'published'))
+    if (query.status === 'draft') filteredConditions.push(eq(directories.status, 'draft'))
 
     const cursorCondition = buildCursorCondition(cursor, sortBy, sortDirection)
     if (cursorCondition) filteredConditions.push(cursorCondition)
@@ -321,8 +313,7 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
       siteId: directories.siteId,
       title: directories.title,
       slug: directories.slug,
-      isPublished: directories.isPublished,
-      isPrivate: directories.isPrivate,
+      status: directories.status,
       displayOrder: directories.displayOrder,
       featuredImage: directories.featuredImage,
       description: directories.description,
@@ -341,13 +332,11 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
     const [totalResult, countsResult] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` })
         .from(directories)
-        .where(and(...baseConditions, ...(query.status === 'published' ? [eq(directories.isPublished, true)] : []), ...(query.status === 'draft' ? [eq(directories.isPublished, false)] : []), ...(query.privacy === 'private' ? [eq(directories.isPrivate, true)] : []), ...(query.privacy === 'public' ? [eq(directories.isPrivate, false)] : []))),
+        .where(and(...baseConditions, ...(query.status === 'published' ? [eq(directories.status, 'published')] : []), ...(query.status === 'draft' ? [eq(directories.status, 'draft')] : []))),
       db.select({
         all: sql<number>`count(*)::int`,
-        published: sql<number>`count(*) filter (where ${directories.isPublished} = true)::int`,
-        draft: sql<number>`count(*) filter (where ${directories.isPublished} = false)::int`,
-        private: sql<number>`count(*) filter (where ${directories.isPrivate} = true)::int`,
-        public: sql<number>`count(*) filter (where ${directories.isPrivate} = false)::int`,
+        published: sql<number>`count(*) filter (where ${directories.status} = 'published')::int`,
+        draft: sql<number>`count(*) filter (where ${directories.status} = 'draft')::int`,
       })
         .from(directories)
         .where(and(...baseConditions)),
@@ -362,11 +351,6 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
           all: countsResult[0]?.all ?? 0,
           published: countsResult[0]?.published ?? 0,
           draft: countsResult[0]?.draft ?? 0,
-        },
-        privacyCounts: {
-          all: countsResult[0]?.all ?? 0,
-          public: countsResult[0]?.public ?? 0,
-          private: countsResult[0]?.private ?? 0,
         },
         nextCursor: rows.length > limit && summaryRows.length > 0
           ? buildNextCursor(summaryRows[summaryRows.length - 1], sortBy, sortDirection)

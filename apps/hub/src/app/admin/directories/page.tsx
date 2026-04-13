@@ -19,13 +19,6 @@ import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   deleteDirectoryAction,
   deleteDirectoriesAction,
   duplicateDirectoryAction,
@@ -35,7 +28,6 @@ import {
 import {
   getDirectoryListPageAction,
   type DirectorySummary,
-  type DirectoryListPrivacy,
   type DirectoryListSort,
   type DirectoryListDirection,
 } from "@/lib/actions/directories/directory-list-actions"
@@ -68,7 +60,6 @@ export default function DirectoriesPage() {
   const [settingsDirectory, setSettingsDirectory] = useState<Directory | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [filterPrivacy, setFilterPrivacy] = useState<DirectoryListPrivacy>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<DirectoryListSort>('default')
   const [sortDirection, setSortDirection] = useState<DirectoryListDirection>('asc')
@@ -77,7 +68,6 @@ export default function DirectoriesPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
   const [statusCounts, setStatusCounts] = useState({ all: 0, published: 0, draft: 0 })
-  const [privacyCounts, setPrivacyCounts] = useState({ all: 0, public: 0, private: 0 })
   const [reloadToken, setReloadToken] = useState(0)
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
@@ -92,7 +82,7 @@ export default function DirectoriesPage() {
     setActiveCursor(null)
     setCursorHistory([])
     setSelectedDirectoryIds(new Set())
-  }, [currentSite?.id, filterStatus, filterPrivacy, searchQuery, sortBy, sortDirection])
+  }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection])
 
   useEffect(() => {
     async function loadDirectories() {
@@ -102,7 +92,6 @@ export default function DirectoriesPage() {
         setDirectoryCategories({})
         setTotal(0)
         setStatusCounts({ all: 0, published: 0, draft: 0 })
-        setPrivacyCounts({ all: 0, public: 0, private: 0 })
         setNextCursor(null)
         return
       }
@@ -115,7 +104,6 @@ export default function DirectoriesPage() {
           siteId: currentSite.id,
           search: searchQuery,
           status: filterStatus,
-          privacy: filterPrivacy,
           sortBy,
           sortDirection,
           cursor: activeCursor,
@@ -128,7 +116,6 @@ export default function DirectoriesPage() {
           setDirectoryCategories({})
           setTotal(0)
           setStatusCounts({ all: 0, published: 0, draft: 0 })
-          setPrivacyCounts({ all: 0, public: 0, private: 0 })
           setNextCursor(null)
           return
         }
@@ -137,7 +124,6 @@ export default function DirectoriesPage() {
         setDirectoryCategories(data.categories)
         setTotal(data.totalCount)
         setStatusCounts(data.statusCounts)
-        setPrivacyCounts(data.privacyCounts)
         setNextCursor(data.nextCursor)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load directories')
@@ -147,7 +133,7 @@ export default function DirectoriesPage() {
     }
 
     void loadDirectories()
-  }, [currentSite?.id, filterStatus, filterPrivacy, searchQuery, sortBy, sortDirection, activeCursor, pageSize, reloadToken])
+  }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection, activeCursor, pageSize, reloadToken])
 
   useEffect(() => {
     async function loadSettingsDirectory() {
@@ -188,7 +174,7 @@ export default function DirectoriesPage() {
   }
 
   const getStatusBadge = (directory: DirectorySummary) => {
-    if (directory.is_published) {
+    if (directory.status === 'published') {
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
     }
 
@@ -308,8 +294,7 @@ export default function DirectoriesPage() {
       ...directory,
       title: updatedDirectory.title,
       slug: updatedDirectory.slug,
-      is_published: updatedDirectory.is_published,
-      is_private: updatedDirectory.is_private,
+      status: updatedDirectory.status,
       featured_image: updatedDirectory.featured_image,
       description: updatedDirectory.description,
       meta_description: updatedDirectory.meta_description,
@@ -387,16 +372,6 @@ export default function DirectoriesPage() {
                     className="h-9 w-56 pl-8"
                   />
                 </div>
-                <Select value={filterPrivacy} onValueChange={(value) => setFilterPrivacy(value as DirectoryListPrivacy)}>
-                  <SelectTrigger className="h-9 w-[140px]">
-                    <SelectValue placeholder="Privacy" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All ({privacyCounts.all})</SelectItem>
-                    <SelectItem value="public">Public ({privacyCounts.public})</SelectItem>
-                    <SelectItem value="private">Private ({privacyCounts.private})</SelectItem>
-                  </SelectContent>
-                </Select>
                 {sortBy !== 'default' && (
                   <Button variant="outline" size="sm" onClick={resetSort}>
                     Clear Sort
@@ -555,9 +530,6 @@ export default function DirectoriesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(directory)}
-                        {directory.is_private && (
-                          <Badge variant="outline" className="text-xs">Private</Badge>
-                        )}
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">{formatDate(directory.updated_at)}</span>

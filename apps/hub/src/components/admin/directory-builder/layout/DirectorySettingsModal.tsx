@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
@@ -45,7 +44,6 @@ export function DirectorySettingsModal({
   })
   const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
-  const [isPrivate, setIsPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -92,7 +90,6 @@ export function DirectorySettingsModal({
         meta_description: directory.meta_description || ''
       })
       setFeaturedImage(directory.featured_image || '')
-      setIsPrivate(directory.is_private)
       setRichTextContent(directory.content_blocks?.richText?.content || '')
       setSlugManuallyEdited(false)
 
@@ -112,13 +109,8 @@ export function DirectorySettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting and rich text
       const updatedContentBlocks = {
         ...directory.content_blocks,
-        _settings: {
-          ...directory.content_blocks?._settings,
-          is_private: isPrivate
-        }
       }
 
       // Add rich text content if provided
@@ -133,7 +125,7 @@ export function DirectorySettingsModal({
       
       const draftData = { 
         ...formData, 
-        is_published: false,
+        status: 'draft' as const,
         featured_image: featuredImage || null
       }
 
@@ -158,7 +150,6 @@ export function DirectorySettingsModal({
           onSuccess({
             ...updateResult.data,
             content_blocks: updatedContentBlocks,
-            is_private: isPrivate,
           })
         }
         
@@ -183,13 +174,8 @@ export function DirectorySettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      // Update content_blocks with is_private setting and rich text
       const updatedContentBlocks = {
         ...directory.content_blocks,
-        _settings: {
-          ...directory.content_blocks?._settings,
-          is_private: isPrivate
-        }
       }
 
       // Add rich text content if provided
@@ -204,7 +190,7 @@ export function DirectorySettingsModal({
       
       const publishData = { 
         ...formData, 
-        is_published: true,
+        status: 'published' as const,
         featured_image: featuredImage || null
       }
 
@@ -222,14 +208,13 @@ export function DirectorySettingsModal({
         if (selectedCategoryIds.length > 0) {
           bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds).catch(() => {})
         }
-        setSaveMessage(directory?.is_published ? 'Directory saved successfully!' : 'Directory published successfully!')
-        
+        setSaveMessage(directory?.status === 'published' ? 'Directory saved successfully!' : 'Directory published successfully!')
+
         // Call success callback with updated directory
         if (onSuccess) {
           onSuccess({
             ...updateResult.data,
             content_blocks: updatedContentBlocks,
-            is_private: isPrivate,
           })
         }
         
@@ -272,10 +257,10 @@ export function DirectorySettingsModal({
             Configure settings for &quot;{directory.title}&quot;
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
-                directory?.is_published ? 'bg-green-500' : 'bg-gray-400'
+                directory?.status === 'published' ? 'bg-green-500' : 'bg-gray-400'
               }`} />
               <span className="text-sm font-medium">
-                {directory?.is_published ? 'Published' : 'Draft'}
+                {directory?.status === 'published' ? 'Published' : 'Draft'}
               </span>
             </div>
           </DialogTitle>
@@ -364,23 +349,6 @@ export function DirectorySettingsModal({
             </p>
           </div>
 
-          {/* Privacy Settings */}
-          <div className="space-y-3">
-            <Label>Privacy Settings</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="modal-is-private"
-                checked={isPrivate}
-                onCheckedChange={(checked) => {
-                  setIsPrivate(!!checked)
-                }}
-              />
-              <Label htmlFor="modal-is-private" className="text-sm font-normal">
-                Private (accessible only via direct URL, hidden from directory listings)
-              </Label>
-            </div>
-          </div>
-
           {/* Categories */}
           {directory?.site_id && (
             <div>
@@ -462,7 +430,7 @@ export function DirectorySettingsModal({
                 onClick={handlePublish}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : directory?.is_published ? 'Save' : 'Publish'}
+                {saving ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
             </div>
           </div>

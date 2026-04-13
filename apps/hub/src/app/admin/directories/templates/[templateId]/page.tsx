@@ -363,7 +363,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
             site_id: template?.site_id || currentSite?.id || 'preview-site',
             featured_image: null,
             description: null,
-            is_published: false,
+            status: 'draft',
           }}
           site={previewSite}
           customBlockTemplates={customBlockTemplates}

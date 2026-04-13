@@ -32,7 +32,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
       and(
         eq(directories.siteId, site.id),
         eq(directories.slug, slug),
-        eq(directories.isPublished, true)
+        eq(directories.status, 'published')
       )
     )
     .limit(1)
@@ -117,7 +117,7 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
         and(
           eq(directories.siteId, site.id),
           eq(directories.slug, slug),
-          eq(directories.isPublished, true)
+          eq(directories.status, 'published')
         )
       )
       .limit(1)

@@ -26,7 +26,7 @@ interface BlockPropertiesPanelProps {
     site_id?: string
     featured_image?: string | null
     description?: string | null
-    is_published?: boolean
+    status?: 'draft' | 'published'
   }
   site?: {
     id: string
@@ -109,7 +109,7 @@ export function BlockPropertiesPanel({
               site_id: currentDirectory.site_id || siteId,
               featured_image: currentDirectory.featured_image || null,
               description: currentDirectory.description || null,
-              is_published: currentDirectory.is_published || false
+              status: currentDirectory.status || 'draft'
             } : undefined}
             site={site ? {
               ...site,

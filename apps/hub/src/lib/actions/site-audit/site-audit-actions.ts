@@ -17,7 +17,7 @@ interface ContentAuditItem {
   type: string
   meta_description: string | null
   featured_image: string | null
-  is_published: boolean
+  status: 'draft' | 'published'
   created_at: string | null
   updated_at: string | null
 }
@@ -49,7 +49,7 @@ async function getPublishedDirectoryAuditRows(siteId: string) {
     slug: string
     metaDescription: string | null
     description: string | null
-    isPublished: boolean
+    status: 'draft' | 'published'
     createdAt: Date
     updatedAt: Date
   }> = []
@@ -63,12 +63,12 @@ async function getPublishedDirectoryAuditRows(siteId: string) {
       slug: directories.slug,
       metaDescription: directories.metaDescription,
       description: directories.description,
-      isPublished: directories.isPublished,
+      status: directories.status,
       createdAt: directories.createdAt,
       updatedAt: directories.updatedAt,
     })
       .from(directories)
-      .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+      .where(and(eq(directories.siteId, siteId), eq(directories.status, 'published')))
       .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
       .limit(DIRECTORY_AUDIT_BATCH_SIZE)
       .offset(offset)
@@ -95,7 +95,7 @@ async function getPublishedDirectoryLinkRows(siteId: string) {
       contentBlocks: directories.contentBlocks,
     })
       .from(directories)
-      .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+      .where(and(eq(directories.siteId, siteId), eq(directories.status, 'published')))
       .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
       .limit(DIRECTORY_AUDIT_BATCH_SIZE)
       .offset(offset)
@@ -165,7 +165,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'page',
       meta_description: r.metaDescription || null,
       featured_image: null,
-      is_published: r.isPublished,
+      status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),
@@ -173,7 +173,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'post',
       meta_description: r.metaDescription || null,
       featured_image: r.featuredImage || null,
-      is_published: r.isPublished,
+      status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),
@@ -181,7 +181,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'product',
       meta_description: null,
       featured_image: r.featuredImage || null,
-      is_published: r.isPublished,
+      status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),
@@ -189,7 +189,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'category',
       meta_description: r.metaDescription || (r as any).description || null,
       featured_image: null,
-      is_published: r.isPublished,
+      status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),
@@ -197,7 +197,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'directory',
       meta_description: r.metaDescription || (r as any).description || null,
       featured_image: null,
-      is_published: r.isPublished,
+      status: r.status,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),
@@ -205,7 +205,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       id: r.id, title: r.title, slug: r.slug, type: 'event',
       meta_description: r.metaDescription || (r as any).description || null,
       featured_image: null,
-      is_published: r.isPublished,
+      status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,
       updated_at: r.updatedAt?.toISOString() || null,
     })),

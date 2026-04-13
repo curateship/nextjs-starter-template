@@ -30,6 +30,7 @@ export interface BuilderItem {
   slug: string
   title: string
   is_published?: boolean
+  status?: 'draft' | 'published'
   is_homepage?: boolean
   is_default?: boolean
 }
@@ -130,7 +131,7 @@ export function BuilderToolbar({
       {item.is_homepage && "\u{1F3E0} "}
       {item.is_default && "\u{1F3E0} "}
       {item.title}
-      {item.is_published === false && " (Draft)"}
+      {item.status === 'draft' || item.is_published === false ? " (Draft)" : ""}
     </>
   )
 
@@ -295,7 +296,7 @@ export function BuilderToolbar({
                       onClick={onPublish}
                       disabled={isPublishing || isSaving}
                     >
-                      {isPublishing ? 'Publishing...' : currentItem?.is_published ? 'Published' : 'Publish'}
+                      {isPublishing ? 'Publishing...' : currentItem?.status === 'published' || currentItem?.is_published ? 'Published' : 'Publish'}
                     </Button>
                   )}
                 </>

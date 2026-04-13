@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
@@ -38,9 +37,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     slug: '',
     description: '',
     meta_description: '',
-    is_published: false
   })
-  const [isPrivate, setIsPrivate] = useState(false)
   const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -140,13 +137,10 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         description: formData.description.trim() || richTextContent.trim() || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
-        is_published: false,
+        status: 'draft',
         content_blocks: {
           ...templateContentBlocks,
-          _settings: {
-            ...templateSettings,
-            is_private: isPrivate,
-          },
+          _settings: templateSettings,
           show_featured_image: templateContentBlocks.show_featured_image ?? true,
         }
       }
@@ -295,21 +289,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         <p className="text-xs text-muted-foreground mt-1">
           Optional featured image for this directory
         </p>
-      </div>
-
-      {/* Privacy Settings */}
-      <div className="space-y-3">
-        <Label>Privacy Settings</Label>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="is_private"
-            checked={isPrivate}
-            onCheckedChange={(checked) => setIsPrivate(!!checked)}
-          />
-          <Label htmlFor="is_private" className="text-sm font-normal">
-            Private (accessible only via direct URL, hidden from directory listings)
-          </Label>
-        </div>
       </div>
 
       {/* Categories */}
