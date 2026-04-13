@@ -162,6 +162,8 @@ interface ItemResourceConfig {
   paramName: string
   /** Map snake_case request fields to camelCase DB columns for updates */
   updateFieldMap: Record<string, string>
+  /** Optional transform for resource-specific update behavior */
+  transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>
 }
 
 /**
@@ -254,9 +256,13 @@ export function updateResourceHandler(config: ItemResourceConfig) {
         }
       }
 
+      const finalUpdateValues = config.transformUpdateValues
+        ? await config.transformUpdateValues(updates, entity, updateValues)
+        : updateValues
+
       /* Update */
       const updateResult = await db.update(config.table)
-        .set(updateValues)
+        .set(finalUpdateValues)
         .where(eq(config.table.id, entityId))
         .returning() as any[]
       const updatedRow = updateResult[0]

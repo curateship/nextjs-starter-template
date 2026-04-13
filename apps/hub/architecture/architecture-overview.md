@@ -90,6 +90,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - DB columns are snake_case (e.g., `is_published`)
 - Action files that return data to the frontend must use snake_case aliases in `.select()` to match TypeScript interfaces, or the cast `as unknown as Type[]` will hide mismatches
 - The categories table was previously called `taxonomies` in code — renamed to `categories` everywhere
+- Large directory datasets keep `content_blocks` on the canonical row, but list/search/admin paths should use summary queries that only read indexed top-level columns and mirrored fields like `is_private`
 
 **Data layer files to inspect first:**
 - `src/lib/db/schema/index.ts`

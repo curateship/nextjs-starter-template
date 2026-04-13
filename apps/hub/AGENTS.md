@@ -20,6 +20,7 @@ Do not skip the runtime inspection step. HUB changes should be based on actual r
 - Auth is Better Auth. Do not import Supabase-era assumptions into current code.
 - Keep admin builder code and frontend renderer code as separate layers.
 - Do not treat `NEXT_PUBLIC_APP_DOMAIN` and `NEXT_PUBLIC_APP_URL` as interchangeable.
+- For large directory datasets, list/search/admin paths must use lean summary queries and must not read `content_blocks` unless loading a single item for editing or rendering.
 
 ## Documentation Rule
 

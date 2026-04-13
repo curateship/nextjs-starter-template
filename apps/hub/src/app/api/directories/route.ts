@@ -1,5 +1,6 @@
 import { directories } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
+import { extractDirectoryIsPrivate } from '@/lib/actions/directories/directory-helpers'
 
 export const POST = createResourceHandler({
   entityName: 'Directory',
@@ -14,6 +15,7 @@ export const POST = createResourceHandler({
     featuredImage: data.featured_image || null,
     description: data.description || null,
     metaDescription: data.meta_description || null,
+    isPrivate: extractDirectoryIsPrivate(contentBlocks),
     contentBlocks,
   }),
 })

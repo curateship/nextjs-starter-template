@@ -37,6 +37,7 @@ Read these files in this order before changing HUB code:
 - `apps/hub/migrations/**` contains historical SQL and is not the runtime architecture authority.
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
+- Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.
 
 ## Task Preflight
 

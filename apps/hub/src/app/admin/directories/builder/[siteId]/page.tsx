@@ -5,6 +5,7 @@ import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
@@ -26,9 +27,10 @@ import { BlockPropertiesPanel } from "@/components/admin/directory-builder/layou
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
-import { getSiteDirectoriesAction, updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { searchSiteDirectoriesAction } from "@/lib/actions/directories/directory-list-actions"
+import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
-import { Blocks } from "lucide-react"
+import { Blocks, Search } from "lucide-react"
 import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
@@ -36,12 +38,15 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const router = useRouter()
   const searchParams = useSearchParams()
   const { currentSite } = useSiteSwitcher()
-  const [directories, setDirectories] = useState<Directory[]>([])
-  const [directoriesLoading, setDirectoriesLoading] = useState(true)
-  const [directoriesError, setDirectoriesError] = useState<string | null>(null)
   // Get initial directory from URL params or default to first directory
   const initialDirectory = searchParams.get('directory') || ''
   const [selectedDirectory, setSelectedDirectory] = useState(initialDirectory)
+  const [directoryOptions, setDirectoryOptions] = useState<Array<Pick<Directory, 'id' | 'site_id' | 'title' | 'slug' | 'is_published'>>>(
+    []
+  )
+  const [directorySearch, setDirectorySearch] = useState("")
+  const [directoryOptionsLoading, setDirectoryOptionsLoading] = useState(false)
+  const [directoryOptionsError, setDirectoryOptionsError] = useState<string | null>(null)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
 
@@ -52,40 +57,64 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     }
   }, [currentSite, siteId, router])
 
-  // Load directories data
+  // Load searchable directory picker options
   useEffect(() => {
-    async function loadDirectories() {
+    let cancelled = false
+
+    async function loadDirectoryOptions() {
       try {
-        setDirectoriesLoading(true)
-        setDirectoriesError(null)
-        const { data, error } = await getSiteDirectoriesAction(siteId)
+        setDirectoryOptionsLoading(true)
+        setDirectoryOptionsError(null)
+        const { data, error } = await searchSiteDirectoriesAction(siteId, {
+          search: directorySearch,
+          limit: 20,
+        })
+
         if (error) {
-          setDirectoriesError(error)
+          if (!cancelled) {
+            setDirectoryOptionsError(error)
+            setDirectoryOptions([])
+          }
           return
         }
-        setDirectories(data || [])
 
-        // If initial directory doesn't exist, redirect to first directory
-        if (data && data.length > 0) {
-          const directoryExists = data.some(d => d.slug === initialDirectory)
-          if (!directoryExists) {
-            const firstDirectory = data[0]
+        if (!cancelled) {
+          const options = (data || []).map((directory) => ({
+            id: directory.id,
+            site_id: directory.site_id,
+            title: directory.title,
+            slug: directory.slug,
+            is_published: directory.is_published,
+          }))
+          setDirectoryOptions(options)
+
+          if (!selectedDirectory && options.length > 0) {
+            const firstDirectory = options[0]
             setSelectedDirectory(firstDirectory.slug)
             router.replace(`/admin/directories/builder/${siteId}?directory=${firstDirectory.slug}`)
           }
         }
       } catch (err) {
-        setDirectoriesError('Failed to load directories')
+        if (!cancelled) {
+          setDirectoryOptionsError('Failed to load directories')
+          setDirectoryOptions([])
+        }
       } finally {
-        setDirectoriesLoading(false)
+        if (!cancelled) {
+          setDirectoryOptionsLoading(false)
+        }
       }
     }
 
-    loadDirectories()
-  }, [siteId, initialDirectory, router])
+    loadDirectoryOptions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [siteId, directorySearch, selectedDirectory, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId)
+  const { site, directory: currentDirectoryData, blocks, siteBlocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId, selectedDirectory)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -97,13 +126,12 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     blocks: localBlocks,
     setBlocks: setLocalBlocks,
     selectedDirectory,
-    directoryId: directories.find(d => d.slug === selectedDirectory)?.id,
+    directoryId: currentDirectoryData?.id,
     customBlockTemplates,
-    currentDirectory: directories.find(d => d.slug === selectedDirectory)
+    currentDirectory: currentDirectoryData || undefined
   })
 
   // Current directory data with staged deletions filtered out
-  const currentDirectoryData = directories.find(d => d.slug === selectedDirectory)
   const currentDirectory = {
     slug: selectedDirectory,
     name: currentDirectoryData?.title || selectedDirectory,
@@ -136,23 +164,24 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   // Handle directory creation
   const handleDirectoryCreated = async (newDirectory: Directory) => {
-    setDirectories(prev => [...prev, newDirectory])
+    setDirectoryOptions((prev) => {
+      const next = [newDirectory, ...prev.filter((directory) => directory.id !== newDirectory.id)]
+      return next.slice(0, 20)
+    })
     setSelectedDirectory(newDirectory.slug)
     router.replace(`/admin/directories/builder/${siteId}?directory=${newDirectory.slug}`)
     await reloadBlocks()
   }
 
   // Handle directory updates
-  const handleDirectoryUpdated = (updatedDirectory: Directory) => {
-    setDirectories(prev => prev.map(d => d.id === updatedDirectory.id ? updatedDirectory : d))
+  const handleDirectoryUpdated = async (updatedDirectory: Directory) => {
+    setDirectoryOptions((prev) => prev.map((directory) => directory.id === updatedDirectory.id ? updatedDirectory : directory))
 
-    // If the slug changed, we need to update our local blocks and URL
-    const currentDirectory = directories.find(d => d.id === updatedDirectory.id)
-    if (currentDirectory && currentDirectory.slug !== updatedDirectory.slug) {
+    if (currentDirectoryData && currentDirectoryData.slug !== updatedDirectory.slug) {
       // Move blocks from old slug to new slug
       setLocalBlocks(prev => {
-        const blocksForDirectory = prev[currentDirectory.slug] || []
-        const { [currentDirectory.slug]: removed, ...rest } = prev
+        const blocksForDirectory = prev[currentDirectoryData.slug] || []
+        const { [currentDirectoryData.slug]: removed, ...rest } = prev
         return {
           ...rest,
           [updatedDirectory.slug]: blocksForDirectory
@@ -163,6 +192,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       setSelectedDirectory(updatedDirectory.slug)
       router.replace(`/admin/directories/builder/${siteId}?directory=${updatedDirectory.slug}`)
     }
+
+    await reloadBlocks()
   }
 
   // Handle directory information updates
@@ -195,7 +226,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   const handleTitleChange = (title: string) => {
-    updateCurrentDirectory({ title })
+    void updateCurrentDirectory({ title })
   }
 
   // Only show loading state for critical errors (not during normal loading)
@@ -225,6 +256,14 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     )
   }
 
+  const toolbarItems = (() => {
+    const items = currentDirectoryData
+      ? [currentDirectoryData, ...directoryOptions.filter((directory) => directory.id !== currentDirectoryData.id)]
+      : directoryOptions
+
+    return items.slice(0, 20)
+  })()
+
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -236,7 +275,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           { href: "/admin/directories", label: "Directory" },
           { label: currentDirectoryData?.title || "", isPage: true }
         ]}
-        items={directories}
+        items={toolbarItems}
         selectedItemSlug={selectedDirectory}
         onItemChange={handleDirectoryChange}
         entityName="Directory"
@@ -248,6 +287,25 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         isPublishing={isPublishing}
         blockListOpen={blockListOpen}
         onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+        rightActions={
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={directorySearch}
+                onChange={(event) => setDirectorySearch(event.target.value)}
+                placeholder="Search directories"
+                className="h-9 w-56 pl-8"
+              />
+            </div>
+            {directoryOptionsLoading && (
+              <span className="text-xs text-muted-foreground">Searching…</span>
+            )}
+            {directoryOptionsError && (
+              <span className="text-xs text-red-600">{directoryOptionsError}</span>
+            )}
+          </div>
+        }
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
             <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>

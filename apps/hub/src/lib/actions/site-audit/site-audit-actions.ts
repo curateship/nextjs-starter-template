@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { sites, pages, posts, products, categories, directories, events } from '@/lib/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, sql, asc, desc } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import type { SiteSeoSettings } from '@/lib/db/schema/sites'
 
@@ -38,6 +38,77 @@ interface InternalLinkAnalysis {
   avgLinksPerPage: number
   orphanCount: number
   brokenLinkCount: number
+}
+
+const DIRECTORY_AUDIT_BATCH_SIZE = 2000
+
+async function getPublishedDirectoryAuditRows(siteId: string) {
+  const rows: Array<{
+    id: string
+    title: string
+    slug: string
+    metaDescription: string | null
+    description: string | null
+    isPublished: boolean
+    createdAt: Date
+    updatedAt: Date
+  }> = []
+
+  let offset = 0
+
+  while (true) {
+    const batch = await db.select({
+      id: directories.id,
+      title: directories.title,
+      slug: directories.slug,
+      metaDescription: directories.metaDescription,
+      description: directories.description,
+      isPublished: directories.isPublished,
+      createdAt: directories.createdAt,
+      updatedAt: directories.updatedAt,
+    })
+      .from(directories)
+      .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+      .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
+      .limit(DIRECTORY_AUDIT_BATCH_SIZE)
+      .offset(offset)
+
+    if (batch.length === 0) break
+
+    rows.push(...batch)
+
+    if (batch.length < DIRECTORY_AUDIT_BATCH_SIZE) break
+    offset += batch.length
+  }
+
+  return rows
+}
+
+async function getPublishedDirectoryLinkRows(siteId: string) {
+  const rows: Array<{ title: string; slug: string; contentBlocks: unknown }> = []
+  let offset = 0
+
+  while (true) {
+    const batch = await db.select({
+      title: directories.title,
+      slug: directories.slug,
+      contentBlocks: directories.contentBlocks,
+    })
+      .from(directories)
+      .where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true)))
+      .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
+      .limit(DIRECTORY_AUDIT_BATCH_SIZE)
+      .offset(offset)
+
+    if (batch.length === 0) break
+
+    rows.push(...batch)
+
+    if (batch.length < DIRECTORY_AUDIT_BATCH_SIZE) break
+    offset += batch.length
+  }
+
+  return rows
 }
 
 // ============================================================
@@ -79,12 +150,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
       metaDescription: categories.metaDescription, description: categories.description,
       isPublished: categories.isPublished, createdAt: categories.createdAt, updatedAt: categories.updatedAt,
     }).from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true))),
-
-    db.select({
-      id: directories.id, title: directories.title, slug: directories.slug,
-      metaDescription: directories.metaDescription, description: directories.description,
-      isPublished: directories.isPublished, createdAt: directories.createdAt, updatedAt: directories.updatedAt,
-    }).from(directories).where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true))),
+    getPublishedDirectoryAuditRows(siteId),
 
     db.select({
       id: events.id, title: events.title, slug: events.slug,
@@ -172,8 +238,7 @@ export async function getInternalLinkAnalysis(siteId: string): Promise<InternalL
       .from(products).where(and(eq(products.siteId, siteId), eq(products.isPublished, true))),
     db.select({ title: categories.title, slug: categories.slug, contentBlocks: categories.contentBlocks })
       .from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true))),
-    db.select({ title: directories.title, slug: directories.slug, contentBlocks: directories.contentBlocks })
-      .from(directories).where(and(eq(directories.siteId, siteId), eq(directories.isPublished, true))),
+    getPublishedDirectoryLinkRows(siteId),
     db.select({ title: events.title, slug: events.slug, contentBlocks: events.contentBlocks })
       .from(events).where(and(eq(events.siteId, siteId), eq(events.isPublished, true))),
   ])

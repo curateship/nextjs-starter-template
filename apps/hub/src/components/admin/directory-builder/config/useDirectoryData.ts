@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { getSiteDirectoriesAction } from "@/lib/actions/directories/directory-actions"
+import { getDirectoryBySlugAction, type Directory } from "@/lib/actions/directories/directory-actions"
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -8,6 +8,7 @@ import { parseDirectoryBlocksFromJson, type DirectoryEditorBlock } from "./direc
 
 interface UseDirectoryDataReturn {
   site: SiteWithTheme | null
+  directory: Directory | null
   blocks: Record<string, DirectoryEditorBlock[]>
   siteBlocks: Record<string, any[]>
   customBlockTemplates: DirectoryCustomBlockTemplate[]
@@ -17,9 +18,10 @@ interface UseDirectoryDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
+export function useDirectoryData(siteId: string, selectedDirectory: string): UseDirectoryDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
+  const [directory, setDirectory] = useState<Directory | null>(null)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, DirectoryEditorBlock[]>>({})
@@ -27,17 +29,32 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const mapBlocksWithTitles = (
-    directoriesData: NonNullable<Awaited<ReturnType<typeof getSiteDirectoriesAction>>['data']>,
-    templates: DirectoryCustomBlockTemplate[]
-  ) => {
-    const convertedBlocks: Record<string, DirectoryEditorBlock[]> = {}
+  const buildSiteBlocks = (siteData: SiteWithTheme | null, directorySlug: string) => {
+    const blocksForDirectory = []
 
-    directoriesData.forEach((directory) => {
-      convertedBlocks[directory.slug] = parseDirectoryBlocksFromJson(directory.content_blocks || {}, templates)
-    })
+    if (siteData?.settings?.navigation) {
+      blocksForDirectory.push({
+        id: 'site-navigation',
+        type: 'navigation',
+        title: 'Navigation',
+        content: siteData.settings.navigation,
+        display_order: -1,
+      })
+    }
 
-    return convertedBlocks
+    if (siteData?.settings?.footer) {
+      blocksForDirectory.push({
+        id: 'site-footer',
+        type: 'footer',
+        title: 'Footer',
+        content: siteData.settings.footer,
+        display_order: 999,
+      })
+    }
+
+    return {
+      [directorySlug]: blocksForDirectory,
+    }
   }
 
   const loadSiteAndBlocks = async () => {
@@ -46,9 +63,8 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
     setSiteError("")
 
     try {
-      // Use site from context, only fetch directories
-      const [directoriesResult, customBlocksResult] = await Promise.all([
-        getSiteDirectoriesAction(siteId),
+      const [directoryResult, customBlocksResult] = await Promise.all([
+        selectedDirectory ? getDirectoryBySlugAction(siteId, selectedDirectory) : Promise.resolve({ data: null, error: null }),
         getDirectoryCustomBlocksBySite(siteId),
       ])
       const siteResult = { data: currentSite, error: null }
@@ -62,47 +78,17 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
       const templates = customBlocksResult.data || []
       setCustomBlockTemplates(templates)
 
-      if (directoriesResult.data) {
-        const convertedBlocks = mapBlocksWithTitles(directoriesResult.data, templates)
-
-        setBlocks(convertedBlocks)
-        // Load site blocks (navigation, footer) from site data
-        if (siteResult.data) {
-          const siteBlocksData: Record<string, any[]> = {}
-
-          // Create navigation and footer blocks from site data for all directories
-          Object.keys(convertedBlocks).forEach(directorySlug => {
-            const siteBlocks = []
-
-            if (siteResult.data?.settings?.navigation) {
-              siteBlocks.push({
-                id: 'site-navigation',
-                type: 'navigation',
-                title: 'Navigation',
-                content: siteResult.data.settings.navigation,
-                display_order: -1
-              })
-            }
-
-            if (siteResult.data?.settings?.footer) {
-              siteBlocks.push({
-                id: 'site-footer',
-                type: 'footer',
-                title: 'Footer',
-                content: siteResult.data.settings.footer,
-                display_order: 999
-              })
-            }
-
-            siteBlocksData[directorySlug] = siteBlocks
-          })
-
-          setSiteBlocks(siteBlocksData)
-        } else {
-          setSiteBlocks({})
-        }
+      if (directoryResult.data) {
+        setDirectory(directoryResult.data)
+        setBlocks({
+          [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
+        })
+        setSiteBlocks(buildSiteBlocks(siteResult.data, directoryResult.data.slug))
       } else {
-        console.error('Failed to load directories:', directoriesResult.error)
+        if (directoryResult.error) {
+          console.error('Failed to load directory:', directoryResult.error)
+        }
+        setDirectory(null)
         setBlocks({})
         setSiteBlocks({})
       }
@@ -116,19 +102,32 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
   }
 
   const reloadBlocks = async () => {
+    if (!selectedDirectory) {
+      setDirectory(null)
+      setBlocks({})
+      setSiteBlocks({})
+      return
+    }
+
     setBlocksLoading(true)
-    const [directoriesResult, customBlocksResult] = await Promise.all([
-      getSiteDirectoriesAction(siteId),
+    const [directoryResult, customBlocksResult] = await Promise.all([
+      getDirectoryBySlugAction(siteId, selectedDirectory),
       getDirectoryCustomBlocksBySite(siteId),
     ])
 
     const templates = customBlocksResult.data || []
     setCustomBlockTemplates(templates)
 
-    if (directoriesResult.data) {
-      setBlocks(mapBlocksWithTitles(directoriesResult.data, templates))
+    if (directoryResult.data) {
+      setDirectory(directoryResult.data)
+      setBlocks({
+        [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
+      })
+      setSiteBlocks(buildSiteBlocks(currentSite, directoryResult.data.slug))
     } else {
+      setDirectory(null)
       setBlocks({})
+      setSiteBlocks({})
     }
 
     setBlocksLoading(false)
@@ -137,10 +136,11 @@ export function useDirectoryData(siteId: string): UseDirectoryDataReturn {
 
   useEffect(() => {
     loadSiteAndBlocks()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [siteId, selectedDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     site,
+    directory,
     blocks,
     siteBlocks,
     customBlockTemplates,

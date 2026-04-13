@@ -8,6 +8,7 @@ import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
+import { extractDirectoryIsPrivate } from './directory-helpers'
 
 
 
@@ -17,6 +18,7 @@ export interface Directory {
   title: string
   slug: string
   is_published: boolean
+  is_private: boolean
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
@@ -49,6 +51,7 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
     title: row.title,
     slug: row.slug,
     is_published: row.isPublished,
+    is_private: row.isPrivate,
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks ?? {}) as Record<string, any>,
     featured_image: row.featuredImage,
@@ -513,6 +516,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
         title: newTitle,
         slug,
         isPublished: false, // Always create duplicates as draft
+        isPrivate: originalDirectory.isPrivate,
         featuredImage: originalDirectory.featuredImage,
         description: originalDirectory.description,
         metaDescription: originalDirectory.metaDescription,
@@ -588,6 +592,43 @@ export async function getDirectoryBySlugAction(siteId: string, slug: string) {
   }
 }
 
+export async function getDirectoryByIdAction(directoryId: string) {
+  try {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(directoryId)) {
+      return { data: null, error: 'Invalid directory ID format' }
+    }
+
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const [directory] = await db.select()
+      .from(directories)
+      .where(eq(directories.id, directoryId))
+      .limit(1)
+
+    if (!directory) {
+      return { data: null, error: 'Directory not found' }
+    }
+
+    const [site] = await db.select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, directory.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
+    return { data: toDirectory(directory), error: null }
+  } catch (error) {
+    console.error('Error fetching directory by ID:', error)
+    return { data: null, error: 'Failed to fetch directory' }
+  }
+}
+
 export async function updateDirectoryBlocksAction(directoryId: string, contentBlocks: Record<string, any>) {
   try {
     // Validate directory ID format
@@ -624,6 +665,7 @@ export async function updateDirectoryBlocksAction(directoryId: string, contentBl
     // Update the directory blocks
     await db.update(directories)
       .set({
+        isPrivate: extractDirectoryIsPrivate(contentBlocks),
         contentBlocks,
         updatedAt: new Date(),
       })

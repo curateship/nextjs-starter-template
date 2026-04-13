@@ -18,6 +18,7 @@ import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -91,9 +92,9 @@ export function DirectorySettingsModal({
         meta_description: directory.meta_description || ''
       })
       setFeaturedImage(directory.featured_image || '')
-      setIsPrivate(directory.content_blocks?._settings?.is_private === true)
+      setIsPrivate(directory.is_private)
       setRichTextContent(directory.content_blocks?.richText?.content || '')
-        setSlugManuallyEdited(false)
+      setSlugManuallyEdited(false)
 
       // Fetch existing category assignments
       getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
@@ -126,6 +127,8 @@ export function DirectorySettingsModal({
           content: richTextContent,
           display_order: 0
         }
+      } else {
+        delete (updatedContentBlocks as any).richText
       }
       
       const draftData = { 
@@ -133,30 +136,30 @@ export function DirectorySettingsModal({
         is_published: false,
         featured_image: featuredImage || null
       }
-      const response = await fetch(`/api/directories/${directory.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(draftData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to save directory as draft')
+
+      const [updateResult, blocksResult] = await Promise.all([
+        updateDirectoryAction(directory.id, draftData),
+        updateDirectoryBlocksAction(directory.id, updatedContentBlocks),
+      ])
+
+      if (updateResult.error || blocksResult.error || !updateResult.data) {
+        setError(updateResult.error || blocksResult.error || 'Failed to save directory as draft')
         return
       }
       
-      if (result.data) {
+      if (updateResult.data) {
         if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+          bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds).catch(() => {})
         }
         setSaveMessage('Directory saved as draft successfully!')
         
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess(result.data)
+          onSuccess({
+            ...updateResult.data,
+            content_blocks: updatedContentBlocks,
+            is_private: isPrivate,
+          })
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -195,6 +198,8 @@ export function DirectorySettingsModal({
           content: richTextContent,
           display_order: 0
         }
+      } else {
+        delete (updatedContentBlocks as any).richText
       }
       
       const publishData = { 
@@ -202,30 +207,30 @@ export function DirectorySettingsModal({
         is_published: true,
         featured_image: featuredImage || null
       }
-      const response = await fetch(`/api/directories/${directory.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(publishData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to publish directory')
+
+      const [updateResult, blocksResult] = await Promise.all([
+        updateDirectoryAction(directory.id, publishData),
+        updateDirectoryBlocksAction(directory.id, updatedContentBlocks),
+      ])
+
+      if (updateResult.error || blocksResult.error || !updateResult.data) {
+        setError(updateResult.error || blocksResult.error || 'Failed to publish directory')
         return
       }
       
-      if (result.data) {
+      if (updateResult.data) {
         if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+          bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds).catch(() => {})
         }
         setSaveMessage(directory?.is_published ? 'Directory saved successfully!' : 'Directory published successfully!')
         
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess(result.data)
+          onSuccess({
+            ...updateResult.data,
+            content_blocks: updatedContentBlocks,
+            is_private: isPrivate,
+          })
         }
         
         // Clear success message after 3 seconds but keep modal open

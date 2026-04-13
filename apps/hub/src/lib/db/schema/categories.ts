@@ -31,6 +31,7 @@ export const contentCategoryRelationships = pgTable('category_relationships', {
   uniqueIndex('idx_ccr_unique').on(table.contentId, table.categoryId, table.contentType),
   index('idx_ccr_content').on(table.contentId, table.contentType),
   index('idx_ccr_category_id').on(table.categoryId),
+  index('idx_ccr_category_content').on(table.categoryId, table.contentType, table.contentId),
 ])
 
 export const categoriesRelations = relations(categories, ({ one }) => ({
