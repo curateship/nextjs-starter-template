@@ -148,41 +148,6 @@ export function DirectoryContentBlock({
             label: "Content",
             content: (
               <>
-                {/* Style Selector */}
-                <div className="space-y-2 mb-4 mx-4">
-                  <Label className="text-sm font-medium px-1">Block Style</Label>
-                  <div className="grid grid-cols-2 gap-2 max-w-sm">
-                    {Object.entries(DIRECTORY_CONTENT_STYLES).map(([key, style]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => onContentChange('directoryContentStyle', key)}
-                        className={cn(
-                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                          directoryContentStyle === key
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                        )}
-                      >
-                        <div className={cn(
-                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                          directoryContentStyle === key
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30"
-                        )}>
-                          {directoryContentStyle === key && <Check className="h-3 w-3" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium">{style.label}</div>
-                          {style.description && (
-                            <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {showDirectoryTitleField && (
                   <div className="space-y-2 px-6 mb-4">
                     <Label htmlFor="directory-title">Directory Title</Label>
@@ -345,24 +310,60 @@ export function DirectoryContentBlock({
             value: "settings",
             label: "Settings",
             content: (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Display Options</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                      <p className="text-sm text-muted-foreground">Display the directory featured image</p>
-                    </div>
-                    <Switch
-                      id="show-featured-image"
-                      checked={showFeaturedImage}
-                      onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
-                    />
+              <>
+                <div className="space-y-2 mb-4 mx-4">
+                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
+                    {Object.entries(DIRECTORY_CONTENT_STYLES).map(([key, style]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => onContentChange('directoryContentStyle', key)}
+                        className={cn(
+                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                          directoryContentStyle === key
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          directoryContentStyle === key
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}>
+                          {directoryContentStyle === key && <Check className="h-3 w-3" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{style.label}</div>
+                          {style.description && (
+                            <div className="mt-0.5 text-xs text-muted-foreground">{style.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Display Options</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="show-featured-image">Show Featured Image</Label>
+                        <p className="text-sm text-muted-foreground">Display the directory featured image</p>
+                      </div>
+                      <Switch
+                        id="show-featured-image"
+                        checked={showFeaturedImage}
+                        onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             ),
           },
         ]}
