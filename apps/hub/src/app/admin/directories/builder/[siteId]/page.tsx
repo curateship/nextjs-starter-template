@@ -298,9 +298,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                 className="h-9 w-56 pl-8"
               />
             </div>
-            {directoryOptionsLoading && (
-              <span className="text-xs text-muted-foreground">Searching…</span>
-            )}
             {directoryOptionsError && (
               <span className="text-xs text-red-600">{directoryOptionsError}</span>
             )}
