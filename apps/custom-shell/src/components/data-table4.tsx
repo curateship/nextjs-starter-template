@@ -324,87 +324,80 @@ export const DataTable4 = ({ className }: { className?: string }) => {
   })
 
   return (
-    <section className={cn("py-24", className)}>
-      <div className="w-full px-4 sm:px-6 lg:px-8">
+    <section className={cn(className)}>
+      <div className="w-full">
         <div className="w-full overflow-hidden">
-          <div className="mb-8 text-left">
-            <h2 className="text-2xl font-bold tracking-tight">
-              Minimal Responsive Table
-            </h2>
-            <p className="mt-2 text-muted-foreground">
-              Fully responsive table with horizontal scrolling, custom cell
-              styling, and adaptive typography. Optimized for mobile devices
-              with touch gestures and swipe hints.
-            </p>
+          <div>
+
           </div>
-          {/* Wrap in ScrollArea for horizontal scroll */}
-          <ScrollArea className="w-full whitespace-nowrap">
-            <div className="min-w-[800px]">
-              <Table className="table-fixed border-separate border-spacing-0 [&_tr:not(:last-child)_td]:border-b [&_tr:not(:last-child)_td]:border-muted">
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow
-                      key={headerGroup.id}
-                      className="hover:bg-transparent"
-                    >
-                      {headerGroup.headers.map((header) => {
-                        return (
-                          <TableHead
-                            key={header.id}
-                            colSpan={header.colSpan}
-                            className="relative h-12 border-y border-border bg-muted/50 px-3 text-left text-xs font-medium select-none first:rounded-l-lg first:border-l first:pl-3 last:rounded-r-lg last:border-r last:pr-3 sm:px-4 sm:text-sm sm:first:pl-5 sm:last:pr-5"
-                          >
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                          </TableHead>
-                        )
-                      })}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => (
+          <div>
+            <ScrollArea className="w-full whitespace-nowrap">
+              <div className="min-w-[800px]">
+                <Table className="table-fixed border-separate border-spacing-0 [&_tr:not(:last-child)_td]:border-b [&_tr:not(:last-child)_td]:border-muted">
+                  <TableHeader>
+                    {table.getHeaderGroups().map((headerGroup) => (
                       <TableRow
-                        key={row.id}
-                        data-state={row.getIsSelected() && "selected"}
-                        className="border-0 hover:bg-muted/50 [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
+                        key={headerGroup.id}
+                        className="hover:bg-transparent"
                       >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell
-                            key={cell.id}
-                            className="px-3 py-2 text-xs first:pl-3 last:pr-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5 sm:last:pr-5"
-                          >
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext()
-                            )}
-                          </TableCell>
-                        ))}
+                        {headerGroup.headers.map((header) => {
+                          return (
+                            <TableHead
+                              key={header.id}
+                              colSpan={header.colSpan}
+                              className="relative h-12 border-y border-border bg-muted/50 px-3 text-left text-xs font-medium select-none first:rounded-l-lg first:border-l first:pl-3 last:rounded-r-lg last:border-r last:pr-3 sm:px-4 sm:text-sm sm:first:pl-5 sm:last:pr-5"
+                            >
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                            </TableHead>
+                          )
+                        })}
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow className="border-0 [&>td:first-child]:rounded-tl-lg [&>td:first-child]:rounded-bl-lg [&>td:last-child]:rounded-tr-lg [&>td:last-child]:rounded-br-lg">
-                      <TableCell
-                        colSpan={columns.length}
-                        className="h-24 px-4 text-center text-sm text-muted-foreground"
-                      >
-                        No results.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+                    ))}
+                  </TableHeader>
+                  <TableBody>
+                    {table.getRowModel().rows?.length ? (
+                      table.getRowModel().rows.map((row) => (
+                        <TableRow
+                          key={row.id}
+                          data-state={row.getIsSelected() && "selected"}
+                          className="border-0 hover:bg-muted/50 [&:first-child>td:first-child]:rounded-tl-lg [&:first-child>td:last-child]:rounded-tr-lg [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg"
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell
+                              key={cell.id}
+                              className="px-3 py-2 text-xs first:pl-3 last:pr-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5 sm:last:pr-5"
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow className="border-0 [&>td:first-child]:rounded-tl-lg [&>td:first-child]:rounded-bl-lg [&>td:last-child]:rounded-tr-lg [&>td:last-child]:rounded-br-lg">
+                        <TableCell
+                          colSpan={columns.length}
+                          className="h-24 px-4 text-center text-sm text-muted-foreground"
+                        >
+                          No results.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
         </div>
-        {/* Optional: Mobile scroll hint */}
-        <p className="mt-2 text-center text-xs text-muted-foreground sm:hidden">
+        <p className="text-center text-xs text-muted-foreground sm:hidden">
           ← Swipe to see more →
         </p>
       </div>
