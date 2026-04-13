@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -85,11 +85,6 @@ function getDripRowChips(newsletter: Newsletter) {
 
   return [
     {
-      key: 'sent',
-      label: `${newsletter.total_sent} of ${newsletter.total_recipients} sent`,
-      className: 'bg-muted/40 text-muted-foreground',
-    },
-    {
       key: 'batches',
       label: `${batchesSent} ${batchLabel}`,
       className: 'bg-muted/40 text-muted-foreground',
@@ -100,6 +95,36 @@ function getDripRowChips(newsletter: Newsletter) {
       className: 'border-red-200 bg-red-50 text-red-700',
     },
   ]
+}
+
+function getDeliveryChips(newsletter: Newsletter) {
+  const chips = []
+
+  if (newsletter.total_send_events > 0) {
+    chips.push({
+      key: 'delivery-summary',
+      label: `${newsletter.total_send_events.toLocaleString()} send events to ${newsletter.total_recipients.toLocaleString()} original audience`,
+      className: 'bg-muted/40 text-muted-foreground',
+    })
+  }
+
+  if (newsletter.total_sent > 0) {
+    chips.push({
+      key: 'unique-sent',
+      label: `${newsletter.total_sent.toLocaleString()} unique sent`,
+      className: 'bg-muted/40 text-muted-foreground',
+    })
+  }
+
+  if (newsletter.duplicate_send_events > 0) {
+    chips.push({
+      key: 'duplicate-events',
+      label: `${newsletter.duplicate_send_events.toLocaleString()} ${newsletter.duplicate_send_events === 1 ? 'duplicate' : 'duplicates'}`,
+      className: 'border-orange-200 bg-orange-50 text-orange-700',
+    })
+  }
+
+  return chips
 }
 
 export default function NewslettersPage() {
@@ -124,14 +149,11 @@ export default function NewslettersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const [sortColumn, setSortColumn] = useState<'name' | 'recipients' | 'opens' | 'clicks' | 'modified' | null>(null)
+  const [sortColumn, setSortColumn] = useState<'name' | 'opens' | 'clicks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === 'sending')
 
-  useEffect(() => {
-    loadNewsletters()
-  }, [currentSite?.id, currentPage])
-
-  async function loadNewsletters(showSkeleton = true) {
+  const loadNewsletters = useCallback(async (showSkeleton = true) => {
     if (!currentSite?.id) {
       setLoading(true)
       setNewsletters([])
@@ -153,7 +175,21 @@ export default function NewslettersPage() {
     } catch {
       setLoading(false)
     }
-  }
+  }, [currentSite?.id, currentPage, pageSize])
+
+  useEffect(() => {
+    loadNewsletters()
+  }, [loadNewsletters])
+
+  useEffect(() => {
+    if (!hasSendingNewsletter) return
+
+    const interval = window.setInterval(() => {
+      loadNewsletters(false)
+    }, 10000)
+
+    return () => window.clearInterval(interval)
+  }, [hasSendingNewsletter, loadNewsletters])
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
@@ -269,7 +305,7 @@ export default function NewslettersPage() {
     return true
   })
 
-  const toggleSort = (column: 'name' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
+  const toggleSort = (column: 'name' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
         setSortColumn(null)
@@ -283,7 +319,7 @@ export default function NewslettersPage() {
     }
   }
 
-  const getSortIcon = (column: 'name' | 'recipients' | 'opens' | 'clicks' | 'modified') => {
+  const getSortIcon = (column: 'name' | 'opens' | 'clicks' | 'modified') => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
     if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
@@ -293,7 +329,6 @@ export default function NewslettersPage() {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
-    if (sortColumn === 'recipients') return (a.total_sent - b.total_sent) * dir
     if (sortColumn === 'opens') {
       const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_opened / b.total_sent : -1
@@ -399,7 +434,7 @@ export default function NewslettersPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-10 gap-4 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-9 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-4 flex items-center space-x-4">
                   <Checkbox
                     checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
@@ -419,18 +454,6 @@ export default function NewslettersPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('recipients')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Recipients</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('recipients')}</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => toggleSort('opens')}
@@ -488,7 +511,7 @@ export default function NewslettersPage() {
                 <div className="space-y-0">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-10 gap-4 items-center">
+                      <div className="grid grid-cols-9 gap-4 items-center">
                         <div className="col-span-4 flex items-center space-x-4">
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
@@ -522,7 +545,7 @@ export default function NewslettersPage() {
               ) : (
                 sortedNewsletters.map((newsletter) => (
                   <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
-                    <div className="grid grid-cols-10 gap-4 items-center">
+                    <div className="grid grid-cols-9 gap-4 items-center">
                       <div className="col-span-4">
                         <div className="flex items-center space-x-4">
                           <Checkbox
@@ -563,6 +586,11 @@ export default function NewslettersPage() {
                                   <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-medium">
                                     {getDripStatusLabel(newsletter)}
                                   </Badge>
+                                  {getDeliveryChips(newsletter).map((chip) => (
+                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
+                                      {chip.label}
+                                    </Badge>
+                                  ))}
                                   {getDripRowChips(newsletter).map((chip) => (
                                     <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
                                       {chip.label}
@@ -570,17 +598,19 @@ export default function NewslettersPage() {
                                   ))}
                                 </>
                               )}
-                              {!(newsletter.status === 'sending' || newsletter.status === 'paused') || !newsletter.metadata?.drip_config?.enabled ? getStatusBadge(newsletter) : null}
+                              {!(newsletter.status === 'sending' || newsletter.status === 'paused') || !newsletter.metadata?.drip_config?.enabled ? (
+                                <>
+                                  {getStatusBadge(newsletter)}
+                                  {getDeliveryChips(newsletter).map((chip) => (
+                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
+                                      {chip.label}
+                                    </Badge>
+                                  ))}
+                                </>
+                              ) : null}
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {newsletter.total_sent > 0
-                            ? newsletter.total_sent.toLocaleString()
-                            : "—"}
-                        </span>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">

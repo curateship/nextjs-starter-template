@@ -1,12 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites, authUsers } from '@/lib/db/schema'
-import { eq, and, lte, inArray, sql } from 'drizzle-orm'
+import { eq, and, lte, inArray, or, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider, type EmailProvider } from '@/lib/actions/email/provider'
+import { randomUUID } from 'crypto'
 
 const BATCH_SIZE = 50
+const DELIVERY_LOCK_TIMEOUT_MS = 10 * 60 * 1000
+
+function clearDeliveryLock(metadata: Record<string, any> | null | undefined) {
+  const next = { ...(metadata || {}) }
+  delete next.delivery_lock_token
+  delete next.delivery_lock_started_at
+  return next
+}
+
+async function acquireDeliveryLock(newsletterId: string, metadata: Record<string, any> | null | undefined) {
+  const token = randomUUID()
+  const startedAt = new Date().toISOString()
+  const staleBefore = new Date(Date.now() - DELIVERY_LOCK_TIMEOUT_MS).toISOString()
+  const [row] = await db
+    .update(newsletters)
+    .set({
+      metadata: {
+        ...(metadata || {}),
+        delivery_lock_token: token,
+        delivery_lock_started_at: startedAt,
+      },
+    })
+    .where(and(
+      eq(newsletters.id, newsletterId),
+      or(
+        sql`${newsletters.metadata}->>'delivery_lock_token' is null`,
+        sql`${newsletters.metadata}->>'delivery_lock_started_at' is null`,
+        sql`(${newsletters.metadata}->>'delivery_lock_started_at')::timestamptz < ${staleBefore}::timestamptz`,
+      ),
+    ))
+    .returning({ id: newsletters.id })
+
+  return row ? { token } : null
+}
+
+async function releaseDeliveryLock(
+  newsletterId: string,
+  metadata: Record<string, any> | null | undefined,
+  token: string,
+) {
+  await db
+    .update(newsletters)
+    .set({ metadata: clearDeliveryLock(metadata) })
+    .where(and(
+      eq(newsletters.id, newsletterId),
+      sql`${newsletters.metadata}->>'delivery_lock_token' = ${token}`,
+    ))
+}
 
 /**
  * GET /api/cron/newsletters
@@ -48,12 +97,17 @@ export async function GET(request: NextRequest) {
     let totalProcessed = 0
 
     for (const newsletter of sendingNewsletters) {
+      const meta = newsletter.metadata as Record<string, any> | null
+      const lock = await acquireDeliveryLock(newsletter.id, meta)
+      if (!lock) continue
+
+      let lockReleased = false
+
       try {
         const config = await getEmailConfig(newsletter.siteId)
         if (!config?.apiKey || !config?.fromEmail) continue
         if (!newsletter.content?.trim()) continue
 
-        const meta = newsletter.metadata as Record<string, any> | null
         const dripConfig = meta?.drip_config
         const isDrip = dripConfig?.enabled === true
 
@@ -128,16 +182,29 @@ export async function GET(request: NextRequest) {
         }
 
         if (!allContacts.length) {
+          const preservedTotalRecipients = Math.max(newsletter.totalRecipients ?? 0, sentContactIds.size)
           await db
             .update(newsletters)
-            .set({ status: 'sent', sentAt: now, totalRecipients: 0, totalSent: 0 })
+            .set({
+              status: 'sent',
+              sentAt: now,
+              totalRecipients: preservedTotalRecipients,
+              totalSent: sentContactIds.size,
+              metadata: clearDeliveryLock(meta),
+            })
             .where(eq(newsletters.id, newsletter.id))
+          lockReleased = true
           totalProcessed++
           continue
         }
 
         // Filter out already-sent contacts
         const unsent = allContacts.filter(c => !sentContactIds.has(c.id))
+        const preservedTotalRecipients = Math.max(
+          newsletter.totalRecipients ?? 0,
+          allContacts.length,
+          sentContactIds.size,
+        )
 
         if (unsent.length === 0) {
           await db
@@ -145,10 +212,12 @@ export async function GET(request: NextRequest) {
             .set({
               status: 'sent',
               sentAt: new Date(),
-              totalRecipients: allContacts.length,
+              totalRecipients: preservedTotalRecipients,
               totalSent: sentContactIds.size,
+              metadata: clearDeliveryLock(meta),
             })
             .where(eq(newsletters.id, newsletter.id))
+          lockReleased = true
           totalProcessed++
           continue
         }
@@ -214,7 +283,9 @@ export async function GET(request: NextRequest) {
         }
 
         const newTotalSent = sentContactIds.size + batchSent
-        const allDone = unsent.length <= batchSize
+        const updatedTotalRecipients = Math.max(preservedTotalRecipients, newTotalSent)
+        const remainingUnsentCount = unsent.length - batchSent
+        const allDone = remainingUnsentCount === 0
 
         if (isDrip && !allDone) {
           // Bounce check
@@ -233,9 +304,9 @@ export async function GET(request: NextRequest) {
               .update(newsletters)
               .set({
                 status: 'paused',
-                totalRecipients: allContacts.length,
+                totalRecipients: updatedTotalRecipients,
                 totalSent: newTotalSent,
-                metadata: {
+                metadata: clearDeliveryLock({
                   ...meta,
                   drip_config: {
                     ...dripConfig,
@@ -243,9 +314,10 @@ export async function GET(request: NextRequest) {
                     total_bounced: totalBounced,
                     paused_reason: `Bounce rate ${bounceRate.toFixed(1)}% exceeded ${threshold}% threshold`,
                   },
-                },
+                }),
               })
               .where(eq(newsletters.id, newsletter.id))
+            lockReleased = true
 
             // Send admin email notification
             await sendBounceAlertEmail(newsletter, config, provider, bounceRate, threshold, totalBounced, newTotalSent)
@@ -259,9 +331,9 @@ export async function GET(request: NextRequest) {
             await db
               .update(newsletters)
               .set({
-                totalRecipients: allContacts.length,
+                totalRecipients: updatedTotalRecipients,
                 totalSent: newTotalSent,
-                metadata: {
+                metadata: clearDeliveryLock({
                   ...meta,
                   drip_config: {
                     ...dripConfig,
@@ -270,9 +342,10 @@ export async function GET(request: NextRequest) {
                     total_bounced: totalBounced,
                     paused_reason: null,
                   },
-                },
+                }),
               })
               .where(eq(newsletters.id, newsletter.id))
+            lockReleased = true
           }
         } else {
           // Non-drip or all done
@@ -280,15 +353,21 @@ export async function GET(request: NextRequest) {
             .update(newsletters)
             .set({
               ...(allDone ? { status: 'sent', sentAt: new Date() } : {}),
-              totalRecipients: allContacts.length,
+              totalRecipients: updatedTotalRecipients,
               totalSent: newTotalSent,
+              metadata: clearDeliveryLock(meta),
             })
             .where(eq(newsletters.id, newsletter.id))
+          lockReleased = true
         }
 
         totalProcessed += batchSent
       } catch {
         // Skip failed newsletter, will retry next cron tick
+      } finally {
+        if (!lockReleased) {
+          await releaseDeliveryLock(newsletter.id, meta, lock.token)
+        }
       }
     }
 

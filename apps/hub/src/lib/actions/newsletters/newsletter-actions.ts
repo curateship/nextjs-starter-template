@@ -9,6 +9,7 @@ import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
+import { randomUUID } from 'crypto'
 
 export interface Newsletter {
   id: string
@@ -23,6 +24,8 @@ export interface Newsletter {
   sent_at: string | null
   total_recipients: number
   total_sent: number
+  total_send_events: number
+  duplicate_send_events: number
   total_opened: number
   total_clicked: number
   total_unsubscribed: number
@@ -41,6 +44,7 @@ interface NewsletterBlock {
 
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const DELIVERY_LOCK_TIMEOUT_MS = 10 * 60 * 1000
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -51,7 +55,9 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
-function rowToNewsletter(row: any, totalUnsubscribed = 0): Newsletter {
+function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number): Newsletter {
+  const uniqueSent = row.totalSent ?? 0
+  const sendEvents = totalSendEvents ?? uniqueSent
   return {
     id: row.id,
     site_id: row.siteId,
@@ -64,7 +70,9 @@ function rowToNewsletter(row: any, totalUnsubscribed = 0): Newsletter {
     scheduled_at: row.scheduledAt?.toISOString() ?? null,
     sent_at: row.sentAt?.toISOString() ?? null,
     total_recipients: row.totalRecipients ?? 0,
-    total_sent: row.totalSent ?? 0,
+    total_sent: uniqueSent,
+    total_send_events: sendEvents,
+    duplicate_send_events: Math.max(sendEvents - uniqueSent, 0),
     total_opened: row.totalOpened ?? 0,
     total_clicked: row.totalClicked ?? 0,
     total_unsubscribed: totalUnsubscribed,
@@ -93,6 +101,53 @@ function isWithinDripSendWindow(dripConfig: Record<string, any> | undefined) {
   const windowEnd = endH * 60 + endM
 
   return currentMinutes >= windowStart && currentMinutes < windowEnd
+}
+
+function clearDeliveryLock(metadata: Record<string, any> | null | undefined) {
+  const next = { ...(metadata || {}) }
+  delete next.delivery_lock_token
+  delete next.delivery_lock_started_at
+  return next
+}
+
+async function acquireDeliveryLock(newsletterId: string, metadata: Record<string, any> | null | undefined) {
+  const token = randomUUID()
+  const startedAt = new Date().toISOString()
+  const staleBefore = new Date(Date.now() - DELIVERY_LOCK_TIMEOUT_MS).toISOString()
+  const [row] = await db
+    .update(newsletters)
+    .set({
+      metadata: {
+        ...(metadata || {}),
+        delivery_lock_token: token,
+        delivery_lock_started_at: startedAt,
+      },
+    })
+    .where(and(
+      eq(newsletters.id, newsletterId),
+      sql`(
+        ${newsletters.metadata}->>'delivery_lock_token' is null
+        or ${newsletters.metadata}->>'delivery_lock_started_at' is null
+        or (${newsletters.metadata}->>'delivery_lock_started_at')::timestamptz < ${staleBefore}::timestamptz
+      )`,
+    ))
+    .returning({ id: newsletters.id })
+
+  return row ? { token } : null
+}
+
+async function releaseDeliveryLock(
+  newsletterId: string,
+  metadata: Record<string, any> | null | undefined,
+  token: string,
+) {
+  await db
+    .update(newsletters)
+    .set({ metadata: clearDeliveryLock(metadata) })
+    .where(and(
+      eq(newsletters.id, newsletterId),
+      sql`${newsletters.metadata}->>'delivery_lock_token' = ${token}`,
+    ))
 }
 
 export async function getNewslettersBySite(
@@ -128,30 +183,54 @@ export async function getNewslettersBySite(
     ])
 
     const newsletterIds = rows.map((row) => row.id)
-    const unsubscribeRows = newsletterIds.length === 0
-      ? []
-      : await db
-        .select({
-          sourceId: newsletterEvents.sourceId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(newsletterEvents)
-        .where(and(
-          eq(newsletterEvents.siteId, siteId),
-          eq(newsletterEvents.sourceType, 'broadcast'),
-          eq(newsletterEvents.eventType, 'unsubscribed'),
-          inArray(newsletterEvents.sourceId, newsletterIds),
-        ))
-        .groupBy(newsletterEvents.sourceId)
+    const [unsubscribeRows, sendEventRows] = newsletterIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+        db
+          .select({
+            sourceId: newsletterEvents.sourceId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(newsletterEvents)
+          .where(and(
+            eq(newsletterEvents.siteId, siteId),
+            eq(newsletterEvents.sourceType, 'broadcast'),
+            eq(newsletterEvents.eventType, 'unsubscribed'),
+            inArray(newsletterEvents.sourceId, newsletterIds),
+          ))
+          .groupBy(newsletterEvents.sourceId),
+        db
+          .select({
+            sourceId: newsletterEvents.sourceId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(newsletterEvents)
+          .where(and(
+            eq(newsletterEvents.siteId, siteId),
+            eq(newsletterEvents.sourceType, 'broadcast'),
+            eq(newsletterEvents.eventType, 'sent'),
+            inArray(newsletterEvents.sourceId, newsletterIds),
+          ))
+          .groupBy(newsletterEvents.sourceId),
+      ])
 
     const unsubscribeCounts = new Map(
       unsubscribeRows
         .filter((row) => row.sourceId)
         .map((row) => [row.sourceId as string, row.count]),
     )
+    const sendEventCounts = new Map(
+      sendEventRows
+        .filter((row) => row.sourceId)
+        .map((row) => [row.sourceId as string, row.count]),
+    )
 
     return {
-      data: rows.map((row) => rowToNewsletter(row, unsubscribeCounts.get(row.id) ?? 0)),
+      data: rows.map((row) => rowToNewsletter(
+        row,
+        unsubscribeCounts.get(row.id) ?? 0,
+        sendEventCounts.get(row.id) ?? (row.totalSent ?? 0),
+      )),
       total: countResult[0]?.count ?? 0,
       error: null,
     }
@@ -205,7 +284,37 @@ export async function getNewsletterById(
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: rowToNewsletter(row), error: null }
+    const [sendEventRow, unsubscribeRow] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterEvents)
+        .where(and(
+          eq(newsletterEvents.siteId, row.siteId),
+          eq(newsletterEvents.sourceType, 'broadcast'),
+          eq(newsletterEvents.eventType, 'sent'),
+          eq(newsletterEvents.sourceId, row.id),
+        ))
+        .limit(1),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterEvents)
+        .where(and(
+          eq(newsletterEvents.siteId, row.siteId),
+          eq(newsletterEvents.sourceType, 'broadcast'),
+          eq(newsletterEvents.eventType, 'unsubscribed'),
+          eq(newsletterEvents.sourceId, row.id),
+        ))
+        .limit(1),
+    ])
+
+    return {
+      data: rowToNewsletter(
+        row,
+        unsubscribeRow[0]?.count ?? 0,
+        sendEventRow[0]?.count ?? (row.totalSent ?? 0),
+      ),
+      error: null,
+    }
   } catch (err) {
     console.error('getNewsletterById error:', err)
     return { data: null, error: 'Server error' }
@@ -415,167 +524,190 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       return { success: false, error: 'No audience selected. Choose a segment or audience before sending.' }
     }
 
-    await db.update(newsletters).set({ status: 'sending' }).where(eq(newsletters.id, newsletterId))
+    const baseMetadata = newsletter.metadata as Record<string, any> | null
+    const lock = await acquireDeliveryLock(newsletterId, baseMetadata)
+    if (!lock) {
+      return { success: false, error: 'Newsletter is already being processed' }
+    }
 
-    // Resolve contacts based on filter
-    let contacts: { id: string; email: string; metadata: any }[]
+    let lockReleased = false
 
-    if (filter.segment_id) {
-      // Get contacts via join table
-      contacts = await db
-        .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
-        .from(newsletterContacts)
-        .innerJoin(newsletterSegmentContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
-        .where(and(
-          eq(newsletterSegmentContacts.segmentId, filter.segment_id),
+    try {
+      await db.update(newsletters).set({ status: 'sending' }).where(eq(newsletters.id, newsletterId))
+
+      // Resolve contacts based on filter
+      let contacts: { id: string; email: string; metadata: any }[]
+
+      if (filter.segment_id) {
+        // Get contacts via join table
+        contacts = await db
+          .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+          .from(newsletterContacts)
+          .innerJoin(newsletterSegmentContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
+          .where(and(
+            eq(newsletterSegmentContacts.segmentId, filter.segment_id),
+            eq(newsletterContacts.siteId, newsletter.site_id),
+            eq(newsletterContacts.status, 'active')
+          ))
+      } else {
+        // Build contact query conditions for non-segment filters
+        const contactConditions = [
           eq(newsletterContacts.siteId, newsletter.site_id),
-          eq(newsletterContacts.status, 'active')
-        ))
-    } else {
-      // Build contact query conditions for non-segment filters
-      const contactConditions = [
-        eq(newsletterContacts.siteId, newsletter.site_id),
-        eq(newsletterContacts.status, 'active'),
-      ]
+          eq(newsletterContacts.status, 'active'),
+        ]
 
-      if (filter.tags?.length) {
-        for (const tag of filter.tags) {
-          contactConditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
+        if (filter.tags?.length) {
+          for (const tag of filter.tags) {
+            contactConditions.push(sql`${newsletterContacts.metadata} @> ${JSON.stringify({ tags: [tag] })}::jsonb`)
+          }
         }
+        if (filter.sources?.length) {
+          contactConditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(filter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
+        }
+
+        contacts = await db
+          .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
+          .from(newsletterContacts)
+          .where(and(...contactConditions))
       }
-      if (filter.sources?.length) {
-        contactConditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(filter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
+
+      if (!contacts.length) {
+        await db
+          .update(newsletters)
+          .set({ status: 'draft', metadata: clearDeliveryLock(baseMetadata) })
+          .where(eq(newsletters.id, newsletterId))
+        lockReleased = true
+        return { success: false, error: 'No matching contacts' }
       }
 
-      contacts = await db
-        .select({ id: newsletterContacts.id, email: newsletterContacts.email, metadata: newsletterContacts.metadata })
-        .from(newsletterContacts)
-        .where(and(...contactConditions))
-    }
+      const provider = getEmailProvider(config.apiKey, config.providerType)
+      const fromEmail = config.fromEmail
+      if (!fromEmail) {
+        await db
+          .update(newsletters)
+          .set({ status: 'draft', metadata: clearDeliveryLock(baseMetadata) })
+          .where(eq(newsletters.id, newsletterId))
+        lockReleased = true
+        return { success: false, error: 'From email not configured in Resend settings' }
+      }
 
-    if (!contacts.length) {
-      await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))
-      return { success: false, error: 'No matching contacts' }
-    }
+      const from = config.fromName ? `${config.fromName} <${fromEmail}>` : fromEmail
+      const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
-    const provider = getEmailProvider(config.apiKey, config.providerType)
-    const fromEmail = config.fromEmail
-    if (!fromEmail) {
-      await db.update(newsletters).set({ status: 'draft' }).where(eq(newsletters.id, newsletterId))
-      return { success: false, error: 'From email not configured in Resend settings' }
-    }
+      const dripConfig = newsletter.metadata?.drip_config
+      const isDrip = dripConfig?.enabled === true
 
-    const from = config.fromName ? `${config.fromName} <${fromEmail}>` : fromEmail
-    const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
-
-    const dripConfig = newsletter.metadata?.drip_config
-    const isDrip = dripConfig?.enabled === true
-
-    if (isDrip && !isWithinDripSendWindow(dripConfig)) {
-      await db
-        .update(newsletters)
-        .set({
-          metadata: {
-            ...newsletter.metadata,
-            drip_config: {
-              ...dripConfig,
-              next_batch_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-              batches_sent: dripConfig?.batches_sent || 0,
-              total_bounced: dripConfig?.total_bounced || 0,
-              paused_reason: null,
-            },
-          },
-        })
-        .where(eq(newsletters.id, newsletterId))
-
-      return { success: true, error: null }
-    }
-
-    // For drip mode, only send a random-sized first batch
-    const contactsToSend = isDrip
-      ? contacts.slice(0, Math.floor(Math.random() * (dripConfig.batch_size_max - dripConfig.batch_size_min + 1)) + dripConfig.batch_size_min)
-      : contacts
-
-    let totalSent = 0
-    const errors: string[] = []
-
-    for (const contact of contactsToSend) {
-      try {
-        const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
-        const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletterId}`
-
-        const htmlWithUnsub = newsletter.content + `
-          <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
-            <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
-          </div>`
-
-        const result = await provider.send({
-          from,
-          to: contact.email,
-          subject: newsletter.subject,
-          html: htmlWithUnsub,
-          headers: {
-            'List-Unsubscribe': `<${unsubUrl}>`,
-            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-          },
-        })
-
-        if (result.success && result.messageId) {
-          totalSent++
-          await db.insert(newsletterEvents).values({
-            siteId: newsletter.site_id,
-            contactId: contact.id,
-            eventType: 'sent',
-            sourceType: 'broadcast',
-            sourceId: newsletterId,
-            providerMessageId: result.messageId,
+      if (isDrip && !isWithinDripSendWindow(dripConfig)) {
+        await db
+          .update(newsletters)
+          .set({
+            metadata: clearDeliveryLock({
+              ...newsletter.metadata,
+              drip_config: {
+                ...dripConfig,
+                next_batch_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+                batches_sent: dripConfig?.batches_sent || 0,
+                total_bounced: dripConfig?.total_bounced || 0,
+                paused_reason: null,
+              },
+            }),
           })
+          .where(eq(newsletters.id, newsletterId))
+        lockReleased = true
+        return { success: true, error: null }
+      }
+
+      // For drip mode, only send a random-sized first batch
+      const contactsToSend = isDrip
+        ? contacts.slice(0, Math.floor(Math.random() * (dripConfig.batch_size_max - dripConfig.batch_size_min + 1)) + dripConfig.batch_size_min)
+        : contacts
+
+      let totalSent = 0
+      const errors: string[] = []
+
+      for (const contact of contactsToSend) {
+        try {
+          const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
+          const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletterId}`
+
+          const htmlWithUnsub = newsletter.content + `
+            <div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:12px;color:#999;">
+              <a href="${unsubUrl}" style="color:#999;">Unsubscribe</a>
+            </div>`
+
+          const result = await provider.send({
+            from,
+            to: contact.email,
+            subject: newsletter.subject,
+            html: htmlWithUnsub,
+            headers: {
+              'List-Unsubscribe': `<${unsubUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+          })
+
+          if (result.success && result.messageId) {
+            totalSent++
+            await db.insert(newsletterEvents).values({
+              siteId: newsletter.site_id,
+              contactId: contact.id,
+              eventType: 'sent',
+              sourceType: 'broadcast',
+              sourceId: newsletterId,
+              providerMessageId: result.messageId,
+            })
+          }
+        } catch {
+          errors.push(contact.email)
         }
-      } catch {
-        errors.push(contact.email)
+      }
+
+      if (isDrip && contacts.length > contactsToSend.length) {
+        // Drip mode: set next batch time, keep status as 'sending'
+        const intervalMin = dripConfig.interval_min_minutes || 30
+        const intervalMax = dripConfig.interval_max_minutes || 60
+        const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
+        const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
+
+        await db
+          .update(newsletters)
+          .set({
+            totalRecipients: contacts.length,
+            totalSent: totalSent,
+            metadata: clearDeliveryLock({
+              ...newsletter.metadata,
+              send_errors: errors,
+              drip_config: {
+                ...dripConfig,
+                next_batch_at: nextBatchAt,
+                batches_sent: 1,
+                total_bounced: 0,
+                paused_reason: null,
+              },
+            }),
+          })
+          .where(eq(newsletters.id, newsletterId))
+      } else {
+        // Non-drip or all contacts fit in first batch
+        await db
+          .update(newsletters)
+          .set({
+            status: 'sent',
+            sentAt: new Date(),
+            totalRecipients: contacts.length,
+            totalSent: totalSent,
+            metadata: clearDeliveryLock({ ...newsletter.metadata, send_errors: errors }),
+          })
+          .where(eq(newsletters.id, newsletterId))
+      }
+
+      lockReleased = true
+      return { success: true, error: null }
+    } finally {
+      if (!lockReleased) {
+        await releaseDeliveryLock(newsletterId, baseMetadata, lock.token)
       }
     }
-
-    if (isDrip && contacts.length > contactsToSend.length) {
-      // Drip mode: set next batch time, keep status as 'sending'
-      const intervalMin = dripConfig.interval_min_minutes || 30
-      const intervalMax = dripConfig.interval_max_minutes || 60
-      const nextIntervalMs = (Math.floor(Math.random() * (intervalMax - intervalMin + 1)) + intervalMin) * 60 * 1000
-      const nextBatchAt = new Date(Date.now() + nextIntervalMs).toISOString()
-
-      await db
-        .update(newsletters)
-        .set({
-          totalRecipients: contacts.length,
-          totalSent: totalSent,
-          metadata: {
-            ...newsletter.metadata,
-            send_errors: errors,
-            drip_config: {
-              ...dripConfig,
-              next_batch_at: nextBatchAt,
-              batches_sent: 1,
-              total_bounced: 0,
-              paused_reason: null,
-            },
-          },
-        })
-        .where(eq(newsletters.id, newsletterId))
-    } else {
-      // Non-drip or all contacts fit in first batch
-      await db
-        .update(newsletters)
-        .set({
-          status: 'sent',
-          sentAt: new Date(),
-          totalRecipients: contacts.length,
-          totalSent: totalSent,
-          metadata: { ...newsletter.metadata, send_errors: errors },
-        })
-        .where(eq(newsletters.id, newsletterId))
-    }
-
-    return { success: true, error: null }
   } catch (err) {
     console.error('sendNewsletter error:', err)
     return { success: false, error: 'Server error' }
