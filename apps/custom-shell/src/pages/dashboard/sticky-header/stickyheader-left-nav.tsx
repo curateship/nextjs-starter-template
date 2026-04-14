@@ -2,8 +2,8 @@
 
 import * as React from "react"
 
-import { useIsMobile } from "../hooks/use-mobile"
-import { cn } from "../lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 export type StickyHeaderLeftNavLink = {
   label: string

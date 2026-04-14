@@ -14,10 +14,9 @@ import {
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react"
 import { z } from "zod"
 
-import { cn } from "../lib/utils"
-import { Badge } from "./ui/badge"
-import { Button } from "./ui/button"
-import { ScrollArea, ScrollBar } from "./ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Table,
   TableBody,
@@ -25,7 +24,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./ui/table"
+} from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 type UseDataTableOptions<TData> = {
   data: Array<TData>

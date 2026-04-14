@@ -3,14 +3,14 @@
 import * as React from "react"
 import { PanelLeftIcon } from "lucide-react"
 
-import { useIsMobile } from "../hooks/use-mobile"
-import { LightDarkToggle } from "./light-dark-toggle"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { LightDarkToggle } from "@/pages/dashboard/sticky-header/light-dark-toggle"
 import {
   StickyHeaderLeftNav,
   type StickyHeaderLeftNavLink,
-} from "./stickyheader-left-nav"
-import { useSidebar } from "./ui/sidebar"
-import { cn } from "../lib/utils"
+} from "@/pages/dashboard/sticky-header/stickyheader-left-nav"
+import { useSidebar } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 
 type StickyHeaderProps = {
   className?: string

@@ -1,9 +1,9 @@
 import * as React from "react"
 
-import { DashboardContent } from "@/components/dashboard-content"
-import { DataTable4 } from "@/components/data-table4"
-import { AppSidebar } from "@/components/sidebar"
-import { StickyHeader } from "@/components/sticky-header"
+import { DashboardContent } from "@/components/demo/dashboard-content"
+import { DataTable4 } from "@/components/demo/data-table4"
+import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
+import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   Card,
   CardContent,

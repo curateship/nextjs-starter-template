@@ -3,14 +3,14 @@
 import * as React from "react"
 import { Moon, Sun } from "lucide-react"
 
-import { useTheme } from "./light-dark-switcher"
-import { Button } from "./ui/button"
+import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu"
 
 export function LightDarkToggle() {
   const [mounted, setMounted] = React.useState(false)

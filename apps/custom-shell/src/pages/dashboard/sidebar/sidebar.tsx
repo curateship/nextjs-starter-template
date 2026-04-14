@@ -2,25 +2,25 @@
 
 import * as React from "react"
 
-import { UserDropdown } from "./user-dropdown"
+import { UserDropdown } from "@/pages/dashboard/sidebar/user-dropdown"
 import {
   SidebarCollapsible,
   type SidebarGroupEntry,
-} from "./sidebar-group-collapsible"
-import { WorkspaceSwitcher } from "./workspace-switcher"
+} from "@/pages/dashboard/sidebar/sidebar-group-collapsible"
+import { WorkspaceSwitcher } from "@/pages/dashboard/sidebar/workspace-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "./ui/sidebar"
+} from "@/components/ui/sidebar"
 import {
   isShellItem,
   renderShellIcon,
   type ShellConfig,
   type ShellSection,
-} from "../lib/custom-shell"
+} from "@/lib/custom-shell"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
