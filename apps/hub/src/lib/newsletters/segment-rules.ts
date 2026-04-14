@@ -4,6 +4,8 @@ export type SegmentType = typeof SEGMENT_TYPES[number]
 export type SegmentDynamicRuleOperator = 'is' | 'isnt'
 export type SegmentTagRuleOperator = 'includes' | 'excludes'
 export type SegmentOpenCountRuleOperator = 'has_opened' | 'hasnt_opened'
+export const SEGMENT_CONTACT_STATUSES = ['active', 'unsubscribed', 'bounced', 'complained'] as const
+export type SegmentContactStatus = typeof SEGMENT_CONTACT_STATUSES[number]
 
 export interface LastEngagedWithinDaysRule {
   type: 'last_engaged_within_days'
@@ -23,7 +25,13 @@ export interface EmailOpenCountRule {
   times: number
 }
 
-export type SegmentDynamicCondition = LastEngagedWithinDaysRule | TagMatchRule | EmailOpenCountRule
+export interface StatusMatchRule {
+  type: 'status_match'
+  operator: SegmentDynamicRuleOperator
+  status: SegmentContactStatus
+}
+
+export type SegmentDynamicCondition = LastEngagedWithinDaysRule | TagMatchRule | EmailOpenCountRule | StatusMatchRule
 
 export interface SegmentDynamicRule {
   conditions: SegmentDynamicCondition[]
@@ -93,6 +101,24 @@ function normalizeEmailOpenCountRule(value: unknown): EmailOpenCountRule | null 
   }
 }
 
+function normalizeStatusMatchRule(value: unknown): StatusMatchRule | null {
+  if (!value || typeof value !== 'object') return null
+
+  const type = (value as { type?: unknown }).type
+  const operator = (value as { operator?: unknown }).operator
+  const status = (value as { status?: unknown }).status
+
+  if (type !== 'status_match') return null
+  if (operator !== 'is' && operator !== 'isnt') return null
+  if (typeof status !== 'string' || !SEGMENT_CONTACT_STATUSES.includes(status as SegmentContactStatus)) return null
+
+  return {
+    type: 'status_match',
+    operator,
+    status: status as SegmentContactStatus,
+  }
+}
+
 function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicCondition | null {
   if (!value || typeof value !== 'object') return null
 
@@ -105,6 +131,9 @@ function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicConditi
   }
   if (type === 'email_open_count') {
     return normalizeEmailOpenCountRule(value)
+  }
+  if (type === 'status_match') {
+    return normalizeStatusMatchRule(value)
   }
 
   return null
@@ -130,6 +159,10 @@ export function normalizeSegmentDynamicRule(value: unknown): SegmentDynamicRule 
   return { conditions }
 }
 
+function formatStatusLabel(status: SegmentContactStatus): string {
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition): string {
   if (condition.type === 'last_engaged_within_days') {
     return `Last engaged ${condition.operator === 'is' ? 'is' : "isn't"} within ${condition.days} day${condition.days === 1 ? '' : 's'}`
@@ -140,6 +173,10 @@ export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition
     return condition.operator === 'has_opened'
       ? `Opened any of last ${timesLabel}`
       : `Opened none of last ${timesLabel}`
+  }
+
+  if (condition.type === 'status_match') {
+    return `Status ${condition.operator === 'is' ? 'is' : "isn't"} ${formatStatusLabel(condition.status)}`
   }
 
   return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${condition.tags.join(', ')}`

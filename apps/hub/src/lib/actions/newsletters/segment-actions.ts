@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, sql, desc, inArray, or, ilike } from 'drizzle-orm'
+import { eq, and, sql, desc, inArray, or, ilike, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -152,6 +152,12 @@ function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
     return condition.operator === 'has_opened'
       ? hasOpenedRecentEmail
       : sql`not ${hasOpenedRecentEmail}`
+  }
+
+  if (condition.type === 'status_match') {
+    return condition.operator === 'is'
+      ? eq(newsletterContacts.status, condition.status)
+      : ne(newsletterContacts.status, condition.status)
   }
 
   const tagArray = sql`CASE WHEN jsonb_typeof(${newsletterContacts.metadata}->'tags') = 'array' THEN ${newsletterContacts.metadata}->'tags' ELSE '[]'::jsonb END`

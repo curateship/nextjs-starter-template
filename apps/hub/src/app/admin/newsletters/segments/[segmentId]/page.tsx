@@ -62,18 +62,22 @@ import {
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import {
   formatSegmentDynamicRule,
+  SEGMENT_CONTACT_STATUSES,
   type SegmentDynamicCondition,
+  type SegmentContactStatus,
   type SegmentDynamicRule,
   type SegmentDynamicRuleOperator,
   type SegmentOpenCountRuleOperator,
   type SegmentTagRuleOperator,
   type SegmentType,
 } from "@/lib/newsletters/segment-rules"
+import { CONTACT_STATUS_OPTIONS } from "@/lib/actions/newsletters/contact-filters"
 
 type DynamicConditionForm =
   | { id: string; type: "last_engaged_within_days"; operator: SegmentDynamicRuleOperator; days: string }
   | { id: string; type: "email_open_count"; operator: SegmentOpenCountRuleOperator; times: string }
   | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
+  | { id: string; type: "status_match"; operator: SegmentDynamicRuleOperator; status: SegmentContactStatus }
 
 function makeConditionId() {
   return `condition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -98,6 +102,15 @@ function mapDynamicRuleToForm(rule: SegmentDynamicRule | null | undefined): Dyna
         type: "email_open_count",
         operator: condition.operator,
         times: String(condition.times),
+      }
+    }
+
+    if (condition.type === "status_match") {
+      return {
+        id: makeConditionId(),
+        type: "status_match",
+        operator: condition.operator,
+        status: condition.status,
       }
     }
 
@@ -136,6 +149,16 @@ function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDy
       continue
     }
 
+    if (condition.type === "status_match") {
+      if (!SEGMENT_CONTACT_STATUSES.includes(condition.status)) return null
+      normalizedConditions.push({
+        type: "status_match",
+        operator: condition.operator,
+        status: condition.status,
+      })
+      continue
+    }
+
     const tags = [...new Set(condition.tags.map((tag) => tag.trim()).filter(Boolean))]
     if (!tags.length) return null
     normalizedConditions.push({
@@ -151,6 +174,7 @@ function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDy
 function formatDynamicConditionLabel(condition: DynamicConditionForm) {
   if (condition.type === "last_engaged_within_days") return "Last engaged"
   if (condition.type === "email_open_count") return "Email opens"
+  if (condition.type === "status_match") return "Status"
   return "Tags"
 }
 
@@ -391,6 +415,11 @@ export default function SegmentDashboardPage() {
 
     if (type === "email_open_count") {
       setDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "has_opened", times: "1" }])
+      return
+    }
+
+    if (type === "status_match") {
+      setDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "is", status: "active" }])
       return
     }
 
@@ -868,6 +897,47 @@ export default function SegmentDashboardPage() {
                           </div>
                         )}
 
+                        {condition.type === "status_match" && (
+                          <div className="space-y-2">
+                            <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                              <Select
+                                value={condition.operator}
+                                onValueChange={(value: SegmentDynamicRuleOperator) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "status_match" ? { ...current, operator: value } : current
+                                ))}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="is">Is</SelectItem>
+                                  <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Select
+                                value={condition.status}
+                                onValueChange={(value: SegmentContactStatus) => updateDynamicCondition(condition.id, (current) => (
+                                  current.type === "status_match" ? { ...current, status: value } : current
+                                ))}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {CONTACT_STATUS_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Contacts update automatically when their subscription status changes.
+                            </p>
+                          </div>
+                        )}
+
                         {condition.type === "tag_match" && (
                           <div className="space-y-3">
                             <Select
@@ -938,6 +1008,9 @@ export default function SegmentDashboardPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => addDynamicCondition("email_open_count")}>
                           Email opens
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => addDynamicCondition("status_match")}>
+                          Status
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => addDynamicCondition("tag_match")}>
                           Tags
