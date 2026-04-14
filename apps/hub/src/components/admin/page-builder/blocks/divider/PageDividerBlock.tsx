@@ -61,7 +61,7 @@ export function PageDividerBlock({
   const applyPreset = (preset: 'navigation' | 'section' | 'decorative') => {
     switch (preset) {
       case 'navigation':
-        onSpacingTopChange(120)
+        onSpacingTopChange(0)
         onSpacingBottomChange(0)
         onDividerStyleChange('none')
         break
@@ -86,8 +86,8 @@ export function PageDividerBlock({
       onBack={onBack}
       tabs={[
         {
-          value: "content",
-          label: "Content",
+          value: "styling",
+          label: "Styling",
           content: (
             <div className="space-y-4">
               {/* Quick Presets */}
@@ -122,9 +122,6 @@ export function PageDividerBlock({
                       Decorative Break
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Navigation Spacer: 120px top spacing for pages without hero blocks
-                  </p>
                 </CardContent>
               </Card>
 
@@ -171,14 +168,7 @@ export function PageDividerBlock({
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          ),
-        },
-        {
-          value: "styling",
-          label: "Styling",
-          content: (
-            <div className="space-y-4">
+
               {/* Divider Style */}
               <Card>
                 <CardHeader>
