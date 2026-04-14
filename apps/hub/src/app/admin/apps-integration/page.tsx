@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
+import { getPlatformSettingsAdminTopNavLinks } from '@/components/admin/layout/dashboard/admin-top-nav-links'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -64,10 +65,15 @@ export default async function AppsIntegrationPage({
 
   return (
     <>
-      <StickyHeader />
+      <StickyHeader navLinks={getPlatformSettingsAdminTopNavLinks("apps-integration")} />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader items={[{ label: 'Apps Integration' }]} />
+          <DashboardSubheader
+            items={[
+              { label: 'Platform Settings', href: '/admin/platforms/settings' },
+              { label: 'Apps Integration' },
+            ]}
+          />
 
           {params.error === 'no-access' ? (
             <Alert variant="destructive" className="mx-4 mb-6">

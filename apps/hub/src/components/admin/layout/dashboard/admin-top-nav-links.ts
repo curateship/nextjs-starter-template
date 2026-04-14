@@ -1,3 +1,4 @@
+import type { QuickLinkIconName } from "@/lib/utils/site-quick-links"
 import type { LucideIcon } from "lucide-react"
 import {
   BarChart3,
@@ -22,6 +23,7 @@ export interface AdminTopNavLink {
   href: string
   active?: boolean
   icon?: LucideIcon
+  iconName?: QuickLinkIconName
 }
 
 type ProductAdminSection = "products" | "orders" | "analytics"
@@ -34,6 +36,7 @@ type NewsletterAdminSection =
   | "templates"
 type DirectoryAdminSection = "directory" | "templates" | "custom-blocks"
 type PlatformEmailAdminSection = "templates" | "emails"
+type PlatformSettingsAdminSection = "settings" | "apps-integration"
 type SiteHealthAdminSection = "overview" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
 
@@ -70,6 +73,13 @@ export function getPlatformEmailAdminTopNavLinks(active: PlatformEmailAdminSecti
   return [
     { label: "Email Templates", href: "/admin/platforms/emails", icon: FileText, active: active === "templates" },
     { label: "Email Accounts", href: "/admin/platforms/emails/senders", icon: Mail, active: active === "emails" },
+  ]
+}
+
+export function getPlatformSettingsAdminTopNavLinks(active: PlatformSettingsAdminSection): AdminTopNavLink[] {
+  return [
+    { label: "Platform Settings", href: "/admin/platforms/settings", iconName: "settings", active: active === "settings" },
+    { label: "Apps Integration", href: "/admin/apps-integration", iconName: "link", active: active === "apps-integration" },
   ]
 }
 

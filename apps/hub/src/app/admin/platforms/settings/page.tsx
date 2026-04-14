@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
+import { getPlatformSettingsAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
@@ -94,7 +95,7 @@ export default function PlatformSettingsPage() {
 
   return (
     <>
-    <StickyHeader />
+    <StickyHeader navLinks={getPlatformSettingsAdminTopNavLinks("settings")} />
     <AdminLayout>
       <div className="w-full">
         <DashboardSubheader

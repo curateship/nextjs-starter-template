@@ -17,7 +17,6 @@ import {
   BarChart3,
   ClipboardCheck,
   HeartPulse,
-  AppWindow,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -165,19 +164,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: Workflow,
     },
     {
-      name: "Apps Integration",
-      url: "/admin/apps-integration",
-      icon: AppWindow,
+      name: "Platform Settings",
+      url: "/admin/platforms/settings",
+      icon: Settings,
+      items: [
+        { title: "Apps Integration", url: "/admin/apps-integration" },
+      ],
     },
     {
       name: "Emails",
       url: "/admin/platforms/emails",
       icon: Mail,
-    },
-    {
-      name: "Settings",
-      url: "/admin/platforms/settings",
-      icon: Settings,
     },
   ]
   
