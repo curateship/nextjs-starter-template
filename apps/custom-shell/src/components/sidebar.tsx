@@ -28,11 +28,11 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
-    return "/"
+    return "/admin/dashboard"
   }
 
   const hash = window.location.hash
-  return hash.startsWith("#") ? hash.slice(1) || "/" : hash || "/"
+  return hash.startsWith("#") ? hash.slice(1) || "/admin/dashboard" : hash || "/admin/dashboard"
 }
 
 function mapSectionEntries(
@@ -77,6 +77,11 @@ function mapSectionEntries(
 export function AppSidebar({ config, ...props }: AppSidebarProps) {
   const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
 
+  const handleNavigate = React.useCallback((href: string) => {
+    window.location.hash = href
+    setCurrentPath(href)
+  }, [])
+
   React.useEffect(() => {
     const handleHashChange = () => {
       setCurrentPath(getCurrentHashPath())
@@ -112,6 +117,7 @@ export function AppSidebar({ config, ...props }: AppSidebarProps) {
             key={section.id}
             title={section.title}
             entries={mapSectionEntries(section, currentPath)}
+            onNavigate={handleNavigate}
           />
         ))}
       </SidebarContent>
