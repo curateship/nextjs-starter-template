@@ -850,7 +850,7 @@ export default function ContactsPage() {
                     {segments.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                          <SelectTrigger className="w-[180px] text-sm">
+                          <SelectTrigger size="button" className="w-[180px] text-sm">
                             <SelectValue placeholder="Select segment..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -1652,7 +1652,7 @@ export default function ContactsPage() {
 
           {/* Edit Contact Modal */}
           <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) setEditContact(null) }}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-w-[560px] p-6">
+            <DialogContent size="admin" className="p-6">
               <DialogHeader>
                 <DialogTitle>Edit Contact</DialogTitle>
                 {editContact && (
