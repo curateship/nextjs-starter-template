@@ -1,24 +1,17 @@
 # AGENTS.md
 
 Guidance for Codex working in `apps/yourapp/`.
+Read all documents for app rules in `apps/custom-shell/docs`
 
-## UI Rules
-
-- Prefer components from `src/components/ui/` over native HTML controls whenever a shadcn equivalent exists.
-- Do not introduce custom modal, select, dropdown, button, input, table, or sheet styling when the scraper app already has a shadcn component for it.
-- If a required shadcn component does not exist in `src/components/ui/`, add it there first, then use it in the page/component.
-- Keep styling consistent with existing scraper app primitives instead of mixing in one-off Tailwind implementations.
-
-## Forms
-
-- Use shadcn form controls for inputs and interactions.
-- Avoid native `<select>` and similar browser-default controls when a shadcn control should be used instead.
-
-
-## Conversation Rules
+### Response Format
 - In Plan mode: explain to user like he's 5
 - Use bullet points for better readability.
 - When writing summaries, do not include the full file path.
+- Prefer structured answers over dense paragraphs when summarizing code, architecture, or project state
+- Use short sections with clear labels when the response covers more than one topic
+- Use flat bullets for distinct points, systems, or findings
+- Keep paragraphs short and easy to scan
+- Avoid wall-of-text explanations when a structured format would be clearer
 
 ### Simplicity & State
 - No fake "safety" systems - use database transactions, not backup/restore in app code
@@ -36,16 +29,6 @@ Guidance for Codex working in `apps/yourapp/`.
 - Ignore pre-existing issues unless specifically asked
 - Only fix build errors directly caused by your changes
 
-### UI Boundaries
-- Build app-specific branding, navigation, and layout in the app itself
-- Do not introduce shared UI abstractions unless the user explicitly asks for them
-
-### Response Format
-- Prefer structured answers over dense paragraphs when summarizing code, architecture, or project state
-- Use short sections with clear labels when the response covers more than one topic
-- Use flat bullets for distinct points, systems, or findings
-- Keep paragraphs short and easy to scan
-- Avoid wall-of-text explanations when a structured format would be clearer
 
 ### Debugging
 - Never ask the user to test or debug for you - solve problems through code analysis
