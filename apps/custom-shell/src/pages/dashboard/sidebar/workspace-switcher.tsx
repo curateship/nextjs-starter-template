@@ -40,7 +40,7 @@ export function WorkspaceSwitcher({
         <div className="relative flex min-h-8 items-center py-2">
           <a
             href={activeTeam.href || "#/"}
-            className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+            className="flex size-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
           >
             {activeTeam.logo}
           </a>

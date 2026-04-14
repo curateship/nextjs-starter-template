@@ -4,11 +4,11 @@ import * as React from "react"
 import { PanelLeftIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { LightDarkToggle } from "@/pages/dashboard/sticky-header/light-dark-toggle"
+import { StickyHeaderRightNav } from "@/pages/dashboard/sticky-header/sticky-header-right-nav"
 import {
   StickyHeaderLeftNav,
   type StickyHeaderLeftNavLink,
-} from "@/pages/dashboard/sticky-header/stickyheader-left-nav"
+} from "@/pages/dashboard/sticky-header/sticky-header-left-nav"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
@@ -16,14 +16,12 @@ type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
-  rightActions?: React.ReactNode
 }
 
 export function StickyHeader({
   className,
   navLinks,
   navContent,
-  rightActions,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
@@ -53,10 +51,7 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={headerNavLinks} />
           )}
         </div>
-        <div className="flex items-center gap-2 pr-1">
-          {rightActions}
-          <LightDarkToggle />
-        </div>
+        <StickyHeaderRightNav />
       </div>
     </header>
   )

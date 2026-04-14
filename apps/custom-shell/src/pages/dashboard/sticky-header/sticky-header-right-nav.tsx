@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Moon, Sun } from "lucide-react"
+import { Moon, PanelRightIcon, Sun } from "lucide-react"
 
 import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function LightDarkToggle() {
+function ThemeToggle() {
   const [mounted, setMounted] = React.useState(false)
   const { setTheme } = useTheme()
 
@@ -50,5 +50,22 @@ export function LightDarkToggle() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+export function StickyHeaderRightNav() {
+  return (
+    <div className="flex items-center gap-2 pr-1">
+      <Button
+        variant="outline"
+        size="sm"
+        className="cursor-pointer"
+        data-icon="inline-start"
+      >
+        <PanelRightIcon className="h-3.5 w-3.5" />
+        Right nav
+      </Button>
+      <ThemeToggle />
+    </div>
   )
 }

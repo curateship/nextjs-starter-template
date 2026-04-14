@@ -20,8 +20,6 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 
-import { Button } from "@/components/ui/button"
-
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
     return "/"
@@ -144,18 +142,7 @@ export function App() {
       <SidebarProvider className="h-screen">
         <AppSidebar config={config} />
         <SidebarInset>
-          <StickyHeader
-            navLinks={navLinks}
-            rightActions={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfig(createDefaultShellConfig())}
-              >
-                Reset shell
-              </Button>
-            }
-          />
+          <StickyHeader navLinks={navLinks} />
           <DashboardContent>
             {isIndexRoute ? (
               <>
