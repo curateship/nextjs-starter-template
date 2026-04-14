@@ -48,14 +48,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       title: "Posts",
       url: "/admin/posts",
       icon: BookOpen,
-      isActive: false,
       featureKey: "posts",
     },
     {
       title: "Products",
       url: "/admin/products",
       icon: Package,
-      isActive: false,
       featureKey: "products",
       items: [
         { title: "Purchases", url: "/admin/orders" },
@@ -65,7 +63,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       title: "Directory",
       url: "/admin/directories",
       icon: FolderOpen,
-      isActive: false,
       featureKey: "directory",
       items: [
         { title: "Custom Blocks", url: "/admin/directories/custom-blocks" },
@@ -76,7 +73,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       title: "Newsletters",
       url: "/admin/newsletters",
       icon: Mail,
-      isActive: false,
       featureKey: "newsletters",
       items: [
         { title: "Contacts", url: "/admin/newsletters/contacts" },
@@ -89,7 +85,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       title: "Events",
       url: "/admin/events",
       icon: Calendar,
-      isActive: false,
       featureKey: "events",
     },
   ].filter(item => !enabledFeatures || enabledFeatures[item.featureKey] !== false)

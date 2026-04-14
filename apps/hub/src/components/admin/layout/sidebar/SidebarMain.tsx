@@ -25,6 +25,10 @@ function isPathActive(pathname: string, url: string) {
   return pathname === url || pathname.startsWith(`${url}/`)
 }
 
+function isExactPathActive(pathname: string, url: string) {
+  return pathname === url
+}
+
 export function SidebarMain({
   items,
 }: {
@@ -32,7 +36,6 @@ export function SidebarMain({
     title: string
     url: string
     icon?: LucideIcon
-    isActive?: boolean
     items?: {
       title: string
       url: string
@@ -53,7 +56,7 @@ export function SidebarMain({
       <SidebarMenu>
         {items.map((item) => {
           const hasChildren = Boolean(item.items?.length)
-          const isActive = isPathActive(pathname, item.url)
+          const isActive = isExactPathActive(pathname, item.url)
           const hasActiveChild = Boolean(
             item.items?.some((subItem) => isPathActive(pathname, subItem.url))
           )
@@ -66,12 +69,15 @@ export function SidebarMain({
               className="group/collapsible"
             >
               <SidebarMenuItem>
-                <div className="flex w-full items-center">
+                <div
+                  data-active={isActive}
+                  className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                >
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
                     isActive={isActive}
-                    className="flex-1"
+                    className="flex-1 hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent data-[state=open]:hover:bg-transparent"
                   >
                     <Link href={item.url} onClick={handleNavClick}>
                       {item.icon && <item.icon />}
@@ -82,7 +88,7 @@ export function SidebarMain({
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="rounded-md p-2 transition-colors hover:bg-muted"
+                        className="rounded-md p-2 transition-colors hover:bg-transparent"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
