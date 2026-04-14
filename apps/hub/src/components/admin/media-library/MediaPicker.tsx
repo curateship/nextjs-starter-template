@@ -243,7 +243,7 @@ export function MediaPicker({
           <DialogTitle>{showVideos ? 'Select Media' : 'Select Image'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 px-6">
+        <div className="space-y-4 py-4">
             {/* Search, Filter and Upload */}
             <div className="flex gap-3">
               <div className="relative flex-1">
@@ -475,7 +475,7 @@ export function MediaPicker({
 
             {/* Pagination Controls */}
             {paginatedData && paginatedData.totalPages > 1 && (
-              <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 px-2">
+              <div className="mt-4 flex flex-col items-center justify-between gap-4 sm:flex-row">
                 <PaginationInfo
                   currentPage={currentPage}
                   pageSize={pageSize}

@@ -1203,7 +1203,7 @@ export default function ContactsPage() {
 
           {/* Filter Modal */}
           <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-w-[600px] max-h-[calc(100vh-4rem)] overflow-hidden p-6 flex flex-col">
+            <DialogContent size="admin" className="flex flex-col overflow-hidden p-6">
               <DialogHeader>
                 <DialogTitle>Filter Contacts</DialogTitle>
               </DialogHeader>
@@ -1591,7 +1591,7 @@ export default function ContactsPage() {
 
           {/* Add Contact Modal */}
           <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-w-[560px] p-6">
+            <DialogContent size="admin" className="p-6">
               <DialogHeader>
                 <DialogTitle>Add Contact</DialogTitle>
               </DialogHeader>
