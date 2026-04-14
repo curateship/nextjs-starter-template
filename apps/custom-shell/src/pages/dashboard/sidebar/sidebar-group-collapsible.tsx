@@ -127,7 +127,7 @@ export function SidebarCollapsible({
               <SidebarMenuItem>
                 <div
                   data-active={entry.active}
-                  className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                  className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
                 >
                   <SidebarMenuButton
                     asChild

@@ -28,11 +28,11 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
-    return "/admin/dashboard"
+    return "/"
   }
 
   const hash = window.location.hash
-  return hash.startsWith("#") ? hash.slice(1) || "/admin/dashboard" : hash || "/admin/dashboard"
+  return hash.startsWith("#") ? hash.slice(1) || "/" : hash || "/"
 }
 
 function mapSectionEntries(
@@ -61,7 +61,9 @@ function mapSectionEntries(
       label: entry.label,
       href: entry.href,
       icon: renderShellIcon(entry.icon),
-      active: currentPath === entry.href,
+      active:
+        currentPath === entry.href ||
+        Boolean(entry.children?.some((child) => child.href === currentPath)),
       children: entry.children?.map((child) => ({
         id: child.id,
         label: child.label,

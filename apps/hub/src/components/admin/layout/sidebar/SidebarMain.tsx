@@ -56,27 +56,28 @@ export function SidebarMain({
       <SidebarMenu>
         {items.map((item) => {
           const hasChildren = Boolean(item.items?.length)
-          const isActive = isExactPathActive(pathname, item.url)
           const hasActiveChild = Boolean(
             item.items?.some((subItem) => isPathActive(pathname, subItem.url))
           )
+          const isActive = isExactPathActive(pathname, item.url)
+          const isParentActive = isActive || hasActiveChild
 
           return (
             <Collapsible
               key={item.title}
               asChild
-              defaultOpen={isActive || hasActiveChild}
+              defaultOpen={isParentActive}
               className="group/collapsible"
             >
               <SidebarMenuItem>
                 <div
-                  data-active={isActive}
+                  data-active={isParentActive}
                   className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                 >
                   <SidebarMenuButton
                     asChild
                     tooltip={item.title}
-                    isActive={isActive}
+                    isActive={isParentActive}
                     className="flex-1 hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent data-[state=open]:hover:bg-transparent"
                   >
                     <Link href={item.url} onClick={handleNavClick}>

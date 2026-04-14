@@ -134,6 +134,7 @@ export type ShellChildItem = {
   id: string
   label: string
   href: string
+  icon?: IconKey
 }
 
 export type ShellItem = {
@@ -238,8 +239,8 @@ export function createDefaultShellConfig(): ShellConfig {
           {
             type: "item",
             id: "item-dashboard",
-            label: "Dashboard",
-            href: "/admin/dashboard",
+            label: "Posts",
+            href: "/admin/posts",
             icon: "layoutDashboard",
             visible: true,
           },
@@ -248,18 +249,20 @@ export function createDefaultShellConfig(): ShellConfig {
             id: "item-library",
             label: "Media Library",
             href: "/admin/media",
-            icon: "image",
+            icon: "library",
             visible: true,
             children: [
               {
                 id: "item-library-images",
                 label: "Images",
                 href: "/admin/media/images",
+                icon: "image",
               },
               {
                 id: "item-library-folders",
                 label: "Folders",
                 href: "/admin/media/folders",
+                icon: "folderOpen",
               },
             ],
           },
