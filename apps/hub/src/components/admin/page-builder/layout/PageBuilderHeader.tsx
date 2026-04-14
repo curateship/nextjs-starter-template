@@ -154,8 +154,8 @@ export function PageBuilderHeader({
       
       {/* Create Page Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
-          <DialogHeader className="mb-4">
+        <DialogContent size="admin">
+          <DialogHeader>
             <DialogTitle>Create New Page</DialogTitle>
           </DialogHeader>
           {site && (

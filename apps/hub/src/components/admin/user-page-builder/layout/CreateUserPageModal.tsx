@@ -166,7 +166,7 @@ export function CreateUserPageModal({ siteId, onSuccess, onCancel }: CreateUserP
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
       {error && (
         <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
           {error}

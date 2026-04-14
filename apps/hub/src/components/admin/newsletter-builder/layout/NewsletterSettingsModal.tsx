@@ -223,8 +223,8 @@ export function NewsletterSettingsModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-          <DialogHeader className="mb-6">
+        <DialogContent size="admin">
+          <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               Newsletter Settings
               <div className="flex items-center space-x-2">
@@ -247,15 +247,15 @@ export function NewsletterSettingsModal({
             </div>
           )}
 
-          <div className="space-y-6">
+          <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid-cols-3 gap-1 mb-7">
+              <TabsList className="grid-cols-3 gap-1">
                 <TabsTrigger value="general">General</TabsTrigger>
                 <TabsTrigger value="drip-options">Drip Options</TabsTrigger>
                 <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="general" className="mt-0 space-y-6 min-h-[340px]">
+              <TabsContent value="general" className="mt-0 space-y-4 min-h-[340px]">
                 <div>
                   <Label htmlFor="settings-subject">Subject Line *</Label>
                   <Input
@@ -304,7 +304,7 @@ export function NewsletterSettingsModal({
                 )}
               </TabsContent>
 
-              <TabsContent value="drip-options" className="mt-0 space-y-6 min-h-[340px]">
+              <TabsContent value="drip-options" className="mt-0 space-y-4 min-h-[340px]">
                 {isSent && (
                   <p className="text-sm text-muted-foreground">
                     Drip settings are locked after sending starts.
@@ -447,7 +447,7 @@ export function NewsletterSettingsModal({
                 </div>
               </TabsContent>
 
-              <TabsContent value="audience-filter" className="mt-0 space-y-6 min-h-[340px]">
+              <TabsContent value="audience-filter" className="mt-0 space-y-4 min-h-[340px]">
                 <div>
                   <div>
                     <Label htmlFor="audience-select">Segment</Label>

@@ -247,7 +247,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+            <DialogContent size="admin">
               <DialogHeader>
                 <DialogTitle>Create New Post</DialogTitle>
                 <DialogDescription>Add a new post to your blog. You can customize the content after creation.</DialogDescription>

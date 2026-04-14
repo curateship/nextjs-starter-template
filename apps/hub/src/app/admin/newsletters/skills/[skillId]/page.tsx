@@ -469,7 +469,7 @@ export default function SkillOutputsPage() {
 
       {/* Edit Output Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="w-[840px] max-w-[95vw] max-h-[85vh] overflow-hidden flex flex-col p-10" style={{ width: '840px', maxWidth: '95vw' }}>
+        <DialogContent size="admin" className="max-h-[85vh] overflow-hidden flex flex-col p-10">
           <DialogHeader>
             <DialogTitle>Edit Output</DialogTitle>
           </DialogHeader>

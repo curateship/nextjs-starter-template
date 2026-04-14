@@ -182,7 +182,7 @@ export default function CronJobsPage() {
       </AdminLayout>
 
       <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
-        <DialogContent className="w-[840px] max-w-[95vw] max-h-[80vh] overflow-y-auto p-10" style={{ width: '840px', maxWidth: '95vw' }}>
+        <DialogContent size="admin" className="max-h-[80vh] p-10">
           <DialogHeader>
             <DialogTitle>{selectedJob?.name} — Run History</DialogTitle>
           </DialogHeader>

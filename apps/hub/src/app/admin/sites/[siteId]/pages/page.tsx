@@ -598,8 +598,8 @@ export default function SitePagesPage({ params }: PageProps) {
 
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-            <DialogHeader className="mb-6">
+          <DialogContent size="admin">
+            <DialogHeader>
               <DialogTitle>Create New Page</DialogTitle>
             </DialogHeader>
             <CreatePageModal 

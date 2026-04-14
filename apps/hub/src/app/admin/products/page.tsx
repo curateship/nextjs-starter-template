@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -636,35 +637,24 @@ export default function ProductsPage() {
 
         {/* Create Product Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogPortal>
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
-                 onClick={(e) => e.target === e.currentTarget && setShowCreateDialog(false)}>
-              <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
-                   style={{ width: '840px', maxWidth: '95vw' }}
-                   onClick={(e) => e.stopPropagation()}>
-                <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
-                </DialogPrimitive.Close>
-                <DialogHeader>
-                  <DialogTitle>Create New Product</DialogTitle>
-                  <DialogDescription>
-                    Add a new product to your catalog. You can customize the content after creation.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateProductModal
-                  onSuccess={(product, continueToBuilder) => {
-                    setProducts(prev => [...prev, product])
-                    setShowCreateDialog(false)
-                    if (continueToBuilder && currentSite?.id) {
-                      router.push(`/admin/products/builder/${currentSite.id}?product=${product.slug}`)
-                    }
-                  }}
-                  onCancel={() => setShowCreateDialog(false)}
-                />
-              </div>
-            </div>
-          </DialogPortal>
+          <DialogContent size="admin">
+            <DialogHeader>
+              <DialogTitle>Create New Product</DialogTitle>
+              <DialogDescription>
+                Add a new product to your catalog. You can customize the content after creation.
+              </DialogDescription>
+            </DialogHeader>
+            <CreateProductModal
+              onSuccess={(product, continueToBuilder) => {
+                setProducts(prev => [...prev, product])
+                setShowCreateDialog(false)
+                if (continueToBuilder && currentSite?.id) {
+                  router.push(`/admin/products/builder/${currentSite.id}?product=${product.slug}`)
+                }
+              }}
+              onCancel={() => setShowCreateDialog(false)}
+            />
+          </DialogContent>
         </Dialog>
 
         {/* Product Settings Modal */}

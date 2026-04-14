@@ -305,7 +305,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         }
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+            <DialogContent size="admin">
               <DialogHeader>
                 <DialogTitle>Create New Directory</DialogTitle>
                 <DialogDescription>Add a new directory to your site. You can customize the content after creation.</DialogDescription>

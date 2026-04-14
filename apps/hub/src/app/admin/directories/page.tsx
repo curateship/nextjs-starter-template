@@ -16,7 +16,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
-import { Dialog, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   deleteDirectoryAction,
@@ -596,39 +596,24 @@ export default function DirectoriesPage() {
           </Card>
 
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogPortal>
-              <div
-                className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
-                onClick={(event) => event.target === event.currentTarget && setShowCreateDialog(false)}
-              >
-                <div
-                  className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
-                  style={{ width: '840px', maxWidth: '95vw' }}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </DialogPrimitive.Close>
-                  <DialogHeader>
-                    <DialogTitle>Create New Directory Item</DialogTitle>
-                    <DialogDescription>
-                      Add a new item to your directory. You can customize the content after creation.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CreateDirectoryModal
-                    onSuccess={(directory, continueToBuilder) => {
-                      setShowCreateDialog(false)
-                      setReloadToken((token) => token + 1)
-                      if (continueToBuilder && currentSite?.id) {
-                        router.push(`/admin/directories/builder/${currentSite.id}?directory=${directory.slug}`)
-                      }
-                    }}
-                    onCancel={() => setShowCreateDialog(false)}
-                  />
-                </div>
-              </div>
-            </DialogPortal>
+            <DialogContent size="admin">
+              <DialogHeader>
+                <DialogTitle>Create New Directory Item</DialogTitle>
+                <DialogDescription>
+                  Add a new item to your directory. You can customize the content after creation.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateDirectoryModal
+                onSuccess={(directory, continueToBuilder) => {
+                  setShowCreateDialog(false)
+                  setReloadToken((token) => token + 1)
+                  if (continueToBuilder && currentSite?.id) {
+                    router.push(`/admin/directories/builder/${currentSite.id}?directory=${directory.slug}`)
+                  }
+                }}
+                onCancel={() => setShowCreateDialog(false)}
+              />
+            </DialogContent>
           </Dialog>
 
           <DirectorySettingsModal

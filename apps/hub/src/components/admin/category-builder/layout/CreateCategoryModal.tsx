@@ -135,7 +135,7 @@ export function CreateCategoryModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
+      <DialogContent size="admin">
         <DialogHeader>
           <DialogTitle>Create Category</DialogTitle>
           <DialogDescription>
@@ -143,7 +143,7 @@ export function CreateCategoryModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {error && (
             <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
               {error}

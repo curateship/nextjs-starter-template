@@ -7,12 +7,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
+  DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogPortal,
 } from "@/components/ui/dialog"
-import { Plus, Trash2, GripVertical, X } from "lucide-react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { Plus, Trash2, GripVertical } from "lucide-react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import {
   DndContext,
@@ -238,18 +237,8 @@ export function OrderBumpsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
-             onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-6 relative my-8"
-               style={{ width: '840px', maxWidth: '95vw' }}
-               onClick={(e) => e.stopPropagation()}>
-            <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-
-            <DialogHeader className="mb-6">
+      <DialogContent size="admin">
+            <DialogHeader>
               <DialogTitle>Manage Order Bumps</DialogTitle>
               <p className="text-sm text-muted-foreground mt-2">
                 Add complementary products that customers can add before checkout
@@ -303,9 +292,7 @@ export function OrderBumpsModal({
             <div className="flex justify-end pt-6 mt-6 border-t">
               <Button onClick={() => onOpenChange(false)}>Done</Button>
             </div>
-          </div>
-        </div>
-      </DialogPortal>
+      </DialogContent>
     </Dialog>
   )
 }

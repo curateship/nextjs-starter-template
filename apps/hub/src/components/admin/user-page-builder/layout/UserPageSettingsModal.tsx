@@ -222,7 +222,7 @@ export function UserPageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
+      <DialogContent size="admin" className="p-10">
         <DialogHeader className="mb-6">
           <DialogTitle className="flex items-center gap-3">
             Configure settings for &quot;{page.title}&quot;

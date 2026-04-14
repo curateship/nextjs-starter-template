@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { 
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -215,8 +214,8 @@ export function PageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-        <DialogHeader className="mb-6">
+      <DialogContent size="admin">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Configure settings for &quot;{page.title}&quot;
             <div className="flex items-center space-x-2">
@@ -237,7 +236,7 @@ export function PageSettingsModal({
         )}
 
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Page Title */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">

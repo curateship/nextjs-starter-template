@@ -12,6 +12,7 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -610,34 +611,24 @@ export default function EventsPage() {
 
       {/* Create Event Modal */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogPortal>
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
-               onClick={(e) => e.target === e.currentTarget && setShowCreateDialog(false)}>
-            <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
-                 onClick={(e) => e.stopPropagation()}>
-              <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100">
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </DialogPrimitive.Close>
-              <DialogHeader>
-                <DialogTitle>Create New Event Item</DialogTitle>
-                <DialogDescription>
-                  Add a new item to your events. You can customize the content after creation.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateEventModal
-                onSuccess={(event, continueToBuilder) => {
-                  setEvents(prev => [...prev, event])
-                  setShowCreateDialog(false)
-                  if (continueToBuilder && currentSite?.id) {
-                    router.push(`/admin/events/builder/${currentSite.id}?event=${event.slug}`)
-                  }
-                }}
-                onCancel={() => setShowCreateDialog(false)}
-              />
-            </div>
-          </div>
-        </DialogPortal>
+        <DialogContent size="admin">
+          <DialogHeader>
+            <DialogTitle>Create New Event Item</DialogTitle>
+            <DialogDescription>
+              Add a new item to your events. You can customize the content after creation.
+            </DialogDescription>
+          </DialogHeader>
+          <CreateEventModal
+            onSuccess={(event, continueToBuilder) => {
+              setEvents(prev => [...prev, event])
+              setShowCreateDialog(false)
+              if (continueToBuilder && currentSite?.id) {
+                router.push(`/admin/events/builder/${currentSite.id}?event=${event.slug}`)
+              }
+            }}
+            onCancel={() => setShowCreateDialog(false)}
+          />
+        </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Modal */}

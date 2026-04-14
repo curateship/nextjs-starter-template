@@ -713,11 +713,11 @@ export default function SegmentDashboardPage() {
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-          <DialogHeader className="mb-6">
+        <DialogContent size="admin">
+          <DialogHeader>
             <DialogTitle>Segment Settings</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-6">
+          <form onSubmit={handleSave} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
             <div>
               <Label htmlFor="segment-name">Name</Label>
               <Input
@@ -781,10 +781,10 @@ export default function SegmentDashboardPage() {
                 </label>
               </div>
               {editForm.segmentType === "dynamic" && (
-                <div className="pt-6 space-y-6">
+                <div className="pt-4 space-y-4">
                   {dynamicConditions.length ? (
                     dynamicConditions.map((condition) => (
-                      <div key={condition.id} className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                      <div key={condition.id} className="rounded-2xl bg-muted/65 p-4 space-y-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3 className="font-medium">{formatDynamicConditionLabel(condition)}</h3>
@@ -955,7 +955,7 @@ export default function SegmentDashboardPage() {
                 </p>
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                 Cancel
               </Button>

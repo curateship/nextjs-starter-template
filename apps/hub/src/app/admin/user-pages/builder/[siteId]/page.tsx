@@ -232,7 +232,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent className="w-[840px] max-w-[95vw]" style={{ width: '840px', maxWidth: '95vw' }}>
+            <DialogContent size="admin">
               <DialogHeader>
                 <DialogTitle>Create New User Page</DialogTitle>
                 <DialogDescription>Add a new user page to your dashboard. You can customize the content after creation.</DialogDescription>

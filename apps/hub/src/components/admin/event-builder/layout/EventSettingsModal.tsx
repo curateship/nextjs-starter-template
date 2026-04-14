@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
+  DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogPortal,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,6 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Event } from "@/lib/actions/events/event-actions"
@@ -223,17 +222,8 @@ export function EventSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPortal>
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4"
-             onClick={(e) => e.target === e.currentTarget && onOpenChange(false)}>
-          <div className="bg-background rounded-lg border shadow-lg w-[840px] max-w-[95vw] p-10 relative my-8"
-               style={{ width: '840px', maxWidth: '95vw' }}
-               onClick={(e) => e.stopPropagation()}>
-            <DialogPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-        <DialogHeader className="mb-6">
+      <DialogContent size="admin">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Configure settings for &quot;{event.title}&quot;
             <div className="flex items-center space-x-2">
@@ -253,7 +243,7 @@ export function EventSettingsModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Event Title */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -444,9 +434,7 @@ export function EventSettingsModal({
           }}
           currentMediaUrl={featuredImage || ''}
         />
-          </div>
-        </div>
-      </DialogPortal>
+      </DialogContent>
     </Dialog>
   )
 }

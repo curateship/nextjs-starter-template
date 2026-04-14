@@ -905,7 +905,7 @@ export default function ContactsPage() {
                       setAllSelected(false)
                     }}
                     placeholder="Search contacts..."
-                    className="h-10 pl-9 pr-9"
+                    className="h-9 pl-9 pr-9"
                   />
                   {searchQuery.trim() && (
                     <button
@@ -1203,11 +1203,11 @@ export default function ContactsPage() {
 
           {/* Filter Modal */}
           <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-            <DialogContent className="w-[600px] max-w-[95vw] p-0 max-h-[85vh] flex flex-col" style={{ width: '600px', maxWidth: '95vw' }}>
-              <DialogHeader className="px-6 pt-6 pb-4">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-[600px] max-h-[calc(100vh-4rem)] overflow-hidden p-6 flex flex-col">
+              <DialogHeader>
                 <DialogTitle>Filter Contacts</DialogTitle>
               </DialogHeader>
-              <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-6">
+              <div className="min-h-0 overflow-y-auto space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
                 <div className="flex items-center gap-3 text-sm font-medium">
                   <span>Matching</span>
                   <Tabs
@@ -1218,7 +1218,7 @@ export default function ContactsPage() {
                       }
                     }}
                   >
-                    <TabsList className="h-11 rounded-lg bg-muted/70 p-1">
+                    <TabsList className="h-11 gap-1 rounded-lg bg-muted/70 p-1">
                       <TabsTrigger value="all" className="rounded-md px-4 py-2">
                         all
                       </TabsTrigger>
@@ -1236,7 +1236,7 @@ export default function ContactsPage() {
                   </div>
                 ) : (
                   pendingFilters.rules.map((rule) => (
-                    <div key={rule.id} className="rounded-2xl bg-muted/65 p-5 space-y-4">
+                    <div key={rule.id} className="rounded-2xl bg-muted/65 p-4 space-y-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="font-medium">{getContactFilterTypeLabel(rule.type)}</h3>
@@ -1448,18 +1448,18 @@ export default function ContactsPage() {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between px-6 py-4">
-                <Button
+              <div className="flex items-center justify-between pt-4">
+                <button
                   type="button"
-                  variant="ghost"
                   onClick={() => {
                     setPendingFilters(emptyContactFilterGroup())
                     setPendingDataFieldInputs({})
                     setPendingFilteredTotal(0)
                   }}
+                  className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
                 >
                   Clear all ({pendingFilteredTotal})
-                </Button>
+                </button>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={() => setFilterModalOpen(false)}>
                     Cancel
@@ -1591,12 +1591,12 @@ export default function ContactsPage() {
 
           {/* Add Contact Modal */}
           <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-            <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-              <DialogHeader className="mb-6">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-[560px] p-6">
+              <DialogHeader>
                 <DialogTitle>Add Contact</DialogTitle>
               </DialogHeader>
 
-              <form onSubmit={handleAddContact} className="space-y-6">
+              <form onSubmit={handleAddContact} className="space-y-4 [&_label+input]:mt-2">
                 <div>
                   <Label htmlFor="add-email">Email *</Label>
                   <Input
@@ -1638,7 +1638,7 @@ export default function ContactsPage() {
                   />
                 </div>
 
-                <div className="flex justify-between pt-4">
+                <div className="flex justify-between pt-2">
                   <Button type="button" variant="outline" onClick={() => setAddModalOpen(false)}>
                     Cancel
                   </Button>
@@ -1652,15 +1652,15 @@ export default function ContactsPage() {
 
           {/* Edit Contact Modal */}
           <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) setEditContact(null) }}>
-            <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-              <DialogHeader className="mb-6">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-[560px] p-6">
+              <DialogHeader>
                 <DialogTitle>Edit Contact</DialogTitle>
                 {editContact && (
                   <p className="text-sm text-muted-foreground mt-1">{editContact.email}</p>
                 )}
               </DialogHeader>
 
-              <form onSubmit={handleEditContact} className="space-y-6">
+              <form onSubmit={handleEditContact} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-first">First Name</Label>
@@ -1706,7 +1706,7 @@ export default function ContactsPage() {
                   </Select>
                 </div>
 
-                <div className="flex justify-between pt-4">
+                <div className="flex justify-between pt-2">
                   <Button type="button" variant="outline" onClick={() => setEditContact(null)}>
                     Cancel
                   </Button>

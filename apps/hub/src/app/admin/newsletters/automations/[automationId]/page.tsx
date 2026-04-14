@@ -868,11 +868,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          <DialogContent className="w-[540px] max-w-[95vw] p-10">
-            <DialogHeader className="mb-6">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
+            <DialogHeader>
               <DialogTitle>Trigger</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6">
+            <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>When should this automation start?</Label>
                 <Select
@@ -897,7 +897,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               </div>
 
               {draftTriggerType === "segment_added" && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div>
                     <Label>Segment</Label>
                     <Select value={draftSegmentId} onValueChange={setDraftSegmentId}>
@@ -920,7 +920,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               )}
 
               {(draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase") && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div>
                     <Label>{productTriggerLabel}</Label>
                     <Select value={draftProductId} onValueChange={setDraftProductId}>
@@ -944,7 +944,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </div>
               )}
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-2">
                 <div className="flex gap-2">
                   {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
                     <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
@@ -983,11 +983,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         </Dialog>
 
         <Dialog open={editingDelay !== null} onOpenChange={open => { if (!open) setEditingDelay(null) }}>
-          <DialogContent className="w-[540px] max-w-[95vw] p-10">
-            <DialogHeader className="mb-6">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
+            <DialogHeader>
               <DialogTitle>Time Delay</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6">
+            <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>Wait for</Label>
                 <Select value={delayType} onValueChange={setDelayType}>
@@ -1053,7 +1053,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </div>
               )}
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-2">
                 <Button variant="outline" onClick={() => setEditingDelay(null)}>Cancel</Button>
                 <Button onClick={saveDelayNode} disabled={savingNode}>
                   {savingNode ? "Saving..." : "Save"}

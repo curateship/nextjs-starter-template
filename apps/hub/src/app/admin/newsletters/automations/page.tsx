@@ -399,11 +399,11 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogContent className="w-[840px] max-w-[95vw] p-10" style={{ width: '840px', maxWidth: '95vw' }}>
-              <DialogHeader className="mb-6">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
+              <DialogHeader>
                 <DialogTitle>Create Email Automation</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-6">
+              <form onSubmit={handleCreate} className="space-y-4 [&_label+input]:mt-2">
                 <div>
                   <Label>Name *</Label>
                   <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Fitness Lead Magnet Sequence" required />
@@ -411,7 +411,7 @@ export default function EmailAutomationsPage() {
                 <p className="text-sm text-muted-foreground">
                   Create the automation first, then choose one or more triggers in the builder.
                 </p>
-                <div className="flex justify-between pt-4">
+                <div className="flex justify-between pt-2">
                   <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={creating || !createName.trim()}>{creating ? "Creating..." : "Create Automation"}</Button>
                 </div>

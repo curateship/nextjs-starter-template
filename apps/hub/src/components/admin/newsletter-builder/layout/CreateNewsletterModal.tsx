@@ -180,7 +180,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
       {error && (
         <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
           {error}
@@ -188,13 +188,13 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid-cols-3 gap-1 mb-7">
+        <TabsList className="grid-cols-3 gap-1">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="drip-options">Drip Options</TabsTrigger>
           <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="mt-0 space-y-6 min-h-[320px]">
+        <TabsContent value="general" className="mt-0 space-y-4 min-h-[320px]">
           <div>
             <Label htmlFor="newsletter-template">Start from template</Label>
             {templatesLoading ? (
@@ -229,7 +229,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           </div>
         </TabsContent>
 
-        <TabsContent value="drip-options" className="mt-0 space-y-6 min-h-[320px]">
+        <TabsContent value="drip-options" className="mt-0 space-y-4 min-h-[320px]">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Checkbox
