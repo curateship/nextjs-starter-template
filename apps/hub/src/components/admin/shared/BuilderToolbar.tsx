@@ -147,7 +147,7 @@ export function BuilderToolbar({
             {showSidebarToggle && (
               <button
                 onClick={toggleSidebar}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
               >
                 <PanelLeft className="h-3.5 w-3.5" />
               </button>
@@ -304,7 +304,7 @@ export function BuilderToolbar({
               {onToggleBlockList && (
                 <button
                   onClick={onToggleBlockList}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+                  className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
                 >
                   {blockListOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5" />}
                 </button>

@@ -91,7 +91,7 @@ export function StickyHeader({
               onClick={toggleSidebar}
               aria-label="Toggle sidebar"
               title="Toggle sidebar"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
             >
               <PanelLeft className="h-3.5 w-3.5" />
             </button>
