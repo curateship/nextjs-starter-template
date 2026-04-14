@@ -169,7 +169,7 @@ const HeaderWithSorting = ({ column, label, icon }: HeaderWithSortingProps) => {
     <Button
       variant="ghost"
       onClick={() => column.toggleSorting(sorted === "asc")}
-      className="!px-0"
+      className="px-0!"
     >
       {icon ? <IconHeader icon={icon} label={label} /> : label}
       {sorted === "asc" ? (
@@ -532,7 +532,7 @@ const CompaniesList1 = ({
                         className={cn(
                           "border-r",
                           header.column.getIsPinned() &&
-                            "sticky left-0 z-10 bg-background !px-2",
+                            "sticky left-0 z-10 bg-background px-2!",
                         )}
                       >
                         {flexRender(

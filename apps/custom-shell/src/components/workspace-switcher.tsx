@@ -44,7 +44,7 @@ export function WorkspaceSwitcher({
           >
             {activeTeam.logo}
           </a>
-          <div className="absolute inset-y-0 left-10 right-0 flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:pointer-events-none">
+          <div className="absolute left-10 right-0 flex min-w-0 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
             <a
               href={activeTeam.href || "#/"}
               className="grid min-w-0 flex-1 text-left text-sm leading-tight"
