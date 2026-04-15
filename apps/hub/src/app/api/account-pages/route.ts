@@ -3,6 +3,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
+import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,57 +75,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if slug conflicts with existing pages in this site
-    const existingPage = await db.query.pages.findFirst({
-      where: and(eq(pages.siteId, pageData.site_id), eq(pages.slug, slug)),
+    // Check if slug conflicts with existing account pages in this site
+    const existingPage = await db.query.siteAccountPages.findFirst({
+      where: and(eq(siteAccountPages.siteId, pageData.site_id), eq(siteAccountPages.slug, slug)),
       columns: { title: true },
     })
 
     if (existingPage) {
       return NextResponse.json(
-        { data: null, error: `This slug is already used by another page titled "${existingPage.title}". Please choose a different slug.` },
+        { data: null, error: `This slug is already used by another account page titled "${existingPage.title}". Please choose a different slug.` },
         { status: 400 }
       )
     }
 
-    const existingAccountPage = await db.query.siteAccountPages.findFirst({
-      where: and(eq(siteAccountPages.siteId, pageData.site_id), eq(siteAccountPages.slug, slug)),
+    const existingPublicPage = await db.query.pages.findFirst({
+      where: and(eq(pages.siteId, pageData.site_id), eq(pages.slug, slug)),
       columns: { title: true },
     })
 
-    if (existingAccountPage) {
+    if (existingPublicPage) {
       return NextResponse.json(
-        { data: null, error: `This slug is already used by an account page titled "${existingAccountPage.title}". Please choose a different slug.` },
+        { data: null, error: `This slug is already used by a page-builder page titled "${existingPublicPage.title}". Please choose a different slug.` },
         { status: 400 }
       )
     }
 
-    // If setting as homepage, unset any existing homepage
-    if (pageData.is_homepage === true) {
-      await db.update(pages)
-        .set({ isHomepage: false })
-        .where(and(eq(pages.siteId, pageData.site_id), eq(pages.isHomepage, true)))
+    // If setting as default page, unset any existing default page
+    if (pageData.is_default === true) {
+      await db.update(siteAccountPages)
+        .set({ isDefault: false })
+        .where(and(eq(siteAccountPages.siteId, pageData.site_id), eq(siteAccountPages.isDefault, true)))
     }
 
     // Get the next display order
-    const orderData = await db.query.pages.findFirst({
-      where: eq(pages.siteId, pageData.site_id),
-      orderBy: [desc(pages.displayOrder)],
+    const orderData = await db.query.siteAccountPages.findFirst({
+      where: eq(siteAccountPages.siteId, pageData.site_id),
+      orderBy: [desc(siteAccountPages.displayOrder)],
       columns: { displayOrder: true },
     })
 
     const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
     // Create the page
-    const [newPage] = await db.insert(pages)
+    const siteSettings = site.settings as Record<string, unknown> | null
+    const defaultBlockSettings = siteSettings?.default_blocks as Record<string, unknown> | undefined
+    const defaultBlocks = defaultBlockSettings?.account_pages
+
+    const [newPage] = await db.insert(siteAccountPages)
       .values({
         siteId: pageData.site_id,
         title: pageData.title.trim(),
         slug,
-        isHomepage: pageData.is_homepage || false,
+        isDefault: pageData.is_default || false,
         isPublished: pageData.is_published !== false,
         displayOrder: nextOrder,
         metaDescription: pageData.meta_description || null,
+        contentBlocks: applyDefaultBlocks(pageData.content_blocks, 'account_pages', defaultBlocks as string[] | undefined),
       })
       .returning()
 

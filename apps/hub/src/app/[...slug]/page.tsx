@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm"
 import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getSessionCookie } from "better-auth/cookies"
+import { getPublicAuthPagePath, getAccountPageBySlug } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 
 async function checkAuth() {
   return !!getSessionCookie(await headers())
@@ -22,8 +23,7 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
   const fullSlug = slug.join('/')
   const isLoggedIn = await checkAuth()
 
-  // Get site data from headers with page slug to load page data
-  const { success: siteSuccess, site } = await getSiteFromHeaders(fullSlug)
+  const { success: siteSuccess, site } = await getSiteFromHeaders()
 
   if (!siteSuccess || !site) {
     notFound()
@@ -36,7 +36,7 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     }
   }
 
-  // First check if this is a page
+  // Public pages always win if both builders claim the same slug.
   const [page] = await db
     .select()
     .from(pages)
@@ -50,8 +50,24 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     .limit(1)
 
   if (page) {
-    // Page exists, render it at root level
-    return <BlockRenderer site={site} />
+    const pageResult = await getSiteFromHeaders(fullSlug)
+    if (!pageResult.success || !pageResult.site) {
+      notFound()
+    }
+
+    return <BlockRenderer site={pageResult.site} />
   }
 
+  const userPageResult = await getAccountPageBySlug(site.id, fullSlug)
+
+  if (userPageResult.error || !userPageResult.data) {
+    if (userPageResult.error === 'Authentication required') {
+      const { path: authPath } = await getPublicAuthPagePath(site.id)
+      redirect(authPath || '/')
+    }
+
+    notFound()
+  }
+
+  return <BlockRenderer site={userPageResult.data} />
 }

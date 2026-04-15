@@ -291,12 +291,6 @@ const DesktopUserMenu = ({
         {user.email && <span className="text-xs font-normal text-muted-foreground">{user.email}</span>}
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <DropdownMenuItem asChild>
-        <Link href="/user-dashboard">
-          <LayoutDashboard className="size-4" />
-          Dashboard
-        </Link>
-      </DropdownMenuItem>
       {showAdminLink && (
         <DropdownMenuItem asChild>
           <Link href="/admin">
@@ -334,12 +328,6 @@ const MobileUserMenuPanel = ({
       </div>
     </div>
     <div className="flex flex-col gap-2">
-      <Button asChild variant="outline">
-        <Link href="/user-dashboard">
-          <LayoutDashboard className="size-4" />
-          Dashboard
-        </Link>
-      </Button>
       {showAdminLink && (
         <Button asChild variant="outline">
           <Link href="/admin">

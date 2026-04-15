@@ -30,14 +30,14 @@ export async function GET(
     }
     const userId = session.user.id!
 
-    // Get the page
-    const page = await db.query.pages.findFirst({
-      where: eq(pages.id, pageId),
+    // Get the account page
+    const page = await db.query.siteAccountPages.findFirst({
+      where: eq(siteAccountPages.id, pageId),
     })
 
     if (!page) {
       return NextResponse.json(
-        { data: null, error: 'Page not found' },
+        { data: null, error: 'Account page not found' },
         { status: 404 }
       )
     }
@@ -95,14 +95,14 @@ export async function PUT(
     }
     const userId = session.user.id!
 
-    // Get the page first
-    const page = await db.query.pages.findFirst({
-      where: eq(pages.id, pageId),
+    // Get the account page first
+    const page = await db.query.siteAccountPages.findFirst({
+      where: eq(siteAccountPages.id, pageId),
     })
 
     if (!page) {
       return NextResponse.json(
-        { data: null, error: 'Page not found' },
+        { data: null, error: 'Account page not found' },
         { status: 404 }
       )
     }
@@ -146,26 +146,26 @@ export async function PUT(
         )
       }
 
-      const conflictingPage = await db.query.pages.findFirst({
-        where: and(eq(pages.siteId, page.siteId), eq(pages.slug, slug), ne(pages.id, pageId)),
-        columns: { title: true },
-      })
-
-      if (conflictingPage) {
-        return NextResponse.json(
-          { data: null, error: `This slug is already used by another page titled "${conflictingPage.title}". Please choose a different slug.` },
-          { status: 400 }
-        )
-      }
-
       const conflictingAccountPage = await db.query.siteAccountPages.findFirst({
-        where: and(eq(siteAccountPages.siteId, page.siteId), eq(siteAccountPages.slug, slug)),
+        where: and(eq(siteAccountPages.siteId, page.siteId), eq(siteAccountPages.slug, slug), ne(siteAccountPages.id, pageId)),
         columns: { title: true },
       })
 
       if (conflictingAccountPage) {
         return NextResponse.json(
-          { data: null, error: `This slug is already used by an account page titled "${conflictingAccountPage.title}". Please choose a different slug.` },
+          { data: null, error: `This slug is already used by another account page titled "${conflictingAccountPage.title}". Please choose a different slug.` },
+          { status: 400 }
+        )
+      }
+
+      const conflictingPage = await db.query.pages.findFirst({
+        where: and(eq(pages.siteId, page.siteId), eq(pages.slug, slug)),
+        columns: { title: true },
+      })
+
+      if (conflictingPage) {
+        return NextResponse.json(
+          { data: null, error: `This slug is already used by a page-builder page titled "${conflictingPage.title}". Please choose a different slug.` },
           { status: 400 }
         )
       }
@@ -173,14 +173,14 @@ export async function PUT(
       updates.slug = slug
     }
 
-    // If setting as homepage, unset any existing homepage
-    if (updates.is_homepage === true) {
-      await db.update(pages)
-        .set({ isHomepage: false })
+    // If setting as default page, unset any existing default page
+    if (updates.is_default === true) {
+      await db.update(siteAccountPages)
+        .set({ isDefault: false })
         .where(and(
-          eq(pages.siteId, page.siteId),
-          eq(pages.isHomepage, true),
-          ne(pages.id, pageId)
+          eq(siteAccountPages.siteId, page.siteId),
+          eq(siteAccountPages.isDefault, true),
+          ne(siteAccountPages.id, pageId)
         ))
     }
 
@@ -189,16 +189,15 @@ export async function PUT(
     if (updates.title !== undefined) updateValues.title = updates.title
     if (updates.slug !== undefined) updateValues.slug = updates.slug
     if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
-    if (updates.meta_keywords !== undefined) updateValues.metaKeywords = updates.meta_keywords
-    if (updates.template !== undefined) updateValues.template = updates.template
-    if (updates.is_homepage !== undefined) updateValues.isHomepage = updates.is_homepage
-    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
+    if (updates.content_blocks !== undefined) updateValues.contentBlocks = updates.content_blocks
     if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
+    if (updates.is_default !== undefined) updateValues.isDefault = updates.is_default
+    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
 
     // Update the page
-    const [updatedPage] = await db.update(pages)
+    const [updatedPage] = await db.update(siteAccountPages)
       .set(updateValues)
-      .where(eq(pages.id, pageId))
+      .where(eq(siteAccountPages.id, pageId))
       .returning()
 
     return NextResponse.json({ data: updatedPage, error: null })

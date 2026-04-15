@@ -4,7 +4,7 @@ import { eq, and, ne, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { purgeProxyCache } from '@/lib/utils/cache-purge'
 import { db } from '@/lib/db'
-import { pages, sites } from '@/lib/db/schema'
+import { pages, siteAccountPages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Page {
@@ -243,7 +243,7 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       }
 
       // Check for reserved slugs
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }
@@ -258,6 +258,18 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
         return {
           data: null,
           error: `A page with the slug "${slug}" already exists. Please choose a different slug.`
+        }
+      }
+
+      const [existingAccountPage] = await db
+        .select({ id: siteAccountPages.id })
+        .from(siteAccountPages)
+        .where(and(eq(siteAccountPages.siteId, page.siteId), eq(siteAccountPages.slug, slug)))
+
+      if (existingAccountPage) {
+        return {
+          data: null,
+          error: `An account page with the slug "${slug}" already exists. Please choose a different slug.`
         }
       }
 

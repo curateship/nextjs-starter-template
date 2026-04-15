@@ -48,8 +48,8 @@ export function PageAuthBlock({
   defaultTab = 'login',
   showLoginTab = true,
   showRegisterTab = true,
-  loginRedirectPath = '/user-pages',
-  registerRedirectPath = '/user-pages',
+  loginRedirectPath = '/',
+  registerRedirectPath = '/',
   emailVerificationEnabled = true,
   loginButtonText = 'Sign In',
   registerButtonText = 'Create Account',
@@ -264,7 +264,7 @@ export function PageAuthBlock({
                     <Input
                       id="loginRedirectPath"
                       type="text"
-                      placeholder="/user-pages"
+                      placeholder="/account"
                       value={loginRedirectPath}
                       onChange={(e) => onLoginRedirectPathChange(e.target.value)}
                     />
@@ -278,7 +278,7 @@ export function PageAuthBlock({
                     <Input
                       id="registerRedirectPath"
                       type="text"
-                      placeholder="/user-pages"
+                      placeholder="/account"
                       value={registerRedirectPath}
                       onChange={(e) => onRegisterRedirectPathChange(e.target.value)}
                     />

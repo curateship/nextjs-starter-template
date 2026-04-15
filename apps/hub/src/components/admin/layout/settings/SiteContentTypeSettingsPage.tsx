@@ -106,7 +106,7 @@ export function SiteContentTypeSettingsPage({
       setError(null)
       setSaveMessage(null)
 
-      const currentDefaultBlocks = (site.settings?.default_blocks as Record<string, string[]> | undefined) || {}
+      const currentDefaultBlocks = { ...((site.settings?.default_blocks as Record<string, string[]> | undefined) || {}) }
 
       const { data, error: updateError } = await updateSiteAction(siteId, {
         settings: {

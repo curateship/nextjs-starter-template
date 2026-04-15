@@ -29,7 +29,7 @@ export interface AdminTopNavLink {
 }
 
 type ProductAdminSection = "products" | "orders" | "analytics"
-type PageAdminSection = "pages" | "user-pages" | "navigation" | "footer"
+type PageAdminSection = "pages" | "account-pages" | "navigation" | "footer"
 type NewsletterAdminSection =
   | "newsletters"
   | "contacts"
@@ -52,7 +52,7 @@ export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTo
 export function getPageAdminTopNavLinks(siteId: string, active: PageAdminSection): AdminTopNavLink[] {
   return [
     { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText, active: active === "pages" },
-    { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users, active: active === "user-pages" },
+    { label: "Account Pages", href: `/admin/account-pages/${siteId}`, icon: Users, active: active === "account-pages" },
     { label: "Navigation", href: `/admin/sites/${siteId}/structure/navigation`, icon: Navigation, active: active === "navigation" },
     { label: "Footer", href: `/admin/sites/${siteId}/structure/footer`, icon: PanelBottom, active: active === "footer" },
   ]

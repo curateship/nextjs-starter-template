@@ -13,7 +13,7 @@ SET settings = jsonb_build_object(
         'navigation', COALESCE(settings->'navigation', 'null'::jsonb),
         'footer', COALESCE(settings->'footer', 'null'::jsonb)
     ),
-    'user_pages', jsonb_build_object(
+    'account_pages', jsonb_build_object(
         'navigation', 'null'::jsonb,
         'footer', 'null'::jsonb
     )
@@ -27,7 +27,7 @@ SET settings = jsonb_build_object(
         'navigation', 'null'::jsonb,
         'footer', 'null'::jsonb
     ),
-    'user_pages', jsonb_build_object(
+    'account_pages', jsonb_build_object(
         'navigation', 'null'::jsonb,
         'footer', 'null'::jsonb
     )
@@ -35,17 +35,17 @@ SET settings = jsonb_build_object(
 WHERE settings IS NULL;
 
 -- =============================================================================
--- STEP 2: Migrate data from users_pages_config to sites.settings.user_pages
+-- STEP 2: Migrate data from users_pages_config to sites.settings.account_pages
 -- =============================================================================
 
 UPDATE sites s
 SET settings = jsonb_set(
     jsonb_set(
         s.settings,
-        '{user_pages,navigation}',
+        '{account_pages,navigation}',
         COALESCE(c.settings->'navigation', 'null'::jsonb)
     ),
-    '{user_pages,footer}',
+    '{account_pages,footer}',
     COALESCE(c.settings->'footer', 'null'::jsonb)
 )
 FROM users_pages_config c
@@ -73,7 +73,7 @@ DROP TABLE IF EXISTS users_pages_config CASCADE;
 COMMENT ON COLUMN sites.settings IS
     'Site configuration stored as JSONB. Structure: {
         public_pages: { navigation: {...}, footer: {...} },
-        user_pages: { navigation: {...}, footer: {...} }
+        account_pages: { navigation: {...}, footer: {...} }
     }';
 
 -- =============================================================================

@@ -13,22 +13,22 @@ The old nav behavior waited for a client-side Better Auth session fetch after hy
 
 ## Final Decisions
 
-### 1. `/login` remains the admin entry point
+### 1. `/admin-login` is the admin entry point
 
-We kept `/login` as the platform/admin login surface.
+We use `/admin-login` as the platform/admin login surface.
 
 - it uses Better Auth email sign-in
 - it redirects successful sign-in to `/admin`
 
 Relevant file:
 
-- `src/app/login/page.tsx`
+- `src/app/admin-login/page.tsx`
 
-### 2. `/auth` remains the frontend/user entry point
+### 2. Builder-created auth pages are the frontend/user entry point
 
-We kept the page-builder `AuthBlock` as the frontend auth surface.
+We use the shared `AuthBlock` inside account-pages-builder pages as the frontend auth surface.
 
-- it uses the same Better Auth backend as `/login`
+- it uses the same Better Auth backend as `/admin-login`
 - it supports `?tab=login` and `?tab=register`
 - it redirects based on block config and optional `redirect` query params
 
@@ -38,7 +38,7 @@ Relevant file:
 
 Important consequence:
 
-- `/login` and `/auth` are not separate auth systems
+- `/admin-login` and builder-created auth pages are not separate auth systems
 - they are separate entry points with different redirect behavior
 
 ### 3. Local subdomain auth needs trusted local origins
@@ -169,8 +169,9 @@ So the final rule is:
 
 If this area needs work again, inspect these first:
 
-- `src/app/login/page.tsx`
+- `src/app/admin-login/page.tsx`
 - `src/components/frontend/pages/auth/AuthBlock.tsx`
+- `src/app/[...slug]/page.tsx`
 - `src/app/layout.tsx`
 - `src/components/frontend/layout/site-auth-provider.tsx`
 - `src/components/frontend/pages/navigation/PageNavigationBlock.tsx`
@@ -180,7 +181,7 @@ If this area needs work again, inspect these first:
 
 ## Practical Rules Going Forward
 
-- Treat `/login` as admin/platform auth unless intentionally redesigning that flow.
-- Treat `/auth` as the frontend/site-user auth surface.
+- Treat `/admin-login` as admin/platform auth unless intentionally redesigning that flow.
+- Treat published account-page-builder pages with an `auth` block as the frontend/site-user auth surface.
 - If auth UI needs immediate signed-in nav state, prefer the server-read cookie path over a client `useSession()` fetch.
 - Do not rely on a long cookie cache without a live invalidation/version strategy if bans and admin edits must stay effective quickly.

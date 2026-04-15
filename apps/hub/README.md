@@ -37,7 +37,10 @@ Read these files in this order before changing HUB code:
 - `apps/hub/migrations/**` contains historical SQL and is not the runtime architecture authority.
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
 - Site navigation and footer are shared site structure stored in top-level `site.settings.navigation` and `site.settings.footer`.
-- Page and user-page builders edit page content blocks only. Navigation and footer are edited from the admin Structure screens, not as page blocks.
+- Page and account-page builders edit page content blocks only. Navigation and footer are edited from the admin Structure screens, not as page blocks.
+- Frontend page-builder pages own the normal public slug space. If a public page slug does not match, the frontend catch-all can render a published account-page-builder page at that same slug.
+- User-page-builder auth pages are defined by an `auth` block and resolve through normal frontend slugs.
+- Published account pages without an `auth` block are treated as authenticated pages. Platform admin auth is handled separately at `/admin-login`.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
 - Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.
 

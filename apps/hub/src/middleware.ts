@@ -8,14 +8,10 @@ export async function middleware(request: NextRequest) {
   // Protect /admin routes - require authentication (role check done in layout)
   if (path.startsWith('/admin')) {
     if (!sessionCookie) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  // Protect /user-pages and /user-dashboard routes - require authentication
-  if (path.startsWith('/user-pages') || path.startsWith('/user-dashboard')) {
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL('/', request.url))
+      const redirectUrl = new URL('/admin-login', request.url)
+      const pathWithQuery = `${request.nextUrl.pathname}${request.nextUrl.search}`
+      redirectUrl.searchParams.set('redirect', pathWithQuery)
+      return NextResponse.redirect(redirectUrl)
     }
   }
 
@@ -25,7 +21,5 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/admin/:path*',
-    '/user-pages/:path*',
-    '/user-dashboard/:path*',
   ],
 }

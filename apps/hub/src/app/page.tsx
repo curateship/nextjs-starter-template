@@ -22,7 +22,7 @@ export default async function SiteHomePage() {
 
   // No site found for this host — redirect to login
   if (!success || !site) {
-    redirect('/login')
+    redirect('/admin-login')
   }
 
   // Check maintenance mode - only redirect if not logged in

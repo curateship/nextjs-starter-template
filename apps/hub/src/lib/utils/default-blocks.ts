@@ -4,7 +4,7 @@ import { POST_BLOCK_TYPES } from '@/components/admin/post-builder/config/post-bl
 import { EVENT_BLOCK_TYPES } from '@/components/admin/event-builder/config/event-block-types'
 import { DIRECTORY_BLOCK_TYPES } from '@/components/admin/directory-builder/config/directory-block-types'
 import { CATEGORY_BLOCK_TYPES } from '@/components/admin/category-builder/config/category-block-types'
-import { USER_PAGE_BLOCK_TYPES } from '@/components/admin/user-page-builder/config/user-page-block-types'
+import { ACCOUNT_PAGE_BLOCK_TYPES } from '@/components/admin/account-page-builder/config/account-page-block-types'
 import { NEWSLETTER_BLOCK_TYPES } from '@/components/admin/newsletter-builder/config/newsletter-block-types'
 
 const BLOCK_TYPE_MAPS: Record<string, { type: string; defaultContent: Record<string, any> }[]> = {
@@ -15,7 +15,7 @@ const BLOCK_TYPE_MAPS: Record<string, { type: string; defaultContent: Record<str
   directories: DIRECTORY_BLOCK_TYPES,
   newsletters: NEWSLETTER_BLOCK_TYPES,
   categories: CATEGORY_BLOCK_TYPES,
-  user_pages: USER_PAGE_BLOCK_TYPES,
+  account_pages: ACCOUNT_PAGE_BLOCK_TYPES,
 }
 
 /** Check if content_blocks has any actual block entries (not just metadata like _settings, show_featured_image) */

@@ -7,8 +7,8 @@ This note records the navigation and footer cleanup that moved site chrome out o
 We had several overlapping problems:
 
 - navigation and footer were being treated like fake page blocks in some builders
-- pages and user-pages were storing site chrome in separate nested settings paths
-- public pages, user pages, and other content types were not all resolving chrome the same way
+- pages and account-pages were storing site chrome in separate nested settings paths
+- public pages, account pages, and other content types were not all resolving chrome the same way
 - preview behavior was confusing because site chrome looked like page content even though it was really site-level structure
 
 The cleanup was intended to simplify the model instead of preserving multiple legacy shapes.
@@ -38,7 +38,7 @@ Relevant file:
 
 Practical result:
 
-- pages and user-pages builders are for content blocks only
+- pages and account-pages builders are for content blocks only
 - Structure owns navigation and footer editing
 
 ### 3. Preview still shows navigation and footer
@@ -53,7 +53,7 @@ Expected preview behavior:
 
 ### 4. All frontend content types resolve site chrome the same way
 
-After the cleanup, public pages, user pages, products, posts, categories, directories, and events all read chrome from shared site settings.
+After the cleanup, public pages, account pages, products, posts, categories, directories, and events all read chrome from shared site settings.
 
 Rule:
 
@@ -64,21 +64,22 @@ Primary source file:
 
 - `src/lib/utils/site-structure.ts`
 
-### 5. User dashboard site resolution is host-based
+### 5. Account page site resolution is host-based
 
-`/user-dashboard` needed to resolve against the current tenant host so it shows the correct site chrome for the current site context.
+Published account pages need to resolve against the current tenant host so they show the correct site chrome for the current site context.
 
 Relevant file:
 
-- `src/app/user-dashboard/[[...slug]]/page.tsx`
+- `src/app/[...slug]/page.tsx`
+- `src/lib/actions/account-pages/account-pages-frontend-actions.ts`
 
 Rule:
 
-- user dashboard content should resolve against the current host, not the first site owned by the user
+- account page content should resolve against the current host, not the first site owned by the user
 
 ### 6. Shared frontend nav remains one component
 
-We did not fork a second frontend navigation component for user-pages.
+We did not fork a second frontend navigation component for account-pages.
 
 We kept one shared frontend nav renderer and made it auth-aware through shared settings.
 
@@ -89,7 +90,7 @@ Relevant file:
 Why:
 
 - one renderer is easier to reason about
-- public pages and user-pages still need consistent site chrome behavior
+- public pages and account-pages still need consistent site chrome behavior
 - differences should come from settings, not duplicate runtime components
 
 ### 7. Old fake nav/footer patterns were intentionally removed
@@ -99,7 +100,7 @@ We removed the old compatibility-heavy pattern instead of keeping multiple fallb
 That cleanup included:
 
 - removing old nested nav/footer runtime reads
-- removing fake nav/footer blocks from pages and user-pages
+- removing fake nav/footer blocks from pages and account-pages
 - removing synthetic preview-only nav/footer block plumbing in remaining content-type builders
 
 Reason:
@@ -134,7 +135,8 @@ If this area needs work again, inspect these first:
 - `src/components/frontend/categories/CategoryBlockRenderer.tsx`
 - `src/components/frontend/directories/DirectoryBlockRenderer.tsx`
 - `src/components/frontend/events/EventBlockRenderer.tsx`
-- `src/app/user-dashboard/[[...slug]]/page.tsx`
+- `src/app/[...slug]/page.tsx`
+- `src/lib/actions/account-pages/account-pages-frontend-actions.ts`
 
 ## Practical Rules Going Forward
 

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers })
 
   if (!session?.user) {
-    const loginUrl = new URL('/login', request.url)
+    const loginUrl = new URL('/admin-login', request.url)
     loginUrl.searchParams.set('redirect', '/api/seo/launch')
     return NextResponse.redirect(loginUrl)
   }

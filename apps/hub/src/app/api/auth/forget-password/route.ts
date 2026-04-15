@@ -9,7 +9,7 @@ import {
   renderSystemEmailSubject,
 } from '@/lib/email/system-email'
 
-const DEFAULT_REDIRECT_PATH = '/login/reset-password'
+const DEFAULT_REDIRECT_PATH = '/admin-login'
 const VERIFICATION_TABLE = 'user_verifications'
 const GENERIC_RESPONSE = {
   status: true,

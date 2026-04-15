@@ -16,7 +16,7 @@ export async function signOut() {
   await auth.api.signOut({
     headers: await headers(),
   })
-  redirect('/login')
+  redirect('/admin-login')
 }
 
 export async function registerUser({

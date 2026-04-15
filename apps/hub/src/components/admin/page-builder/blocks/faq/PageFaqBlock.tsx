@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -47,6 +47,38 @@ interface SharedFaqBlockProps {
   onHeaderAlignChange?: (value: 'left' | 'center') => void
   onFaqItemsChange?: (value: FaqItem[]) => void
   onBack?: () => void
+}
+
+function normalizeFaqItems(faqItems: FaqItem[]): FaqItem[] {
+  const seenIds = new Set<string>()
+
+  return faqItems.map((item, index) => {
+    const rawId = typeof item.id === 'string' ? item.id.trim() : ''
+    const id = rawId && !seenIds.has(rawId) ? rawId : `faq-item-${index}`
+
+    seenIds.add(id)
+
+    return {
+      id,
+      question: item.question ?? '',
+      answer: item.answer ?? '',
+    }
+  })
+}
+
+function hasInvalidFaqIds(faqItems: FaqItem[]) {
+  const seenIds = new Set<string>()
+
+  return faqItems.some((item) => {
+    const id = typeof item.id === 'string' ? item.id.trim() : ''
+
+    if (!id || seenIds.has(id)) {
+      return true
+    }
+
+    seenIds.add(id)
+    return false
+  })
 }
 
 // Sortable FAQ item component
@@ -152,7 +184,16 @@ export function PageFaqBlock({
   onFaqItemsChange,
   onBack
 }: SharedFaqBlockProps) {
-  const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(faqItems)
+  const [localFaqItems, setLocalFaqItems] = useState<FaqItem[]>(() => normalizeFaqItems(faqItems))
+
+  useEffect(() => {
+    const normalizedItems = normalizeFaqItems(faqItems)
+    setLocalFaqItems(normalizedItems)
+
+    if (hasInvalidFaqIds(faqItems)) {
+      onFaqItemsChange?.(normalizedItems)
+    }
+  }, [faqItems, onFaqItemsChange])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

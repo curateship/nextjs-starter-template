@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/auth/client"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,8 +37,8 @@ export function AuthBlock({
   defaultTab = 'login',
   showLoginTab = true,
   showRegisterTab = true,
-  loginRedirectPath = '/user-pages',
-  registerRedirectPath = '/user-pages',
+  loginRedirectPath = '/',
+  registerRedirectPath = '/',
   emailVerificationEnabled = true,
   loginButtonText = 'Sign In',
   registerButtonText = 'Create Account',
@@ -51,8 +51,9 @@ export function AuthBlock({
   resetDescription = 'Enter your email to receive a reset link'
 }: AuthBlockProps) {
   const [view, setView] = useState<'auth' | 'reset'>('auth')
-  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
+  const resetToken = searchParams.get('token') || ''
 
   const tabParam = searchParams.get('tab')
   const initialTab = (tabParam === 'register' || tabParam === 'login') ? tabParam : defaultTab
@@ -64,6 +65,14 @@ export function AuthBlock({
       setActiveTab(tabParam)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (resetToken) {
+      setView('reset')
+      setResetSuccess(false)
+      setResetError(null)
+    }
+  }, [resetToken])
 
   // Login state
   const [loginEmail, setLoginEmail] = useState("")
@@ -85,6 +94,15 @@ export function AuthBlock({
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
   const [resetSuccess, setResetSuccess] = useState(false)
+  const [resetPassword, setResetPassword] = useState("")
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("")
+
+  const getSafeRedirectPath = (value?: string | null) => {
+    if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) {
+      return value
+    }
+    return '/'
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,7 +119,7 @@ export function AuthBlock({
         setLoginError("Invalid email or password")
       } else {
         const rawRedirect = searchParams.get('redirect') || loginRedirectPath
-        const redirectTo = (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')) ? rawRedirect : loginRedirectPath
+        const redirectTo = getSafeRedirectPath(rawRedirect)
         window.location.href = redirectTo
       }
     } catch (err) {
@@ -139,7 +157,7 @@ export function AuthBlock({
         setRegisterError(error.message || "Failed to create account")
       } else {
         // Better Auth auto-signs in after registration
-        window.location.href = registerRedirectPath
+        window.location.href = getSafeRedirectPath(registerRedirectPath)
       }
     } catch (err) {
       setRegisterError("An unexpected error occurred")
@@ -148,16 +166,17 @@ export function AuthBlock({
     }
   }
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
+  const handleResetLinkRequest = async (e: React.FormEvent) => {
     e.preventDefault()
     setResetLoading(true)
     setResetError(null)
 
     try {
+      const redirectTo = getSafeRedirectPath(pathname)
       const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail, redirectTo: '/login/reset-password' }),
+        body: JSON.stringify({ email: resetEmail, redirectTo }),
       })
 
       const data = await response.json().catch(() => null)
@@ -172,6 +191,39 @@ export function AuthBlock({
     }
 
     setResetSuccess(true)
+  }
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetError(null)
+
+    if (resetPassword.length < 6) {
+      setResetError("Password must be at least 6 characters")
+      return
+    }
+
+    if (resetPassword !== resetConfirmPassword) {
+      setResetError("Passwords do not match")
+      return
+    }
+
+    setResetLoading(true)
+    try {
+      const { error } = await authClient.resetPassword({
+        newPassword: resetPassword,
+        token: resetToken,
+      })
+
+      if (error) {
+        setResetError(error.message || "Failed to reset password")
+      } else {
+        setResetSuccess(true)
+      }
+    } catch {
+      setResetError("An unexpected error occurred")
+    } finally {
+      setResetLoading(false)
+    }
   }
 
   if (registerSuccess && view === 'auth') {
@@ -202,6 +254,80 @@ export function AuthBlock({
   }
 
   if (view === 'reset') {
+    if (resetToken) {
+      if (resetSuccess) {
+        return (
+          <div className="flex min-h-[400px] items-center justify-center p-4">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Password reset</CardTitle>
+                <CardDescription>Your password has been updated successfully.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    window.location.href = getSafeRedirectPath(pathname)
+                  }}
+                >
+                  Sign in
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )
+      }
+
+      return (
+        <div className="flex min-h-[400px] items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <CardTitle className="text-xl">Set new password</CardTitle>
+              <CardDescription>Enter your new password below</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handlePasswordReset}>
+                <div className="grid gap-6">
+                  {resetError && (
+                    <div className="text-sm text-red-500 text-center">
+                      {resetError}
+                    </div>
+                  )}
+                  <div className="grid gap-3">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      required
+                      disabled={resetLoading}
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <Label htmlFor="confirm-password">Confirm Password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="Re-enter your password"
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      required
+                      disabled={resetLoading}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={resetLoading}>
+                    {resetLoading ? "Resetting..." : "Reset Password"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
     if (resetSuccess) {
       return (
         <div className="flex min-h-[400px] items-center justify-center p-4">
@@ -238,7 +364,7 @@ export function AuthBlock({
             <CardDescription>{resetDescription}</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handlePasswordReset}>
+            <form onSubmit={handleResetLinkRequest}>
               <div className="grid gap-6">
                 {resetError && (
                   <div className="text-sm text-red-500 text-center">

@@ -14,7 +14,7 @@ BEGIN
             'navigation', 'null'::jsonb,
             'footer', 'null'::jsonb
         ),
-        'user_pages', jsonb_build_object(
+        'account_pages', jsonb_build_object(
             'navigation', 'null'::jsonb,
             'footer', 'null'::jsonb
         )

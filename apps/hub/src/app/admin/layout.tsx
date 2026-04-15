@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { AdminClientShell } from "./admin-client-shell"
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"
 import { getAllSitesAction } from "@/lib/actions/sites/site-actions"
+import { getCurrentUserSiteId, getDefaultAccountPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 
 export default async function AdminLayout({
   children,
@@ -13,12 +14,19 @@ export default async function AdminLayout({
   const session = await auth.api.getSession({ headers: await headers() })
 
   if (!session?.user) {
-    redirect('/login?redirect=/admin')
+    redirect('/admin-login?redirect=/admin')
   }
 
   const role = (session.user as any).role || 'end_user'
   if (role !== 'super_admin') {
-    redirect('/user-pages')
+    const { siteId } = await getCurrentUserSiteId()
+    if (siteId) {
+      const { path } = await getDefaultAccountPagePath(siteId)
+      if (path) {
+        redirect(path)
+      }
+    }
+    redirect('/')
   }
 
   // Parallel fetch: admin settings + sites

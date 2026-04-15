@@ -105,7 +105,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: FileText,
       items: [
         { title: "Pages", url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites" },
-        { title: "User Pages", url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites" },
+        { title: "Account Pages", url: currentSite ? `/admin/account-pages/${currentSite.id}` : "/admin/sites" },
         { title: "Navigation", url: currentSite ? `/admin/sites/${currentSite.id}/structure/navigation` : "/admin/sites" },
         { title: "Footer", url: currentSite ? `/admin/sites/${currentSite.id}/structure/footer` : "/admin/sites" },
       ],

@@ -7,7 +7,7 @@ import { POST_BLOCK_TYPES } from '@/components/admin/post-builder/config/post-bl
 import { EVENT_BLOCK_TYPES } from '@/components/admin/event-builder/config/event-block-types'
 import { DIRECTORY_BLOCK_TYPES } from '@/components/admin/directory-builder/config/directory-block-types'
 import { CATEGORY_BLOCK_TYPES } from '@/components/admin/category-builder/config/category-block-types'
-import { USER_PAGE_BLOCK_TYPES } from '@/components/admin/user-page-builder/config/user-page-block-types'
+import { ACCOUNT_PAGE_BLOCK_TYPES } from '@/components/admin/account-page-builder/config/account-page-block-types'
 import { NEWSLETTER_BLOCK_TYPES } from '@/components/admin/newsletter-builder/config/newsletter-block-types'
 
 export interface SiteSettingsContentTypeConfig {
@@ -69,12 +69,12 @@ export const SITE_SETTINGS_CONTENT_TYPES: SiteSettingsContentTypeConfig[] = [
     blocks: PAGE_BLOCK_TYPES,
   },
   {
-    slug: 'user-pages',
-    key: 'user_pages',
-    label: 'User Pages',
-    description: 'Choose which blocks are automatically added when creating new user pages.',
+    slug: 'account-pages',
+    key: 'account_pages',
+    label: 'Account Pages',
+    description: 'Choose which blocks are automatically added when creating new account pages.',
     icon: Users,
-    blocks: USER_PAGE_BLOCK_TYPES,
+    blocks: ACCOUNT_PAGE_BLOCK_TYPES,
   },
   {
     slug: 'categories',

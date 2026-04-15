@@ -85,6 +85,13 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 3. Page/content rows store only their own content blocks as JSON
 4. Each content type (products, posts, pages, categories, directories, events) belongs to a site via `site_id`
 
+**Frontend slug resolution:**
+- Public page-builder pages own the normal frontend slug space first.
+- If no published page-builder page matches a slug, the frontend catch-all can resolve a published account-page-builder page at that same slug.
+- Account pages that contain an `auth` block are public auth entry points.
+- Account pages without an `auth` block require an authenticated Better Auth session.
+- Site-facing auth and member pages resolve through normal frontend slugs from the account-pages builder; platform admin auth lives at `/admin-login`.
+
 **Drizzle ORM notes:**
 - Schema files use camelCase for JS variables (e.g., `categories.isPublished`)
 - DB columns are snake_case (e.g., `is_published`)
@@ -166,6 +173,7 @@ Use this map before changing code:
 
 - Route bug or feature: inspect the matching route in `src/app/**`, then its renderer in `src/components/frontend/**`, then the action and schema it depends on.
 - Admin builder bug or feature: inspect the admin route in `src/app/admin/**`, then the builder under `src/components/admin/**`, then the action and schema it saves through.
+- Account/auth page routing task: inspect `src/app/[...slug]/page.tsx`, `src/lib/actions/account-pages/account-pages-frontend-actions.ts`, and the account-page builder/runtime files before changing redirects or slug behavior.
 - Structure/navigation/footer task: inspect the Structure routes plus `src/lib/utils/site-structure.ts` before changing page-builder behavior.
 - Auth task: inspect `src/lib/auth/server.ts`, `src/lib/auth/client.ts`, and `src/app/api/auth/[...all]/route.ts` first.
 - Data or query task: inspect the relevant Drizzle schema file before changing actions or UI.

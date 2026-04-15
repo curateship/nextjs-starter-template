@@ -9,7 +9,6 @@ import dynamic from "next/dynamic"
 const AuthBlock = dynamic(() => import("@/components/frontend/pages/auth/AuthBlock").then(m => ({ default: m.AuthBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
-import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
@@ -117,16 +116,6 @@ export function BlockRenderer({ site }: BlockRendererProps) {
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <DividerBlock
                 content={block.content}
-              />
-            </div>
-          )
-        }
-
-        if (block.type === 'user-profile') {
-          return (
-            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
-              <UserProfileBlock
-                {...block.content}
               />
             </div>
           )

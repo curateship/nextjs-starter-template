@@ -11,7 +11,7 @@ import { POST_BLOCK_TYPES } from '@/components/admin/post-builder/config/post-bl
 import { EVENT_BLOCK_TYPES } from '@/components/admin/event-builder/config/event-block-types'
 import { DIRECTORY_BLOCK_TYPES } from '@/components/admin/directory-builder/config/directory-block-types'
 import { CATEGORY_BLOCK_TYPES } from '@/components/admin/category-builder/config/category-block-types'
-import { USER_PAGE_BLOCK_TYPES } from '@/components/admin/user-page-builder/config/user-page-block-types'
+import { ACCOUNT_PAGE_BLOCK_TYPES } from '@/components/admin/account-page-builder/config/account-page-block-types'
 
 const CONTENT_TYPE_CONFIGS = [
   { key: 'pages', label: 'Pages', blocks: PAGE_BLOCK_TYPES },
@@ -20,7 +20,7 @@ const CONTENT_TYPE_CONFIGS = [
   { key: 'events', label: 'Events', blocks: EVENT_BLOCK_TYPES },
   { key: 'directories', label: 'Directories', blocks: DIRECTORY_BLOCK_TYPES },
   { key: 'categories', label: 'Categories', blocks: CATEGORY_BLOCK_TYPES },
-  { key: 'user_pages', label: 'User Pages', blocks: USER_PAGE_BLOCK_TYPES },
+  { key: 'account_pages', label: 'Account Pages', blocks: ACCOUNT_PAGE_BLOCK_TYPES },
 ]
 
 interface ContentTypesSettingsCardProps {
