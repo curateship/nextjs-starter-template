@@ -2,10 +2,178 @@ import { betterAuth } from 'better-auth'
 import { admin } from 'better-auth/plugins'
 import { Pool } from 'pg'
 import * as bcrypt from 'bcryptjs'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
+import { safeDecrypt } from '@/lib/utils/encryption'
+import { getEmailProvider } from '@/lib/actions/email/provider'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
 })
+
+type VerificationEmailConfig = {
+  apiKey: string
+  fromEmail: string
+  fromName?: string | null
+  providerType: 'resend'
+}
+
+function normalizeRequestHost(request?: Request) {
+  if (!request) {
+    return ''
+  }
+
+  const headerHost =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    new URL(request.url).host
+
+  const host = headerHost.split(',')[0]?.trim().toLowerCase() || ''
+  return host.replace(/^www\./, '').replace(/:\d+$/, '')
+}
+
+async function getSiteVerificationEmailConfig(request?: Request): Promise<VerificationEmailConfig | null> {
+  const host = normalizeRequestHost(request)
+
+  if (!host) {
+    return null
+  }
+
+  const siteByDomain = await pool.query<{
+    id: string
+    name: string
+    status: string
+  }>(
+    `
+      select id, name, status
+      from sites
+      where custom_domain = $1
+      limit 1
+    `,
+    [host]
+  )
+
+  const allowedStatuses = new Set(['active', 'draft'])
+  const reservedSubdomains = new Set(['www', 'api', 'admin', 'app'])
+
+  let site = siteByDomain.rows[0]
+
+  if (!site && host.includes('.')) {
+    const subdomain = host.split('.')[0]
+    if (subdomain && !reservedSubdomains.has(subdomain)) {
+      const siteBySubdomain = await pool.query<{
+        id: string
+        name: string
+        status: string
+      }>(
+        `
+          select id, name, status
+          from sites
+          where subdomain = $1
+          limit 1
+        `,
+        [subdomain]
+      )
+
+      site = siteBySubdomain.rows[0]
+    }
+  }
+
+  if (!site || !allowedStatuses.has(site.status)) {
+    return null
+  }
+
+  const integrationResult = await pool.query<{
+    config: Record<string, unknown> | null
+  }>(
+    `
+      select config
+      from site_integrations
+      where site_id = $1
+        and integration_type = 'resend'
+        and is_enabled = true
+      limit 1
+    `,
+    [site.id]
+  )
+
+  const config = integrationResult.rows[0]?.config
+
+  if (!config || typeof config !== 'object') {
+    return null
+  }
+
+  const apiKey = typeof config.api_key === 'string' ? safeDecrypt(config.api_key) : ''
+  const fromEmail =
+    typeof config.from_email === 'string' && config.from_email.length > 0
+      ? config.from_email
+      : process.env.AUTH_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || ''
+  const fromName =
+    typeof config.from_name === 'string' && config.from_name.length > 0
+      ? config.from_name
+      : site.name
+
+  if (!apiKey || !fromEmail) {
+    return null
+  }
+
+  return {
+    apiKey,
+    fromEmail,
+    fromName,
+    providerType: 'resend',
+  }
+}
+
+async function getVerificationEmailConfig(request?: Request): Promise<VerificationEmailConfig | null> {
+  const siteConfig = await getSiteVerificationEmailConfig(request)
+
+  if (siteConfig) {
+    return siteConfig
+  }
+
+  const apiKey = process.env.RESEND_API_KEY
+  const fromEmail = process.env.AUTH_FROM_EMAIL || process.env.RESEND_FROM_EMAIL
+
+  if (!apiKey || !fromEmail) {
+    return null
+  }
+
+  return {
+    apiKey,
+    fromEmail,
+    providerType: 'resend',
+  }
+}
+
+async function sendAuthVerificationEmail(email: string, url: string, request?: Request) {
+  const config = await getVerificationEmailConfig(request)
+
+  if (!config) {
+    throw new Error('Email verification requires a configured Resend sender')
+  }
+
+  const template = await getSystemEmailTemplate('email_verification')
+  const tokens = await buildSystemEmailTokens({
+    verificationUrl: url,
+  })
+  const provider = getEmailProvider(config.apiKey, config.providerType)
+  const result = await provider.send({
+    from: config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail,
+    to: email,
+    subject: renderSystemEmailSubject(template.subject, tokens),
+    html: renderSystemEmailContent(template, tokens),
+    ...(template.reply_to ? { replyTo: template.reply_to } : {}),
+  })
+
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to send verification email')
+  }
+}
 
 type SessionCacheVersionInput = {
   token?: string | null
@@ -75,6 +243,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 6,
+    requireEmailVerification: true,
     password: {
       hash: async (password) => {
         return await bcrypt.hash(password, 10)
@@ -82,6 +251,13 @@ export const auth = betterAuth({
       verify: async ({ hash, password }) => {
         return await bcrypt.compare(password, hash)
       },
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    async sendVerificationEmail({ user, url }, request) {
+      await sendAuthVerificationEmail(user.email, url, request)
     },
   },
   account: {

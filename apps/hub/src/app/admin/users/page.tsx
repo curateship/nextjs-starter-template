@@ -6,31 +6,46 @@ import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-
-import { listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
-import { Plus, List, Shield, Pencil, User, UserX } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { deleteUser, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
+import { Plus, List, Shield, Pencil, Trash2, User, UserX } from "lucide-react"
 import Link from "next/link"
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserListItem[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserListItem | null>(null)
 
-  useEffect(() => {
-    async function fetchUsers() {
-      setLoading(true)
-      const result = await listUsers(1, 50)
+  async function loadUsers() {
+    setLoading(true)
+    const result = await listUsers(1, 50)
 
-      if (result.error) {
-        setError(result.error)
-      } else if (result.success) {
-        setUsers(result.users)
-      }
-
-      setLoading(false)
+    if (result.error) {
+      setError(result.error)
+    } else if (result.success) {
+      setUsers(result.users)
+      setCurrentUserId(result.currentUserId)
+      setError(null)
     }
 
-    fetchUsers()
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadUsers()
   }, [])
 
   const getInitials = (email: string, displayName: string | null) => {
@@ -82,6 +97,25 @@ export default function UsersPage() {
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${diffDays >= 14 ? 's' : ''} ago`
     return `${Math.floor(diffDays / 30)} month${diffDays >= 60 ? 's' : ''} ago`
   }
+
+  const handleDeleteUser = async () => {
+    if (!pendingDeleteUser) {
+      return
+    }
+
+    setDeletingUserId(pendingDeleteUser.id)
+    const result = await deleteUser(pendingDeleteUser.id)
+
+    if (!result.success) {
+      setError(result.error || 'Failed to delete user')
+      setDeletingUserId(null)
+      return
+    }
+
+    setPendingDeleteUser(null)
+    setDeletingUserId(null)
+    await loadUsers()
+  }
   
   return (
     <>
@@ -128,7 +162,7 @@ export default function UsersPage() {
               </div>
             ) : (
               users.map((user) => (
-                <div key={user.id} className="p-6 flex items-center justify-between">
+                <div key={user.id} className="p-6 flex items-center justify-between gap-4">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
                       <span className="text-muted-foreground text-sm font-medium">
@@ -149,6 +183,49 @@ export default function UsersPage() {
                     <span className={`px-2 py-1 text-xs rounded-full ${getRoleBadgeColor(user.role)}`}>
                       {getRoleLabel(user.role)}
                     </span>
+                    {user.id === currentUserId ? (
+                      <span className="text-sm text-muted-foreground">Current account</span>
+                    ) : (
+                      <AlertDialog
+                        open={pendingDeleteUser?.id === user.id}
+                        onOpenChange={(open) => setPendingDeleteUser(open ? user : null)}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={deletingUserId === user.id}
+                            aria-label={`Delete ${user.display_name || user.email}`}
+                            title={`Delete ${user.display_name || user.email}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Delete {user.display_name || user.email}. This also removes their auth records and any
+                              sites or media they own through cascading deletes. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={deletingUserId === user.id}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={(event) => {
+                                event.preventDefault()
+                                void handleDeleteUser()
+                              }}
+                              disabled={deletingUserId === user.id}
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                            >
+                              {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </div>
                 </div>
               ))

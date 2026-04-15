@@ -11,6 +11,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { authClient } from "@/lib/auth/client"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 import {
   Avatar,
@@ -43,10 +45,32 @@ export function SidebarUserAdmin({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { currentSite, sites } = useSiteSwitcher()
+
+  const getLogoutRedirect = () => {
+    if (currentSite) {
+      return getSiteUrl(currentSite)
+    }
+
+    const savedSiteId = window.localStorage.getItem("selectedSiteId")
+    if (savedSiteId) {
+      const savedSite = sites.find((site) => site.id === savedSiteId)
+      if (savedSite) {
+        return getSiteUrl(savedSite)
+      }
+    }
+
+    if (sites[0]) {
+      return getSiteUrl(sites[0])
+    }
+
+    return "/"
+  }
 
   const handleLogout = async () => {
+    const redirectTo = getLogoutRedirect()
     await authClient.signOut()
-    window.location.replace("/admin-login")
+    window.location.replace(redirectTo)
   }
 
   const getInitials = (email: string) => {

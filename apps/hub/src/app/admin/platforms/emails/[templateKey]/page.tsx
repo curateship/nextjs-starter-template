@@ -29,6 +29,10 @@ const PREVIEW_WIDTHS = {
   mobile: 320,
 } as const
 
+function isGlobalTemplateKey(templateKey: string) {
+  return templateKey === "password_reset" || templateKey === "email_verification"
+}
+
 export default function SystemEmailBuilderPage({ params }: PageProps) {
   const { templateKey } = use(params)
   const router = useRouter()
@@ -43,9 +47,10 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [saveMessage, setSaveMessage] = useState('')
 
   const blockEditor = useBlockEditor()
+  const requiresSiteContext = !isGlobalTemplateKey(templateKey)
 
   useEffect(() => {
-    if (templateKey !== 'password_reset' && !currentSite?.id) {
+    if (requiresSiteContext && !currentSite?.id) {
       return
     }
 
@@ -74,7 +79,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     return () => {
       cancelled = true
     }
-  }, [templateKey, currentSite?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSite?.id, requiresSiteContext, templateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     if (!template) return

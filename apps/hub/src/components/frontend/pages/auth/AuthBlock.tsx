@@ -33,6 +33,15 @@ interface AuthBlockProps {
   resetDescription?: string
 }
 
+type AuthClientError = {
+  code?: string
+  message?: string
+  error?: {
+    code?: string
+    message?: string
+  }
+} | null
+
 export function AuthBlock({
   defaultTab = 'login',
   showLoginTab = true,
@@ -87,7 +96,10 @@ export function AuthBlock({
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("")
   const [registerLoading, setRegisterLoading] = useState(false)
   const [registerError, setRegisterError] = useState<string | null>(null)
-  const [registerSuccess, setRegisterSuccess] = useState(false)
+  const [verificationPendingEmail, setVerificationPendingEmail] = useState<string | null>(null)
+  const [verificationLoading, setVerificationLoading] = useState(false)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
 
   // Reset state
   const [resetEmail, setResetEmail] = useState("")
@@ -104,6 +116,53 @@ export function AuthBlock({
     return '/'
   }
 
+  const getVerificationRedirectPath = () => {
+    const rawRedirect = searchParams.get('redirect') || registerRedirectPath || pathname
+    return getSafeRedirectPath(rawRedirect)
+  }
+
+  const getAuthErrorCode = (error: AuthClientError) => {
+    if (typeof error?.error?.code === 'string') {
+      return error.error.code
+    }
+
+    if (typeof error?.code === 'string') {
+      return error.code
+    }
+
+    return null
+  }
+
+  const getAuthErrorMessage = (error: AuthClientError, fallback: string) => {
+    if (typeof error?.error?.message === 'string' && error.error.message.length > 0) {
+      return error.error.message
+    }
+
+    if (typeof error?.message === 'string' && error.message.length > 0) {
+      return error.message
+    }
+
+    return fallback
+  }
+
+  const showVerificationState = (email: string, message?: string) => {
+    const normalizedEmail = email.trim().toLowerCase()
+    setVerificationPendingEmail(normalizedEmail)
+    setVerificationError(null)
+    setVerificationMessage(
+      message || `If the details are valid, check ${normalizedEmail} for a verification link. You can resend it below if needed.`
+    )
+    setLoginError(null)
+    setRegisterError(null)
+    setActiveTab('login')
+  }
+
+  const clearVerificationState = () => {
+    setVerificationPendingEmail(null)
+    setVerificationError(null)
+    setVerificationMessage(null)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginLoading(true)
@@ -113,9 +172,19 @@ export function AuthBlock({
       const { error } = await authClient.signIn.email({
         email: loginEmail,
         password: loginPassword,
+        callbackURL: getVerificationRedirectPath(),
       })
 
       if (error) {
+        if (getAuthErrorCode(error as AuthClientError) === 'EMAIL_NOT_VERIFIED') {
+          const normalizedEmail = loginEmail.trim().toLowerCase()
+          showVerificationState(
+            normalizedEmail,
+            `Your email isn't verified yet. Check ${normalizedEmail} for the verification link or resend it below.`
+          )
+          return
+        }
+
         setLoginError("Invalid email or password")
       } else {
         const rawRedirect = searchParams.get('redirect') || loginRedirectPath
@@ -147,22 +216,56 @@ export function AuthBlock({
     }
 
     try {
-      const { error } = await authClient.signUp.email({
+      const signUpResult = await authClient.signUp.email({
         email: registerEmail,
         password: registerPassword,
         name: registerName,
+        callbackURL: getVerificationRedirectPath(),
       })
 
-      if (error) {
-        setRegisterError(error.message || "Failed to create account")
+      if (signUpResult.error) {
+        setRegisterError(getAuthErrorMessage(signUpResult.error as AuthClientError, "Failed to create account"))
+      } else if (emailVerificationEnabled || !signUpResult.data?.token) {
+        if (signUpResult.data?.token) {
+          await authClient.signOut()
+        }
+
+        showVerificationState(registerEmail)
       } else {
-        // Better Auth auto-signs in after registration
         window.location.href = getSafeRedirectPath(registerRedirectPath)
       }
     } catch (err) {
       setRegisterError("An unexpected error occurred")
     } finally {
       setRegisterLoading(false)
+    }
+  }
+
+  const handleResendVerificationEmail = async () => {
+    if (!verificationPendingEmail) {
+      return
+    }
+
+    setVerificationLoading(true)
+    setVerificationError(null)
+
+    try {
+      const resendResult = await authClient.sendVerificationEmail({
+        email: verificationPendingEmail,
+        callbackURL: getVerificationRedirectPath(),
+      })
+
+      if (resendResult.error) {
+        setVerificationError(
+          getAuthErrorMessage(resendResult.error as AuthClientError, "Failed to resend verification email")
+        )
+      } else {
+        setVerificationMessage(`We sent a new verification link to ${verificationPendingEmail}.`)
+      }
+    } catch {
+      setVerificationError("An unexpected error occurred")
+    } finally {
+      setVerificationLoading(false)
     }
   }
 
@@ -226,26 +329,36 @@ export function AuthBlock({
     }
   }
 
-  if (registerSuccess && view === 'auth') {
+  if (verificationPendingEmail && view === 'auth') {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-xl">Account created</CardTitle>
-            <CardDescription>
-              Your account has been created successfully. You can now log in.
-            </CardDescription>
+            <CardTitle className="text-xl">Check your email</CardTitle>
+            <CardDescription>{verificationMessage}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
+            {verificationError && (
+              <div className="text-sm text-red-500 text-center">
+                {verificationError}
+              </div>
+            )}
+            <Button
+              className="w-full"
+              onClick={handleResendVerificationEmail}
+              disabled={verificationLoading}
+            >
+              {verificationLoading ? "Sending..." : "Resend verification email"}
+            </Button>
             <Button
               variant="outline"
               className="w-full"
               onClick={() => {
-                setRegisterSuccess(false)
-                setActiveTab('login')
+                clearVerificationState()
+                setActiveTab(showLoginTab ? 'login' : 'register')
               }}
             >
-              Back to Login
+              {showLoginTab ? 'Back to Login' : 'Use a different email'}
             </Button>
           </CardContent>
         </Card>

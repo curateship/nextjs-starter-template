@@ -217,7 +217,6 @@ export async function POST(request: NextRequest) {
     try {
       const template = await getSystemEmailTemplate('lead_magnet_delivery', siteId)
       const tokens = await buildSystemEmailTokens({
-        templateKey: 'lead_magnet_delivery',
         siteId,
         productId,
         productName: product.title,

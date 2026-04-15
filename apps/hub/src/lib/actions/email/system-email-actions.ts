@@ -10,18 +10,15 @@ import {
   getSystemEmailList,
   getSystemEmailScopeKey,
   hasSystemEmailTemplateStorage,
+  isGlobalSystemEmailTemplate,
   isSystemEmailTemplateKey,
   type SystemEmailTemplateKey,
 } from '@/lib/email/system-email'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function isGlobalTemplate(templateKey: SystemEmailTemplateKey) {
-  return templateKey === 'password_reset'
-}
-
 async function verifyTemplateAccess(templateKey: SystemEmailTemplateKey, siteId?: string | null) {
-  if (isGlobalTemplate(templateKey)) {
+  if (isGlobalSystemEmailTemplate(templateKey)) {
     await requireAdmin()
     return null
   }

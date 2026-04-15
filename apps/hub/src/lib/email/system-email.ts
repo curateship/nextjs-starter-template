@@ -6,6 +6,7 @@ import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
 export type SystemEmailTemplateKey =
   | 'password_reset'
+  | 'email_verification'
   | 'lead_magnet_delivery'
   | 'paid_purchase_delivery'
 
@@ -49,9 +50,14 @@ const GLOBAL_SCOPE_KEY = 'global'
 
 export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'password_reset',
+  'email_verification',
   'lead_magnet_delivery',
   'paid_purchase_delivery',
 ]
+
+export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
+  return templateKey === 'password_reset' || templateKey === 'email_verification'
+}
 
 function buildDefaultBlocks(htmlContent: string) {
   return {
@@ -82,6 +88,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     }
   }
 
+  if (templateKey === 'email_verification') {
+    return {
+      name: 'Email Confirmation',
+      description: 'Sent after signup to confirm a user email address.',
+      scopeLabel: 'App-wide',
+      subject: 'Verify your email',
+      bodyHtml: '<p>Verify your email to finish creating your account.</p><p><a href="{{verification_url}}">Verify your email</a></p><p>If you did not create this account, you can ignore this email.</p>',
+      tokens: ['{{app_name}}', '{{verification_url}}'],
+    }
+  }
+
   if (templateKey === 'lead_magnet_delivery') {
     return {
       name: 'Lead Magnet Delivery',
@@ -108,7 +125,7 @@ export function isSystemEmailTemplateKey(value: string): value is SystemEmailTem
 }
 
 export function getSystemEmailScopeKey(templateKey: SystemEmailTemplateKey, siteId?: string | null) {
-  return templateKey === 'password_reset' ? GLOBAL_SCOPE_KEY : (siteId || '')
+  return isGlobalSystemEmailTemplate(templateKey) ? GLOBAL_SCOPE_KEY : (siteId || '')
 }
 
 function rowToSystemEmailTemplate(row: typeof emailSystemTemplates.$inferSelect): SystemEmailTemplateRecord {
@@ -132,7 +149,7 @@ function buildDefaultTemplateRecord(templateKey: SystemEmailTemplateKey, siteId?
     id: null,
     template_key: templateKey,
     scope_key: getSystemEmailScopeKey(templateKey, siteId),
-    site_id: templateKey === 'password_reset' ? null : (siteId ?? null),
+    site_id: isGlobalSystemEmailTemplate(templateKey) ? null : (siteId ?? null),
     subject: definition.subject,
     content_blocks: buildDefaultBlocks(definition.bodyHtml),
     from_name: null,
@@ -177,20 +194,21 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, leadMagnet, paidPurchase] = await Promise.all([
+  const [passwordReset, emailVerification, leadMagnet, paidPurchase] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
+    getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
   ])
 
-  return [passwordReset, leadMagnet, paidPurchase].map((template) => {
+  return [passwordReset, emailVerification, leadMagnet, paidPurchase].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
       name: definition.name,
       description: definition.description,
       scope_label: definition.scopeLabel,
-      editable: template.template_key === 'password_reset' ? canEditAuth : true,
+      editable: isGlobalSystemEmailTemplate(template.template_key) ? canEditAuth : true,
     } satisfies SystemEmailListItem
   })
 }
@@ -262,9 +280,9 @@ export function renderSystemEmailSubject(subject: string, tokens: Record<string,
 }
 
 export async function buildSystemEmailTokens(params: {
-  templateKey: SystemEmailTemplateKey
   siteId?: string | null
   resetUrl?: string | null
+  verificationUrl?: string | null
   productId?: string | null
   productName?: string | null
   productSlug?: string | null
@@ -274,6 +292,7 @@ export async function buildSystemEmailTokens(params: {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
     reset_url: params.resetUrl || '',
+    verification_url: params.verificationUrl || '',
     site_name: '',
     site_url: '',
     product_name: params.productName || '',

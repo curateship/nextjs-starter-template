@@ -14,7 +14,6 @@ import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-
 import type { SystemEmailListItem } from "@/lib/email/system-email"
 
 interface DashboardData {
-  storageReady: boolean
   templates: SystemEmailListItem[]
 }
 

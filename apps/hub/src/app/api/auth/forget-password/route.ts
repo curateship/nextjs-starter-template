@@ -56,7 +56,6 @@ async function sendResetEmail(email: string, resetUrl: string) {
 
   const template = await getSystemEmailTemplate('password_reset')
   const tokens = await buildSystemEmailTokens({
-    templateKey: 'password_reset',
     resetUrl,
   })
   const subject = renderSystemEmailSubject(template.subject, tokens)

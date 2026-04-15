@@ -185,7 +185,6 @@ async function sendPaidProductEmail(params: {
 
   const template = await getSystemEmailTemplate('paid_purchase_delivery', params.siteId)
   const tokens = await buildSystemEmailTokens({
-    templateKey: 'paid_purchase_delivery',
     siteId: params.siteId,
     productId: params.productId,
     productName: product.title,

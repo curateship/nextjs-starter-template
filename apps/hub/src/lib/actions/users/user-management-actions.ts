@@ -27,11 +27,11 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
     const currentUser = await getAuthenticatedUser()
 
     if (!currentUser) {
-      return { error: 'Unauthorized - not authenticated', users: [], total: 0 }
+      return { error: 'Unauthorized - not authenticated', users: [], total: 0, currentUserId: null }
     }
 
     if (currentUser.role !== 'super_admin') {
-      return { error: 'Unauthorized - super_admin role required', users: [], total: 0 }
+      return { error: 'Unauthorized - super_admin role required', users: [], total: 0, currentUserId: null }
     }
 
     const offset = (page - 1) * pageSize
@@ -80,10 +80,11 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
       total,
       page,
       pageSize,
+      currentUserId: currentUser.id,
     }
   } catch (error: any) {
     console.error('Exception listing users:', error)
-    return { error: 'Failed to list users', users: [], total: 0 }
+    return { error: 'Failed to list users', users: [], total: 0, currentUserId: null }
   }
 }
 
@@ -150,5 +151,72 @@ export async function getUserById(userId: string) {
   } catch (error: any) {
     console.error('Exception getting user:', error)
     return { error: 'Failed to get user' }
+  }
+}
+
+/**
+ * Delete a single user
+ * REQUIRES: super_admin role
+ * Also removes auth accounts, sessions, and user-linked verification rows.
+ */
+export async function deleteUser(userId: string) {
+  try {
+    const currentUser = await getAuthenticatedUser()
+
+    if (!currentUser) {
+      return { success: false, error: 'Unauthorized - not authenticated' }
+    }
+
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized - super_admin role required' }
+    }
+
+    const normalizedUserId = userId.trim()
+
+    if (!normalizedUserId) {
+      return { success: false, error: 'User ID is required' }
+    }
+
+    if (normalizedUserId === currentUser.id) {
+      return { success: false, error: 'You cannot delete your own account' }
+    }
+
+    const targetUser = await db
+      .select({
+        id: authUsers.id,
+        role: authUsers.role,
+      })
+      .from(authUsers)
+      .where(eq(authUsers.id, normalizedUserId))
+      .then((rows) => rows[0])
+
+    if (!targetUser) {
+      return { success: false, error: 'User not found' }
+    }
+
+    if (targetUser.role === 'super_admin') {
+      const adminCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(authUsers)
+        .where(eq(authUsers.role, 'super_admin'))
+
+      const adminCount = Number(adminCountResult[0]?.count ?? 0)
+
+      if (adminCount <= 1) {
+        return { success: false, error: 'Cannot delete the last super admin' }
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`delete from user_sessions where "userId" = ${normalizedUserId}`)
+      await tx.execute(sql`delete from user_auth_paths where "userId" = ${normalizedUserId}`)
+      await tx.execute(sql`delete from user_verifications where value = ${normalizedUserId}`)
+      await tx.delete(authUsers).where(eq(authUsers.id, normalizedUserId))
+    })
+
+    return { success: true, error: null }
+  } catch (error: any) {
+    console.error('Exception deleting user:', error)
+    return { success: false, error: error.message || 'Failed to delete user' }
   }
 }

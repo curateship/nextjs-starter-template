@@ -283,7 +283,7 @@ export function PageAuthBlock({
                       onChange={(e) => onRegisterRedirectPathChange(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Where to redirect after registration (if email verification is disabled)
+                      Where to redirect after registration or after email verification completes
                     </p>
                   </div>
 
