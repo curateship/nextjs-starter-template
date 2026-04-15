@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 
 interface SiteSwitcherState {
@@ -14,6 +14,31 @@ interface SiteSwitcherState {
 }
 
 const SiteSwitcherContext = createContext<SiteSwitcherState | undefined>(undefined)
+const SITE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function resolveCurrentSite(availableSites: SiteWithTheme[]) {
+  if (!availableSites.length) {
+    return null
+  }
+
+  const savedId = localStorage.getItem('selectedSiteId')
+  if (savedId && SITE_ID_PATTERN.test(savedId)) {
+    const savedSite = availableSites.find((site) => site.id === savedId)
+    if (savedSite) {
+      return savedSite
+    }
+  }
+
+  return availableSites[0]
+}
+
+function persistResolvedSite(site: SiteWithTheme | null) {
+  if (site) {
+    localStorage.setItem('selectedSiteId', site.id)
+  } else {
+    localStorage.removeItem('selectedSiteId')
+  }
+}
 
 interface SiteSwitcherProviderProps {
   children: ReactNode
@@ -26,29 +51,25 @@ export function SiteSwitcherProvider({
   initialSites,
   pageSize: initialPageSize,
 }: SiteSwitcherProviderProps) {
-  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(
-    initialSites && initialSites.length > 0 ? initialSites[0] : null
-  )
+  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(null)
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
-  const [loading, setLoading] = useState(!initialSites)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pageSize] = useState(initialPageSize ?? 50)
 
+  const syncResolvedSite = useCallback((availableSites: SiteWithTheme[]) => {
+    const nextSite = resolveCurrentSite(availableSites)
+    setCurrentSite(nextSite)
+    persistResolvedSite(nextSite)
+  }, [])
+
   useEffect(() => {
-    if (initialSites && initialSites.length > 0) {
-      const savedId = localStorage.getItem('selectedSiteId')
-      if (savedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedId)) {
-        const found = initialSites.find(site => site.id === savedId)
-        if (found) {
-          setCurrentSite(found)
-          return
-        }
-      }
-      localStorage.setItem('selectedSiteId', initialSites[0].id)
-    } else if (initialSites && initialSites.length === 0) {
-      localStorage.removeItem('selectedSiteId')
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (initialSites === undefined) return
+
+    setSites(initialSites)
+    syncResolvedSite(initialSites)
+    setLoading(false)
+  }, [initialSites, syncResolvedSite])
 
   const refreshSites = async () => {
     try {
@@ -64,24 +85,10 @@ export function SiteSwitcherProvider({
 
       if (data && data.length > 0) {
         setSites(data)
-
-        const savedSiteId = localStorage.getItem('selectedSiteId')
-        if (savedSiteId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedSiteId)) {
-          const savedSite = data.find(site => site.id === savedSiteId)
-          if (savedSite) {
-            setCurrentSite(savedSite)
-          } else {
-            setCurrentSite(data[0])
-            localStorage.setItem('selectedSiteId', data[0].id)
-          }
-        } else {
-          setCurrentSite(data[0])
-          localStorage.setItem('selectedSiteId', data[0].id)
-        }
+        syncResolvedSite(data)
       } else {
         setSites([])
-        setCurrentSite(null)
-        localStorage.removeItem('selectedSiteId')
+        syncResolvedSite([])
       }
     } catch {
       setError('Failed to load sites')
@@ -98,11 +105,7 @@ export function SiteSwitcherProvider({
 
   const handleSetCurrentSite = (site: SiteWithTheme | null) => {
     setCurrentSite(site)
-    if (site) {
-      localStorage.setItem('selectedSiteId', site.id)
-    } else {
-      localStorage.removeItem('selectedSiteId')
-    }
+    persistResolvedSite(site)
   }
 
   return (

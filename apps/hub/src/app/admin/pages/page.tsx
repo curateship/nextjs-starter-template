@@ -6,9 +6,13 @@ import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-prov
 
 export default function PageBuilderPage() {
   const router = useRouter()
-  const { currentSite, sites } = useSiteSwitcher()
+  const { currentSite, sites, loading } = useSiteSwitcher()
 
   useEffect(() => {
+    if (loading) {
+      return
+    }
+
     // Immediately redirect to first available site or sites page
     if (currentSite) {
       router.replace(`/admin/pages/${currentSite.id}`)
@@ -17,7 +21,7 @@ export default function PageBuilderPage() {
     } else {
       router.replace('/admin/sites')
     }
-  }, [currentSite, sites, router])
+  }, [currentSite, loading, sites, router])
 
   // Return nothing - just redirect
   return null

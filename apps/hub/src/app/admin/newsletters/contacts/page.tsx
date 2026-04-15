@@ -136,7 +136,7 @@ function buildNormalizedFilterGroup(
 }
 
 export default function ContactsPage() {
-  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
   const [contacts, setContacts] = useState<CrmContact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -182,6 +182,7 @@ export default function ContactsPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const contactLoadRequestIdRef = useRef(0)
 
   // Filter state
   const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
@@ -195,6 +196,17 @@ export default function ContactsPage() {
       getSegmentsBySite(currentSite.id).then(({ data }) => setSegments(data || []))
     }
   }, [currentSite?.id])
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
+
+    if (siteLoading || !currentSite?.id) {
+      setContacts([])
+      setTotal(0)
+      setLoading(true)
+    }
+  }, [currentSite?.id, siteLoading])
 
   useEffect(() => {
     if (!filterModalOpen || !currentSite?.id) {
@@ -228,9 +240,13 @@ export default function ContactsPage() {
   }, [currentSite?.id, filterModalOpen, pageSize, pendingFilters, pendingDataFieldInputs, deferredSearchQuery])
 
   const loadContacts = useCallback(async () => {
-    if (!currentSite?.id) {
+    const requestId = ++contactLoadRequestIdRef.current
+
+    if (siteLoading || !currentSite?.id) {
       setLoading(true)
+      setError(null)
       setContacts([])
+      setTotal(0)
       return
     }
 
@@ -245,6 +261,10 @@ export default function ContactsPage() {
         pageSize,
       })
 
+      if (requestId !== contactLoadRequestIdRef.current) {
+        return
+      }
+
       if (result.error) {
         setError(result.error)
         setLoading(false)
@@ -256,10 +276,13 @@ export default function ContactsPage() {
 
       setLoading(false)
     } catch (err) {
+      if (requestId !== contactLoadRequestIdRef.current) {
+        return
+      }
       setError(err instanceof Error ? err.message : "Failed to load contacts")
       setLoading(false)
     }
-  }, [currentSite?.id, currentPage, deferredSearchQuery, filters, pageSize])
+  }, [currentSite?.id, currentPage, deferredSearchQuery, filters, pageSize, siteLoading])
 
   useEffect(() => {
     loadContacts()
