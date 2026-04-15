@@ -155,9 +155,9 @@ export function ProductContentBlock({
             value: "content",
             label: "Content",
             content: (
-              <>
+              <div className="space-y-6">
                 {/* Product Title */}
-                <div className="space-y-2 px-6 mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="product-title">Product Title</Label>
                   <Input
                     id="product-title"
@@ -169,7 +169,7 @@ export function ProductContentBlock({
                 </div>
 
                 {/* Rich Text Editor */}
-                <div className="space-y-2 px-6">
+                <div className="space-y-2">
                   <Label>Description</Label>
                   <div className="border rounded-md overflow-hidden">
                     <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
@@ -296,7 +296,7 @@ export function ProductContentBlock({
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             ),
           },
           {
@@ -321,8 +321,8 @@ export function ProductContentBlock({
             content: (
               <>
                 {/* Block Style Selector */}
-                <div className="space-y-2 mb-4 mx-4">
-                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm font-medium">Block Style</Label>
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(PRODUCT_CONTENT_STYLES).map(([key, style]) => (
                       <button
@@ -381,43 +381,45 @@ export function ProductContentBlock({
                 </BlockEditorSection>
 
                 <BlockEditorSection heading="Download Button">
-                  <div className="space-y-2">
-                    <Label className="text-sm">Button Text</Label>
-                    <Input
-                      value={content.downloadButtonText || ''}
-                      onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
-                      placeholder="e.g., Download Product"
-                      className="text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">Button Style</Label>
-                    <Select
-                      value={content.downloadButtonStyle || 'black'}
-                      onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
-                    >
-                      <SelectTrigger size="button" className="text-sm">
-                        <SelectValue placeholder="Select style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="black">Black (Solid)</SelectItem>
-                        <SelectItem value="default">Default (Theme)</SelectItem>
-                        <SelectItem value="secondary">Secondary (Gray)</SelectItem>
-                        <SelectItem value="outline">Outline</SelectItem>
-                        <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
-                        <SelectItem value="destructive">Destructive (Red)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">Download URL</Label>
-                    <Input
-                      value={content.downloadButtonUrl || ''}
-                      onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
-                      placeholder="https://example.com/download"
-                      type="url"
-                      className="text-sm"
-                    />
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Button Text</Label>
+                      <Input
+                        value={content.downloadButtonText || ''}
+                        onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
+                        placeholder="e.g., Download Product"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Download URL</Label>
+                      <Input
+                        value={content.downloadButtonUrl || ''}
+                        onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
+                        placeholder="https://example.com/download"
+                        type="url"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Button Style</Label>
+                      <Select
+                        value={content.downloadButtonStyle || 'black'}
+                        onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
+                      >
+                        <SelectTrigger size="button" className="text-sm">
+                          <SelectValue placeholder="Select style" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="black">Black (Solid)</SelectItem>
+                          <SelectItem value="default">Default (Theme)</SelectItem>
+                          <SelectItem value="secondary">Secondary (Gray)</SelectItem>
+                          <SelectItem value="outline">Outline</SelectItem>
+                          <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
+                          <SelectItem value="destructive">Destructive (Red)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </BlockEditorSection>
               </>

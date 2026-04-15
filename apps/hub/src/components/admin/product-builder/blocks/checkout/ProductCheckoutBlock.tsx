@@ -741,40 +741,6 @@ export function ProductCheckoutBlock({
           ),
         },
         {
-          value: "success",
-          label: "Success Page",
-          content: (
-            <BlockEditorSection heading="Success Page Settings">
-                <div>
-                  <Label htmlFor="success-url">Success URL</Label>
-                  <Input
-                    id="success-url"
-                    value={currentCheckoutSettings.successUrl}
-                    onChange={(e) =>
-                      onCheckoutSettingsChange?.({
-                        ...currentCheckoutSettings,
-                        successUrl: e.target.value,
-                      })
-                    }
-                    placeholder="/products/[slug]/success"
-                    className="mt-1.5"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Use [slug] as placeholder for product slug
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground mb-2">About Success Pages</p>
-                  <p>
-                    The success page is where customers are redirected after a successful payment.
-                    You can customize the download content for each pricing tier in the Checkout tab
-                    by enabling "Enable Download Page" on individual tiers.
-                  </p>
-                </div>
-            </BlockEditorSection>
-          ),
-        },
-        {
           value: "settings",
           label: "Settings",
           content: (
@@ -789,6 +755,35 @@ export function ProductCheckoutBlock({
                   ]}
                 />
               )}
+
+              <BlockEditorSection heading="Success Page Settings">
+                  <div>
+                    <Label htmlFor="success-url">Success URL</Label>
+                    <Input
+                      id="success-url"
+                      value={currentCheckoutSettings.successUrl}
+                      onChange={(e) =>
+                        onCheckoutSettingsChange?.({
+                          ...currentCheckoutSettings,
+                          successUrl: e.target.value,
+                        })
+                      }
+                      placeholder="/products/[slug]/success"
+                      className="mt-1.5"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Use [slug] as placeholder for product slug
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground mb-2">About Success Pages</p>
+                    <p>
+                      The success page is where customers are redirected after a successful payment.
+                      You can customize the download content for each pricing tier in the Checkout tab
+                      by enabling "Enable Download Page" on individual tiers.
+                    </p>
+                  </div>
+              </BlockEditorSection>
             </>
           ),
         },

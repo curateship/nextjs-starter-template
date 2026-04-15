@@ -183,13 +183,6 @@ export function ProductVideoBlock({
             ),
           },
           {
-            value: "style",
-            label: "Style",
-            content: (
-              <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
-            ),
-          },
-          {
             value: "settings",
             label: "Settings",
             content: (
