@@ -1,0 +1,1212 @@
+"use client"
+
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
+import { format } from "date-fns"
+import { ArrowDown, ArrowUp, CalendarIcon, ChevronsUpDown, Plus, Search, Settings, SlidersHorizontal, Trash2, Users, X } from "lucide-react"
+
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { buttonVariants, Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Calendar as CalendarPicker } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils/tailwind"
+import {
+  createSiteUser,
+  deleteSiteUsers,
+  getSiteUserIdsAction,
+  getSiteUsers,
+  updateSiteUser,
+  type SiteUserListItem,
+} from "@/lib/actions/site-users/site-user-actions"
+import {
+  cloneSiteUserFilterGroup,
+  createSiteUserFilterRule,
+  emptySiteUserFilterGroup,
+  formatSiteUserFilterRule,
+  getSiteUserFilterTypeLabel,
+  pruneSiteUserFilterGroup,
+  SITE_USER_FILTER_TYPE_OPTIONS,
+  SITE_USER_RELATIVE_DAY_OPTIONS,
+  SITE_USER_ROLE_OPTIONS,
+  SITE_USER_STATUS_OPTIONS,
+  type SiteUserDateOperator,
+  type SiteUserFilterGroup,
+  type SiteUserFilterRule,
+  type SiteUserFilterType,
+} from "@/lib/actions/site-users/site-user-filters"
+
+function makeFilterRuleId() {
+  return `site-user-filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function toCalendarDate(value: string | null) {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
+function fromCalendarDate(value: Date | undefined) {
+  return value
+    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
+    : null
+}
+
+function formatDatePickerLabel(value: string | null, placeholder: string) {
+  const date = toCalendarDate(value)
+  return date ? format(date, "MMM d, yyyy") : placeholder
+}
+
+function isDateRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: 'lastEngaged' | 'dateAdded' }> {
+  return rule.type === "lastEngaged" || rule.type === "dateAdded"
+}
+
+function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: 'status' | 'role' }> {
+  return rule.type === "status" || rule.type === "role"
+}
+
+function formatDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+function formatRelativeTime(dateString: string | null) {
+  if (!dateString) return "—"
+  const diff = Date.now() - new Date(dateString).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return "Just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  return `${months}mo ago`
+}
+
+function getRoleBadge(role: string) {
+  switch (role) {
+    case "owner":
+      return <Badge className="bg-blue-100 text-blue-800">Owner</Badge>
+    case "admin":
+      return <Badge className="bg-amber-100 text-amber-800">Admin</Badge>
+    default:
+      return <Badge variant="secondary">Member</Badge>
+  }
+}
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "active":
+      return <Badge className="bg-green-100 text-green-800">Active</Badge>
+    case "suspended":
+      return <Badge variant="destructive">Suspended</Badge>
+    default:
+      return <Badge variant="secondary">{status}</Badge>
+  }
+}
+
+type SortColumn = "user" | "role" | "status" | "added" | "engaged" | null
+
+function compareNullableStrings(a: string | null | undefined, b: string | null | undefined) {
+  return (a || "\uffff").localeCompare(b || "\uffff")
+}
+
+export default function SiteUsersPage() {
+  const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
+  const pageSize = contextPageSize
+  const [users, setUsers] = useState<SiteUserListItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [allSelected, setAllSelected] = useState(false)
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null)
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [searchQuery, setSearchQuery] = useState("")
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const requestIdRef = useRef(0)
+
+  const [filters, setFilters] = useState<SiteUserFilterGroup>(emptySiteUserFilterGroup)
+  const [pendingFilters, setPendingFilters] = useState<SiteUserFilterGroup>(emptySiteUserFilterGroup)
+  const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    email: "",
+    displayName: "",
+    password: "",
+    role: "member" as "admin" | "member",
+    status: "active" as "active" | "suspended",
+  })
+  const [creating, setCreating] = useState(false)
+  const [editUser, setEditUser] = useState<SiteUserListItem | null>(null)
+  const [editForm, setEditForm] = useState({
+    displayName: "",
+    role: "member" as "admin" | "member",
+    status: "active" as "active" | "suspended",
+  })
+  const [saving, setSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const loadUsers = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+
+    if (siteLoading || !currentSite?.id) {
+      setLoading(siteLoading)
+      setError(null)
+      setUsers([])
+      setTotal(0)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const result = await getSiteUsers(currentSite.id, {
+        filterGroup: filters.rules.length ? filters : undefined,
+        searchQuery: deferredSearchQuery,
+        page: currentPage,
+        pageSize,
+      })
+
+      if (requestId !== requestIdRef.current) return
+
+      if (result.error) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+
+      setUsers(result.data ?? [])
+      setTotal(result.total)
+      setLoading(false)
+    } catch (err) {
+      if (requestId !== requestIdRef.current) return
+      setError(err instanceof Error ? err.message : "Failed to load site users")
+      setLoading(false)
+    }
+  }, [currentSite?.id, currentPage, deferredSearchQuery, filters, pageSize, siteLoading])
+
+  useEffect(() => {
+    loadUsers()
+  }, [loadUsers])
+
+  useEffect(() => {
+    if (!filterModalOpen || !currentSite?.id) {
+      setPendingFilteredTotal(0)
+      return
+    }
+
+    const previewFilters = pruneSiteUserFilterGroup(cloneSiteUserFilterGroup(pendingFilters))
+    if (!previewFilters.rules.length) {
+      setPendingFilteredTotal(0)
+      return
+    }
+
+    let cancelled = false
+    const timeoutId = window.setTimeout(async () => {
+      const result = await getSiteUsers(currentSite.id, {
+        filterGroup: previewFilters,
+        searchQuery: deferredSearchQuery,
+        page: 1,
+        pageSize,
+      })
+
+      if (cancelled) return
+      setPendingFilteredTotal(result.error ? 0 : result.total)
+    }, 200)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [currentSite?.id, deferredSearchQuery, filterModalOpen, pageSize, pendingFilters])
+
+  const activeFilterCount = filters.rules.length
+  const hasSearchQuery = deferredSearchQuery.trim().length > 0
+  const deletableUsersOnPage = users.filter((user) => user.role !== "owner")
+
+  const resetSelectionForCurrentView = useCallback(() => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
+    setCurrentPage(1)
+  }, [])
+
+  function resetPagedView() {
+    setCurrentPage(1)
+  }
+
+  function openFilterModal() {
+    const clonedFilters = cloneSiteUserFilterGroup(filters)
+    setPendingFilters(clonedFilters)
+    setPendingFilteredTotal(clonedFilters.rules.length ? total : 0)
+    setFilterModalOpen(true)
+  }
+
+  function addPendingFilter(type: SiteUserFilterType) {
+    const rule = createSiteUserFilterRule(makeFilterRuleId(), type)
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: [...prev.rules, rule],
+    }))
+  }
+
+  function updatePendingRule(ruleId: string, updater: (rule: SiteUserFilterRule) => SiteUserFilterRule) {
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.map((rule) => (rule.id === ruleId ? updater(rule) : rule)),
+    }))
+  }
+
+  function removePendingRule(ruleId: string) {
+    setPendingFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+    }))
+  }
+
+  function removeAppliedRule(ruleId: string) {
+    setFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+    }))
+    resetSelectionForCurrentView()
+  }
+
+  function togglePendingValue(ruleId: string, value: string) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isValueRule(rule)) return rule
+      return {
+        ...rule,
+        value: rule.value.includes(value)
+          ? rule.value.filter((item) => item !== value)
+          : [...rule.value, value],
+      }
+    })
+  }
+
+  function updatePendingDateOperator(ruleId: string, operator: SiteUserDateOperator) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      return { ...rule, operator }
+    })
+  }
+
+  function updatePendingDateValue(ruleId: string, nextValue: string) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      if (nextValue === "custom") {
+        return {
+          ...rule,
+          value: { mode: "range", from: null, to: null },
+        }
+      }
+
+      const days = Number(nextValue) as 7 | 30 | 60 | 90
+      return {
+        ...rule,
+        value: { mode: "relative", days },
+      }
+    })
+  }
+
+  function updatePendingDateRange(ruleId: string, boundary: "from" | "to", selectedDate: Date | undefined) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isDateRule(rule)) return rule
+      const currentRange = rule.value.mode === "range" ? rule.value : { mode: "range" as const, from: null, to: null }
+      return {
+        ...rule,
+        value: {
+          ...currentRange,
+          [boundary]: fromCalendarDate(selectedDate),
+        },
+      }
+    })
+  }
+
+  function clearAllFilters() {
+    setFilters(emptySiteUserFilterGroup())
+    resetSelectionForCurrentView()
+  }
+
+  function applyFilters() {
+    const nextFilters = pruneSiteUserFilterGroup(cloneSiteUserFilterGroup(pendingFilters))
+    setFilters(nextFilters)
+    setFilterModalOpen(false)
+    resetSelectionForCurrentView()
+  }
+
+  const toggleSort = (column: Exclude<SortColumn, null>) => {
+    if (sortColumn === column) {
+      if (sortDirection === "desc") {
+        setSortColumn(null)
+        setSortDirection("asc")
+      } else {
+        setSortDirection("desc")
+      }
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
+
+  const getSortIcon = (column: Exclude<SortColumn, null>) => {
+    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
+    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
+    return <ArrowDown className="h-3 w-3" />
+  }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    if (!sortColumn) return 0
+
+    const dir = sortDirection === "asc" ? 1 : -1
+
+    if (sortColumn === "user") {
+      const aLabel = a.display_name || a.email
+      const bLabel = b.display_name || b.email
+      return aLabel.localeCompare(bLabel) * dir
+    }
+
+    if (sortColumn === "role") return a.role.localeCompare(b.role) * dir
+    if (sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (sortColumn === "engaged") {
+      const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
+      const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
+      if (aTime === bTime) {
+        return compareNullableStrings(a.display_name || a.email, b.display_name || b.email) * dir
+      }
+      return (aTime - bTime) * dir
+    }
+
+    return 0
+  })
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+        setAllSelected(false)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === deletableUsersOnPage.length) {
+      setSelectedIds(new Set())
+      setAllSelected(false)
+      return
+    }
+
+    setSelectedIds(new Set(deletableUsersOnPage.map((user) => user.id)))
+  }
+
+  const handleSelectAll = async () => {
+    if (!currentSite?.id || total === 0) return
+
+    const result = await getSiteUserIdsAction(currentSite.id, {
+      filterGroup: filters.rules.length ? filters : undefined,
+      searchQuery: deferredSearchQuery,
+    })
+
+    if (result.error) {
+      setErrorMessage(result.error)
+      return
+    }
+
+    setSelectedIds(new Set(result.ids))
+    setAllSelected(true)
+  }
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set())
+    setAllSelected(false)
+  }
+
+  const handleDelete = (membershipId: string) => {
+    setPendingDeleteId(membershipId)
+    setConfirmDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!currentSite?.id || !pendingDeleteId) return
+
+    setConfirmDeleteOpen(false)
+    setMassDeleting(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await deleteSiteUsers({
+        siteId: currentSite.id,
+        membershipIds: [pendingDeleteId],
+      })
+
+      if (result.error) {
+        setErrorMessage(result.error)
+        return
+      }
+
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(pendingDeleteId)
+        return next
+      })
+      await loadUsers()
+    } finally {
+      setPendingDeleteId(null)
+      setMassDeleting(false)
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    if (!currentSite?.id || !selectedIds.size) return
+
+    setMassDeleteConfirmOpen(false)
+    setMassDeleting(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await deleteSiteUsers({
+        siteId: currentSite.id,
+        membershipIds: Array.from(selectedIds),
+      })
+
+      if (result.error) {
+        setErrorMessage(result.error)
+        return
+      }
+
+      setSelectedIds(new Set())
+      setAllSelected(false)
+      await loadUsers()
+    } finally {
+      setMassDeleting(false)
+    }
+  }
+
+  function openEditModal(user: SiteUserListItem) {
+    setEditUser(user)
+    setEditForm({
+      displayName: user.display_name || "",
+      role: user.role === "admin" ? "admin" : "member",
+      status: user.status,
+    })
+    setErrorMessage(null)
+  }
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault()
+    if (!currentSite?.id) return
+
+    setCreating(true)
+    setErrorMessage(null)
+    const result = await createSiteUser({
+      siteId: currentSite.id,
+      email: createForm.email,
+      displayName: createForm.displayName,
+      password: createForm.password,
+      role: createForm.role,
+      status: createForm.status,
+    })
+
+    if (result.error) {
+      setErrorMessage(result.error)
+      setCreating(false)
+      return
+    }
+
+    setCreateModalOpen(false)
+    setCreateForm({
+      email: "",
+      displayName: "",
+      password: "",
+      role: "member",
+      status: "active",
+    })
+    setCreating(false)
+    await loadUsers()
+  }
+
+  async function handleUpdateUser(e: React.FormEvent) {
+    e.preventDefault()
+    if (!currentSite?.id || !editUser) return
+
+    setSaving(true)
+    setErrorMessage(null)
+    const result = await updateSiteUser({
+      membershipId: editUser.id,
+      siteId: currentSite.id,
+      displayName: editForm.displayName,
+      role: editForm.role,
+      status: editForm.status,
+    })
+
+    if (result.error) {
+      setErrorMessage(result.error)
+      setSaving(false)
+      return
+    }
+
+    setEditUser(null)
+    setSaving(false)
+    await loadUsers()
+  }
+
+  return (
+    <>
+      <StickyHeader />
+      <AdminLayout>
+        <div className="w-full">
+          <DashboardSubheader
+            items={[{ label: "Site Users" }]}
+            actions={
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    disabled={massDeleting}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {massDeleting ? "Deleting..." : `Delete (${selectedIds.size})`}
+                    </span>
+                  </Button>
+                )}
+                <div className="relative w-[220px] max-w-[45vw] sm:w-[280px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value)
+                      resetSelectionForCurrentView()
+                    }}
+                    placeholder="Search users..."
+                    className="h-9 pl-9 pr-9"
+                  />
+                  {searchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("")
+                        resetSelectionForCurrentView()
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button variant="outline" className="relative" onClick={openFilterModal}>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+                <Button onClick={() => { setErrorMessage(null); setCreateModalOpen(true) }}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add User</span>
+                </Button>
+              </div>
+            }
+          />
+
+          <Card className="shadow-sm">
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-b px-6 py-4">
+                <Badge variant="outline" className="font-medium">
+                  Matching {filters.match === "all" ? "all" : "any"}
+                </Badge>
+                {filters.rules.map((rule) => (
+                  <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
+                    {formatSiteUserFilterRule(rule)}
+                    <button type="button" onClick={() => removeAppliedRule(rule.id)} className="ml-1 rounded-full p-0.5 hover:bg-muted">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <button type="button" onClick={clearAllFilters} className="text-sm text-muted-foreground underline hover:text-foreground">
+                  Clear all ({total})
+                </button>
+              </div>
+            )}
+
+            <div className="border-b bg-muted/30 px-6 py-4">
+              <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 text-sm font-medium text-muted-foreground">
+                <div className="flex items-center space-x-4">
+                  <Checkbox
+                    checked={deletableUsersOnPage.length > 0 && selectedIds.size === deletableUsersOnPage.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all site users"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("user")}
+                    className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <span>User</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("user")}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("role")}
+                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span>Role</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("role")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("status")}
+                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span>Status</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("added")}
+                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span>Date Added</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("engaged")}
+                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span>Last Engaged</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("engaged")}</span>
+                </button>
+                <div>Actions</div>
+              </div>
+            </div>
+
+            {deletableUsersOnPage.length > 0 && selectedIds.size > 0 && selectedIds.size === deletableUsersOnPage.length && total > users.length && (
+              <div className="border-b bg-accent/50 px-6 py-2 text-center text-sm">
+                {allSelected ? (
+                  <span>
+                    All deletable users matching this view are selected.{" "}
+                    <button type="button" onClick={handleClearSelection} className="text-muted-foreground underline hover:text-foreground">
+                      Clear selection
+                    </button>
+                  </span>
+                ) : (
+                  <span>
+                    {selectedIds.size} users on this page are selected.{" "}
+                    <button type="button" onClick={handleSelectAll} className="font-medium underline">
+                      Select all matching users
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="divide-y divide-muted/80">
+              {siteLoading || loading ? (
+                <div className="space-y-0">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="border-b border-muted/80 p-6">
+                      <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                          <div className="mb-2 h-4 w-40 animate-pulse rounded bg-muted" />
+                        </div>
+                        <div><div className="h-5 w-16 animate-pulse rounded-full bg-muted" /></div>
+                        <div><div className="h-5 w-16 animate-pulse rounded-full bg-muted" /></div>
+                        <div><div className="h-3 w-24 animate-pulse rounded bg-muted/60" /></div>
+                        <div><div className="h-3 w-20 animate-pulse rounded bg-muted/60" /></div>
+                        <div><div className="h-8 w-8 animate-pulse rounded bg-muted" /></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : !currentSite?.id ? (
+                <div className="p-8 text-center">
+                  <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                  <p className="text-muted-foreground">Select a site to view scoped users.</p>
+                </div>
+              ) : error ? (
+                <div className="p-8 text-center">
+                  <p className="mb-4 text-red-600">{error}</p>
+                  <Button onClick={() => loadUsers()} variant="outline" size="sm">Try Again</Button>
+                </div>
+              ) : users.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    {hasSearchQuery && activeFilterCount > 0
+                      ? "No users match this search and filter"
+                      : hasSearchQuery
+                        ? "No users match this search"
+                        : activeFilterCount > 0
+                          ? "No users match this filter"
+                          : "No users found for this site"}
+                  </p>
+                </div>
+              ) : (
+                sortedUsers.map((user) => (
+                  <div key={user.id} className={cn("p-6 transition-colors", selectedIds.has(user.id) && "bg-accent/50")}>
+                    <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
+                      <div className="flex items-center space-x-4">
+                        <Checkbox
+                          checked={selectedIds.has(user.id)}
+                          onCheckedChange={() => toggleSelect(user.id)}
+                          disabled={user.role === "owner"}
+                          aria-label={`Select ${user.display_name || user.email}`}
+                        />
+                        <div>
+                        <h4 className="text-sm font-medium">{user.display_name || user.email}</h4>
+                        {user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
+                        {!user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
+                        </div>
+                      </div>
+                      <div>{getRoleBadge(user.role)}</div>
+                      <div>{getStatusBadge(user.status)}</div>
+                      <div><span className="text-sm text-muted-foreground">{formatDate(user.created_at)}</span></div>
+                      <div><span className="text-sm text-muted-foreground">{formatRelativeTime(user.last_engaged_at)}</span></div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEditModal(user)} title="Edit User">
+                          <Settings className="h-4 w-4" />
+                          <span className="sr-only">Edit User</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          onClick={() => handleDelete(user.id)}
+                          title="Delete User"
+                          disabled={user.role === "owner" || massDeleting}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete User</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {!loading && total > 0 && (
+              <div className="flex items-center justify-between border-t px-6 py-4">
+                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(total / pageSize)}
+                  onPageChange={setCurrentPage}
+                  showFirstLast={false}
+                />
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+          <DialogContent size="admin" className="flex flex-col overflow-hidden p-6">
+            <DialogHeader>
+              <DialogTitle>Filter Site Users</DialogTitle>
+            </DialogHeader>
+            <div className="min-h-0 space-y-4 overflow-y-auto">
+              <div className="flex items-center gap-3 text-sm font-medium">
+                <span>Matching</span>
+                <Tabs
+                  value={pendingFilters.match}
+                  onValueChange={(match) => {
+                    if (match === "all" || match === "any") {
+                      setPendingFilters((prev) => ({ ...prev, match }))
+                    }
+                  }}
+                >
+                  <TabsList className="h-11 gap-1 rounded-lg bg-muted/70 p-1">
+                    <TabsTrigger value="all" className="rounded-md px-4 py-2">all</TabsTrigger>
+                    <TabsTrigger value="any" className="rounded-md px-4 py-2">any</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <span>of these:</span>
+              </div>
+
+              {pendingFilters.rules.length === 0 ? (
+                <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No filters added yet.
+                </div>
+              ) : (
+                pendingFilters.rules.map((rule) => (
+                  <div key={rule.id} className="space-y-4 rounded-2xl bg-muted/65 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-medium">{getSiteUserFilterTypeLabel(rule.type)}</h3>
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removePendingRule(rule.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {isValueRule(rule) && (
+                      <div className="flex flex-wrap gap-3">
+                        {(rule.type === "status" ? SITE_USER_STATUS_OPTIONS : SITE_USER_ROLE_OPTIONS).map((option) => {
+                          const isActive = rule.value.includes(option.value)
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => togglePendingValue(rule.id, option.value)}
+                              className={cn(
+                                "rounded-full border px-5 py-3 text-sm transition-colors",
+                                isActive
+                                  ? "border-foreground text-foreground shadow-sm"
+                                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              {option.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {isDateRule(rule) && (
+                      <div className="space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
+                          <Select value={rule.operator} onValueChange={(value: SiteUserDateOperator) => updatePendingDateOperator(rule.id, value)}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="is">Is</SelectItem>
+                              <SelectItem value="isnt">Isn&apos;t</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={rule.value.mode === "relative" ? String(rule.value.days) : "custom"}
+                            onValueChange={(value) => updatePendingDateValue(rule.id, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SITE_USER_RELATIVE_DAY_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={String(option.value)}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="custom">Custom range</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {rule.value.mode === "range" && (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    id={`${rule.id}-from`}
+                                    type="button"
+                                    variant="outline"
+                                    className={cn("w-full justify-between font-normal", !rule.value.from && "text-muted-foreground")}
+                                  >
+                                    {formatDatePickerLabel(rule.value.from, "Pick a start date")}
+                                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <CalendarPicker
+                                    mode="single"
+                                    selected={toCalendarDate(rule.value.from)}
+                                    onSelect={(date) => updatePendingDateRange(rule.id, "from", date)}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    id={`${rule.id}-to`}
+                                    type="button"
+                                    variant="outline"
+                                    className={cn("w-full justify-between font-normal", !rule.value.to && "text-muted-foreground")}
+                                  >
+                                    {formatDatePickerLabel(rule.value.to, "Pick an end date")}
+                                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <CalendarPicker
+                                    mode="single"
+                                    selected={toCalendarDate(rule.value.to)}
+                                    onSelect={(date) => updatePendingDateRange(rule.id, "to", date)}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+
+              <div className="flex justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline">Add filter</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {SITE_USER_FILTER_TYPE_OPTIONS.map((option) => (
+                      <DropdownMenuItem key={option.value} onSelect={() => addPendingFilter(option.value)}>
+                        {option.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingFilters(emptySiteUserFilterGroup())
+                  setPendingFilteredTotal(0)
+                }}
+                className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+              >
+                Clear all ({pendingFilteredTotal})
+              </button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setFilterModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={applyFilters}>
+                  Apply Filters
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+          <DialogContent size="admin" className="p-6">
+            <DialogHeader>
+              <DialogTitle>Add Site User</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCreateUser} className="space-y-4 [&_label+input]:mt-2 [&_label+button]:mt-2">
+              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+              <div>
+                <Label htmlFor="site-user-email">Email *</Label>
+                <Input
+                  id="site-user-email"
+                  type="email"
+                  required
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="site-user-display-name">Display Name</Label>
+                <Input
+                  id="site-user-display-name"
+                  value={createForm.displayName}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="site-user-password">Password *</Label>
+                <Input
+                  id="site-user-password"
+                  type="password"
+                  required
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="site-user-role">Role</Label>
+                  <Select value={createForm.role} onValueChange={(value: "admin" | "member") => setCreateForm((prev) => ({ ...prev, role: value }))}>
+                    <SelectTrigger id="site-user-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITE_USER_ROLE_OPTIONS.filter((option) => option.value !== "owner").map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="site-user-status">Status</Label>
+                  <Select value={createForm.status} onValueChange={(value: "active" | "suspended") => setCreateForm((prev) => ({ ...prev, status: value }))}>
+                    <SelectTrigger id="site-user-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITE_USER_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-between pt-2">
+                <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={creating}>
+                  {creating ? "Creating..." : "Create User"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editUser !== null} onOpenChange={(open) => { if (!open) setEditUser(null) }}>
+          <DialogContent size="admin" className="p-6">
+            <DialogHeader>
+              <DialogTitle>Edit Site User</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdateUser} className="space-y-4 [&_label+input]:mt-2 [&_label+button]:mt-2">
+              {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+              <div>
+                <Label>Email</Label>
+                <Input value={editUser?.email || ""} disabled />
+              </div>
+              <div>
+                <Label htmlFor="edit-site-user-display-name">Display Name</Label>
+                <Input
+                  id="edit-site-user-display-name"
+                  value={editForm.displayName}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-site-user-role">Role</Label>
+                  <Select
+                    value={editForm.role}
+                    onValueChange={(value: "admin" | "member") => setEditForm((prev) => ({ ...prev, role: value }))}
+                    disabled={editUser?.role === "owner"}
+                  >
+                    <SelectTrigger id="edit-site-user-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITE_USER_ROLE_OPTIONS.filter((option) => option.value !== "owner").map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-site-user-status">Status</Label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(value: "active" | "suspended") => setEditForm((prev) => ({ ...prev, status: value }))}
+                    disabled={editUser?.role === "owner"}
+                  >
+                    <SelectTrigger id="edit-site-user-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITE_USER_STATUS_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-between pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditUser(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete site user?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the user from the current site only. Their platform account will stay intact.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={massDeleteConfirmOpen} onOpenChange={setMassDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete selected site users?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes {selectedIds.size} user{selectedIds.size === 1 ? "" : "s"} from the current site only. Their platform accounts will stay intact.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmMassDelete} className={buttonVariants({ variant: "destructive" })}>
+                Delete selected
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </AdminLayout>
+    </>
+  )
+}

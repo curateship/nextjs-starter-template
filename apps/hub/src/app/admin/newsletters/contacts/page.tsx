@@ -200,12 +200,6 @@ export default function ContactsPage() {
   useEffect(() => {
     setSelectedIds(new Set())
     setAllSelected(false)
-
-    if (siteLoading || !currentSite?.id) {
-      setContacts([])
-      setTotal(0)
-      setLoading(true)
-    }
   }, [currentSite?.id, siteLoading])
 
   useEffect(() => {
@@ -243,7 +237,7 @@ export default function ContactsPage() {
     const requestId = ++contactLoadRequestIdRef.current
 
     if (siteLoading || !currentSite?.id) {
-      setLoading(true)
+      setLoading(siteLoading)
       setError(null)
       setContacts([])
       setTotal(0)

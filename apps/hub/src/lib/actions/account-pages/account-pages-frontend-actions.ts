@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { isSupportedAccountPageBlockType } from '@/lib/constants/account-page-block-types'
+import { touchSiteMembershipActivity } from '@/lib/site-memberships/site-membership-runtime'
 import { getAccountPagePath } from '@/lib/utils/account-page-path'
 
 // Types for blocks
@@ -165,6 +166,8 @@ export async function getAccountPageBySlug(
       if (!user) {
         return { data: null, error: 'Authentication required', isAuthPage: false }
       }
+
+      await touchSiteMembershipActivity(siteId, user.id)
     }
 
     return {

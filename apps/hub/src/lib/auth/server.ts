@@ -13,6 +13,7 @@ import {
   SITE_REGISTRATION_CONTACT_TAG,
   upsertSystemNewsletterContact,
 } from '@/lib/newsletters/system-contact-sync'
+import { upsertSiteMembership } from '@/lib/site-memberships/site-membership-runtime'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 
@@ -168,6 +169,7 @@ function splitContactName(name?: string | null) {
 
 async function syncSiteRegistrationContact(
   user: {
+    id?: string | null
     email?: string | null
     name?: string | null
     displayName?: string | null
@@ -198,6 +200,16 @@ async function syncSiteRegistrationContact(
 
   if (result.error) {
     throw new Error(result.error)
+  }
+
+  if (user.id) {
+    await upsertSiteMembership({
+      siteId: site.id,
+      userId: user.id,
+      role: 'member',
+      status: 'active',
+      lastEngagedAt: new Date(),
+    })
   }
 }
 
@@ -318,6 +330,7 @@ export const auth = betterAuth({
         async after(user, context) {
           try {
             await syncSiteRegistrationContact({
+              id: user.id,
               email: user.email,
               name: user.name,
               displayName: typeof user.displayName === 'string' ? user.displayName : null,

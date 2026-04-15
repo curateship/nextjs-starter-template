@@ -121,6 +121,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: Image,
     },
     {
+      name: "Site Users",
+      url: currentSite ? "/admin/site-users" : "/admin/sites",
+      icon: Users,
+    },
+    {
       name: "Site Settings",
       url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
       icon: Settings,

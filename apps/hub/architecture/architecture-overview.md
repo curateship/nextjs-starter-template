@@ -84,6 +84,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 2. Shared site chrome lives in top-level `site.settings.navigation` and `site.settings.footer`
 3. Page/content rows store only their own content blocks as JSON
 4. Each content type (products, posts, pages, categories, directories, events) belongs to a site via `site_id`
+5. Site-facing users are global Better Auth users linked to sites through `site_memberships`; site role/status/activity live on that join table, not on the global user row
 
 **Frontend slug resolution:**
 - Public page-builder pages own the normal frontend slug space first.
@@ -98,6 +99,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - Action files that return data to the frontend must use snake_case aliases in `.select()` to match TypeScript interfaces, or the cast `as unknown as Type[]` will hide mismatches
 - The categories table was previously called `taxonomies` in code — renamed to `categories` everywhere
 - Large directory datasets keep `content_blocks` on the canonical row, but list/search/admin paths should use summary queries that only read indexed top-level columns like `status`
+- Site-user dashboards should query `site_memberships` joined to `users`, and should treat `site_memberships.last_engaged_at` as the site-specific engagement source of truth
 
 **Data layer files to inspect first:**
 - `src/lib/db/schema/index.ts`
