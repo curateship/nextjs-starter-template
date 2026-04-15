@@ -8,6 +8,11 @@ import {
   renderSystemEmailContent,
   renderSystemEmailSubject,
 } from '@/lib/email/system-email'
+import {
+  SITE_REGISTRATION_CONTACT_SOURCE,
+  SITE_REGISTRATION_CONTACT_TAG,
+  upsertSystemNewsletterContact,
+} from '@/lib/newsletters/system-contact-sync'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 
@@ -20,6 +25,12 @@ type VerificationEmailConfig = {
   fromEmail: string
   fromName?: string | null
   providerType: 'resend'
+}
+
+type ResolvedRequestSite = {
+  id: string
+  name: string
+  status: string
 }
 
 function normalizeRequestHost(request?: Request) {
@@ -37,53 +48,9 @@ function normalizeRequestHost(request?: Request) {
 }
 
 async function getSiteVerificationEmailConfig(request?: Request): Promise<VerificationEmailConfig | null> {
-  const host = normalizeRequestHost(request)
+  const site = await resolveSiteFromRequest(request)
 
-  if (!host) {
-    return null
-  }
-
-  const siteByDomain = await pool.query<{
-    id: string
-    name: string
-    status: string
-  }>(
-    `
-      select id, name, status
-      from sites
-      where custom_domain = $1
-      limit 1
-    `,
-    [host]
-  )
-
-  const allowedStatuses = new Set(['active', 'draft'])
-  const reservedSubdomains = new Set(['www', 'api', 'admin', 'app'])
-
-  let site = siteByDomain.rows[0]
-
-  if (!site && host.includes('.')) {
-    const subdomain = host.split('.')[0]
-    if (subdomain && !reservedSubdomains.has(subdomain)) {
-      const siteBySubdomain = await pool.query<{
-        id: string
-        name: string
-        status: string
-      }>(
-        `
-          select id, name, status
-          from sites
-          where subdomain = $1
-          limit 1
-        `,
-        [subdomain]
-      )
-
-      site = siteBySubdomain.rows[0]
-    }
-  }
-
-  if (!site || !allowedStatuses.has(site.status)) {
+  if (!site) {
     return null
   }
 
@@ -126,6 +93,102 @@ async function getSiteVerificationEmailConfig(request?: Request): Promise<Verifi
     fromEmail,
     fromName,
     providerType: 'resend',
+  }
+}
+
+async function resolveSiteFromRequest(request?: Request): Promise<ResolvedRequestSite | null> {
+  const host = normalizeRequestHost(request)
+
+  if (!host) {
+    return null
+  }
+
+  const siteByDomain = await pool.query<ResolvedRequestSite>(
+    `
+      select id, name, status
+      from sites
+      where custom_domain = $1
+      limit 1
+    `,
+    [host]
+  )
+
+  const allowedStatuses = new Set(['active', 'draft'])
+  const reservedSubdomains = new Set(['www', 'api', 'admin', 'app'])
+
+  let site = siteByDomain.rows[0]
+
+  if (!site && host.includes('.')) {
+    const subdomain = host.split('.')[0]
+    if (subdomain && !reservedSubdomains.has(subdomain)) {
+      const siteBySubdomain = await pool.query<ResolvedRequestSite>(
+        `
+          select id, name, status
+          from sites
+          where subdomain = $1
+          limit 1
+        `,
+        [subdomain]
+      )
+
+      site = siteBySubdomain.rows[0]
+    }
+  }
+
+  if (!site || !allowedStatuses.has(site.status)) {
+    return null
+  }
+
+  return site
+}
+
+function splitContactName(name?: string | null) {
+  const normalizedName = name?.trim()
+
+  if (!normalizedName) {
+    return { firstName: undefined, lastName: undefined }
+  }
+
+  const [firstName, ...rest] = normalizedName.split(/\s+/)
+
+  return {
+    firstName,
+    lastName: rest.length ? rest.join(' ') : undefined,
+  }
+}
+
+async function syncSiteRegistrationContact(
+  user: {
+    email?: string | null
+    name?: string | null
+    displayName?: string | null
+  },
+  request?: Request
+) {
+  if (!request || !user.email) {
+    return
+  }
+
+  const site = await resolveSiteFromRequest(request)
+
+  if (!site) {
+    return
+  }
+
+  const { firstName, lastName } = splitContactName(user.displayName || user.name)
+
+  const result = await upsertSystemNewsletterContact({
+    siteId: site.id,
+    email: user.email,
+    source: SITE_REGISTRATION_CONTACT_SOURCE,
+    preserveExistingSource: true,
+    firstName,
+    lastName,
+    tags: [SITE_REGISTRATION_CONTACT_TAG],
+  })
+
+  if (result.error) {
+    throw new Error(result.error)
   }
 }
 
@@ -240,6 +303,27 @@ export async function getSessionCookieCacheVersion(
 
 export const auth = betterAuth({
   database: pool,
+  databaseHooks: {
+    user: {
+      create: {
+        async after(user, context) {
+          if (context?.path !== '/sign-up/email') {
+            return
+          }
+
+          try {
+            await syncSiteRegistrationContact({
+              email: user.email,
+              name: user.name,
+              displayName: typeof user.displayName === 'string' ? user.displayName : null,
+            }, context.request)
+          } catch (error) {
+            console.error('Failed to sync signup contact:', error)
+          }
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 6,

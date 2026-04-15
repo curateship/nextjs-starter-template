@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { newsletterContacts, products, sites } from '@/lib/db/schema'
-import { and, eq, gte, sql } from 'drizzle-orm'
+import { products, sites } from '@/lib/db/schema'
+import { and, eq, gte } from 'drizzle-orm'
 import { createFreeSignup, markEmailSent } from '@/lib/actions/email/order-actions'
 import { sendLeadMagnetDeliveryEmail } from '@/lib/actions/email/lead-magnet-emails'
 import { getEmailConfig } from '@/lib/actions/email/integration-actions'
@@ -12,6 +12,7 @@ import {
   renderSystemEmailContent,
   renderSystemEmailSubject,
 } from '@/lib/email/system-email'
+import { upsertSystemNewsletterContact } from '@/lib/newsletters/system-contact-sync'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
 const RATE_LIMIT_WINDOW_MS = 60_000
@@ -175,29 +176,17 @@ export async function POST(request: NextRequest) {
 
     // Add to newsletter contacts + enroll in automations
     try {
-      const [contact] = await db
-        .insert(newsletterContacts)
-        .values({
-          siteId,
-          email: email.toLowerCase(),
-          metadata: { source: 'lead_magnet', source_product_id: productId },
-        })
-        .onConflictDoUpdate({
-          target: [newsletterContacts.siteId, newsletterContacts.email],
-          set: {
-            metadata: sql`coalesce(${newsletterContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({
-              source: 'lead_magnet',
-              source_product_id: productId,
-            })}::jsonb`,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: newsletterContacts.id })
+      const { id: contactId } = await upsertSystemNewsletterContact({
+        siteId,
+        email,
+        source: 'lead_magnet',
+        extraMetadata: { source_product_id: productId },
+      })
 
-      if (contact) {
+      if (contactId) {
         const automations = await findActiveAutomations(siteId, 'lead_magnet_signup', productId)
         for (const automation of automations) {
-          await enrollContact(automation.id, contact.id)
+          await enrollContact(automation.id, contactId)
         }
       }
     } catch (err) {

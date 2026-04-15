@@ -90,6 +90,7 @@ export const CONTACT_STATUS_OPTIONS = [
 ] as const
 
 export const CONTACT_SOURCE_OPTIONS = [
+  { value: 'site_registration', label: 'Site Registration' },
   { value: 'lead_magnet', label: 'Lead Magnet' },
   { value: 'paid_purchase', label: 'Purchase' },
   { value: 'import', label: 'Import' },
