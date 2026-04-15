@@ -116,10 +116,9 @@ export function AuthBlock({
     return '/'
   }
 
-  const getVerificationRedirectPath = () => {
-    const rawRedirect = searchParams.get('redirect') || registerRedirectPath || pathname
-    return getSafeRedirectPath(rawRedirect)
-  }
+  const verificationRedirectPath = getSafeRedirectPath(
+    searchParams.get('redirect') || registerRedirectPath || pathname
+  )
 
   const getAuthErrorCode = (error: AuthClientError) => {
     if (typeof error?.error?.code === 'string') {
@@ -163,6 +162,46 @@ export function AuthBlock({
     setVerificationMessage(null)
   }
 
+  useEffect(() => {
+    if (!verificationPendingEmail || view !== 'auth') {
+      return
+    }
+
+    let cancelled = false
+
+    const syncVerifiedSession = async () => {
+      const result = await authClient.getSession()
+
+      if (cancelled || !result.data?.user) {
+        return
+      }
+
+      window.location.replace(verificationRedirectPath)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void syncVerifiedSession()
+      }
+    }
+
+    void syncVerifiedSession()
+
+    const intervalId = window.setInterval(() => {
+      void syncVerifiedSession()
+    }, 5000)
+
+    window.addEventListener('focus', syncVerifiedSession)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', syncVerifiedSession)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [verificationPendingEmail, verificationRedirectPath, view])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginLoading(true)
@@ -172,7 +211,7 @@ export function AuthBlock({
       const { error } = await authClient.signIn.email({
         email: loginEmail,
         password: loginPassword,
-        callbackURL: getVerificationRedirectPath(),
+        callbackURL: verificationRedirectPath,
       })
 
       if (error) {
@@ -220,7 +259,7 @@ export function AuthBlock({
         email: registerEmail,
         password: registerPassword,
         name: registerName,
-        callbackURL: getVerificationRedirectPath(),
+        callbackURL: verificationRedirectPath,
       })
 
       if (signUpResult.error) {
@@ -252,7 +291,7 @@ export function AuthBlock({
     try {
       const resendResult = await authClient.sendVerificationEmail({
         email: verificationPendingEmail,
-        callbackURL: getVerificationRedirectPath(),
+        callbackURL: verificationRedirectPath,
       })
 
       if (resendResult.error) {
