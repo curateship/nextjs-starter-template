@@ -10,7 +10,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import Link from "next/link"
-import { signOut } from "@/lib/actions/auth/auth-actions"
+import { authClient } from "@/lib/auth/client"
 
 import {
   Avatar,
@@ -43,12 +43,12 @@ export function SidebarUserAdmin({
   }
 }) {
   const { isMobile } = useSidebar()
-  
-  
+
   const handleLogout = async () => {
-    await signOut()
+    await authClient.signOut()
+    window.location.replace("/admin-login")
   }
-  
+
   const getInitials = (email: string) => {
     if (!email) return "U"
     return email.substring(0, 2).toUpperCase()

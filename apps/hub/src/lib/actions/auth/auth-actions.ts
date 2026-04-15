@@ -1,6 +1,5 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth/server'
 import { eq } from 'drizzle-orm'
@@ -10,13 +9,6 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export async function getCurrentUser() {
   return await getAuthenticatedUser()
-}
-
-export async function signOut() {
-  await auth.api.signOut({
-    headers: await headers(),
-  })
-  redirect('/admin-login')
 }
 
 export async function registerUser({

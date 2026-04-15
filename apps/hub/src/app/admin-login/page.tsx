@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { getSessionCookie } from "better-auth/cookies"
+import { auth } from "@/lib/auth/server"
 import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlock"
 
 async function hasSession() {
-  return !!getSessionCookie(await headers())
+  const session = await auth.api.getSession({ headers: await headers() })
+  return !!session?.user
 }
 
 export default async function AdminLoginPage() {
