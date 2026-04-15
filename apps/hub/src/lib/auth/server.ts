@@ -33,15 +33,24 @@ type ResolvedRequestSite = {
   status: string
 }
 
-function normalizeRequestHost(request?: Request) {
-  if (!request) {
+type AuthRequestContext = {
+  path?: string | null
+  request?: Request | null
+  headers?: Headers | null
+}
+
+function normalizeRequestHost(source?: Request | AuthRequestContext) {
+  const request = source instanceof Request ? source : source?.request
+  const headers = source instanceof Request ? source.headers : source?.headers
+
+  if (!request && !headers) {
     return ''
   }
 
   const headerHost =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    new URL(request.url).host
+    headers?.get('x-forwarded-host') ||
+    headers?.get('host') ||
+    (request ? new URL(request.url).host : '')
 
   const host = headerHost.split(',')[0]?.trim().toLowerCase() || ''
   return host.replace(/^www\./, '').replace(/:\d+$/, '')
@@ -96,8 +105,8 @@ async function getSiteVerificationEmailConfig(request?: Request): Promise<Verifi
   }
 }
 
-async function resolveSiteFromRequest(request?: Request): Promise<ResolvedRequestSite | null> {
-  const host = normalizeRequestHost(request)
+async function resolveSiteFromRequest(source?: Request | AuthRequestContext): Promise<ResolvedRequestSite | null> {
+  const host = normalizeRequestHost(source)
 
   if (!host) {
     return null
@@ -163,13 +172,13 @@ async function syncSiteRegistrationContact(
     name?: string | null
     displayName?: string | null
   },
-  request?: Request
+  requestContext?: Request | AuthRequestContext
 ) {
-  if (!request || !user.email) {
+  if (!user.email) {
     return
   }
 
-  const site = await resolveSiteFromRequest(request)
+  const site = await resolveSiteFromRequest(requestContext)
 
   if (!site) {
     return
@@ -307,16 +316,12 @@ export const auth = betterAuth({
     user: {
       create: {
         async after(user, context) {
-          if (context?.path !== '/sign-up/email') {
-            return
-          }
-
           try {
             await syncSiteRegistrationContact({
               email: user.email,
               name: user.name,
               displayName: typeof user.displayName === 'string' ? user.displayName : null,
-            }, context.request)
+            }, context || undefined)
           } catch (error) {
             console.error('Failed to sync signup contact:', error)
           }
