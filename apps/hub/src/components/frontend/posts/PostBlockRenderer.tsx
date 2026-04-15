@@ -26,9 +26,11 @@ interface PostBlockRendererProps {
     }>
   }
   preloadedRelatedPosts?: RelatedPostsData | null
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
-export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlockRendererProps) {
+export function PostBlockRenderer({ site, post, preloadedRelatedPosts, isPreview = false, hideSiteChrome = false }: PostBlockRendererProps) {
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -40,7 +42,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlo
   const customWidth = site.settings?.custom_width
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
       
       {/* Post Header */}
       <PostContentBlock

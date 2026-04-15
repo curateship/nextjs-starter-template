@@ -18,9 +18,11 @@ import { resolveSiteChrome } from "@/lib/utils/site-structure"
 interface ProductBlockRendererProps {
   site: SiteWithBlocks
   product: ProductWithBlocks
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
-export function ProductBlockRenderer({ site, product }: ProductBlockRendererProps) {
+export function ProductBlockRenderer({ site, product, isPreview = false, hideSiteChrome = false }: ProductBlockRendererProps) {
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -33,7 +35,7 @@ export function ProductBlockRenderer({ site, product }: ProductBlockRendererProp
   const customWidth = site.settings?.custom_width;
   
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
       
       {sortedBlocks.map((block) => {
         if (block.type === 'product-content' || block.type === 'product-default') {

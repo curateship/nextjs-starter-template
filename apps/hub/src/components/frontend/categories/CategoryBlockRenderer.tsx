@@ -21,6 +21,8 @@ interface CategoryWithBlocks {
 interface CategoryBlockRendererProps {
   site: SiteWithBlocks
   category: CategoryWithBlocks
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
 function CategoryContentStyled({
@@ -58,7 +60,7 @@ function CategoryContentStyled({
   )
 }
 
-export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category, isPreview = false, hideSiteChrome = false }: CategoryBlockRendererProps) {
   const { blocks: categoryBlocks = [] } = category
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -68,7 +70,7 @@ export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererP
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
         {sortedBlocks.map((block) => {
           if (block.type === 'taxonomy-content') {
             return (

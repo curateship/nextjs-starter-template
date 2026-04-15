@@ -123,6 +123,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
     const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
     return (
         <footer
+            data-block-type="footer"
             className="py-1 bg-background text-foreground"
             style={{
                 ...(style?.backgroundColor ? { backgroundColor: style.backgroundColor } : {}),

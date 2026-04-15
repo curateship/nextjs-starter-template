@@ -15,9 +15,11 @@ import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
-export function BlockRenderer({ site }: BlockRendererProps) {
+export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false }: BlockRendererProps) {
   const { blocks = [] } = site
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -48,6 +50,8 @@ export function BlockRenderer({ site }: BlockRendererProps) {
         navigation={navigation}
         footer={footer}
         site={site}
+        isPreview={isPreview}
+        hideChrome={hideSiteChrome}
       >
       {visibleBlocks.map((block) => {
         if (block.type === 'hero') {

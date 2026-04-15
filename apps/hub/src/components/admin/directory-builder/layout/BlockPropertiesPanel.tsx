@@ -1,7 +1,6 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "./DirectoryPreview"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
@@ -60,7 +59,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <ScrollArea className="h-full">
+      <div className="h-full overflow-y-auto">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -116,7 +115,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }

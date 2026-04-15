@@ -21,6 +21,8 @@ interface EventWithBlocks {
 interface EventBlockRendererProps {
   site: SiteWithBlocks
   event: EventWithBlocks
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
 function EventContentStyled({
@@ -58,7 +60,7 @@ function EventContentStyled({
   )
 }
 
-export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
+export function EventBlockRenderer({ site, event, isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -70,7 +72,7 @@ export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
           if (block.type === 'event-content') {

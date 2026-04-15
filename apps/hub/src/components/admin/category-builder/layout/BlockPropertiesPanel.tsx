@@ -1,6 +1,5 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { CategoryContentBlock } from "@/components/admin/category-builder/blocks/CategoryContentBlock"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { CategoryPreview } from "./CategoryPreview"
 
 interface CategoryBlock {
@@ -55,7 +54,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <ScrollArea className="h-full">
+      <div className="h-full overflow-y-auto">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -100,7 +99,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }

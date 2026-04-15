@@ -56,6 +56,7 @@ interface NavBlockProps {
   styleConfig?: Record<string, NavigationStyle>;
   showAuthenticatedUserMenu?: boolean;
   visibility?: Record<string, boolean>;
+  isPreview?: boolean;
 }
 
 interface SessionUser {
@@ -384,7 +385,7 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility, isPreview = false }: NavBlockProps) {
   const style = useMemo<NavigationStyle | undefined>(() => {
     const activeStyle = navigationStyle || 'default'
     return styleConfig?.[activeStyle]
@@ -498,18 +499,23 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
   }
 
   return (
-    <header>
+    <header
+      data-block-type="navigation"
+      className={cn(
+        'z-50 w-full border-b',
+        isPreview ? 'sticky top-0' : 'fixed top-0',
+        blurClass,
+        (!style?.backgroundColor) && 'bg-background/90'
+      )}
+      style={{
+        backgroundColor: style?.backgroundColor ? `${style.backgroundColor}E6` : undefined,
+      }}
+    >
       <nav
-        data-block-type="navigation"
         data-state={menuState && 'active'}
         className={cn(
-          'fixed top-0 z-50 w-full border-b',
-          blurClass,
-          (!style?.backgroundColor) && 'bg-background/90'
+          'w-full'
         )}
-        style={{
-          backgroundColor: style?.backgroundColor ? `${style.backgroundColor}E6` : undefined,
-        }}
       >
         <div
           className={getNavContainerClass()}

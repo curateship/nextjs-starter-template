@@ -10,6 +10,38 @@ export interface PreviewBlock {
   display_order?: number
 }
 
+interface PreviewSiteInput {
+  id: string
+  name: string
+  subdomain: string
+  settings?: {
+    favicon?: string
+    navigation?: any
+    footer?: any
+    [key: string]: any
+  }
+}
+
+export function normalizePreviewBlocks<TBlock extends PreviewBlock>(
+  blocks: TBlock[]
+): PreviewBlock[] {
+  return blocks.map((block, index) => ({
+    id: block.id,
+    type: block.type,
+    content: block.content,
+    display_order: typeof block.display_order === "number" ? block.display_order : index,
+  }))
+}
+
+export function createPreviewEntityBlocks(blocks: PreviewBlock[]) {
+  return blocks.map(block => ({
+    id: block.id,
+    type: block.type,
+    content: block.content,
+    display_order: block.display_order || 0,
+  }))
+}
+
 /**
  * Transform admin block format to frontend block format for preview rendering
  * Now using generic structure that works with pages, products, and posts
@@ -32,7 +64,7 @@ export function transformAdminBlocksToFrontend(
  */
 export function createPreviewSite(
   blocks: PreviewBlock[],
-  site?: { id: string; name: string; subdomain: string; settings?: { favicon?: string; navigation?: any; footer?: any; [key: string]: any } }
+  site?: PreviewSiteInput
 ): SiteWithBlocks {
   return {
     id: site?.id || 'preview',

@@ -27,9 +27,10 @@ interface SiteLayoutProps {
     style?: { backgroundColor: string; textColor: string }
   }
   isPreview?: boolean
+  hideChrome?: boolean
 }
 
-export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
+export function SiteLayout({ children, site, navigation, footer, isPreview = false, hideChrome = false }: SiteLayoutProps) {
   const activeNavStyle = navigation?.navigationStyle || 'default'
   const resolvedNavStyle = navigation?.styleConfig?.[activeNavStyle]
   const enableThemeToggle = resolvedNavStyle?.showDarkModeToggle !== false
@@ -37,23 +38,15 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
       {/* Navigation - only render if navigation data exists */}
-      {navigation && (
-        <div data-block-type="navigation">
-          <NavBlock {...navigation} site={site} />
-        </div>
-      )}
+      {!hideChrome && navigation && <NavBlock {...navigation} site={site} isPreview={isPreview} />}
 
       {/* Main content */}
-      <main className={navigation ? "pt-16" : ""}>
+      <main className={navigation && !isPreview && !hideChrome ? "pt-16" : ""}>
         {children}
       </main>
 
       {/* Footer - only render if footer data exists */}
-      {footer && (
-        <div data-block-type="footer">
-          <FooterBlock {...footer} site={site} />
-        </div>
-      )}
+      {!hideChrome && footer && <FooterBlock {...footer} site={site} />}
     </SiteThemeProvider>
   )
 }

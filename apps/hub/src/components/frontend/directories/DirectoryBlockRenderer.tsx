@@ -24,6 +24,8 @@ interface DirectoryBlockRendererProps {
   site: SiteWithBlocks
   directory: DirectoryWithBlocks
   customBlockTemplates?: Record<string, DirectoryCustomBlockTemplate>
+  isPreview?: boolean
+  hideSiteChrome?: boolean
 }
 
 function DirectoryContentStyled({
@@ -61,7 +63,7 @@ function DirectoryContentStyled({
   )
 }
 
-export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {} }: DirectoryBlockRendererProps) {
+export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, isPreview = false, hideSiteChrome = false }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -73,7 +75,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
         {/* Directory Blocks */}
         {sortedBlocks.map((block) => {
           if (block.type === 'directory-content') {

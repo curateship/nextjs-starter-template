@@ -7,7 +7,6 @@ import { PageDividerBlock } from "../blocks/divider/PageDividerBlock"
 import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
 import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { PagePreview } from "./PagePreview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -48,7 +47,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <ScrollArea className="h-full">
+      <div className="h-full overflow-y-auto">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -201,7 +200,7 @@ export function BlockPropertiesPanel({
           )}
         </div>
       )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }
