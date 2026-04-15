@@ -44,7 +44,7 @@ export default async function SiteHomePage() {
         <link rel="preload" as="image" href={lcpImageUrl} fetchPriority="high" />
       )}
       <StructuredData site={site} contentType="home" />
-      <BlockRenderer site={site} initialHasSession={isLoggedIn} />
+      <BlockRenderer site={site} />
     </>
   )
 }

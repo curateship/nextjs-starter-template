@@ -21,7 +21,6 @@ interface EventWithBlocks {
 interface EventBlockRendererProps {
   site: SiteWithBlocks
   event: EventWithBlocks
-  initialHasSession?: boolean
 }
 
 function EventContentStyled({
@@ -59,7 +58,7 @@ function EventContentStyled({
   )
 }
 
-export function EventBlockRenderer({ site, event, initialHasSession = false }: EventBlockRendererProps) {
+export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -71,7 +70,7 @@ export function EventBlockRenderer({ site, event, initialHasSession = false }: E
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
           if (block.type === 'event-content') {

@@ -51,7 +51,7 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
 
   if (page) {
     // Page exists, render it at root level
-    return <BlockRenderer site={site} initialHasSession={isLoggedIn} />
+    return <BlockRenderer site={site} />
   }
 
 }

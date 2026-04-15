@@ -5,6 +5,18 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/shared/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/admin/shared/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
+import { getSessionCookieCacheVersion } from "@/lib/auth/server";
+import type { Session as BetterAuthSession, User as BetterAuthUser } from "better-auth";
+import { getCookieCache } from "better-auth/cookies";
+import { SiteAuthProvider, type SiteAuthUser } from "@/components/frontend/layout/site-auth-provider";
+import { headers } from "next/headers";
+
+type SiteAuthCookieCache = {
+  session: BetterAuthSession & Record<string, any>
+  user: BetterAuthUser & { role?: string | null; displayName?: string | null } & Record<string, any>
+  updatedAt: number
+  version?: string
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
@@ -52,6 +64,22 @@ export default async function RootLayout({
 }>) {
   const { success, site } = await getSiteFromHeaders()
   const { getFontConfig } = await import("@/lib/utils/font-config")
+  let initialSessionUser: SiteAuthUser | null = null
+
+  try {
+    const cookieCache = await getCookieCache<SiteAuthCookieCache>(await headers(), {
+      version: getSessionCookieCacheVersion,
+    })
+    initialSessionUser = cookieCache?.user
+      ? {
+          email: cookieCache.user.email ?? null,
+          name: cookieCache.user.displayName || cookieCache.user.name || null,
+          role: typeof cookieCache.user.role === 'string' ? cookieCache.user.role : null,
+        }
+      : null
+  } catch {
+    initialSessionUser = null
+  }
 
   const fonts = success && site?.settings
     ? getFontConfig(
@@ -111,10 +139,12 @@ export default async function RootLayout({
       <body
         className="min-h-screen bg-background font-sans antialiased"
       >
-        <HeaderScripts scripts={site?.settings?.tracking_scripts} />
-        {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
-        {children}
-        <DeferredScripts />
+        <SiteAuthProvider user={initialSessionUser}>
+          <HeaderScripts scripts={site?.settings?.tracking_scripts} />
+          {site?.settings?.custom_analytics_enabled && <AnalyticsTracker />}
+          {children}
+          <DeferredScripts />
+        </SiteAuthProvider>
       </body>
     </html>
   );

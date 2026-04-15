@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, X, ChevronDown, Globe, LayoutDashboard, LogOut, Shield, User } from 'lucide-react'
+import { Menu, X, ChevronDown, Globe, LayoutDashboard, LogOut, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState, useEffect, memo } from 'react'
 import { cn } from '@/lib/utils/tailwind'
@@ -9,6 +9,7 @@ import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/auth/client'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +56,6 @@ interface NavBlockProps {
   styleConfig?: Record<string, NavigationStyle>;
   showAuthenticatedUserMenu?: boolean;
   visibility?: Record<string, boolean>;
-  initialHasSession?: boolean;
 }
 
 interface SessionUser {
@@ -63,31 +63,6 @@ interface SessionUser {
   name?: string | null;
   role?: string | null;
 }
-
-const PendingUserMenuButton = () => (
-  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border" aria-label="Loading account menu">
-    <Avatar className="h-9 w-9">
-      <AvatarFallback>
-        <User className="size-4" />
-      </AvatarFallback>
-    </Avatar>
-  </Button>
-)
-
-const MobileUserMenuLoadingPanel = () => (
-  <div className="space-y-3 rounded-2xl border p-4">
-    <div className="flex items-center gap-3">
-      <Avatar className="h-10 w-10">
-        <AvatarFallback>
-          <User className="size-4" />
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0">
-        <div className="text-sm font-medium">Loading account</div>
-      </div>
-    </div>
-  </div>
-)
 
 function getUserInitials(user: SessionUser | null) {
   const source = user?.name?.trim() || user?.email?.trim() || 'U'
@@ -386,9 +361,7 @@ const MobileMenuPanel = ({
   menuItems, 
   buttons,
   showAuthenticatedUserMenu,
-  initialHasSession,
   sessionUser,
-  sessionPending,
   onSignOut,
   showAdminLink,
   textColor,
@@ -398,9 +371,7 @@ const MobileMenuPanel = ({
   menuItems: MenuItem[];
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
   showAuthenticatedUserMenu: boolean;
-  initialHasSession: boolean;
   sessionUser: SessionUser | null;
-  sessionPending: boolean;
   onSignOut: () => void;
   showAdminLink: boolean;
   textColor?: string;
@@ -413,12 +384,8 @@ const MobileMenuPanel = ({
   >
     <MobileNav menuItems={menuItems} textColor={textColor} />
     <div className="flex flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      {showAuthenticatedUserMenu && (sessionUser || (initialHasSession && sessionPending)) ? (
-        sessionUser ? (
-          <MobileUserMenuPanel user={sessionUser} onSignOut={onSignOut} showAdminLink={showAdminLink} />
-        ) : (
-          <MobileUserMenuLoadingPanel />
-        )
+      {showAuthenticatedUserMenu && sessionUser ? (
+        <MobileUserMenuPanel user={sessionUser} onSignOut={onSignOut} showAdminLink={showAdminLink} />
       ) : (
         <CTAButtons buttons={buttons} />
       )}
@@ -429,7 +396,7 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility, initialHasSession = false }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility }: NavBlockProps) {
   const style = useMemo<NavigationStyle | undefined>(() => {
     const activeStyle = navigationStyle || 'default'
     return styleConfig?.[activeStyle]
@@ -453,9 +420,8 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
       .filter(button => button.text && button.url)
   }, [buttons])
 
-  const { data: session, isPending } = authClient.useSession()
-  const sessionUser = (session?.user || null) as SessionUser | null
-  const shouldShowUserMenu = showAuthenticatedUserMenu && (!!sessionUser || (initialHasSession && isPending))
+  const sessionUser = useSiteAuthUser() as SessionUser | null
+  const shouldShowUserMenu = showAuthenticatedUserMenu && !!sessionUser
   const showAdminLink = sessionUser?.role === 'super_admin'
 
   const handleSignOut = async () => {
@@ -624,11 +590,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
             {/* Desktop Actions - CTA Buttons and Theme Toggle */}
             <div className="hidden lg:flex items-center gap-3">
               {shouldShowUserMenu ? (
-                sessionUser ? (
-                  <DesktopUserMenu user={sessionUser} onSignOut={handleSignOut} showAdminLink={showAdminLink} />
-                ) : (
-                  <PendingUserMenuButton />
-                )
+                <DesktopUserMenu user={sessionUser} onSignOut={handleSignOut} showAdminLink={showAdminLink} />
               ) : (
                 visibility?.ctaButtons !== false && <CTAButtons buttons={safeButtons} />
               )}
@@ -641,9 +603,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
               menuItems={menuItems}
               buttons={visibility?.ctaButtons !== false ? safeButtons : undefined}
               showAuthenticatedUserMenu={showAuthenticatedUserMenu}
-              initialHasSession={initialHasSession}
               sessionUser={sessionUser}
-              sessionPending={isPending}
               onSignOut={handleSignOut}
               showAdminLink={showAdminLink}
               textColor={style?.textColor} 

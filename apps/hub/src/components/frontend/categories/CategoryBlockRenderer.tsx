@@ -21,7 +21,6 @@ interface CategoryWithBlocks {
 interface CategoryBlockRendererProps {
   site: SiteWithBlocks
   category: CategoryWithBlocks
-  initialHasSession?: boolean
 }
 
 function CategoryContentStyled({
@@ -59,7 +58,7 @@ function CategoryContentStyled({
   )
 }
 
-export function CategoryBlockRenderer({ site, category, initialHasSession = false }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererProps) {
   const { blocks: categoryBlocks = [] } = category
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -69,7 +68,7 @@ export function CategoryBlockRenderer({ site, category, initialHasSession = fals
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
         {sortedBlocks.map((block) => {
           if (block.type === 'taxonomy-content') {
             return (

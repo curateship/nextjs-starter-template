@@ -8,8 +8,6 @@ import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
-import { headers } from "next/headers"
-import { getSessionCookie } from "better-auth/cookies"
 
 interface PostPageProps {
   params: Promise<{
@@ -19,7 +17,6 @@ interface PostPageProps {
 
 export default async function PostPage({ params }: PostPageProps) {
   const { slug } = await params
-  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -88,7 +85,6 @@ export default async function PostPage({ params }: PostPageProps) {
         site={site}
         post={postWithBlocks}
         preloadedRelatedPosts={preloadedRelatedPosts}
-        initialHasSession={isLoggedIn}
       />
     </>
   )

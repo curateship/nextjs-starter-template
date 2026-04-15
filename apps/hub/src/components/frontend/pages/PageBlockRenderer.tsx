@@ -16,10 +16,9 @@ import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
-  initialHasSession?: boolean
 }
 
-export function BlockRenderer({ site, initialHasSession = false }: BlockRendererProps) {
+export function BlockRenderer({ site }: BlockRendererProps) {
   const { blocks = [] } = site
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -50,7 +49,6 @@ export function BlockRenderer({ site, initialHasSession = false }: BlockRenderer
         navigation={navigation}
         footer={footer}
         site={site}
-        initialHasSession={initialHasSession}
       >
       {visibleBlocks.map((block) => {
         if (block.type === 'hero') {

@@ -2,8 +2,6 @@ import { notFound, redirect } from 'next/navigation'
 import { getUserPageBySlug } from '@/lib/actions/user-pages/user-pages-frontend-actions'
 import { BlockRenderer } from '@/components/frontend/pages/PageBlockRenderer'
 import { getSiteFromHeaders } from '@/lib/utils/site-resolver'
-import { headers } from 'next/headers'
-import { getSessionCookie } from 'better-auth/cookies'
 
 interface UserPageProps {
   params: Promise<{
@@ -14,7 +12,6 @@ interface UserPageProps {
 export default async function UserPage({ params }: UserPageProps) {
   const { slug } = await params
   const pageSlug = slug?.[0] || 'home'
-  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
   if (!siteSuccess || !site?.id) {
@@ -31,5 +28,5 @@ export default async function UserPage({ params }: UserPageProps) {
     notFound()
   }
 
-  return <BlockRenderer site={data} initialHasSession={isLoggedIn} />
+  return <BlockRenderer site={data} />
 }

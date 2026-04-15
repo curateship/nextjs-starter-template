@@ -26,10 +26,9 @@ interface PostBlockRendererProps {
     }>
   }
   preloadedRelatedPosts?: RelatedPostsData | null
-  initialHasSession?: boolean
 }
 
-export function PostBlockRenderer({ site, post, preloadedRelatedPosts, initialHasSession = false }: PostBlockRendererProps) {
+export function PostBlockRenderer({ site, post, preloadedRelatedPosts }: PostBlockRendererProps) {
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -41,7 +40,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, initialHa
   const customWidth = site.settings?.custom_width
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site}>
       
       {/* Post Header */}
       <PostContentBlock

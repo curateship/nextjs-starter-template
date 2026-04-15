@@ -27,10 +27,9 @@ interface SiteLayoutProps {
     style?: { backgroundColor: string; textColor: string }
   }
   isPreview?: boolean
-  initialHasSession?: boolean
 }
 
-export function SiteLayout({ children, site, navigation, footer, isPreview = false, initialHasSession = false }: SiteLayoutProps) {
+export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
   const activeNavStyle = navigation?.navigationStyle || 'default'
   const resolvedNavStyle = navigation?.styleConfig?.[activeNavStyle]
   const enableThemeToggle = resolvedNavStyle?.showDarkModeToggle !== false
@@ -40,7 +39,7 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
         <div data-block-type="navigation">
-          <NavBlock {...navigation} site={site} initialHasSession={initialHasSession} />
+          <NavBlock {...navigation} site={site} />
         </div>
       )}
 
