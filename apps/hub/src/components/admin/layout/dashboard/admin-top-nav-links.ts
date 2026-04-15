@@ -16,6 +16,8 @@ import {
   ShoppingCart,
   Users,
   Zap,
+  Navigation,
+  PanelBottom,
 } from "lucide-react"
 
 export interface AdminTopNavLink {
@@ -27,7 +29,7 @@ export interface AdminTopNavLink {
 }
 
 type ProductAdminSection = "products" | "orders" | "analytics"
-type PageAdminSection = "pages" | "user-pages"
+type PageAdminSection = "pages" | "user-pages" | "navigation" | "footer"
 type NewsletterAdminSection =
   | "newsletters"
   | "contacts"
@@ -51,6 +53,8 @@ export function getPageAdminTopNavLinks(siteId: string, active: PageAdminSection
   return [
     { label: "Pages", href: `/admin/sites/${siteId}/pages`, icon: FileText, active: active === "pages" },
     { label: "User Pages", href: `/admin/user-pages/${siteId}`, icon: Users, active: active === "user-pages" },
+    { label: "Navigation", href: `/admin/sites/${siteId}/structure/navigation`, icon: Navigation, active: active === "navigation" },
+    { label: "Footer", href: `/admin/sites/${siteId}/structure/footer`, icon: PanelBottom, active: active === "footer" },
   ]
 }
 

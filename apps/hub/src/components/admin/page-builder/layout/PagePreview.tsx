@@ -5,6 +5,7 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { getFontByValue, getFontFamily, defaultFont } from "@/lib/utils/font-config"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface PagePreviewProps {
   blocks: PreviewBlock[]
@@ -21,9 +22,10 @@ interface PagePreviewProps {
   blocksLoading?: boolean
   allBlocks?: PageBlock[]
   onSelectBlock?: (block: PageBlock) => void
+  onSelectSiteChrome?: (type: 'navigation' | 'footer') => void
 }
 
-export function PagePreview({ blocks, site, className = "", blocksLoading = false, allBlocks, onSelectBlock }: PagePreviewProps) {
+export function PagePreview({ blocks, site, className = "", blocksLoading = false, allBlocks, onSelectBlock, onSelectSiteChrome }: PagePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredEl, setHoveredEl] = useState<HTMLElement | null>(null)
 
@@ -40,45 +42,52 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
   }, [])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!onSelectBlock) return
+    if (!onSelectBlock && !onSelectSiteChrome) return
     const el = findBlockEl(e.target as HTMLElement)
     setHoveredEl(prev => prev === el ? prev : el)
-  }, [onSelectBlock, findBlockEl])
+  }, [onSelectBlock, onSelectSiteChrome, findBlockEl])
 
   const handleMouseLeave = useCallback(() => {
     setHoveredEl(null)
   }, [])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (!onSelectBlock || !allBlocks) return
+    if (!onSelectBlock && !onSelectSiteChrome) return
     const el = findBlockEl(e.target as HTMLElement)
     if (!el) return
 
     const blockId = el.getAttribute("data-block-id")
     const blockType = el.getAttribute("data-block-type")
 
+    if ((blockType === 'navigation' || blockType === 'footer') && onSelectSiteChrome) {
+      onSelectSiteChrome(blockType)
+      return
+    }
+
     const block = blockId
-      ? allBlocks.find(b => b.id === blockId)
+      ? allBlocks?.find(b => b.id === blockId)
       : blockType
-        ? allBlocks.find(b => b.type === blockType)
+        ? allBlocks?.find(b => b.type === blockType)
         : null
 
-    if (block) {
+    if (block && onSelectBlock) {
       onSelectBlock(block)
     }
-  }, [onSelectBlock, allBlocks, findBlockEl])
+  }, [onSelectBlock, onSelectSiteChrome, allBlocks, findBlockEl])
 
   // Prevent link navigation in preview
   const handleClickCapture = useCallback((e: React.MouseEvent) => {
-    if (!onSelectBlock) return
+    if (!onSelectBlock && !onSelectSiteChrome) return
     const target = e.target as HTMLElement
     if (target.closest("a")) {
       e.preventDefault()
     }
-  }, [onSelectBlock])
+  }, [onSelectBlock, onSelectSiteChrome])
 
   // Create preview site
   const previewSite = createPreviewSite(blocks, site)
+  const siteChrome = resolveSiteChrome(site?.settings)
+  const hasRenderablePreview = blocks.length > 0 || !!siteChrome.navigation || !!siteChrome.footer
 
   // Get font settings from site
   const fontFamily = site?.settings?.font_family || 'playfair-display'
@@ -89,7 +98,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
   const primaryFontFamilyValue = getFontFamily(primary.value)
   const secondaryFontFamilyValue = getFontFamily(secondary.value)
 
-  const isInteractive = !!onSelectBlock
+  const isInteractive = !!onSelectBlock || !!onSelectSiteChrome
 
   return (
     <div
@@ -214,7 +223,7 @@ export function PagePreview({ blocks, site, className = "", blocksLoading = fals
                 </div>
               </div>
             </div>
-          ) : blocks.length === 0 ? (
+          ) : !hasRenderablePreview ? (
             <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
               <div className="text-center">
                 <div className="text-lg font-medium mb-2">No blocks added yet</div>

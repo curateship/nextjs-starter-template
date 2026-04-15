@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
 import { convertContentBlocksToArray, type ContentBlock as UtilProductBlock } from '@/lib/utils/block-utils'
@@ -44,35 +44,6 @@ async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
   } catch (error) {
     console.warn('Error loading product blocks:', error)
     return []
-  }
-}
-
-/**
- * Helper function to fetch site navigation and footer
- */
-async function fetchSiteBlocks(siteId: string) {
-  // Get the homepage for navigation/footer blocks using raw SQL (content_blocks not in pages Drizzle schema)
-  const result = await db.execute<{
-    content_blocks: Record<string, any> | null
-  }>(sql`
-    SELECT content_blocks FROM pages
-    WHERE site_id = ${siteId} AND is_homepage = true AND is_published = true
-    LIMIT 1
-  `)
-
-  const homePage = result.rows?.[0]
-
-  if (!homePage || !homePage.content_blocks) {
-    return { navigation: null, footer: null }
-  }
-
-  const blocks = Object.values(homePage.content_blocks).flat() as any[]
-  const navigationBlock = blocks.find(b => b.type === 'navigation')
-  const footerBlock = blocks.find(b => b.type === 'footer')
-
-  return {
-    navigation: navigationBlock?.content || null,
-    footer: footerBlock?.content || null
   }
 }
 
@@ -171,9 +142,6 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       }
     }
 
-    // Get navigation and footer blocks from site's homepage
-    const siteBlocks = await fetchSiteBlocks(site.id)
-
     // Get product blocks
     const blocks = await fetchProductBlocks(product.id)
 
@@ -194,7 +162,7 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       subdomain: site.subdomain,
       custom_domain: site.customDomain,
       settings: site.settings,
-      blocks: siteBlocks
+      blocks: []
     }
 
     return {

@@ -27,23 +27,21 @@ interface SiteLayoutProps {
     style?: { backgroundColor: string; textColor: string }
   }
   isPreview?: boolean
+  initialHasSession?: boolean
 }
 
-export function SiteLayout({ children, site, navigation, footer, isPreview = false }: SiteLayoutProps) {
-  // Check if dark mode toggle is enabled in navigation settings
-  // Resolve from styleConfig (new) or style (legacy)
-  const resolvedNavStyle = (() => {
-    const activeStyle = navigation?.navigationStyle || 'default'
-    if (navigation?.styleConfig?.[activeStyle]) return navigation.styleConfig[activeStyle]
-    return navigation?.style
-  })()
+export function SiteLayout({ children, site, navigation, footer, isPreview = false, initialHasSession = false }: SiteLayoutProps) {
+  const activeNavStyle = navigation?.navigationStyle || 'default'
+  const resolvedNavStyle = navigation?.styleConfig?.[activeNavStyle]
   const enableThemeToggle = resolvedNavStyle?.showDarkModeToggle !== false
 
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
       {/* Navigation - only render if navigation data exists */}
       {navigation && (
-        <NavBlock {...navigation} site={site} />
+        <div data-block-type="navigation">
+          <NavBlock {...navigation} site={site} initialHasSession={initialHasSession} />
+        </div>
       )}
 
       {/* Main content */}

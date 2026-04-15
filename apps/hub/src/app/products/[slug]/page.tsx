@@ -8,6 +8,8 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 
 interface ProductPageProps {
   params: Promise<{
@@ -17,6 +19,7 @@ interface ProductPageProps {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params
+  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -59,6 +62,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <ProductBlockRenderer
         site={site}
         product={productWithBlocks}
+        initialHasSession={isLoggedIn}
       />
     </>
   )

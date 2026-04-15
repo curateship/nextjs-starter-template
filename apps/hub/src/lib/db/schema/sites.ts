@@ -21,6 +21,8 @@ export interface SiteSettings extends SiteSeoSettings {
   font_family?: string
   secondary_font_family?: string
   default_theme?: string
+  navigation?: Record<string, any>
+  footer?: Record<string, any>
   quick_links?: Array<{
     id: string
     label: string
@@ -32,7 +34,6 @@ export interface SiteSettings extends SiteSeoSettings {
   maintenance?: { enabled?: boolean }
   tracking_scripts?: string
   custom_analytics_enabled?: boolean
-  public_pages?: any
   [key: string]: any  // Allow other dynamic settings
 }
 

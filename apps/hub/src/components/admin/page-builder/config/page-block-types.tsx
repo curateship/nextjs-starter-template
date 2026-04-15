@@ -1,34 +1,9 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, Quote, Navigation, PanelBottom } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, LogIn, Code, Quote } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
 
 export type { BlockTypeDefinition }
 
 export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
-  {
-    type: 'navigation',
-    name: 'Navigation',
-    icon: Navigation,
-    description: 'Site navigation bar with links, logo, and dark mode toggle',
-    defaultContent: {
-      logo: '',
-      logoUrl: '/',
-      links: [
-        { id: 'link-default-0', text: 'Home', url: '/' },
-      ],
-      buttons: [],
-      navigationStyle: 'default',
-      styleConfig: {
-        default: {
-          textColor: '',
-          blurEffect: 'light',
-          containerWidth: 'custom',
-          backgroundColor: '',
-          showDarkModeToggle: true,
-        },
-      },
-    },
-    conflictsWith: ['navigation'],
-  },
   {
     type: 'hero',
     name: 'Hero',
@@ -184,23 +159,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       code: '',
       type: 'html'
     }
-  },
-  {
-    type: 'footer',
-    name: 'Footer',
-    icon: PanelBottom,
-    description: 'Site footer with links, social links, and copyright',
-    defaultContent: {
-      logo: '',
-      logoUrl: '/',
-      links: [
-        { id: 'footer-link-default-0', text: 'Home', url: '/' },
-      ],
-      socialLinks: [],
-      copyright: '© All rights reserved.',
-      style: { backgroundColor: '', textColor: '#6c757d' },
-    },
-    conflictsWith: ['footer'],
   }
 ]
 

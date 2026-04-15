@@ -2,6 +2,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { EVENT_CONTENT_STYLE_RENDERERS } from "./event-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface EventWithBlocks {
   id: string
@@ -20,6 +21,7 @@ interface EventWithBlocks {
 interface EventBlockRendererProps {
   site: SiteWithBlocks
   event: EventWithBlocks
+  initialHasSession?: boolean
 }
 
 function EventContentStyled({
@@ -57,30 +59,21 @@ function EventContentStyled({
   )
 }
 
-export function EventBlockRenderer({ site, event }: EventBlockRendererProps) {
-  const { blocks: siteBlocks = [] } = site
+export function EventBlockRenderer({ site, event, initialHasSession = false }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
+  const siteChrome = resolveSiteChrome(site.settings)
 
   // Sort event blocks by display_order
   const sortedBlocks = eventBlocks.sort((a, b) => a.display_order - b.display_order)
-
-  // Find navigation and footer from site blocks
-  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
-  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
-          // Skip navigation and footer blocks as they're handled by SiteLayout
-          if (block.type === 'navigation' || block.type === 'footer') {
-            return null
-          }
-
           if (block.type === 'event-content') {
             return (
               <div key={`event-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>

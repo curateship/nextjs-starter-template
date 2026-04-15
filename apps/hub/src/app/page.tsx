@@ -18,6 +18,7 @@ async function checkAuth() {
 
 export default async function SiteHomePage() {
   const { success, site } = await getHomePageSite()
+  const isLoggedIn = await checkAuth()
 
   // No site found for this host — redirect to login
   if (!success || !site) {
@@ -26,7 +27,6 @@ export default async function SiteHomePage() {
 
   // Check maintenance mode - only redirect if not logged in
   if (site.settings?.maintenance?.enabled === true) {
-    const isLoggedIn = await checkAuth()
     if (!isLoggedIn) {
       redirect('/maintenance')
     }
@@ -44,7 +44,7 @@ export default async function SiteHomePage() {
         <link rel="preload" as="image" href={lcpImageUrl} fetchPriority="high" />
       )}
       <StructuredData site={site} contentType="home" />
-      <BlockRenderer site={site} />
+      <BlockRenderer site={site} initialHasSession={isLoggedIn} />
     </>
   )
 }

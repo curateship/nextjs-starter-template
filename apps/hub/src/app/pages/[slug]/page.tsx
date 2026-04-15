@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 
 interface PagePageProps {
   params: Promise<{
@@ -15,6 +17,7 @@ interface PagePageProps {
 
 export default async function PagePage({ params }: PagePageProps) {
   const { slug } = await params
+  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders(slug)
 
@@ -25,7 +28,7 @@ export default async function PagePage({ params }: PagePageProps) {
   return (
     <>
       <StructuredData site={site} contentType="page" />
-      <BlockRenderer site={site} />
+      <BlockRenderer site={site} initialHasSession={isLoggedIn} />
     </>
   )
 }

@@ -105,11 +105,10 @@ export function PostPreview({ blocks, post, site, className = "", blocksLoading 
     display_order: 0 // Will be handled by block ordering
   }))
 
-  // Create preview site - navigation and footer will be added from site.settings automatically
+  // Create preview site - navigation and footer come from shared site.settings
   const previewSite = createPreviewSite(previewBlocks, site)
 
-  // Extract show_featured_image setting from site.settings (which contains content_blocks)
-  const showFeaturedImage = site?.settings?.show_featured_image !== false
+  const showFeaturedImage = post?.show_featured_image !== false
 
   // Create mock post data
   const previewPost = {

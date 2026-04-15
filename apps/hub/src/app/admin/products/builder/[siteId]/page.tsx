@@ -83,7 +83,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   }, [siteId, initialProduct, router])
   
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)
+  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change

@@ -93,7 +93,7 @@ function SortableButtonItem({
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -126,7 +126,7 @@ function SortableButtonItem({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+        <div className="ml-3 flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <Checkbox
               checked={button.showOnMobile || false}
@@ -141,7 +141,7 @@ function SortableButtonItem({
             variant="ghost"
             size="sm"
             onClick={() => removeButton(index)}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
           >
             <Trash2 className="h-2.5 w-2.5" />
           </Button>
@@ -188,7 +188,7 @@ function SortableLinkItem({
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -213,7 +213,7 @@ function SortableLinkItem({
           variant="ghost"
           size="sm"
           onClick={() => removeLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
         >
           <Trash2 className="h-2.5 w-2.5" />
         </Button>
@@ -238,22 +238,10 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
   const logoUrl = content.logoUrl || ''
   const links: NavigationLink[] = content.links || []
   const buttons: NavigationButton[] = content.buttons || []
+  const showAuthenticatedUserMenu = content.showAuthenticatedUserMenu === true
   const navigationStyle = content.navigationStyle || 'default'
   const styleConfig = content.styleConfig || {}
   const currentStyleConfig = styleConfig[navigationStyle] || {}
-
-  // Lazy migration: move legacy flat `style` object into styleConfig.default
-  useEffect(() => {
-    if (content.style && !content.styleConfig) {
-      onContentChange('styleConfig', {
-        default: { ...content.style },
-      })
-      onContentChange('style', undefined)
-      if (!content.navigationStyle) {
-        onContentChange('navigationStyle', 'default')
-      }
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     const updated = {
@@ -360,7 +348,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-start">
-                <div className="flex-shrink-0 pr-4">
+                <div className="shrink-0 pr-4">
                   {logo && logo !== '/images/logo.png' ? (
                     <div
                       className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
@@ -374,7 +362,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                           e.currentTarget.style.display = 'none'
                         }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                      <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
                         <div className="text-white text-center">
                           <ImageIcon className="mx-auto h-4 w-4 mb-1" />
@@ -651,6 +639,24 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                         Default: 1152px · Range: 320-2560px
                       </p>
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Account Menu</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={showAuthenticatedUserMenu}
+                      onCheckedChange={(checked) => onContentChange('showAuthenticatedUserMenu', checked === true)}
+                    />
+                    <div className="space-y-0.5">
+                      <Label>Show User Menu When Signed In</Label>
+                      <p className="text-sm text-muted-foreground">Swap CTA buttons for a dashboard/account menu after login</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

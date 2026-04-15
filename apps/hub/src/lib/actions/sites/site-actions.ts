@@ -5,6 +5,7 @@ import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/site-structure'
 
 export interface Site {
   id: string
@@ -425,7 +426,7 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
   }
 }
 
-async function updateSitePublicPagesField(
+async function updateSiteChromeField(
   siteId: string,
   fieldName: 'navigation' | 'footer',
   data: Record<string, any>
@@ -441,13 +442,15 @@ async function updateSitePublicPagesField(
     if (!site) return { success: false, error: 'Site not found or access denied' }
 
     const currentSettings = (site.settings || {}) as Record<string, any>
-    const publicPages = { ...(currentSettings.public_pages || {}) }
+    const updatedSettings = { ...currentSettings }
+
     if (data === null || data === undefined) {
-      delete publicPages[fieldName]
+      delete updatedSettings[fieldName]
     } else {
-      publicPages[fieldName] = data
+      updatedSettings[fieldName] = fieldName === 'navigation'
+        ? sanitizeNavigationSettings(data)
+        : sanitizeFooterSettings(data)
     }
-    const updatedSettings = { ...currentSettings, public_pages: publicPages }
 
     await db
       .update(sites)
@@ -465,9 +468,9 @@ async function updateSitePublicPagesField(
 }
 
 export async function updateSiteNavigationAction(siteId: string, navigationData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
-  return updateSitePublicPagesField(siteId, 'navigation', navigationData)
+  return updateSiteChromeField(siteId, 'navigation', navigationData)
 }
 
 export async function updateSiteFooterAction(siteId: string, footerData: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
-  return updateSitePublicPagesField(siteId, 'footer', footerData)
+  return updateSiteChromeField(siteId, 'footer', footerData)
 }

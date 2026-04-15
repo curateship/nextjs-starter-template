@@ -36,7 +36,6 @@ interface BlockPropertiesPanelProps {
       favicon?: string
     }
   }
-  siteBlocks?: Record<string, any[]>
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
@@ -49,16 +48,11 @@ export function BlockPropertiesPanel({
   siteId,
   currentCategory,
   site,
-  siteBlocks,
   blocksLoading = false,
   onTitleChange,
   onSelectBlock,
   onBack,
 }: BlockPropertiesPanelProps) {
-  const currentSiteBlocks = siteBlocks?.[currentCategory?.slug || ''] || []
-  const navigation = currentSiteBlocks.find(b => b.type === 'navigation')?.content
-  const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content
-
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
       <ScrollArea className="h-full">
@@ -97,11 +91,7 @@ export function BlockPropertiesPanel({
             } : undefined}
             site={site ? {
               ...site,
-              settings: {
-                ...site.settings,
-                navigation,
-                footer
-              }
+              settings: site.settings
             } : undefined}
             className="min-h-full"
             blocksLoading={blocksLoading}

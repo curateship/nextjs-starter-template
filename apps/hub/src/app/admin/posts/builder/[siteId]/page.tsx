@@ -128,7 +128,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     meta_description: currentPostData?.meta_description || undefined,
     site_id: currentPostData?.site_id,
     featured_image: currentPostData?.featured_image,
-    show_featured_image: (currentPostData as any)?.show_featured_image,
+    show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image,
     excerpt: currentPostData?.excerpt,
     is_published: currentPostData?.is_published,
     content_blocks: currentPostData?.content_blocks
@@ -280,11 +280,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             name: site?.name || 'Post Site',
             subdomain: site?.subdomain || 'preview',
             settings: site?.settings
-          }}
-          siteBlocks={{
-            navigation: site?.settings?.navigation,
-            footer: site?.settings?.footer,
-            show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image
           }}
           blocksLoading={loading}
           onPostTitleChange={handlePostTitleChange}

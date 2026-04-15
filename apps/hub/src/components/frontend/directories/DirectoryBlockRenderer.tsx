@@ -4,6 +4,7 @@ import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface DirectoryWithBlocks {
   id: string
@@ -23,6 +24,7 @@ interface DirectoryBlockRendererProps {
   site: SiteWithBlocks
   directory: DirectoryWithBlocks
   customBlockTemplates?: Record<string, DirectoryCustomBlockTemplate>
+  initialHasSession?: boolean
 }
 
 function DirectoryContentStyled({
@@ -60,30 +62,21 @@ function DirectoryContentStyled({
   )
 }
 
-export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {} }: DirectoryBlockRendererProps) {
-  const { blocks: siteBlocks = [] } = site
+export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, initialHasSession = false }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
+  const siteChrome = resolveSiteChrome(site.settings)
 
   // Sort directory blocks by display_order
   const sortedBlocks = directoryBlocks.sort((a, b) => a.display_order - b.display_order)
-
-  // Find navigation and footer from site blocks
-  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
-  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
         {/* Directory Blocks */}
         {sortedBlocks.map((block) => {
-          // Skip navigation and footer blocks as they're handled by SiteLayout
-          if (block.type === 'navigation' || block.type === 'footer') {
-            return null
-          }
-
           if (block.type === 'directory-content') {
             return (
               <div key={`directory-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>

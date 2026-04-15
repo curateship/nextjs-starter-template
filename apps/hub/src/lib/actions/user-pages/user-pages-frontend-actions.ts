@@ -20,10 +20,6 @@ export interface SiteWithUserPageBlocks {
   custom_domain: string | null
   settings?: {
     favicon?: string
-    user_pages?: {
-      navigation?: any
-      footer?: any
-    }
     [key: string]: any
   }
   blocks: Block[]
@@ -36,24 +32,12 @@ export interface SiteWithUserPageBlocks {
 }
 
 /**
- * Helper function to build blocks array with navigation, page content, and footer
+ * Helper function to build blocks array for user pages
  */
 function buildUserPageBlocks(
-  site: { settings: any },
   page: { contentBlocks: any }
 ): Block[] {
   const blocks: Block[] = []
-  const siteSettings = site.settings as Record<string, any> | null
-
-  // Add navigation from site settings
-  if (siteSettings?.user_pages?.navigation) {
-    blocks.push({
-      id: 'user-navigation',
-      type: 'navigation',
-      content: siteSettings.user_pages.navigation,
-      display_order: -1
-    })
-  }
 
   // Add page blocks from content_blocks
   if (page.contentBlocks) {
@@ -65,16 +49,6 @@ function buildUserPageBlocks(
         content: blockData.content || blockData,
         display_order: blockData.display_order || 0
       })
-    })
-  }
-
-  // Add footer from site settings
-  if (siteSettings?.user_pages?.footer) {
-    blocks.push({
-      id: 'user-footer',
-      type: 'footer',
-      content: siteSettings.user_pages.footer,
-      display_order: 999
     })
   }
 
@@ -141,7 +115,7 @@ export async function getUserPageBySlug(
         }
 
         // Use default page - build blocks with helper
-        const blocks = buildUserPageBlocks(site, defaultPage)
+        const blocks = buildUserPageBlocks(defaultPage)
 
         return {
           data: {
@@ -166,7 +140,7 @@ export async function getUserPageBySlug(
     }
 
     // Build blocks array with helper
-    const blocks = buildUserPageBlocks(site, page)
+    const blocks = buildUserPageBlocks(page)
 
     return {
       data: {

@@ -100,11 +100,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   // Site management items
   const siteManagementProjects = [
     {
-      name: "Pages",
+      name: "Structure",
       url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites",
       icon: FileText,
       items: [
-        { title: "User Dashboard", url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites" },
+        { title: "Pages", url: currentSite ? `/admin/sites/${currentSite.id}/pages` : "/admin/sites" },
+        { title: "User Pages", url: currentSite ? `/admin/user-pages/${currentSite.id}` : "/admin/sites" },
+        { title: "Navigation", url: currentSite ? `/admin/sites/${currentSite.id}/structure/navigation` : "/admin/sites" },
+        { title: "Footer", url: currentSite ? `/admin/sites/${currentSite.id}/structure/footer` : "/admin/sites" },
       ],
     },
     {

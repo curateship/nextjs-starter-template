@@ -36,6 +36,8 @@ Read these files in this order before changing HUB code:
 - Drizzle schema and runtime code are the current database source of truth.
 - `apps/hub/migrations/**` contains historical SQL and is not the runtime architecture authority.
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
+- Site navigation and footer are shared site structure stored in top-level `site.settings.navigation` and `site.settings.footer`.
+- Page and user-page builders edit page content blocks only. Navigation and footer are edited from the admin Structure screens, not as page blocks.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
 - Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.
 

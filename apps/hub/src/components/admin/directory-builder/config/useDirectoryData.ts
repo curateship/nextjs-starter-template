@@ -10,7 +10,6 @@ interface UseDirectoryDataReturn {
   site: SiteWithTheme | null
   directory: Directory | null
   blocks: Record<string, DirectoryEditorBlock[]>
-  siteBlocks: Record<string, any[]>
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   siteLoading: boolean
   blocksLoading: boolean
@@ -25,37 +24,8 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, DirectoryEditorBlock[]>>({})
-  const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [blocksLoading, setBlocksLoading] = useState(false)
-
-  const buildSiteBlocks = (siteData: SiteWithTheme | null, directorySlug: string) => {
-    const blocksForDirectory = []
-
-    if (siteData?.settings?.navigation) {
-      blocksForDirectory.push({
-        id: 'site-navigation',
-        type: 'navigation',
-        title: 'Navigation',
-        content: siteData.settings.navigation,
-        display_order: -1,
-      })
-    }
-
-    if (siteData?.settings?.footer) {
-      blocksForDirectory.push({
-        id: 'site-footer',
-        type: 'footer',
-        title: 'Footer',
-        content: siteData.settings.footer,
-        display_order: 999,
-      })
-    }
-
-    return {
-      [directorySlug]: blocksForDirectory,
-    }
-  }
 
   const loadSiteAndBlocks = async () => {
     setSiteLoading(true)
@@ -83,14 +53,12 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
         setBlocks({
           [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
         })
-        setSiteBlocks(buildSiteBlocks(siteResult.data, directoryResult.data.slug))
       } else {
         if (directoryResult.error) {
           console.error('Failed to load directory:', directoryResult.error)
         }
         setDirectory(null)
         setBlocks({})
-        setSiteBlocks({})
       }
     } catch (error) {
       setSiteError('Failed to load data')
@@ -105,7 +73,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
     if (!selectedDirectory) {
       setDirectory(null)
       setBlocks({})
-      setSiteBlocks({})
       return
     }
 
@@ -123,11 +90,9 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
       setBlocks({
         [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
       })
-      setSiteBlocks(buildSiteBlocks(currentSite, directoryResult.data.slug))
     } else {
       setDirectory(null)
       setBlocks({})
-      setSiteBlocks({})
     }
 
     setBlocksLoading(false)
@@ -142,7 +107,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
     site,
     directory,
     blocks,
-    siteBlocks,
     customBlockTemplates,
     siteLoading,
     blocksLoading,

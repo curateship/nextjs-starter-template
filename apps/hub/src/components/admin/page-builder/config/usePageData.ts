@@ -3,6 +3,9 @@ import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-
 import { getSitePagesAction, type Page } from "@/lib/actions/pages/page-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 
+function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
+  return convertJsonToBlocks(contentBlocks)
+}
 interface UsePageDataReturn {
   site: SiteWithTheme | null
   pages: Page[]
@@ -11,45 +14,6 @@ interface UsePageDataReturn {
   blocksLoading: boolean
   siteError: string
   reloadBlocks: () => Promise<void>
-}
-
-// Helper function to build site-level blocks (navigation and footer)
-function buildSiteBlocks(siteData: SiteWithTheme | null): Array<{
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-  display_order: number
-}> {
-  const siteBlocks: Array<{
-    id: string
-    type: string
-    title: string
-    content: Record<string, any>
-    display_order: number
-  }> = []
-
-  if (siteData?.settings?.public_pages?.navigation) {
-    siteBlocks.push({
-      id: 'site-navigation',
-      type: 'navigation',
-      title: 'Navigation',
-      content: siteData.settings.public_pages.navigation,
-      display_order: -1 // Show at top
-    })
-  }
-
-  if (siteData?.settings?.public_pages?.footer) {
-    siteBlocks.push({
-      id: 'site-footer',
-      type: 'footer',
-      title: 'Footer',
-      content: siteData.settings.public_pages.footer,
-      display_order: 999 // Show at bottom
-    })
-  }
-
-  return siteBlocks
 }
 
 export function usePageData(siteId: string): UsePageDataReturn {
@@ -88,16 +52,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
         // Convert JSON content_blocks to blocks format for each page
         const blocksData: Record<string, any[]> = {}
         pagesResult.data.forEach(page => {
-          const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
-
-          // Add navigation and footer from site data to each page
-          // This maintains the UI illusion that nav/footer are page blocks
-          const siteBlocks = buildSiteBlocks(siteResult.data)
-
-          // Combine and sort all blocks by display_order
-          const allBlocks = [...siteBlocks, ...pageBlocks]
-          allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-          blocksData[page.slug] = allBlocks
+          blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
         })
         setBlocks(blocksData)
       } else {
@@ -131,15 +86,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
       // Convert JSON content_blocks to blocks format for each page
       const blocksData: Record<string, any[]> = {}
       pagesResult.data.forEach(page => {
-        const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
-
-        // Add navigation and footer from site data to each page
-        const siteBlocks = buildSiteBlocks(siteResult.data)
-
-        // Combine and sort all blocks by display_order
-        const allBlocks = [...siteBlocks, ...pageBlocks]
-        allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-        blocksData[page.slug] = allBlocks
+        blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
       })
       setBlocks(blocksData)
     }

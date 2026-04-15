@@ -9,6 +9,8 @@ import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -18,6 +20,7 @@ interface DirectoryPageProps {
 
 export default async function DirectoryPage({ params }: DirectoryPageProps) {
   const { slug } = await params
+  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -92,6 +95,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         site={site}
         directory={directoryWithBlocks}
         customBlockTemplates={customBlockTemplates}
+        initialHasSession={isLoggedIn}
       />
     </>
   )

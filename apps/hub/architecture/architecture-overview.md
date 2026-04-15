@@ -81,8 +81,8 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 
 **Site data flow:**
 1. Request comes in → `getSiteFromHeaders()` resolves site by Host header
-2. Site record includes blocks (navigation, hero, footer, etc.) as JSON
-3. BlockRenderer components render blocks based on type
+2. Shared site chrome lives in top-level `site.settings.navigation` and `site.settings.footer`
+3. Page/content rows store only their own content blocks as JSON
 4. Each content type (products, posts, pages, categories, directories, events) belongs to a site via `site_id`
 
 **Drizzle ORM notes:**
@@ -113,7 +113,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - `DirectoryBlockRenderer` — directory pages
 - `EventBlockRenderer` — event pages
 
-All 6 renderers follow the same pattern: extract nav/footer from site blocks, wrap in `SiteLayout`, render content blocks.
+All 6 renderers follow the same pattern: resolve nav/footer from top-level site settings, wrap in `SiteLayout`, render content blocks.
 
 **Renderer source of truth:**
 - Pages: `src/components/frontend/pages/PageBlockRenderer.tsx`
@@ -139,6 +139,7 @@ apps/hub/src/components/
 ├── admin/                 # Admin dashboard components
 │   ├── layout/            # Admin layout (sidebar, sticky header, dashboard cards)
 │   ├── page-builder/      # Page builder blocks
+│   ├── structure/         # Shared site navigation/footer editors
 │   ├── product-builder/   # Product builder blocks
 │   ├── post-builder/      # Post builder blocks
 │   ├── category-builder/  # Category builder blocks
@@ -165,6 +166,7 @@ Use this map before changing code:
 
 - Route bug or feature: inspect the matching route in `src/app/**`, then its renderer in `src/components/frontend/**`, then the action and schema it depends on.
 - Admin builder bug or feature: inspect the admin route in `src/app/admin/**`, then the builder under `src/components/admin/**`, then the action and schema it saves through.
+- Structure/navigation/footer task: inspect the Structure routes plus `src/lib/utils/site-structure.ts` before changing page-builder behavior.
 - Auth task: inspect `src/lib/auth/server.ts`, `src/lib/auth/client.ts`, and `src/app/api/auth/[...all]/route.ts` first.
 - Data or query task: inspect the relevant Drizzle schema file before changing actions or UI.
 - Tenant/domain task: inspect site resolution and URL generation before changing host or domain logic.

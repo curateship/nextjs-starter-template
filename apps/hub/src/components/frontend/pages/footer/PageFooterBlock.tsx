@@ -1,8 +1,13 @@
 import Link from 'next/link'
 import { Globe } from 'lucide-react'
-import { isSafeUrl } from '@/lib/utils/url-validator'
+import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 
 const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
+    const safeUrl = sanitizeUrl(url, '')
+    if (!safeUrl) {
+        return null
+    }
+
     const getSocialIcon = (platform: string) => {
         switch (platform.toLowerCase()) {
             case 'twitter':
@@ -58,7 +63,7 @@ const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
 
     return (
         <Link
-            href={url}
+            href={safeUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={platform.charAt(0).toUpperCase() + platform.slice(1)}
@@ -91,7 +96,12 @@ interface FooterBlockProps {
 }
 
 export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, visibility }: FooterBlockProps) {
-    const footerLinks = links && links.length > 0 ? links : []
+    const footerLinks = (links || [])
+        .map(link => ({
+            ...link,
+            url: sanitizeUrl(link.url, ''),
+        }))
+        .filter(link => link.url)
     
     // Determine logo URL with smart defaults
     const getLogoUrl = () => {
@@ -154,7 +164,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
                         {footerLinks.map((link, index) => (
                             <Link
                                 key={index}
-                                href={link.url}
+                                href={sanitizeUrl(link.url, '#')}
                                 className="text-muted-foreground hover:text-primary block duration-150">
                                 <span>{link.text}</span>
                             </Link>

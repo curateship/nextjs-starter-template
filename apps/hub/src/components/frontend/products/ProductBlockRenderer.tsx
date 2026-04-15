@@ -13,37 +13,30 @@ import { ProductVideoBlock } from "@/components/frontend/products/video/ProductV
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface ProductBlockRendererProps {
   site: SiteWithBlocks
   product: ProductWithBlocks
+  initialHasSession?: boolean
 }
 
-export function ProductBlockRenderer({ site, product }: ProductBlockRendererProps) {
-  const { blocks: siteBlocks = [] } = site
+export function ProductBlockRenderer({ site, product, initialHasSession = false }: ProductBlockRendererProps) {
   const { blocks: productBlocks = [] } = product
+  const siteChrome = resolveSiteChrome(site.settings)
   
   
   // Sort product blocks by display_order
   const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
-  
-  // Find navigation and footer from site blocks
-  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
-  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
   
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
   const customWidth = site.settings?.custom_width;
   
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
       
       {sortedBlocks.map((block) => {
-        // Skip navigation and footer blocks as they're handled by SiteLayout
-        if (block.type === 'navigation' || block.type === 'footer') {
-          return null
-        }
-        
         if (block.type === 'product-content' || block.type === 'product-default') {
           const styleName = block.content?.productContentStyle || 'default'
           const styleConfig = block.content?.styleConfig?.[styleName] || {}

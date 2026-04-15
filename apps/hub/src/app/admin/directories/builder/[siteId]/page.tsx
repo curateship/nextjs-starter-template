@@ -114,7 +114,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }, [siteId, directorySearch, selectedDirectory, router])
 
   // Custom hooks for data and state management
-  const { site, directory: currentDirectoryData, blocks, siteBlocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId, selectedDirectory)
+  const { site, directory: currentDirectoryData, blocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId, selectedDirectory)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -347,7 +347,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             subdomain: site?.subdomain || 'preview',
             settings: site?.settings
           }}
-          siteBlocks={siteBlocks}
           customBlockTemplates={customBlockTemplates}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}

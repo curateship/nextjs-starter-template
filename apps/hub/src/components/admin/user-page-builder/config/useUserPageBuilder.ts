@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react"
 import {
   updateUserPageBlocksAction,
-  updateUserPagesSettingsAction,
   type UserPage
 } from "@/lib/actions/user-pages/user-pages-actions"
 import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
-import { isBlockTypeProtected } from "@/lib/utils/lock-blocks-protector"
 import { getBlockTypeDefinition } from "./user-page-block-types"
 
 interface BlockSelection {
@@ -36,7 +34,7 @@ interface UseUserPagesBuilderReturn {
 }
 
 export function useUserPageBuilder({
-  siteId,
+  siteId: _siteId,
   pages,
   blocks,
   setBlocks,
@@ -48,12 +46,10 @@ export function useUserPageBuilder({
   const [saveMessage, setSaveMessage] = useState("")
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  // Reset selected block when page changes
   useEffect(() => {
     setSelectedBlock(null)
   }, [selectedPage])
 
-  // Helper function to update block content
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
 
@@ -72,37 +68,24 @@ export function useUserPageBuilder({
     }
   }
 
-  // Delete block immediately from database
   const handleDeleteBlock = async (block: any) => {
     setDeleting(block.id)
 
     try {
-      // Remove from UI immediately
       const updatedBlocks = { ...blocks }
       updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
       setBlocks(updatedBlocks)
 
-      // Clear selection if deleted block was selected
       if (selectedBlock?.id === block.id) {
         setSelectedBlock(null)
       }
 
-      // Clear nav/footer from user pages settings if deleting those block types
-      if (block.type === 'navigation' || block.type === 'footer') {
-        const settings: { navigation?: any; footer?: any } = {}
-        if (block.type === 'navigation') settings.navigation = null
-        if (block.type === 'footer') settings.footer = null
-        await updateUserPagesSettingsAction(siteId, settings)
-      }
-
-      // Save to database
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (currentPage) {
-        const jsonBlocks = convertBlocksToJson(updatedBlocks[selectedPage].filter(b => b.type !== 'navigation' && b.type !== 'footer'))
+        const jsonBlocks = convertBlocksToJson(updatedBlocks[selectedPage])
         await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
       }
 
-      // Reload blocks from database to get clean state
       if (reloadBlocks) {
         await reloadBlocks()
       }
@@ -118,46 +101,23 @@ export function useUserPageBuilder({
     }
   }
 
-  // Handle block reordering
   const handleReorderBlocks = async (reorderedBlocks: any[]) => {
-    // Store original state for rollback
     const originalBlocks = { ...blocks }
-
-    // Get current blocks to preserve protected ones that might not be in reorderedBlocks
-    const currentBlocks = blocks[selectedPage] || []
-    const protectedBlocks = currentBlocks.filter(block =>
-      isBlockTypeProtected(block.type)
-    )
-
-    // Combine protected blocks with reordered blocks, maintaining proper order
-    // Navigation should be first, footer should be last
-    const navigationBlocks = protectedBlocks.filter(b => b.type === 'navigation')
-    const footerBlocks = protectedBlocks.filter(b => b.type === 'footer')
-    const reorderableBlocks = reorderedBlocks.filter(b => !isBlockTypeProtected(b.type))
-
-    // Build final blocks array with updated display_order
-    const finalBlocks = [
-      ...navigationBlocks,
-      ...reorderableBlocks,
-      ...footerBlocks
-    ].map((block, index) => ({
+    const finalBlocks = reorderedBlocks.map((block, index) => ({
       ...block,
       display_order: index
     }))
 
-    // Update local state immediately for responsive UX
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedPage] = finalBlocks
     setBlocks(updatedBlocks)
 
-    // Save to database
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
       const jsonBlocks = convertBlocksToJson(finalBlocks)
-      const { data, error } = await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
+      const { error } = await updateUserPageBlocksAction(currentPage.id, jsonBlocks)
 
       if (error) {
-        // Rollback to original state
         setBlocks(originalBlocks)
         setSaveMessage(`Error reordering blocks: ${error}`)
         setTimeout(() => setSaveMessage(""), 5000)
@@ -165,7 +125,6 @@ export function useUserPageBuilder({
     }
   }
 
-  // Save all block customizations
   const handleSaveAllBlocks = async () => {
     const hasActiveBlocks = blocks[selectedPage] && blocks[selectedPage].length > 0
 
@@ -179,7 +138,6 @@ export function useUserPageBuilder({
     setSaveMessage("Saving...")
 
     try {
-      // Find the current page
       const currentPage = pages.find(p => p.slug === selectedPage)
       if (!currentPage) {
         setSaveMessage("Error: Page not found")
@@ -187,34 +145,10 @@ export function useUserPageBuilder({
         return
       }
 
-      // Separate navigation/footer blocks from user page blocks
-      const pageBlocks = blocks[selectedPage].filter(block =>
-        block.type !== 'navigation' && block.type !== 'footer'
-      )
-      const navigationBlock = blocks[selectedPage].find(block => block.type === 'navigation')
-      const footerBlock = blocks[selectedPage].find(block => block.type === 'footer')
-
-      // Save navigation and footer to user pages config
-      const savePromises = []
-
-      if (navigationBlock || footerBlock) {
-        const settings: { navigation?: any; footer?: any } = {}
-        if (navigationBlock) settings.navigation = navigationBlock.content
-        if (footerBlock) settings.footer = footerBlock.content
-        savePromises.push(updateUserPagesSettingsAction(siteId, settings))
-      }
-
-      // Save page blocks to user pages table
-      if (pageBlocks.length > 0) {
-        const jsonBlocks = convertBlocksToJson(pageBlocks)
-        savePromises.push(updateUserPageBlocksAction(currentPage.id, jsonBlocks))
-      }
-
-      // Execute all saves in parallel
-      const results = await Promise.all(savePromises)
-
-      // Check for any errors
+      const jsonBlocks = convertBlocksToJson(blocks[selectedPage])
+      const results = await Promise.all([updateUserPageBlocksAction(currentPage.id, jsonBlocks)])
       const errors = results.filter(result => result.error)
+
       if (errors.length > 0) {
         setSaveMessage(`Error: ${errors[0].error}`)
         setTimeout(() => setSaveMessage(""), 5000)
@@ -231,13 +165,11 @@ export function useUserPageBuilder({
     }
   }
 
-  // Add multiple blocks from modal selection
   const handleAddBlocks = (selections: BlockSelection[]) => {
     const updatedBlocks = { ...blocks }
     const currentBlocks = updatedBlocks[selectedPage] || []
     const newBlocksToAdd: any[] = []
 
-    // Process each selection
     for (const selection of selections) {
       const blockDefinition = getBlockTypeDefinition(selection.type)
 
@@ -246,17 +178,15 @@ export function useUserPageBuilder({
         continue
       }
 
-      // Create the specified quantity of blocks
       for (let i = 0; i < selection.quantity; i++) {
-        const newBlock = {
+        newBlocksToAdd.push({
           id: generateBlockId(),
           type: selection.type,
           content: { ...blockDefinition.defaultContent },
           display_order: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }
-        newBlocksToAdd.push(newBlock)
+        })
       }
     }
 
@@ -264,30 +194,14 @@ export function useUserPageBuilder({
       return
     }
 
-    // Find proper insertion point (after navigation, before footer)
-    const navIndex = currentBlocks.findIndex(b => b.type === 'navigation')
-    const footerIndex = currentBlocks.findIndex(b => b.type === 'footer')
-
-    let insertIndex = currentBlocks.length
-    if (footerIndex !== -1) {
-      insertIndex = footerIndex
-    } else if (navIndex !== -1) {
-      insertIndex = navIndex + 1
-    }
-
-    // Insert new blocks at the proper position
-    const newBlocks = [...currentBlocks]
-    newBlocks.splice(insertIndex, 0, ...newBlocksToAdd)
-
-    // Update display orders
-    newBlocks.forEach((b, idx) => {
-      b.display_order = idx
+    const newBlocks = [...currentBlocks, ...newBlocksToAdd]
+    newBlocks.forEach((block, index) => {
+      block.display_order = index
     })
 
     updatedBlocks[selectedPage] = newBlocks
     setBlocks(updatedBlocks)
 
-    // Select the last added block
     if (newBlocksToAdd.length > 0) {
       setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }

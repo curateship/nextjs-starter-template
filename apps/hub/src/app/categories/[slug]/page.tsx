@@ -8,6 +8,8 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { headers } from "next/headers"
+import { getSessionCookie } from "better-auth/cookies"
 
 interface CategoryPageProps {
   params: Promise<{
@@ -17,6 +19,7 @@ interface CategoryPageProps {
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params
+  const isLoggedIn = !!getSessionCookie(await headers())
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -59,6 +62,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <CategoryBlockRenderer
         site={site}
         category={categoryWithBlocks}
+        initialHasSession={isLoggedIn}
       />
     </>
   )

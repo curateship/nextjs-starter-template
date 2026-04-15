@@ -37,7 +37,6 @@ interface BlockPropertiesPanelProps {
       footer?: any
     }
   }
-  siteBlocks?: Record<string, any[]>
   customBlockTemplates?: DirectoryCustomBlockTemplate[]
   blocksLoading?: boolean
   onTitleChange?: (title: string) => void
@@ -52,7 +51,6 @@ export function BlockPropertiesPanel({
   siteId,
   currentDirectory,
   site,
-  siteBlocks,
   customBlockTemplates = [],
   blocksLoading = false,
   onTitleChange,
@@ -60,11 +58,6 @@ export function BlockPropertiesPanel({
   onBack,
   showDirectoryTitleField = true,
 }: BlockPropertiesPanelProps) {
-  // Get navigation and footer from siteBlocks for the current directory
-  const currentSiteBlocks = siteBlocks?.[currentDirectory?.slug || ''] || []
-  const navigation = currentSiteBlocks.find(b => b.type === 'navigation')?.content ?? site?.settings?.navigation
-  const footer = currentSiteBlocks.find(b => b.type === 'footer')?.content ?? site?.settings?.footer
-
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
       <ScrollArea className="h-full">
@@ -113,11 +106,7 @@ export function BlockPropertiesPanel({
             } : undefined}
             site={site ? {
               ...site,
-              settings: {
-                ...site.settings,
-                navigation,
-                footer
-              }
+              settings: site.settings
             } : undefined}
             className="min-h-full"
             blocksLoading={blocksLoading}

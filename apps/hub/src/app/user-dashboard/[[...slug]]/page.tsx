@@ -1,6 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
-import { getUserPageBySlug, getCurrentUserSiteId } from '@/lib/actions/user-pages/user-pages-frontend-actions'
+import { getUserPageBySlug } from '@/lib/actions/user-pages/user-pages-frontend-actions'
 import { BlockRenderer } from '@/components/frontend/pages/PageBlockRenderer'
+import { getSiteFromHeaders } from '@/lib/utils/site-resolver'
+import { headers } from 'next/headers'
+import { getSessionCookie } from 'better-auth/cookies'
 
 interface UserPageProps {
   params: Promise<{
@@ -11,21 +14,22 @@ interface UserPageProps {
 export default async function UserPage({ params }: UserPageProps) {
   const { slug } = await params
   const pageSlug = slug?.[0] || 'home'
+  const isLoggedIn = !!getSessionCookie(await headers())
 
-  // Get current user's site ID
-  const { siteId, error: siteError } = await getCurrentUserSiteId()
-
-  if (siteError || !siteId) {
-    // Redirect to login if not authenticated
-    redirect('/login')
-  }
-
-  // Fetch user page data
-  const { data, error } = await getUserPageBySlug(siteId, pageSlug)
-
-  if (error || !data) {
+  const { success: siteSuccess, site } = await getSiteFromHeaders()
+  if (!siteSuccess || !site?.id) {
     notFound()
   }
 
-  return <BlockRenderer site={data} />
+  // Fetch user page data
+  const { data, error } = await getUserPageBySlug(site.id, pageSlug)
+
+  if (error || !data) {
+    if (error === 'Authentication required') {
+      redirect('/login')
+    }
+    notFound()
+  }
+
+  return <BlockRenderer site={data} initialHasSession={isLoggedIn} />
 }

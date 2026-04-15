@@ -15,7 +15,6 @@ interface EventBlock {
 interface UseEventDataReturn {
   site: SiteWithTheme | null
   blocks: Record<string, EventBlock[]>
-  siteBlocks: Record<string, any[]>
   siteLoading: boolean
   blocksLoading: boolean
   siteError: string
@@ -28,7 +27,6 @@ export function useEventData(siteId: string): UseEventDataReturn {
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, EventBlock[]>>({})
-  const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
   const loadSiteAndBlocks = async () => {
@@ -70,41 +68,6 @@ export function useEventData(siteId: string): UseEventDataReturn {
         setBlocks({})
       }
 
-      // Load site blocks (navigation, footer) from site data
-      if (siteResult.data) {
-        const siteBlocksData: Record<string, any[]> = {}
-
-        // Create navigation and footer blocks from site data for all events
-        Object.keys(convertedBlocks).forEach(eventSlug => {
-          const siteBlocks = []
-
-          if (siteResult.data?.settings?.navigation) {
-            siteBlocks.push({
-              id: 'site-navigation',
-              type: 'navigation',
-              title: 'Navigation',
-              content: siteResult.data.settings.navigation,
-              display_order: -1
-            })
-          }
-
-          if (siteResult.data?.settings?.footer) {
-            siteBlocks.push({
-              id: 'site-footer',
-              type: 'footer',
-              title: 'Footer',
-              content: siteResult.data.settings.footer,
-              display_order: 999
-            })
-          }
-
-          siteBlocksData[eventSlug] = siteBlocks
-        })
-
-        setSiteBlocks(siteBlocksData)
-      } else {
-        setSiteBlocks({})
-      }
     } catch (error) {
       setSiteError('Failed to load data')
       console.error('Error loading site and events:', error)
@@ -151,7 +114,6 @@ export function useEventData(siteId: string): UseEventDataReturn {
   return {
     site,
     blocks,
-    siteBlocks,
     siteLoading,
     blocksLoading,
     siteError,

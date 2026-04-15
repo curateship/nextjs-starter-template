@@ -7,6 +7,10 @@ import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
+function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
+  return convertJsonToBlocks(contentBlocks)
+}
+
 interface UseUserPagesDataReturn {
   site: Site | null
   pages: UserPage[]
@@ -15,47 +19,6 @@ interface UseUserPagesDataReturn {
   blocksLoading: boolean
   configError: string
   reloadBlocks: () => Promise<void>
-}
-
-// Helper function to build user pages config blocks (navigation and footer)
-function buildUserPagesConfigBlocks(siteData: Site | null): Array<{
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-  display_order: number
-}> {
-  const configBlocks: Array<{
-    id: string
-    type: string
-    title: string
-    content: Record<string, any>
-    display_order: number
-  }> = []
-
-  const userPagesSettings = siteData?.settings?.user_pages
-
-  if (userPagesSettings?.navigation) {
-    configBlocks.push({
-      id: 'user-pages-navigation',
-      type: 'navigation',
-      title: 'Navigation',
-      content: userPagesSettings.navigation,
-      display_order: -1 // Show at top
-    })
-  }
-
-  if (userPagesSettings?.footer) {
-    configBlocks.push({
-      id: 'user-pages-footer',
-      type: 'footer',
-      title: 'Footer',
-      content: userPagesSettings.footer,
-      display_order: 999 // Show at bottom
-    })
-  }
-
-  return configBlocks
 }
 
 export function useUserPageData(siteId: string): UseUserPagesDataReturn {
@@ -89,16 +52,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
         // Convert JSON content_blocks to blocks format for each page
         const blocksData: Record<string, any[]> = {}
         pagesResult.data.forEach(page => {
-          const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
-
-          // Add navigation and footer from site.settings.user_pages to each page
-          // This maintains the UI illusion that nav/footer are page blocks
-          const configBlocks = buildUserPagesConfigBlocks(siteResult.data)
-
-          // Combine and sort all blocks by display_order
-          const allBlocks = [...configBlocks, ...pageBlocks]
-          allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-          blocksData[page.slug] = allBlocks
+          blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
         })
         setBlocks(blocksData)
       } else {
@@ -129,15 +83,7 @@ export function useUserPageData(siteId: string): UseUserPagesDataReturn {
       // Convert JSON content_blocks to blocks format for each page
       const blocksData: Record<string, any[]> = {}
       pagesResult.data.forEach(page => {
-        const pageBlocks = convertJsonToBlocks(page.content_blocks || {})
-
-        // Add navigation and footer from site.settings.user_pages to each page
-        const configBlocks = buildUserPagesConfigBlocks(siteData)
-
-        // Combine and sort all blocks by display_order
-        const allBlocks = [...configBlocks, ...pageBlocks]
-        allBlocks.sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-        blocksData[page.slug] = allBlocks
+        blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
       })
       setBlocks(blocksData)
     }

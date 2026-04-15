@@ -101,7 +101,6 @@ export interface SiteWithBlocks {
  * Helper function to build blocks array for public pages
  */
 function buildPublicPageBlocks(
-  site: any,
   page: any | null
 ): Array<{
   id: string
@@ -116,38 +115,20 @@ function buildPublicPageBlocks(
     display_order: number
   }> = []
 
-  // Add site-level navigation and footer blocks from public_pages settings
-  if (site.settings?.public_pages?.navigation) {
-    blocks.push({
-      id: 'site-navigation',
-      type: 'navigation',
-      content: site.settings.public_pages.navigation,
-      display_order: -1
-    })
-  }
-
-  if (site.settings?.public_pages?.footer) {
-    blocks.push({
-      id: 'site-footer',
-      type: 'footer',
-      content: site.settings.public_pages.footer,
-      display_order: 999
-    })
-  }
-
   // Add page-specific blocks
   if (page && page.content_blocks) {
     // Convert JSON content_blocks to array format
-    const pageBlocks = Object.entries(page.content_blocks).map(([id, block]: [string, any]) => ({
-      id,
-      type: block.type,
-      content: block.content,
-      display_order: block.display_order || 0
-    }))
+    const pageBlocks = Object.entries(page.content_blocks)
+      .map(([id, block]: [string, any]) => ({
+        id,
+        type: block.type,
+        content: block.content,
+        display_order: block.display_order || 0
+      }))
     blocks.push(...pageBlocks)
   }
 
-  // Sort all blocks by display_order
+  // Sort page-specific blocks by display_order
   blocks.sort((a, b) => a.display_order - b.display_order)
 
   return blocks
@@ -238,7 +219,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     }
 
     // Build blocks array using helper function
-    const blocks = buildPublicPageBlocks(site, page)
+    const blocks = buildPublicPageBlocks(page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
     const listingData = await prefetchListingData(blocks, site.id)
@@ -353,7 +334,7 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
     }
 
     // Build blocks array using helper function
-    const blocks = buildPublicPageBlocks(site, page)
+    const blocks = buildPublicPageBlocks(page)
 
     // Pre-fetch data for listing-views blocks to eliminate client-side loading
     const listingData = await prefetchListingData(blocks, site.id)

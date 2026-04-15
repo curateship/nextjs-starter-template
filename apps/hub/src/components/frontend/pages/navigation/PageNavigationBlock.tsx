@@ -1,12 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, X, ChevronDown, Globe } from 'lucide-react'
+import { Menu, X, ChevronDown, Globe, LayoutDashboard, LogOut, Shield, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useMemo, useState, useRef, useEffect, memo } from 'react'
+import { useMemo, useState, useEffect, memo } from 'react'
 import { cn } from '@/lib/utils/tailwind'
-import { isSafeUrl } from '@/lib/utils/url-validator'
+import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
+import { authClient } from '@/lib/auth/client'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // Navigation menu item interface
 interface MenuItem {
@@ -14,6 +24,15 @@ interface MenuItem {
   href: string;
   hasDropdown: boolean;
   dropdownItems?: Array<{ name: string; href: string }>;
+}
+
+interface NavigationStyle {
+  backgroundColor?: string;
+  textColor?: string;
+  blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
+  containerWidth?: 'full' | 'custom';
+  customWidth?: number;
+  showDarkModeToggle?: boolean;
 }
 
 // NavBlock props interface
@@ -33,24 +52,51 @@ interface NavBlockProps {
   links?: Array<{ text: string; url: string }>;
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>;
   navigationStyle?: string;
-  styleConfig?: Record<string, Record<string, any>>;
-  style?: {
-    backgroundColor: string;
-    textColor: string;
-    blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
-    containerWidth?: 'full' | 'custom';
-    customWidth?: number;
-    showDarkModeToggle?: boolean;
-  };
+  styleConfig?: Record<string, NavigationStyle>;
+  showAuthenticatedUserMenu?: boolean;
   visibility?: Record<string, boolean>;
+  initialHasSession?: boolean;
 }
 
-// Default navigation menu configuration
-const defaultMenuItems: MenuItem[] = [
-  { name: 'Tutorials', href: '#', hasDropdown: false, dropdownItems: [] },
-  { name: 'Products', href: '/themes/marketplace/products/archive', hasDropdown: false, dropdownItems: [] },
-  { name: 'Posts', href: '/themes/marketplace/posts/archive', hasDropdown: false, dropdownItems: [] },
-]
+interface SessionUser {
+  email?: string | null;
+  name?: string | null;
+  role?: string | null;
+}
+
+const PendingUserMenuButton = () => (
+  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border" aria-label="Loading account menu">
+    <Avatar className="h-9 w-9">
+      <AvatarFallback>
+        <User className="size-4" />
+      </AvatarFallback>
+    </Avatar>
+  </Button>
+)
+
+const MobileUserMenuLoadingPanel = () => (
+  <div className="space-y-3 rounded-2xl border p-4">
+    <div className="flex items-center gap-3">
+      <Avatar className="h-10 w-10">
+        <AvatarFallback>
+          <User className="size-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <div className="text-sm font-medium">Loading account</div>
+      </div>
+    </div>
+  </div>
+)
+
+function getUserInitials(user: SessionUser | null) {
+  const source = user?.name?.trim() || user?.email?.trim() || 'U'
+  const parts = source.split(/\s+/).filter(Boolean)
+  if (parts.length > 1) {
+    return `${parts[0][0] || 'U'}${parts[1][0] || 'U'}`.toUpperCase()
+  }
+  return source.slice(0, 2).toUpperCase()
+}
 
 // Desktop dropdown menu item component
 const DesktopDropdownItem = ({ 
@@ -92,7 +138,7 @@ const DesktopDropdownItem = ({
           {item.dropdownItems?.map((dropdownItem, dropdownIndex) => (
             <Link
               key={dropdownIndex}
-              href={dropdownItem.href}
+              href={sanitizeUrl(dropdownItem.href, '#')}
               className="block px-4 py-2 text-sm hover:bg-muted hover:opacity-80"
               style={{ color: textColor || undefined }}
             >
@@ -133,7 +179,7 @@ const DesktopNav = ({
             />
           ) : (
             <Link
-              href={item.href}
+              href={sanitizeUrl(item.href, '#')}
               className="block duration-150 hover:opacity-80"
               style={{ color: textColor || undefined }}
             >
@@ -156,7 +202,7 @@ const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: s
       {item.dropdownItems?.map((dropdownItem, dropdownIndex) => (
         <Link
           key={dropdownIndex}
-          href={dropdownItem.href}
+          href={sanitizeUrl(dropdownItem.href, '#')}
           className="block text-sm hover:opacity-80"
           style={{ color: textColor || undefined }}
         >
@@ -177,7 +223,7 @@ const MobileNav = ({ menuItems, textColor }: { menuItems: MenuItem[]; textColor?
             <MobileDropdownItem item={item} textColor={textColor} />
           ) : (
             <Link
-              href={item.href}
+              href={sanitizeUrl(item.href, '#')}
               className="block duration-150 hover:opacity-80"
               style={{ color: textColor || undefined }}
             >
@@ -217,7 +263,12 @@ const CTAButtons = ({ buttons }: {
     return null
   }
 
-  const validButtons = buttons.filter(button => button && button.text && button.url)
+  const validButtons = buttons
+    .map(button => ({
+      ...button,
+      url: sanitizeUrl(button.url, ''),
+    }))
+    .filter(button => button && button.text && button.url)
 
   // Don't render anything if all buttons are invalid
   if (validButtons.length === 0) {
@@ -233,7 +284,7 @@ const CTAButtons = ({ buttons }: {
           size="sm"
           variant={button.style === 'primary' ? 'default' : button.style}
         >
-          <Link href={button.url}>
+          <Link href={sanitizeUrl(button.url, '#')}>
             <span>{button.text}</span>
           </Link>
         </Button>
@@ -242,16 +293,116 @@ const CTAButtons = ({ buttons }: {
   )
 }
 
+const DesktopUserMenu = ({
+  user,
+  onSignOut,
+  showAdminLink,
+}: {
+  user: SessionUser
+  onSignOut: () => void
+  showAdminLink: boolean
+}) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border">
+        <Avatar className="h-9 w-9">
+          <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+        </Avatar>
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuLabel className="flex flex-col gap-0.5">
+        <span>{user.name || 'Signed in'}</span>
+        {user.email && <span className="text-xs font-normal text-muted-foreground">{user.email}</span>}
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem asChild>
+        <Link href="/user-dashboard">
+          <LayoutDashboard className="size-4" />
+          Dashboard
+        </Link>
+      </DropdownMenuItem>
+      {showAdminLink && (
+        <DropdownMenuItem asChild>
+          <Link href="/admin">
+            <Shield className="size-4" />
+            Admin
+          </Link>
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={onSignOut}>
+        <LogOut className="size-4" />
+        Sign out
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+)
+
+const MobileUserMenuPanel = ({
+  user,
+  onSignOut,
+  showAdminLink,
+}: {
+  user: SessionUser
+  onSignOut: () => void
+  showAdminLink: boolean
+}) => (
+  <div className="space-y-3 rounded-2xl border p-4">
+    <div className="flex items-center gap-3">
+      <Avatar className="h-10 w-10">
+        <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{user.name || 'Signed in'}</div>
+        {user.email && <div className="truncate text-xs text-muted-foreground">{user.email}</div>}
+      </div>
+    </div>
+    <div className="flex flex-col gap-2">
+      <Button asChild variant="outline">
+        <Link href="/user-dashboard">
+          <LayoutDashboard className="size-4" />
+          Dashboard
+        </Link>
+      </Button>
+      {showAdminLink && (
+        <Button asChild variant="outline">
+          <Link href="/admin">
+            <Shield className="size-4" />
+            Admin
+          </Link>
+        </Button>
+      )}
+      <Button variant="ghost" onClick={onSignOut}>
+        <LogOut className="size-4" />
+        Sign out
+      </Button>
+    </div>
+  </div>
+)
+
 // Mobile menu panel component
 const MobileMenuPanel = ({ 
   menuItems, 
   buttons,
+  showAuthenticatedUserMenu,
+  initialHasSession,
+  sessionUser,
+  sessionPending,
+  onSignOut,
+  showAdminLink,
   textColor,
   showDarkModeToggle,
   defaultTheme = 'system'
 }: { 
   menuItems: MenuItem[];
   buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
+  showAuthenticatedUserMenu: boolean;
+  initialHasSession: boolean;
+  sessionUser: SessionUser | null;
+  sessionPending: boolean;
+  onSignOut: () => void;
+  showAdminLink: boolean;
   textColor?: string;
   showDarkModeToggle?: boolean;
   defaultTheme?: 'system' | 'light' | 'dark';
@@ -262,7 +413,15 @@ const MobileMenuPanel = ({
   >
     <MobileNav menuItems={menuItems} textColor={textColor} />
     <div className="flex flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      <CTAButtons buttons={buttons} />
+      {showAuthenticatedUserMenu && (sessionUser || (initialHasSession && sessionPending)) ? (
+        sessionUser ? (
+          <MobileUserMenuPanel user={sessionUser} onSignOut={onSignOut} showAdminLink={showAdminLink} />
+        ) : (
+          <MobileUserMenuLoadingPanel />
+        )
+      ) : (
+        <CTAButtons buttons={buttons} />
+      )}
       {showDarkModeToggle && (
         <SiteThemeToggle defaultTheme={defaultTheme} />
       )}
@@ -270,48 +429,51 @@ const MobileMenuPanel = ({
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, style: legacyStyle, visibility }: NavBlockProps) {
-  // Resolve style: prefer styleConfig[navigationStyle], fallback to legacy style object
-  const style = useMemo(() => {
+export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility, initialHasSession = false }: NavBlockProps) {
+  const style = useMemo<NavigationStyle | undefined>(() => {
     const activeStyle = navigationStyle || 'default'
-    if (styleConfig && styleConfig[activeStyle]) {
-      return styleConfig[activeStyle] as NavBlockProps['style']
-    }
-    return legacyStyle
-  }, [navigationStyle, styleConfig, legacyStyle])
+    return styleConfig?.[activeStyle]
+  }, [navigationStyle, styleConfig])
 
-  // Transform database links to MenuItem format, fallback to defaults
   const menuItems: MenuItem[] = useMemo(() => {
-    if (links && links.length > 0) {
-      return links.map(link => ({
-        name: link.text,
-        href: link.url,
-        hasDropdown: false,
-        dropdownItems: []
-      }))
-    }
-    return defaultMenuItems
+    return (links || []).map(link => ({
+      name: link.text,
+      href: sanitizeUrl(link.url, ''),
+      hasDropdown: false,
+      dropdownItems: []
+    })).filter(link => link.href)
   }, [links])
+
+  const safeButtons = useMemo(() => {
+    return (buttons || [])
+      .map(button => ({
+        ...button,
+        url: sanitizeUrl(button.url, ''),
+      }))
+      .filter(button => button.text && button.url)
+  }, [buttons])
+
+  const { data: session, isPending } = authClient.useSession()
+  const sessionUser = (session?.user || null) as SessionUser | null
+  const shouldShowUserMenu = showAuthenticatedUserMenu && (!!sessionUser || (initialHasSession && isPending))
+  const showAdminLink = sessionUser?.role === 'super_admin'
+
+  const handleSignOut = async () => {
+    await authClient.signOut()
+    window.location.href = '/'
+  }
 
   // State management for responsive navigation
   const [menuState, setMenuState] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
-  // Timeout ref for dropdown hover delay
-  const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  // Handle dropdown hover with delay to prevent accidental closing
+  // Handle dropdown hover immediately so the menu feels responsive
   const handleDropdownMouseEnter = () => {
-    if (dropdownTimeoutRef.current) {
-      clearTimeout(dropdownTimeoutRef.current)
-    }
     setDropdownOpen(true)
   }
 
   const handleDropdownMouseLeave = () => {
-    dropdownTimeoutRef.current = setTimeout(() => {
-      setDropdownOpen(false)
-    }, 150) // 150ms delay to prevent flickering
+    setDropdownOpen(false)
   }
 
   // Close mobile menu when clicking outside or in empty areas
@@ -435,7 +597,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
 
               <div className="flex items-center gap-2 lg:hidden">
                 {/* Mobile Action Buttons - show buttons marked for mobile */}
-                {visibility?.ctaButtons !== false && buttons && buttons.filter(button => button.showOnMobile && button.text && button.url).map((button, index) => (
+                {!shouldShowUserMenu && visibility?.ctaButtons !== false && safeButtons.filter(button => button.showOnMobile).map((button, index) => (
                   <Button
                     key={`mobile-${index}`}
                     asChild
@@ -443,7 +605,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                     variant={button.style === 'primary' ? 'default' : button.style}
                     className="text-xs px-2 py-1 h-8"
                   >
-                    <Link href={button.url}>
+                    <Link href={sanitizeUrl(button.url, '#')}>
                       <span>{button.text}</span>
                     </Link>
                   </Button>
@@ -461,7 +623,15 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
 
             {/* Desktop Actions - CTA Buttons and Theme Toggle */}
             <div className="hidden lg:flex items-center gap-3">
-              {visibility?.ctaButtons !== false && <CTAButtons buttons={buttons} />}
+              {shouldShowUserMenu ? (
+                sessionUser ? (
+                  <DesktopUserMenu user={sessionUser} onSignOut={handleSignOut} showAdminLink={showAdminLink} />
+                ) : (
+                  <PendingUserMenuButton />
+                )
+              ) : (
+                visibility?.ctaButtons !== false && <CTAButtons buttons={safeButtons} />
+              )}
               {style?.showDarkModeToggle && (
                 <SiteThemeToggle defaultTheme={site?.settings?.default_theme} />
               )}
@@ -469,7 +639,13 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
 
             <MobileMenuPanel
               menuItems={menuItems}
-              buttons={visibility?.ctaButtons !== false ? buttons : undefined}
+              buttons={visibility?.ctaButtons !== false ? safeButtons : undefined}
+              showAuthenticatedUserMenu={showAuthenticatedUserMenu}
+              initialHasSession={initialHasSession}
+              sessionUser={sessionUser}
+              sessionPending={isPending}
+              onSignOut={handleSignOut}
+              showAdminLink={showAdminLink}
               textColor={style?.textColor} 
               showDarkModeToggle={style?.showDarkModeToggle}
               defaultTheme={site?.settings?.default_theme}

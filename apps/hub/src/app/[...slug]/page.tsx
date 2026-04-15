@@ -20,6 +20,7 @@ interface CatchAllPageProps {
 export default async function CatchAllPage({ params }: CatchAllPageProps) {
   const { slug } = await params
   const fullSlug = slug.join('/')
+  const isLoggedIn = await checkAuth()
 
   // Get site data from headers with page slug to load page data
   const { success: siteSuccess, site } = await getSiteFromHeaders(fullSlug)
@@ -30,7 +31,6 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
 
   // Check maintenance mode - only redirect if not logged in
   if (site.settings?.maintenance?.enabled === true) {
-    const isLoggedIn = await checkAuth()
     if (!isLoggedIn) {
       redirect('/maintenance')
     }
@@ -51,7 +51,7 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
 
   if (page) {
     // Page exists, render it at root level
-    return <BlockRenderer site={site} />
+    return <BlockRenderer site={site} initialHasSession={isLoggedIn} />
   }
 
 }

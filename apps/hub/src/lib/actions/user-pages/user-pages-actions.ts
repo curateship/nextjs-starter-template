@@ -41,68 +41,6 @@ export interface UpdateUserPageData {
   is_published?: boolean
 }
 
-// =============================================================================
-// USER PAGES SETTINGS ACTIONS (stored in sites.settings.user_pages)
-// =============================================================================
-
-/**
- * Update user pages navigation/footer settings in sites.settings.user_pages
- */
-export async function updateUserPagesSettingsAction(
-  siteId: string,
-  settings: { navigation?: any; footer?: any }
-): Promise<{ success: boolean; error: string | null }> {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get current site settings and verify ownership
-    const [site] = await db
-      .select({ settings: sites.settings })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
-
-    // Build updated settings
-    const currentSettings = (site.settings as Record<string, any>) || {}
-    const userPagesSettings = currentSettings.user_pages || {}
-
-    const updatedSettings = {
-      ...currentSettings,
-      user_pages: {
-        ...userPagesSettings,
-        ...(settings.navigation !== undefined && { navigation: settings.navigation }),
-        ...(settings.footer !== undefined && { footer: settings.footer })
-      }
-    }
-
-    // Update sites table
-    await db
-      .update(sites)
-      .set({ settings: updatedSettings })
-      .where(eq(sites.id, siteId))
-
-    // Revalidate cache
-    revalidateTag(`site-${siteId}`)
-    revalidateTag(`user-pages-${siteId}`)
-
-    return { success: true, error: null }
-  } catch (error: any) {
-    console.error('Exception in updateUserPagesSettingsAction:', error)
-    return { success: false, error: error.message || 'Failed to update user pages settings' }
-  }
-}
-
-// =============================================================================
-// USER PAGES ACTIONS
-// =============================================================================
-
 /**
  * Get all user pages for a site
  */

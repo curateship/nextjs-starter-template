@@ -34,11 +34,6 @@ interface BlockPropertiesPanelProps {
       [key: string]: any
     }
   }
-  siteBlocks?: {
-    navigation?: any
-    footer?: any
-    show_featured_image?: boolean
-  } | null
   blocksLoading?: boolean
   onOpenPostSettings?: () => void
   onPostTitleChange?: (title: string) => void
@@ -52,7 +47,6 @@ export function BlockPropertiesPanel({
   siteId,
   currentPost,
   site,
-  siteBlocks,
   blocksLoading = false,
   onOpenPostSettings,
   onPostTitleChange,
@@ -133,9 +127,6 @@ export function BlockPropertiesPanel({
               ...site,
               settings: {
                 ...site.settings, // preserve favicon and others
-                navigation: siteBlocks?.navigation,
-                footer: siteBlocks?.footer,
-                show_featured_image: siteBlocks?.show_featured_image
               }
             } : undefined}
             className="min-h-full"

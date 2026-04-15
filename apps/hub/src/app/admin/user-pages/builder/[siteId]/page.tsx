@@ -182,6 +182,11 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
     }
   }
 
+  const handleSelectSiteChrome = (type: 'navigation' | 'footer') => {
+    const returnTo = encodeURIComponent(`/admin/user-pages/builder/${siteId}?page=${selectedPage}`)
+    router.push(`/admin/sites/${siteId}/structure/${type}?returnTo=${returnTo}`)
+  }
+
   // Only show error state for critical failures
   if ((configError || pagesError) && !site && !configLoading) {
     return (
@@ -216,6 +221,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
         className="top-16 z-40"
         breadcrumbItems={[
           { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { href: `/admin/sites/${siteId}/pages`, label: "Structure" },
           { href: `/admin/user-pages/${siteId}`, label: "User Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
@@ -284,6 +290,7 @@ export default function DashboardBuilderPage({ params }: { params: Promise<{ sit
             settings: site.settings
           } : undefined}
           blocksLoading={blocksLoading}
+          onSelectSiteChrome={handleSelectSiteChrome}
         />
 
         {blockListOpen && (

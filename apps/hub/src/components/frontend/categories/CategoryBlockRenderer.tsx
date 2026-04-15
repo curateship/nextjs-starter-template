@@ -2,6 +2,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { CATEGORY_CONTENT_STYLE_RENDERERS } from "./category-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface CategoryWithBlocks {
   id: string
@@ -20,6 +21,7 @@ interface CategoryWithBlocks {
 interface CategoryBlockRendererProps {
   site: SiteWithBlocks
   category: CategoryWithBlocks
+  initialHasSession?: boolean
 }
 
 function CategoryContentStyled({
@@ -57,25 +59,18 @@ function CategoryContentStyled({
   )
 }
 
-export function CategoryBlockRenderer({ site, category }: CategoryBlockRendererProps) {
-  const { blocks: siteBlocks = [] } = site
+export function CategoryBlockRenderer({ site, category, initialHasSession = false }: CategoryBlockRendererProps) {
   const { blocks: categoryBlocks = [] } = category
+  const siteChrome = resolveSiteChrome(site.settings)
 
   const sortedBlocks = categoryBlocks.sort((a, b) => a.display_order - b.display_order)
-
-  const navigationBlock = siteBlocks.find((block: any) => block.type === 'navigation')
-  const footerBlock = siteBlocks.find((block: any) => block.type === 'footer')
 
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
 
   return (
-      <SiteLayout navigation={navigationBlock?.content} footer={footerBlock?.content} site={site}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} initialHasSession={initialHasSession}>
         {sortedBlocks.map((block) => {
-          if (block.type === 'navigation' || block.type === 'footer') {
-            return null
-          }
-
           if (block.type === 'taxonomy-content') {
             return (
               <div key={`category-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>

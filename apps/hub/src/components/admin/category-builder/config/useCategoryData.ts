@@ -15,7 +15,6 @@ interface UseCategoryDataReturn {
   site: SiteWithTheme | null
   categories: Category[]
   blocks: Record<string, CategoryBlock[]>
-  siteBlocks: Record<string, any[]>
   siteLoading: boolean
   blocksLoading: boolean
   siteError: string
@@ -28,7 +27,6 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
   const [siteLoading, setSiteLoading] = useState(true)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, CategoryBlock[]>>({})
-  const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
   const loadSiteAndCategories = async () => {
@@ -70,39 +68,6 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
         setBlocks({})
       }
 
-      if (siteResult.data) {
-        const siteBlocksData: Record<string, any[]> = {}
-
-        Object.keys(convertedBlocks).forEach(categorySlug => {
-          const sBlocks = []
-
-          if (siteResult.data?.settings?.navigation) {
-            sBlocks.push({
-              id: 'site-navigation',
-              type: 'navigation',
-              title: 'Navigation',
-              content: siteResult.data.settings.navigation,
-              display_order: -1
-            })
-          }
-
-          if (siteResult.data?.settings?.footer) {
-            sBlocks.push({
-              id: 'site-footer',
-              type: 'footer',
-              title: 'Footer',
-              content: siteResult.data.settings.footer,
-              display_order: 999
-            })
-          }
-
-          siteBlocksData[categorySlug] = sBlocks
-        })
-
-        setSiteBlocks(siteBlocksData)
-      } else {
-        setSiteBlocks({})
-      }
     } catch (error) {
       setSiteError('Failed to load data')
       console.error('Error loading site and categories:', error)
@@ -146,7 +111,6 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
     site,
     categories,
     blocks,
-    siteBlocks,
     siteLoading,
     blocksLoading,
     siteError,

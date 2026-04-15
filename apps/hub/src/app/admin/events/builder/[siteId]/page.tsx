@@ -82,7 +82,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }, [siteId, initialEvent, router])
 
   // Custom hooks for data and state management
-  const { site, blocks, siteBlocks, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
+  const { site, blocks, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -278,7 +278,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
             subdomain: site?.subdomain || 'preview',
             settings: site?.settings
           }}
-          siteBlocks={siteBlocks}
           blocksLoading={blocksLoading}
           onTitleChange={handleTitleChange}
           onSelectBlock={builderState.setSelectedBlock}

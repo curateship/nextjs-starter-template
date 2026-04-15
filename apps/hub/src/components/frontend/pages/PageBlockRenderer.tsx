@@ -12,13 +12,16 @@ import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/Page
 import { UserProfileBlock } from "@/components/frontend/user-pages/UserProfileBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
+import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
+  initialHasSession?: boolean
 }
 
-export function BlockRenderer({ site }: BlockRendererProps) {
+export function BlockRenderer({ site, initialHasSession = false }: BlockRendererProps) {
   const { blocks = [] } = site
+  const siteChrome = resolveSiteChrome(site.settings)
 
   const isBlockHidden = (block: typeof blocks[number]) => block.content?.visibility?.hideBlock === true
 
@@ -30,14 +33,12 @@ export function BlockRenderer({ site }: BlockRendererProps) {
   })
 
   const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
-
-  // Find navigation and footer blocks for layout
-  const navigationBlock = visibleBlocks.find(block => block.type === 'navigation')
-  const footerBlock = visibleBlocks.find(block => block.type === 'footer')
+  const navigation = siteChrome.navigation || undefined
+  const footer = siteChrome.footer || undefined
 
   // Convert R2 URLs to cached /cdn/ paths for navigation logo
-  if (navigationBlock?.content?.logo) {
-    navigationBlock.content.logo = toCdnUrl(navigationBlock.content.logo)
+  if (navigation?.logo) {
+    navigation.logo = toCdnUrl(navigation.logo)
   }
   
   // Get site width from site settings
@@ -46,16 +47,12 @@ export function BlockRenderer({ site }: BlockRendererProps) {
 
   return (
       <SiteLayout
-        navigation={navigationBlock?.content}
-        footer={footerBlock?.content}
+        navigation={navigation}
+        footer={footer}
         site={site}
+        initialHasSession={initialHasSession}
       >
       {visibleBlocks.map((block) => {
-        // Skip navigation and footer blocks as they're handled by SiteLayout
-        if (block.type === 'navigation' || block.type === 'footer') {
-          return null
-        }
-
         if (block.type === 'hero') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>

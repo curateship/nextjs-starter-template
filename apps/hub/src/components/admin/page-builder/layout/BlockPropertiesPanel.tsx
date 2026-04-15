@@ -1,9 +1,5 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
-import { PageNavigationBlock } from "../blocks/navigation/PageNavigationBlock"
-import { PageFooterBlock } from "../blocks/footer/PageFooterBlock"
 import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
 import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"
 import { PageListingViewBlock } from "../blocks/listing-view/PageListingViewBlock"
@@ -14,16 +10,6 @@ import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBl
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PagePreview } from "./PagePreview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
-
-// Helper function to generate callback props dynamically
-const createCallbacks = (updateFn: (field: string, value: any) => void, fields: string[]) => {
-  const callbacks: Record<string, (value: any) => void> = {}
-  fields.forEach(field => {
-    const callbackName = `on${field.charAt(0).toUpperCase() + field.slice(1)}Change`
-    callbacks[callbackName] = (value: any) => updateFn(field, value)
-  })
-  return callbacks
-}
 
 interface BlockPropertiesPanelProps {
   selectedBlock: PageBlock | null
@@ -46,6 +32,7 @@ interface BlockPropertiesPanelProps {
   blocksLoading?: boolean
   onBack?: () => void
   onSelectBlock?: (block: PageBlock) => void
+  onSelectSiteChrome?: (type: 'navigation' | 'footer') => void
 }
 
 export function BlockPropertiesPanel({
@@ -56,7 +43,8 @@ export function BlockPropertiesPanel({
   site,
   blocksLoading = false,
   onBack,
-  onSelectBlock
+  onSelectBlock,
+  onSelectSiteChrome
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
@@ -70,26 +58,6 @@ export function BlockPropertiesPanel({
                 onContentChange={updateBlockContent}
                 siteId={siteId}
                 blockId={selectedBlock.id}
-                onBack={onBack}
-              />
-            )}
-            {selectedBlock.type === 'navigation' && (
-              <PageNavigationBlock
-                content={selectedBlock.content}
-                onContentChange={updateBlockContent}
-                siteId={siteId}
-                blockId={selectedBlock.id}
-                siteFavicon={site?.settings?.favicon}
-                onBack={onBack}
-              />
-            )}
-            {selectedBlock.type === 'footer' && (
-              <PageFooterBlock
-                {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, ['logo', 'logoUrl', 'copyright', 'links', 'socialLinks', 'style', 'visibility']) as any)}
-                siteId={siteId}
-                blockId={selectedBlock.id}
-                siteFavicon={site?.settings?.favicon}
                 onBack={onBack}
               />
             )}
@@ -131,43 +99,66 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'listing-views' && (
               <PageListingViewBlock
                 {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, [
-                  'title', 'subtitle', 'headerAlign', 'mobileHeaderAlign', 'contentType', 'displayMode',
-                  'itemsToShow', 'columns', 'sortBy', 'sortOrder', 'showImage',
-                  'showTitle', 'showDescription', 'isPaginated', 'itemsPerPage',
-                  'showViewAll', 'viewAllText', 'viewAllLink', 'visibility'
-                ]) as any)}
+                onTitleChange={(value) => updateBlockContent('title', value)}
+                onSubtitleChange={(value) => updateBlockContent('subtitle', value)}
+                onHeaderAlignChange={(value) => updateBlockContent('headerAlign', value)}
+                onMobileHeaderAlignChange={(value) => updateBlockContent('mobileHeaderAlign', value)}
+                onContentTypeChange={(value) => updateBlockContent('contentType', value)}
+                onDisplayModeChange={(value) => updateBlockContent('displayMode', value)}
+                onItemsToShowChange={(value) => updateBlockContent('itemsToShow', value)}
+                onColumnsChange={(value) => updateBlockContent('columns', value)}
+                onSortByChange={(value) => updateBlockContent('sortBy', value)}
+                onSortOrderChange={(value) => updateBlockContent('sortOrder', value)}
+                onShowImageChange={(value) => updateBlockContent('showImage', value)}
+                onShowTitleChange={(value) => updateBlockContent('showTitle', value)}
+                onShowDescriptionChange={(value) => updateBlockContent('showDescription', value)}
+                onIsPaginatedChange={(value) => updateBlockContent('isPaginated', value)}
+                onItemsPerPageChange={(value) => updateBlockContent('itemsPerPage', value)}
+                onViewAllTextChange={(value) => updateBlockContent('viewAllText', value)}
+                onViewAllLinkChange={(value) => updateBlockContent('viewAllLink', value)}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
                 onBack={onBack}
               />
             )}
-            
             {selectedBlock.type === 'divider' && (
               <PageDividerBlock
                 {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, [
-                  'spacingTop', 'spacingBottom', 'dividerStyle',
-                  'lineStyle', 'lineWidth', 'lineThickness', 'lineColor', 'icon', 'containerWidth', 'customWidth',
-                  'visibility'
-                ]) as any)}
+                onSpacingTopChange={(value) => updateBlockContent('spacingTop', value)}
+                onSpacingBottomChange={(value) => updateBlockContent('spacingBottom', value)}
+                onDividerStyleChange={(value) => updateBlockContent('dividerStyle', value)}
+                onLineStyleChange={(value) => updateBlockContent('lineStyle', value)}
+                onLineWidthChange={(value) => updateBlockContent('lineWidth', value)}
+                onLineThicknessChange={(value) => updateBlockContent('lineThickness', value)}
+                onLineColorChange={(value) => updateBlockContent('lineColor', value)}
+                onIconChange={(value) => updateBlockContent('icon', value)}
+                onContainerWidthChange={(value) => updateBlockContent('containerWidth', value)}
+                onCustomWidthChange={(value) => updateBlockContent('customWidth', value)}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
                 onBack={onBack}
               />
             )}
-
             {selectedBlock.type === 'auth' && (
               <PageAuthBlock
                 {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, [
-                  'defaultTab', 'showLoginTab', 'showRegisterTab',
-                  'loginRedirectPath', 'registerRedirectPath', 'emailVerificationEnabled',
-                  'loginButtonText', 'registerButtonText', 'resetButtonText',
-                  'loginTitle', 'loginDescription',
-                  'registerTitle', 'registerDescription',
-                  'resetTitle', 'resetDescription', 'visibility'
-                ]) as any)}
+                onDefaultTabChange={(value) => updateBlockContent('defaultTab', value)}
+                onShowLoginTabChange={(value) => updateBlockContent('showLoginTab', value)}
+                onShowRegisterTabChange={(value) => updateBlockContent('showRegisterTab', value)}
+                onLoginRedirectPathChange={(value) => updateBlockContent('loginRedirectPath', value)}
+                onRegisterRedirectPathChange={(value) => updateBlockContent('registerRedirectPath', value)}
+                onEmailVerificationEnabledChange={(value) => updateBlockContent('emailVerificationEnabled', value)}
+                onLoginButtonTextChange={(value) => updateBlockContent('loginButtonText', value)}
+                onRegisterButtonTextChange={(value) => updateBlockContent('registerButtonText', value)}
+                onResetButtonTextChange={(value) => updateBlockContent('resetButtonText', value)}
+                onLoginTitleChange={(value) => updateBlockContent('loginTitle', value)}
+                onLoginDescriptionChange={(value) => updateBlockContent('loginDescription', value)}
+                onRegisterTitleChange={(value) => updateBlockContent('registerTitle', value)}
+                onRegisterDescriptionChange={(value) => updateBlockContent('registerDescription', value)}
+                onResetTitleChange={(value) => updateBlockContent('resetTitle', value)}
+                onResetDescriptionChange={(value) => updateBlockContent('resetDescription', value)}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
                 onBack={onBack}
               />
             )}
-
             {selectedBlock.type === 'testimonials' && (
               <PageTestimonialsBlock
                 content={selectedBlock.content}
@@ -177,13 +168,12 @@ export function BlockPropertiesPanel({
                 onBack={onBack}
               />
             )}
-
             {selectedBlock.type === 'embedded' && (
               <PageEmbeddedBlock
                 {...selectedBlock.content}
-                {...(createCallbacks(updateBlockContent, [
-                  'code', 'type', 'visibility'
-                ]) as any)}
+                onCodeChange={(value) => updateBlockContent('code', value)}
+                onTypeChange={(value) => updateBlockContent('type', value)}
+                onVisibilityChange={(value) => updateBlockContent('visibility', value)}
                 onBack={onBack}
               />
             )}
@@ -199,6 +189,7 @@ export function BlockPropertiesPanel({
               blocksLoading={blocksLoading}
               allBlocks={currentPage.blocks}
               onSelectBlock={onSelectBlock}
+              onSelectSiteChrome={onSelectSiteChrome}
             />
           ) : (
             <div className="text-center text-muted-foreground h-full flex items-center justify-center">

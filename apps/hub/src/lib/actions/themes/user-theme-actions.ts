@@ -48,7 +48,7 @@ export async function saveAsThemeAction(
     // Create template site — no subdomain needed for templates
     const templateSubdomain = `template-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`
 
-    // Navigation and footer live inside settings.public_pages — copying settings copies them too
+    // Navigation and footer live in shared site settings — copying settings copies them too
     const settings = sourceSite.settings as Record<string, any>
     const [templateSite] = await db
       .insert(sites)
@@ -161,7 +161,7 @@ export async function applyThemeToSiteAction(
       site_title: targetSettings?.site_title || targetSite.name,
     }
 
-    // Update target site settings (nav/footer live inside settings.public_pages)
+    // Update target site settings, including shared navigation/footer
     await db
       .update(sites)
       .set({

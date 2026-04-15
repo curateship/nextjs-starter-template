@@ -162,6 +162,11 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
+  const handleSelectSiteChrome = (type: 'navigation' | 'footer') => {
+    const returnTo = encodeURIComponent(`/admin/pages/${siteId}?page=${selectedPage}`)
+    router.push(`/admin/sites/${siteId}/structure/${type}?returnTo=${returnTo}`)
+  }
+
   // Only show error state for critical failures
   if ((siteError || pagesError) && !site && !siteLoading) {
     return (
@@ -203,6 +208,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         className="top-16 z-40"
         breadcrumbItems={[
           { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
+          { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Structure" },
           { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
           { label: currentPageData?.title || "", isPage: true }
         ]}
@@ -257,6 +263,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           blocksLoading={blocksLoading}
           onBack={() => builderState.setSelectedBlock(null)}
           onSelectBlock={builderState.setSelectedBlock}
+          onSelectSiteChrome={handleSelectSiteChrome}
         />
 
         {blockListOpen && (

@@ -16,7 +16,6 @@ interface ProductBlock {
 interface UseProductDataReturn {
   site: SiteWithTheme | null
   blocks: Record<string, ProductBlock[]>
-  siteBlocks: Record<string, any[]>
   siteLoading: boolean
   blocksLoading: boolean
   siteError: string
@@ -29,7 +28,6 @@ export function useProductData(siteId: string): UseProductDataReturn {
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
-  const [siteBlocks, setSiteBlocks] = useState<Record<string, any[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
   const loadSiteAndBlocks = async () => {
@@ -75,41 +73,6 @@ export function useProductData(siteId: string): UseProductDataReturn {
         setBlocks({})
       }
 
-      // Load site blocks (navigation, footer) from site data
-      if (siteResult.data) {
-        const siteBlocksData: Record<string, any[]> = {}
-        
-        // Create navigation and footer blocks from site data for all products
-        Object.keys(convertedBlocks).forEach(productSlug => {
-          const siteBlocks = []
-          
-          if (siteResult.data?.settings?.navigation) {
-            siteBlocks.push({
-              id: 'site-navigation',
-              type: 'navigation',
-              title: 'Navigation',
-              content: siteResult.data.settings.navigation,
-              display_order: -1
-            })
-          }
-          
-          if (siteResult.data?.settings?.footer) {
-            siteBlocks.push({
-              id: 'site-footer',
-              type: 'footer',
-              title: 'Footer',
-              content: siteResult.data.settings.footer,
-              display_order: 999
-            })
-          }
-          
-          siteBlocksData[productSlug] = siteBlocks
-        })
-        
-        setSiteBlocks(siteBlocksData)
-      } else {
-        setSiteBlocks({})
-      }
     } catch (error) {
       setSiteError('Failed to load data')
       console.error('Error loading site and products:', error)
@@ -156,7 +119,6 @@ export function useProductData(siteId: string): UseProductDataReturn {
   return {
     site,
     blocks,
-    siteBlocks,
     siteLoading,
     blocksLoading,
     siteError,

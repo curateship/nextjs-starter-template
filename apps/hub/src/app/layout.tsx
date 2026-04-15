@@ -62,9 +62,8 @@ export default async function RootLayout({
 
   // Apply theme class server-side when dark mode toggle is disabled
   const defaultTheme = site?.settings?.default_theme || 'system'
-  const navBlock = site?.blocks?.find((b: any) => b.type === 'navigation')
-  const activeNavStyle = navBlock?.content?.navigationStyle || 'default'
-  const resolvedNavStyle = navBlock?.content?.styleConfig?.[activeNavStyle] || navBlock?.content?.style
+  const activeNavStyle = site?.settings?.navigation?.navigationStyle || 'default'
+  const resolvedNavStyle = site?.settings?.navigation?.styleConfig?.[activeNavStyle]
   const themeToggleEnabled = resolvedNavStyle?.showDarkModeToggle !== false
   const serverThemeClass = !themeToggleEnabled && defaultTheme === 'dark' ? 'dark' : ''
   const fontConfigKey = success && site?.settings
