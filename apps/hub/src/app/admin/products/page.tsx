@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -637,13 +639,13 @@ export default function ProductsPage() {
 
         {/* Create Product Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent size="admin">
-            <DialogHeader>
-              <DialogTitle>Create New Product</DialogTitle>
-              <DialogDescription>
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Create New Product</AdminModalTitle>
+              <AdminModalDescription>
                 Add a new product to your catalog. You can customize the content after creation.
-              </DialogDescription>
-            </DialogHeader>
+              </AdminModalDescription>
+            </AdminModalHeader>
             <CreateProductModal
               onSuccess={(product, continueToBuilder) => {
                 setProducts(prev => [...prev, product])
@@ -654,7 +656,7 @@ export default function ProductsPage() {
               }}
               onCancel={() => setShowCreateDialog(false)}
             />
-          </DialogContent>
+          </AdminModalContent>
         </Dialog>
 
         {/* Product Settings Modal */}

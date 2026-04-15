@@ -2,7 +2,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 import { Plus, Trash2, Upload } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
@@ -54,27 +54,26 @@ export function ProductGalleryBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">Product Images</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={addImage}
-                    className="h-8"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Image
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
+            <BlockEditorSection
+              heading="Product Images"
+              action={(
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addImage}
+                  className="h-8"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Image
+                </Button>
+              )}
+            >
                 <div className="space-y-3">
                   {images.map((image, index) => (
                     <div key={image.id} className="border rounded-lg p-3 space-y-2">
@@ -141,23 +140,18 @@ export function ProductGalleryBlock({
                 </div>
 
                 {images.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                  <BlockEditorEmptyState className="py-6">
                     No images added yet. Click &quot;Add Image&quot; to upload your first product image.
-                  </div>
+                  </BlockEditorEmptyState>
                 )}
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
           value: "style",
           label: "Style",
           content: (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Style options coming soon.</p>
-              </CardContent>
-            </Card>
+            <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
           ),
         },
         {
@@ -174,11 +168,7 @@ export function ProductGalleryBlock({
                   ]}
                 />
               )}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">Gallery Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Gallery Settings">
                   <div className="flex items-center">
                     <input
                       id="showThumbnails"
@@ -189,8 +179,7 @@ export function ProductGalleryBlock({
                     />
                     <Label htmlFor="showThumbnails" className="text-sm">Show thumbnails</Label>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             </>
           ),
         },

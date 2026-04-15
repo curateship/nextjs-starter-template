@@ -1,8 +1,10 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { useEffect, useCallback } from "react"
@@ -41,7 +43,7 @@ const validateUrl = (value: string, onChange: (value: string) => void) => {
 // Reusable button style selector
 const ButtonStyleSelect = ({ value, onChange }: { value: string; onChange: (value: 'primary' | 'outline' | 'ghost') => void }) => (
   <Select value={value} onValueChange={onChange}>
-    <SelectTrigger className="w-fit">
+    <SelectTrigger size="button" className="w-fit">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
@@ -102,61 +104,56 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Text Content</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Hero Title */}
-                <div className="space-y-2">
-                  <Label htmlFor="heroTitle">Hero Title</Label>
-                  <input
+            <div className="space-y-6">
+              <FieldGroup className="gap-4">
+                <div>
+                  <h3 className="text-base font-medium">Text Content</h3>
+                </div>
+
+                <Field>
+                  <FieldLabel htmlFor="heroTitle">Hero Title</FieldLabel>
+                  <Input
                     id="heroTitle"
                     type="text"
                     value={content.title || ''}
                     onChange={(e) => onContentChange('title', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
                     placeholder="Build Exceptional Interfaces with Ease"
                     required
                   />
-                </div>
+                </Field>
 
-                {/* Hero Subtitle */}
-                <div className="space-y-2">
-                  <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
-                  <textarea
+                <Field>
+                  <FieldLabel htmlFor="heroSubtitle">Hero Subtitle</FieldLabel>
+                  <Textarea
                     id="heroSubtitle"
                     value={content.subtitle || ''}
                     onChange={(e) => onContentChange('subtitle', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
                     placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
                     rows={2}
                     required
                   />
-                </div>
+                </Field>
 
-                {/* Primary Button */}
-                <div className="space-y-2">
-                  <Label>Primary Button</Label>
-                  <div className="flex gap-2 w-fit">
-                    <input
+                <Field>
+                  <FieldLabel>Primary Button</FieldLabel>
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <Input
                       type="text"
                       value={content.primaryButton || ''}
                       onChange={(e) => onContentChange('primaryButton', e.target.value)}
-                      className="w-40 px-3 py-2 border rounded-md text-sm"
                       placeholder="Get Started"
                       required
                     />
-                    <input
+                    <Input
                       type="url"
                       value={content.primaryButtonLink || ''}
                       onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
-                      className="w-48 px-3 py-2 border rounded-md text-sm"
                       placeholder="https://example.com or /page"
                     />
                     <ButtonStyleSelect
@@ -164,25 +161,22 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                       onChange={(v) => onContentChange('primaryButtonStyle', v)}
                     />
                   </div>
-                </div>
+                </Field>
 
-                {/* Secondary Button */}
-                <div className="space-y-2">
-                  <Label>Secondary Button</Label>
-                  <div className="flex gap-2 w-fit">
-                    <input
+                <Field>
+                  <FieldLabel>Secondary Button</FieldLabel>
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <Input
                       type="text"
                       value={content.secondaryButton || ''}
                       onChange={(e) => onContentChange('secondaryButton', e.target.value)}
-                      className="w-40 px-3 py-2 border rounded-md text-sm"
                       placeholder="Browse Components"
                       required
                     />
-                    <input
+                    <Input
                       type="url"
                       value={content.secondaryButtonLink || ''}
                       onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
-                      className="w-48 px-3 py-2 border rounded-md text-sm"
                       placeholder="https://example.com or /page"
                     />
                     <ButtonStyleSelect
@@ -190,35 +184,30 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                       onChange={(v) => onContentChange('secondaryButtonStyle', v)}
                     />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ),
-        },
-        {
-          value: "styling",
-          label: "Styling",
-          content: (
-            <>
+                </Field>
+              </FieldGroup>
+
               {ActivePanel && (
-                <ActivePanel
-                  config={currentStyleConfig}
-                  onConfigChange={handleStyleConfigChange}
-                  siteId={siteId}
-                  blockId={blockId}
-                />
+                <div className="space-y-4">
+                  <ActivePanel
+                    config={currentStyleConfig}
+                    onConfigChange={handleStyleConfigChange}
+                    siteId={siteId}
+                    blockId={blockId}
+                  />
+                </div>
               )}
-            </>
+            </div>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <>
+            <div className="space-y-4">
               {/* Hero Style Selector */}
-              <div className="space-y-2 mb-4 mx-4">
-                <Label className="text-sm font-medium px-1">Hero Style</Label>
+              <section className="space-y-2 pb-4">
+                <h3 className="text-base font-medium">Hero Style</h3>
                 <div className="grid grid-cols-2 gap-2 max-w-sm">
                   {Object.entries(HERO_STYLES).map(([key, style]) => (
                     <button
@@ -249,12 +238,13 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
 
               <VisibilitySettings
                 title="Element Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
+                useCard={false}
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },
@@ -262,7 +252,7 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                   { key: 'secondaryButton', label: 'Secondary Button' },
                 ]}
               />
-            </>
+            </div>
           ),
         },
       ]}

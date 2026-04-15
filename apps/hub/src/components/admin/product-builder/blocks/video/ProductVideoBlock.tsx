@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +10,7 @@ import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Video, Image as ImageIcon } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useState } from "react"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface ProductVideoBlockProps {
   header?: string
@@ -66,18 +66,15 @@ export function ProductVideoBlock({
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
             label: "Content",
             content: (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Header Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-6">
+                <BlockEditorSection heading="Header Settings">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="video-title">Header</Label>
                         <Input
@@ -101,7 +98,7 @@ export function ProductVideoBlock({
                       <div className="space-y-2">
                         <Label htmlFor="video-align">Header Alignment</Label>
                         <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                          <SelectTrigger id="video-align">
+                          <SelectTrigger id="video-align" size="button">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -111,15 +108,9 @@ export function ProductVideoBlock({
                         </Select>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </BlockEditorSection>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Video Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Video URL */}
+                <BlockEditorSection heading="Video Settings">
                     <div className="space-y-2">
                       <Label>Video</Label>
                       <div className="flex gap-2">
@@ -140,7 +131,6 @@ export function ProductVideoBlock({
                         </Button>
                       </div>
 
-                      {/* Video Preview */}
                       {videoUrl && (
                         <div className="mt-3">
                           <div className="relative w-full max-w-md aspect-video rounded-lg overflow-hidden border bg-black">
@@ -158,7 +148,6 @@ export function ProductVideoBlock({
                       )}
                     </div>
 
-                    {/* Cover Image */}
                     <div className="space-y-2">
                       <Label>Cover Image (Poster)</Label>
                       <div className="flex gap-2">
@@ -179,7 +168,6 @@ export function ProductVideoBlock({
                         </Button>
                       </div>
 
-                      {/* Cover Image Preview */}
                       {coverImage && (
                         <div className="mt-3">
                           <img
@@ -190,20 +178,15 @@ export function ProductVideoBlock({
                         </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              </>
+                </BlockEditorSection>
+              </div>
             ),
           },
           {
             value: "style",
             label: "Style",
             content: (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Style options coming soon.
-                </CardContent>
-              </Card>
+              <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
             ),
           },
           {
@@ -222,11 +205,7 @@ export function ProductVideoBlock({
                   />
                 )}
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Playback Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <BlockEditorSection heading="Playback Settings">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="video-autoplay"
@@ -259,8 +238,7 @@ export function ProductVideoBlock({
                         <strong>Note:</strong> Most browsers require videos to be muted for autoplay to work.
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                </BlockEditorSection>
               </>
             ),
           },

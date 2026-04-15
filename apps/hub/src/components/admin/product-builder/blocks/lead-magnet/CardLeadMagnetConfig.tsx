@@ -1,10 +1,10 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { LeadMagnetStyleAdminProps } from "."
+import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 const ACCENT_COLORS = [
   { value: 'indigo', label: 'Indigo' },
@@ -23,18 +23,14 @@ export function CardLeadMagnetConfig({ config, onConfigChange }: LeadMagnetStyle
 
   return (
     <div>
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Appearance</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <BlockEditorSection heading="Appearance">
           <div className="space-y-2">
             <Label className="text-xs">Accent Color</Label>
             <Select
               value={accentColor}
               onValueChange={(v) => onConfigChange('accentColor', v)}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger size="button" className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -64,8 +60,7 @@ export function CardLeadMagnetConfig({ config, onConfigChange }: LeadMagnetStyle
             />
             <Label htmlFor="showPrivacyNote">Show privacy note</Label>
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
     </div>
   )
 }

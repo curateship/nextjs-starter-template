@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
@@ -149,6 +149,7 @@ export function ProductContentBlock({
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
@@ -171,7 +172,6 @@ export function ProductContentBlock({
                 <div className="space-y-2 px-6">
                   <Label>Description</Label>
                   <div className="border rounded-md overflow-hidden">
-                    {/* TipTap Toolbar */}
                     <div className="bg-muted/30 p-2 flex flex-wrap gap-1">
                       <Button
                         size="sm"
@@ -291,7 +291,6 @@ export function ProductContentBlock({
                       </Button>
                     </div>
 
-                    {/* TipTap Editor */}
                     <div className="bg-background">
                       <EditorContent editor={editor} />
                     </div>
@@ -367,74 +366,60 @@ export function ProductContentBlock({
                   ]}
                 />
 
-                {/* Show Featured Image */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Display Options</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                        <p className="text-sm text-muted-foreground">Display the product featured image</p>
-                      </div>
-                      <Switch
-                        id="show-featured-image"
-                        checked={showFeaturedImage}
-                        onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
-                      />
+                <BlockEditorSection heading="Display Options">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="show-featured-image">Show Featured Image</Label>
+                      <p className="text-sm text-muted-foreground">Display the product featured image</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Switch
+                      id="show-featured-image"
+                      checked={showFeaturedImage}
+                      onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                    />
+                  </div>
+                </BlockEditorSection>
 
-                {/* Download Button */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Download Button</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Button Text</Label>
-                        <Input
-                          value={content.downloadButtonText || ''}
-                          onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
-                          placeholder="e.g., Download Product"
-                          className="text-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm">Button Style</Label>
-                        <Select
-                          value={content.downloadButtonStyle || 'black'}
-                          onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
-                        >
-                          <SelectTrigger className="text-sm">
-                            <SelectValue placeholder="Select style" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="black">Black (Solid)</SelectItem>
-                            <SelectItem value="default">Default (Theme)</SelectItem>
-                            <SelectItem value="secondary">Secondary (Gray)</SelectItem>
-                            <SelectItem value="outline">Outline</SelectItem>
-                            <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
-                            <SelectItem value="destructive">Destructive (Red)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm">Download URL</Label>
-                        <Input
-                          value={content.downloadButtonUrl || ''}
-                          onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
-                          placeholder="https://example.com/download"
-                          type="url"
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <BlockEditorSection heading="Download Button">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Button Text</Label>
+                    <Input
+                      value={content.downloadButtonText || ''}
+                      onChange={(e) => onContentChange('downloadButtonText', e.target.value)}
+                      placeholder="e.g., Download Product"
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Button Style</Label>
+                    <Select
+                      value={content.downloadButtonStyle || 'black'}
+                      onValueChange={(value) => onContentChange('downloadButtonStyle', value)}
+                    >
+                      <SelectTrigger size="button" className="text-sm">
+                        <SelectValue placeholder="Select style" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="black">Black (Solid)</SelectItem>
+                        <SelectItem value="default">Default (Theme)</SelectItem>
+                        <SelectItem value="secondary">Secondary (Gray)</SelectItem>
+                        <SelectItem value="outline">Outline</SelectItem>
+                        <SelectItem value="ghost">Ghost (Transparent)</SelectItem>
+                        <SelectItem value="destructive">Destructive (Red)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Download URL</Label>
+                    <Input
+                      value={content.downloadButtonUrl || ''}
+                      onChange={(e) => onContentChange('downloadButtonUrl', e.target.value)}
+                      placeholder="https://example.com/download"
+                      type="url"
+                      className="text-sm"
+                    />
+                  </div>
+                </BlockEditorSection>
               </>
             ),
           },

@@ -3,9 +3,18 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AdminModalBody,
+  AdminModalFooter,
+} from "@/components/admin/shared/AdminModalLayout"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
@@ -156,155 +165,152 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-      {error && (
-        <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+      <AdminModalBody>
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
+            {error}
+          </div>
+        )}
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* Product Title */}
-        <div className="col-span-2">
-          <Label htmlFor="title">Product Title *</Label>
-          <Input
-            id="title"
-            value={formData.title}
-            onChange={(e) => handleTitleChange(e.target.value)}
-            placeholder="Enter product title"
-            required
-          />
-        </div>
+        <FieldGroup className={error ? "gap-6 pt-4" : "gap-6"}>
+          <Field>
+            <FieldLabel htmlFor="title">Product Title *</FieldLabel>
+            <Input
+              id="title"
+              value={formData.title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Enter product title"
+              required
+            />
+          </Field>
 
-        {/* Product Slug */}
-        <div className="col-span-2">
-          <Label htmlFor="slug">Product URL</Label>
-          <Input
-            id="slug"
-            value={formData.slug}
-            onChange={(e) => handleSlugChange(e.target.value)}
-            placeholder="product-url-slug"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            {slugManuallyEdited 
-              ? "Custom URL slug. Clear this field to auto-generate from title again." 
-              : "Auto-generated from title. You can edit this to customize the URL."}
-          </p>
-          {formData.slug && (
-            <p className="text-xs text-blue-600 mt-1">
-              📄 Product URL: <strong>
-                /products/{formData.slug}
-              </strong>
-            </p>
-          )}
-          {checkingSlug && (
-            <p className="text-xs text-blue-600 mt-1">
-              Checking slug availability...
-            </p>
-          )}
-          {slugWarning && (
-            <p className="text-xs text-amber-600 mt-1">
-              ⚠️ {slugWarning}
-            </p>
-          )}
-        </div>
-      </div>
+          <Field>
+            <FieldLabel htmlFor="slug">Product URL</FieldLabel>
+            <Input
+              id="slug"
+              value={formData.slug}
+              onChange={(e) => handleSlugChange(e.target.value)}
+              placeholder="product-url-slug"
+            />
+            <FieldDescription>
+              {slugManuallyEdited
+                ? "Custom URL slug. Clear this field to auto-generate from title again."
+                : "Auto-generated from title. You can edit this to customize the URL."}
+            </FieldDescription>
+            {formData.slug && (
+              <FieldDescription className="text-blue-600">
+                Product URL: /products/{formData.slug}
+              </FieldDescription>
+            )}
+            {checkingSlug && (
+              <FieldDescription className="text-blue-600">
+                Checking slug availability...
+              </FieldDescription>
+            )}
+            {slugWarning && (
+              <FieldDescription className="text-amber-600">
+                {slugWarning}
+              </FieldDescription>
+            )}
+          </Field>
 
-      {/* Featured Image */}
-      <div>
-        <Label htmlFor="featured_image">Featured Image</Label>
-        <div className="mt-2">
-          {featuredImage ? (
-            <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-              <img 
-                src={featuredImage} 
-                alt="Featured image preview" 
-                className="w-full h-full object-contain"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-              <button
-                type="button"
-                onClick={handleRemoveImage}
-                className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                onClick={() => setShowImagePicker(true)}
-              >
-                <div className="text-white text-center">
-                  <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                  <p className="text-sm font-medium">Click to change image</p>
+          <Field className="[&>[data-slot=field-label]]:w-fit [&>[data-slot=field-description]]:max-w-md [&>div]:w-fit">
+            <FieldLabel>Featured Image</FieldLabel>
+            {featuredImage ? (
+              <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
+                <img
+                  src={featuredImage}
+                  alt="Featured image preview"
+                  className="h-full w-full object-contain"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div
+                  className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+                  onClick={() => setShowImagePicker(true)}
+                >
+                  <div className="text-center text-white">
+                    <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                    <p className="text-sm font-medium">Click to change image</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div 
-              className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
-              onClick={() => setShowImagePicker(true)}
-            >
-              <div className="text-center">
-                <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+            ) : (
+              <div
+                className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                onClick={() => setShowImagePicker(true)}
+              >
+                <div className="text-center">
+                  <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                </div>
               </div>
-            </div>
+            )}
+            <FieldDescription>
+              Optional featured image for this product.
+            </FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel>Privacy Settings</FieldLabel>
+            <Field orientation="horizontal" className="items-start gap-3">
+              <Checkbox
+                id="is_private"
+                checked={isPrivate}
+                onCheckedChange={(checked) => setIsPrivate(!!checked)}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="is_private" className="font-normal">
+                  Private
+                </FieldLabel>
+                <FieldDescription>
+                  Accessible only by direct URL and hidden from product listings.
+                </FieldDescription>
+              </FieldContent>
+            </Field>
+          </Field>
+
+          {currentSite?.id && (
+            <Field>
+              <FieldLabel>Categories</FieldLabel>
+              <CategoryPicker
+                siteId={currentSite.id}
+                selectedCategoryIds={selectedCategoryIds}
+                onSelectionChange={setSelectedCategoryIds}
+              />
+              <FieldDescription>
+                Assign this product to one or more categories.
+              </FieldDescription>
+            </Field>
           )}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Optional featured image for this product
-        </p>
-      </div>
 
-      {/* Privacy Settings */}
-      <div className="space-y-3">
-        <Label>Privacy Settings</Label>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="is_private"
-            checked={isPrivate}
-            onCheckedChange={(checked) => setIsPrivate(!!checked)}
-          />
-          <Label htmlFor="is_private" className="text-sm font-normal">
-            Private (accessible only via direct URL, hidden from product listings)
-          </Label>
-        </div>
-      </div>
+          <Field>
+            <FieldLabel htmlFor="rich_text">Product Description</FieldLabel>
+            <RichTextEditor
+              content={{
+                content: richTextContent,
+                hideHeader: true,
+                hideEditorHeader: true
+              }}
+              onContentChange={(content) => setRichTextContent(content.content)}
+              compact={true}
+              inline={true}
+            />
+            <FieldDescription>
+              Rich text content for the product description. This is saved into the product content.
+            </FieldDescription>
+          </Field>
+        </FieldGroup>
+      </AdminModalBody>
 
-      {/* Categories */}
-      {currentSite?.id && (
-        <div>
-          <Label>Categories</Label>
-          <CategoryPicker
-            siteId={currentSite.id}
-            selectedCategoryIds={selectedCategoryIds}
-            onSelectionChange={setSelectedCategoryIds}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Assign this product to one or more categories
-          </p>
-        </div>
-      )}
-
-      {/* Rich Text Content */}
-      <div>
-        <Label htmlFor="rich_text">Product Description</Label>
-        <RichTextEditor
-          content={{
-            content: richTextContent,
-            hideHeader: true,
-            hideEditorHeader: true
-          }}
-          onContentChange={(content) => setRichTextContent(content.content)}
-          compact={true}
-          inline={true}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Rich text content for the product description (will be saved as a product block)
-        </p>
-      </div>
-
-      {/* Form Actions */}
-      <div className="flex items-center justify-between">
+      <AdminModalFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
@@ -324,7 +330,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             {loading ? 'Saving...' : 'Continue'}
           </Button>
         </div>
-      </div>
+      </AdminModalFooter>
 
       {/* Image Picker Modal */}
       <MediaPicker

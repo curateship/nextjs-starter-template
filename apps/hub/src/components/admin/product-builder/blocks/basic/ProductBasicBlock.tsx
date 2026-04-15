@@ -1,14 +1,12 @@
 "use client"
 
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Upload, X } from "lucide-react"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
+import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface BasicBlockProps {
   title: string
@@ -61,11 +59,7 @@ export function BasicBlock({
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Product Information</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <BlockEditorSection heading="Product Information" contentClassName="space-y-6">
         {/* Title */}
         <div className="space-y-2">
           <Input
@@ -92,7 +86,7 @@ export function BasicBlock({
         {/* Status */}
         <div className="space-y-2">
           <Select value={status} onValueChange={onStatusChange}>
-            <SelectTrigger>
+            <SelectTrigger size="button">
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
@@ -153,7 +147,6 @@ export function BasicBlock({
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </BlockEditorSection>
   )
-} 
+}

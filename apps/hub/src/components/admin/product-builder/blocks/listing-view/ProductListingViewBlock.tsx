@@ -1,10 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface ProductListingViewBlockProps {
   header?: string
@@ -84,18 +84,15 @@ export function ProductListingViewBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Header Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-6">
+        <BlockEditorSection heading="Header Settings">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Header</Label>
                 <Input
@@ -119,7 +116,7 @@ export function ProductListingViewBlock({
               <div className="space-y-2">
                 <Label htmlFor="headerAlign">Header Alignment</Label>
                 <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                  <SelectTrigger id="headerAlign">
+                  <SelectTrigger id="headerAlign" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -155,19 +152,14 @@ export function ProductListingViewBlock({
             <p className="text-sm text-muted-foreground">
               Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
             </p>
-          </CardContent>
-        </Card>
+        </BlockEditorSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Content Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <BlockEditorSection heading="Content Settings">
             <div className="grid grid-cols-5 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="contentType">Content Type</Label>
                 <Select value={contentType} onValueChange={onContentTypeChange}>
-                  <SelectTrigger id="contentType">
+                  <SelectTrigger id="contentType" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -179,7 +171,7 @@ export function ProductListingViewBlock({
               <div className="space-y-2">
                 <Label htmlFor="displayMode">Display Mode</Label>
                 <Select value={displayMode} onValueChange={onDisplayModeChange}>
-                  <SelectTrigger id="displayMode">
+                  <SelectTrigger id="displayMode" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -196,7 +188,7 @@ export function ProductListingViewBlock({
                   onValueChange={(v) => onColumnsChange(parseInt(v))}
                   disabled={displayMode === 'list'}
                 >
-                  <SelectTrigger id="columns">
+                  <SelectTrigger id="columns" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -210,7 +202,7 @@ export function ProductListingViewBlock({
               <div className="space-y-2">
                 <Label htmlFor="sortBy">Sort By</Label>
                 <Select value={sortBy} onValueChange={onSortByChange}>
-                  <SelectTrigger id="sortBy">
+                  <SelectTrigger id="sortBy" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,7 +216,7 @@ export function ProductListingViewBlock({
               <div className="space-y-2">
                 <Label htmlFor="sortOrder">Sort Order</Label>
                 <Select value={sortOrder} onValueChange={onSortOrderChange}>
-                  <SelectTrigger id="sortOrder">
+                  <SelectTrigger id="sortOrder" size="button">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -234,14 +226,9 @@ export function ProductListingViewBlock({
                 </Select>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </BlockEditorSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Display Options</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <BlockEditorSection heading="Display Options">
             <div className="flex items-center justify-between">
               <Label htmlFor="showImage">Show Image</Label>
               <Switch
@@ -298,20 +285,15 @@ export function ProductListingViewBlock({
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
-            </>
+        </BlockEditorSection>
+            </div>
           ),
         },
         {
           value: "style",
           label: "Style",
           content: (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Style options coming soon.</p>
-              </CardContent>
-            </Card>
+            <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
           ),
         },
         {

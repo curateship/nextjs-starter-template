@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -29,6 +28,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 // Helper function to detect media type from URL
 const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
@@ -253,18 +253,15 @@ export function ProductFeaturesBlock({
     <div>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
             label: "Content",
             content: (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Header Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-6">
+                <BlockEditorSection heading="Header Settings">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="features-title">Header</Label>
                         <Input
@@ -288,7 +285,7 @@ export function ProductFeaturesBlock({
                       <div className="space-y-2">
                         <Label htmlFor="features-align">Header Alignment</Label>
                         <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                          <SelectTrigger id="features-align">
+                          <SelectTrigger id="features-align" size="button">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -298,25 +295,10 @@ export function ProductFeaturesBlock({
                         </Select>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </BlockEditorSection>
 
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Features</CardTitle>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addFeature}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Feature
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
+                <section className="space-y-4">
+                  <h3 className="!pt-0 text-base font-medium">Features</h3>
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -342,24 +324,22 @@ export function ProductFeaturesBlock({
                     </DndContext>
 
                     {featuresCollection.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
+                      <BlockEditorEmptyState>
                         No features yet. Click "Add Feature" to create one.
-                      </div>
+                      </BlockEditorEmptyState>
                     )}
-                  </CardContent>
-                </Card>
-              </>
-            ),
-          },
-          {
-            value: "style",
-            label: "Style",
-            content: (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Style options coming soon.
-                </CardContent>
-              </Card>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addFeature}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Feature
+                    </Button>
+                </section>
+              </div>
             ),
           },
           {

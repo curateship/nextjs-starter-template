@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Plus, Trash2, GripVertical } from "lucide-react"
@@ -28,6 +27,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface FaqItem {
   id: string
@@ -204,18 +204,15 @@ export function ProductFAQBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
-          label: "Content",
-          content: (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Header Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
+            label: "Content",
+            content: (
+            <div className="space-y-6">
+              <BlockEditorSection heading="Header Settings">
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="product-faq-title">Header</Label>
                       <Input
@@ -239,7 +236,7 @@ export function ProductFAQBlock({
                     <div className="space-y-2">
                       <Label htmlFor="product-faq-align">Header Alignment</Label>
                       <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                        <SelectTrigger id="product-faq-align">
+                        <SelectTrigger id="product-faq-align" size="button">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -249,28 +246,13 @@ export function ProductFAQBlock({
                       </Select>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">FAQ Items</CardTitle>
-                    <Button
-                      onClick={addNewFaqItem}
-                      size="sm"
-                      className="h-8"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add FAQ
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="FAQ Items">
                   {localFaqItems.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <BlockEditorEmptyState>
                       <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>
-                    </div>
+                    </BlockEditorEmptyState>
                   ) : (
                     <DndContext
                       sensors={sensors}
@@ -295,20 +277,14 @@ export function ProductFAQBlock({
                       </SortableContext>
                     </DndContext>
                   )}
-                </CardContent>
-              </Card>
-            </>
-          ),
-        },
-        {
-          value: "style",
-          label: "Style",
-          content: (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Style options coming soon.
-              </CardContent>
-            </Card>
+                  <div className="pt-2">
+                    <Button onClick={addNewFaqItem} variant="outline">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add FAQ
+                    </Button>
+                  </div>
+              </BlockEditorSection>
+            </div>
           ),
         },
         {

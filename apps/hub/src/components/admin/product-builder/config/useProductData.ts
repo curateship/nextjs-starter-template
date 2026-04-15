@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react"
-import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
-import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { getBlockName } from "./product-block-types"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 
 interface ProductBlock {
   id: string
@@ -23,9 +21,8 @@ interface UseProductDataReturn {
 }
 
 export function useProductData(siteId: string): UseProductDataReturn {
-  const { currentSite } = useSiteSwitcher()
-  const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
-  const [siteLoading, setSiteLoading] = useState(!currentSite)
+  const [site, setSite] = useState<SiteWithTheme | null>(null)
+  const [siteLoading, setSiteLoading] = useState(true)
   const [siteError, setSiteError] = useState("")
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
@@ -36,13 +33,10 @@ export function useProductData(siteId: string): UseProductDataReturn {
     setSiteError("")
 
     try {
-      // Use site from context, only fetch products and pages
-      const [productsResult, pagesResult] = await Promise.all([
-        getSiteProductsAction(siteId),
-        getSitePagesAction(siteId)
+      const [siteResult, productsResult] = await Promise.all([
+        getSiteByIdAction(siteId),
+        getSiteProductsAction(siteId)
       ])
-
-      const siteResult = { data: currentSite, error: null }
       
       if (siteResult.data) {
         setSite(siteResult.data)
@@ -84,7 +78,14 @@ export function useProductData(siteId: string): UseProductDataReturn {
 
   const reloadBlocks = async () => {
     setBlocksLoading(true)
-    const productsResult = await getSiteProductsAction(siteId)
+    const [siteResult, productsResult] = await Promise.all([
+      getSiteByIdAction(siteId),
+      getSiteProductsAction(siteId)
+    ])
+
+    if (siteResult.data) {
+      setSite(siteResult.data)
+    }
     
     if (productsResult.data) {
       // Convert products with JSON content_blocks to the block format the UI expects

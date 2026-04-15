@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 import { Plus, Trash2 } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
@@ -50,16 +50,13 @@ export function ProductDetailsBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium">Edit Product Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <BlockEditorSection heading="Edit Product Details">
                 <div>
                   <Label htmlFor="description" className="text-sm font-medium">Product Description</Label>
                   <Textarea
@@ -114,24 +111,19 @@ export function ProductDetailsBlock({
                   </div>
 
                   {specifications.length === 0 && (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
+                    <BlockEditorEmptyState className="py-4">
                       No specifications added yet. Click &quot;Add&quot; to create your first specification.
-                    </div>
+                    </BlockEditorEmptyState>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
           value: "style",
           label: "Style",
           content: (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Style options coming soon.</p>
-              </CardContent>
-            </Card>
+            <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
           ),
         },
         {

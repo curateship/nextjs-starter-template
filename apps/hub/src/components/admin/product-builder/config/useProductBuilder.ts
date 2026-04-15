@@ -31,6 +31,8 @@ interface UseProductBuilderReturn {
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
+  replaceSelectedBlockContent: (content: Record<string, any>) => void
+  saveSelectedBlockContent: (content: Record<string, any>) => Promise<boolean>
   handleDeleteBlock: (block: ProductBlock) => void
   handleReorderBlocks: (blocks: ProductBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
@@ -47,6 +49,58 @@ export function useProductBuilder({
   const [selectedBlock, setSelectedBlock] = useState<ProductBlock | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
+
+  const buildContentBlocksPayload = (currentBlocks: ProductBlock[]) => {
+    const existingContentBlocks = currentProduct?.content_blocks || {}
+    const newContentBlocks: Record<string, any> = {}
+
+    currentBlocks.forEach((block, index) => {
+      newContentBlocks[block.id] = {
+        id: block.id,
+        type: block.type,
+        content: block.content,
+        display_order: index
+      }
+    })
+
+    return {
+      ...newContentBlocks,
+      ...(existingContentBlocks._settings && {
+        _settings: existingContentBlocks._settings
+      })
+    }
+  }
+
+  const persistBlocks = async (currentBlocks: ProductBlock[]) => {
+    if (!productId) {
+      setSaveMessage("Error: Product ID required")
+      setTimeout(() => setSaveMessage(""), 3000)
+      return false
+    }
+
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const result = await updateProductBlocksAction(productId, buildContentBlocksPayload(currentBlocks))
+
+      if (result.success) {
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+        return true
+      }
+
+      setSaveMessage(`Error: ${result.error}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+      return false
+    } catch (error) {
+      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   useEffect(() => {
     setSelectedBlock(null)
@@ -68,6 +122,42 @@ export function useProductBuilder({
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
     }
+  }
+
+  const replaceSelectedBlockContent = (content: Record<string, any>) => {
+    if (!selectedBlock) return
+
+    const updatedBlocks = { ...blocks }
+    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+    if (blockIndex !== -1) {
+      updatedBlocks[selectedProduct][blockIndex] = {
+        ...updatedBlocks[selectedProduct][blockIndex],
+        content,
+      }
+      setBlocks(updatedBlocks)
+      setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+    }
+  }
+
+  const saveSelectedBlockContent = async (content: Record<string, any>) => {
+    if (!selectedBlock) return false
+
+    const updatedBlocks = { ...blocks }
+    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+
+    if (blockIndex === -1) {
+      return false
+    }
+
+    updatedBlocks[selectedProduct][blockIndex] = {
+      ...updatedBlocks[selectedProduct][blockIndex],
+      content,
+    }
+
+    setBlocks(updatedBlocks)
+    setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+
+    return persistBlocks(updatedBlocks[selectedProduct])
   }
 
   const handleDeleteBlock = (block: ProductBlock) => {
@@ -125,55 +215,7 @@ export function useProductBuilder({
   }
 
   const handleSaveAllBlocks = async () => {
-    if (!productId) {
-      setSaveMessage("Error: Product ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
-      return
-    }
-
-    const currentBlocks = blocks[selectedProduct] || []
-    
-    // Get existing content blocks from the currentProduct to preserve settings
-    const existingContentBlocks = currentProduct?.content_blocks || {}
-    
-    // Convert blocks array to JSON object format keyed by block ID
-    const newContentBlocks: Record<string, any> = {}
-    currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.id] = {
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        display_order: index
-      }
-    })
-
-    // Preserve existing _settings and merge with new blocks
-    const contentBlocks: Record<string, any> = {
-      ...newContentBlocks,
-      ...(existingContentBlocks._settings && {
-        _settings: existingContentBlocks._settings
-      })
-    }
-    
-    setIsSaving(true)
-    setSaveMessage("Saving...")
-
-    try {
-      const result = await updateProductBlocksAction(productId, contentBlocks)
-      
-      if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
-      } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-      }
-    } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
-    } finally {
-      setIsSaving(false)
-    }
+    await persistBlocks(blocks[selectedProduct] || [])
   }
 
   return {
@@ -182,6 +224,8 @@ export function useProductBuilder({
     isSaving,
     saveMessage,
     updateBlockContent,
+    replaceSelectedBlockContent,
+    saveSelectedBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,

@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +12,7 @@ import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface ProductHotspotBlockProps {
   header?: string
@@ -150,18 +150,15 @@ export function ProductHotspotBlock({
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
             label: "Content",
             content: (
-              <>
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Header Content</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-6">
+          <BlockEditorSection heading="Header Content">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Header</Label>
                   <Input
@@ -185,7 +182,7 @@ export function ProductHotspotBlock({
                 <div className="space-y-2">
                   <Label htmlFor="hotspot-align">Header Alignment</Label>
                   <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                    <SelectTrigger id="hotspot-align">
+                    <SelectTrigger id="hotspot-align" size="button">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -195,53 +192,12 @@ export function ProductHotspotBlock({
                   </Select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </BlockEditorSection>
 
-          <Card className="shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Interactive Hotspots</CardTitle>
-                <div className="flex items-center gap-2">
-                  {!backgroundImage ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowImagePicker(true)}
-                      className="h-8"
-                    >
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Select Image
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowImagePicker(true)}
-                      className="h-8"
-                    >
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Change Image
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant={isAddingHotspot ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setIsAddingHotspot(!isAddingHotspot)}
-                    className="h-8"
-                    disabled={!backgroundImage}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {isAddingHotspot ? "Click on image" : "Add Hotspot"}
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Interactive Image Preview */}
+          <BlockEditorSection
+            heading="Interactive Hotspots"
+          >
+              <div className="space-y-4">
               {backgroundImage ? (
                 <div className="relative">
                   {isAddingHotspot && (
@@ -295,20 +251,32 @@ export function ProductHotspotBlock({
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-              </>
-            ),
-          },
-          {
-            value: "style",
-            label: "Style",
-            content: (
-              <Card className="shadow-sm">
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Style options coming soon.
-                </CardContent>
-              </Card>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowImagePicker(true)}
+                    className="h-8"
+                  >
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    {backgroundImage ? "Change Image" : "Select Image"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={isAddingHotspot ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsAddingHotspot(!isAddingHotspot)}
+                    className="h-8"
+                    disabled={!backgroundImage}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {isAddingHotspot ? "Click on image" : "Add Hotspot"}
+                  </Button>
+                </div>
+              </div>
+          </BlockEditorSection>
+              </div>
             ),
           },
           {
@@ -327,11 +295,7 @@ export function ProductHotspotBlock({
                   />
                 )}
 
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Display Options</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <BlockEditorSection heading="Display Options">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="showTooltipsAlways"
@@ -342,8 +306,7 @@ export function ProductHotspotBlock({
                         Always show tooltips
                       </Label>
                     </div>
-                  </CardContent>
-                </Card>
+                </BlockEditorSection>
               </>
             ),
           },

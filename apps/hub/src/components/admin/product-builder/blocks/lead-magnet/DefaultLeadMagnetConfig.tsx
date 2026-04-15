@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ImageIcon, X } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import type { LeadMagnetStyleAdminProps } from "."
+import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: LeadMagnetStyleAdminProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
@@ -20,12 +20,7 @@ export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: Lead
 
   return (
     <div className="space-y-4">
-      {/* Showcase Image */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Showcase Image</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <BlockEditorSection heading="Showcase Image">
           <div className="relative">
             {showcaseImage ? (
               <div
@@ -66,15 +61,9 @@ export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: Lead
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
 
-      {/* Border Beam Effect */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Border Beam Effect</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <BlockEditorSection heading="Border Beam Effect">
           <div className="flex items-center gap-2">
             <Checkbox
               id="showBorderBeam"
@@ -106,15 +95,9 @@ export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: Lead
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
 
-      {/* Display Options */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Display Options</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <BlockEditorSection heading="Display Options">
           <div className="flex items-center gap-2">
             <Checkbox
               id="downloadShowPrivacyNote"
@@ -123,8 +106,7 @@ export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: Lead
             />
             <Label htmlFor="downloadShowPrivacyNote">Show privacy note</Label>
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
 
       <MediaPicker
         open={showImagePicker}

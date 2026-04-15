@@ -1,11 +1,11 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, X } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -172,190 +172,177 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
   }
 
   return (
-    <div className="">
-      {/* Trusted By Section Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Trusted By Badge</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addAvatar}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Avatar Management */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleAvatarDragEnd}
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-medium">Trusted By Badge</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addAvatar}
+            className="h-8 w-8 p-0"
           >
-            <SortableContext
-              items={trustedByAvatars.map(a => a.id || '')}
-              strategy={horizontalListSortingStrategy}
-            >
-              <div className="flex flex-wrap gap-2">
-                {trustedByAvatars.map((avatar, index) => (
-                  <SortableAvatarItem
-                    key={avatar.id || `avatar-${index}`}
-                    avatar={avatar}
-                    index={index}
-                    updateAvatar={updateAvatar}
-                    removeAvatar={removeAvatar}
-                    onOpenImagePicker={setShowPicker}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
 
-          {trustedByAvatars.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-              No avatars. Click + to add one.
+          {/* Avatar Management */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleAvatarDragEnd}
+        >
+          <SortableContext
+            items={trustedByAvatars.map(a => a.id || '')}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="flex flex-wrap gap-2">
+              {trustedByAvatars.map((avatar, index) => (
+                <SortableAvatarItem
+                  key={avatar.id || `avatar-${index}`}
+                  avatar={avatar}
+                  index={index}
+                  updateAvatar={updateAvatar}
+                  removeAvatar={removeAvatar}
+                  onOpenImagePicker={setShowPicker}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        {trustedByAvatars.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+            No avatars. Click + to add one.
+          </div>
+        )}
+
+        <Field>
+          <FieldLabel htmlFor="badgeText">Badge Text</FieldLabel>
+          <Input
+            id="badgeText"
+            type="text"
+            value={trustedByText}
+            onChange={(e) => onConfigChange('trustedByText', e.target.value)}
+            placeholder="Badge text (e.g., 'Trusted by developers')"
+          />
+        </Field>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-base font-medium">Hero Image</h3>
+        </div>
+
+        <div className="relative">
+          {heroImage ? (
+            <div
+              className="relative w-[100px] h-[100px] rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setShowHeroImagePicker(true)}
+            >
+              <img
+                src={heroImage}
+                alt="Hero preview"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
+                <div className="text-white text-center">
+                  <ImageIcon className="mx-auto h-6 w-6 mb-1" />
+                  <p className="text-xs font-medium">Click to change image</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigChange('heroImage', '');
+                }}
+                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div
+              className="flex items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+              onClick={() => setShowHeroImagePicker(true)}
+            >
+              <div className="text-center">
+                <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
+              </div>
             </div>
           )}
+        </div>
+      </section>
 
-          <div className="space-y-2">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label htmlFor="badgeText">Badge Text</Label>
-                <input
-                  id="badgeText"
-                  type="text"
-                  value={trustedByText}
-                  onChange={(e) => onConfigChange('trustedByText', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md mt-1"
-                  placeholder="Badge text (e.g., 'Trusted by developers')"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-base font-medium">Background Pattern</h3>
+        </div>
 
-      {/* Hero Image Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Hero Image</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            {heroImage ? (
-              <div
-                className="relative w-[100px] h-[100px] rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setShowHeroImagePicker(true)}
-              >
-                <img
-                  src={heroImage}
-                  alt="Hero preview"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                  <div className="text-white text-center">
-                    <ImageIcon className="mx-auto h-6 w-6 mb-1" />
-                    <p className="text-xs font-medium">Click to change image</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onConfigChange('heroImage', '');
-                  }}
-                  className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-sm transition-colors"
+        <div className="inline-flex items-end gap-3">
+          <Field className="w-[180px]">
+            <FieldLabel className="text-xs">Pattern Type</FieldLabel>
+            <Select
+              value={backgroundPattern || 'none'}
+              onValueChange={(v) => onConfigChange('backgroundPattern', v)}
+            >
+              <SelectTrigger size="button">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Background</SelectItem>
+                <SelectItem value="dots">Dots</SelectItem>
+                <SelectItem value="grid">Grid</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {backgroundPattern !== 'none' && (
+            <>
+              <Field className="w-[140px]">
+                <FieldLabel className="text-xs">Size</FieldLabel>
+                <Select
+                  value={backgroundPatternSize || 'medium'}
+                  onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div
-                className="flex items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                onClick={() => setShowHeroImagePicker(true)}
-              >
-                <div className="text-center">
-                  <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
-                  <p className="mt-1 text-xs text-muted-foreground">Click to select image</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                  <SelectTrigger size="button">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-      {/* Background Pattern Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Background Pattern</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="inline-flex items-end gap-3">
-            <div className="space-y-2">
-              <Label className="text-xs">Pattern Type</Label>
-              <Select
-                value={backgroundPattern || 'none'}
-                onValueChange={(v) => onConfigChange('backgroundPattern', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Background</SelectItem>
-                  <SelectItem value="dots">Dots</SelectItem>
-                  <SelectItem value="grid">Grid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {backgroundPattern !== 'none' && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-xs">Size</Label>
-                  <Select
-                    value={backgroundPatternSize || 'medium'}
-                    onValueChange={(v) => onConfigChange('backgroundPatternSize', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="small">Small</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="large">Large</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <Field className="w-[112px]">
+                <FieldLabel className="text-xs">Opacity</FieldLabel>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={backgroundPatternOpacity}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (!isNaN(value) && value >= 0 && value <= 100) {
+                        onConfigChange('backgroundPatternOpacity', value);
+                      }
+                    }}
+                    className="h-10 w-20 text-sm"
+                    placeholder="80"
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Opacity</Label>
-                  <div className="flex items-center space-x-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={backgroundPatternOpacity}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!isNaN(value) && value >= 0 && value <= 100) {
-                          onConfigChange('backgroundPatternOpacity', value);
-                        }
-                      }}
-                      className="h-auto w-20 px-2 py-1 text-sm"
-                      placeholder="80"
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              </Field>
+            </>
+          )}
+        </div>
+      </section>
 
       {/* Image Picker Modal for Avatars */}
       <MediaPicker

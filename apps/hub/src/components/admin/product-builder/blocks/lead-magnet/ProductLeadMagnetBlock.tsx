@@ -1,6 +1,5 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,6 +9,7 @@ import { useCallback } from 'react'
 import { LEAD_MAGNET_STYLES } from '.'
 import { cn } from '@/lib/utils/tailwind'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface ProductLeadMagnetBlockProps {
   content: Record<string, any>
@@ -46,16 +46,13 @@ export function ProductLeadMagnetBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Content</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <BlockEditorSection heading="Content">
                 <div className="space-y-2">
                   <Label htmlFor="heading">Heading</Label>
                   <Input
@@ -86,8 +83,7 @@ export function ProductLeadMagnetBlock({
                     placeholder="Get Instant Access"
                   />
                 </div>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
@@ -108,25 +104,16 @@ export function ProductLeadMagnetBlock({
         },
         {
           value: "follow-up",
-          label: "After Signup",
-          content: (
-            <>
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Delivery Email</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            label: "After Signup",
+            content: (
+            <div className="space-y-6">
+              <BlockEditorSection heading="Delivery Email">
                   <p className="text-sm text-muted-foreground">
                     Lead magnet delivery emails are now managed in Platform Management → Emails.
                   </p>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Thank You Message</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Thank You Message">
                   <div className="space-y-2">
                     <Label htmlFor="thankYouHeading">Heading</Label>
                     <Input
@@ -169,9 +156,8 @@ export function ProductLeadMagnetBlock({
                       rows={4}
                     />
                   </div>
-                </CardContent>
-              </Card>
-            </>
+              </BlockEditorSection>
+            </div>
           ),
         },
         {

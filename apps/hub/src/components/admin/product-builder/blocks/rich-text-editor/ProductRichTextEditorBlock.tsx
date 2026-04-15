@@ -5,7 +5,6 @@ import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -26,6 +25,7 @@ import {
 import { useState, useCallback, useEffect } from 'react'
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 interface RichTextBlockProps {
   content: {
@@ -116,33 +116,25 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
 
   if (!editor) {
     return (
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Rich Text Content</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <BlockEditorSection heading="Rich Text Content">
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
     )
   }
 
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
-          label: "Content",
-          content: (
-            <>
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Section Header</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            label: "Content",
+            content: (
+            <div className="space-y-6">
+              <BlockEditorSection heading="Section Header">
                   <div>
                     <Label htmlFor="header">Section Header</Label>
                     <Input
@@ -166,7 +158,7 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
                   <div>
                     <Label htmlFor="headerAlign">Header Alignment</Label>
                     <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger size="button" className="mt-1">
                         <SelectValue placeholder="Select alignment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -175,36 +167,31 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              <Card className="shadow-sm">
-                {!content.hideEditorHeader && (
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Rich Text Content</CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowPreview(!showPreview)}
-                        className="text-xs"
-                      >
-                        {showPreview ? (
-                          <>
-                            <EyeOff className="w-4 h-4 mr-1" />
-                            Edit
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="w-4 h-4 mr-1" />
-                            Preview
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardHeader>
+              <BlockEditorSection
+                heading={content.hideEditorHeader ? undefined : "Rich Text Content"}
+                action={(
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPreview(!showPreview)}
+                    className="text-xs"
+                  >
+                    {showPreview ? (
+                      <>
+                        <EyeOff className="w-4 h-4 mr-1" />
+                        Edit
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4 mr-1" />
+                        Preview
+                      </>
+                    )}
+                  </Button>
                 )}
-                <CardContent className="space-y-4">
+              >
                   {!showPreview ? (
                     <>
                       {/* Toolbar */}
@@ -401,20 +388,15 @@ export function ProductRichTextEditorBlock({ content, onContentChange, compact =
                       This is how your content will appear on the frontend.
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </>
+              </BlockEditorSection>
+            </div>
           ),
         },
         {
           value: "style",
-          label: "Style",
-          content: (
-            <Card className="shadow-sm">
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Style options coming soon.
-              </CardContent>
-            </Card>
+            label: "Style",
+            content: (
+            <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
           ),
         },
         {

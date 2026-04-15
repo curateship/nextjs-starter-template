@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +34,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
 
 // Security utility functions for admin component
 const sanitizeAdminInput = (input: string): string => {
@@ -383,7 +383,7 @@ function SortablePricingTierItem({
               value={tier.ribbonColor}
               onValueChange={(value) => updateTier(tierIndex, 'ribbonColor', value)}
             >
-              <SelectTrigger>
+              <SelectTrigger size="button">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -597,19 +597,15 @@ export function ProductCheckoutBlock({
     <BlockTabs
       onBack={onBack}
       defaultTab="checkout"
+      headerClassName="pt-0"
       tabs={[
         {
           value: "checkout",
           label: "Checkout",
           content: (
-            <>
-              {/* Header Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Header Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-6">
+              <BlockEditorSection heading="Header Settings">
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pricing-title">Header</Label>
                       <Input
@@ -633,7 +629,7 @@ export function ProductCheckoutBlock({
                     <div className="space-y-2">
                       <Label htmlFor="pricing-align">Header Alignment</Label>
                       <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                        <SelectTrigger id="pricing-align">
+                        <SelectTrigger id="pricing-align" size="button">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -643,15 +639,9 @@ export function ProductCheckoutBlock({
                       </Select>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* Payment Checkout Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Payment Checkout</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Payment Checkout">
                   <div className="flex gap-6">
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -700,26 +690,9 @@ export function ProductCheckoutBlock({
                       </Label>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* Pricing Tiers Card */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Pricing Tiers</CardTitle>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addTier}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Tier
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Pricing Tiers">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -747,24 +720,31 @@ export function ProductCheckoutBlock({
                   </DndContext>
 
                   {(productPricingTiers?.length === 0 || !productPricingTiers) && (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <BlockEditorEmptyState>
                       No pricing tiers yet. Click "Add Tier" to create one.
-                    </div>
+                    </BlockEditorEmptyState>
                   )}
-                </CardContent>
-              </Card>
-            </>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addTier}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Tier
+                    </Button>
+                  </div>
+              </BlockEditorSection>
+            </div>
           ),
         },
         {
           value: "success",
           label: "Success Page",
           content: (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Success Page Settings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <BlockEditorSection heading="Success Page Settings">
                 <div>
                   <Label htmlFor="success-url">Success URL</Label>
                   <Input
@@ -791,8 +771,7 @@ export function ProductCheckoutBlock({
                     by enabling "Enable Download Page" on individual tiers.
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
