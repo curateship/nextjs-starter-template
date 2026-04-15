@@ -277,7 +277,7 @@ const DesktopUserMenu = ({
   onSignOut: () => void
   showAdminLink: boolean
 }) => (
-  <DropdownMenu>
+  <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
       <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border">
         <Avatar className="h-9 w-9">
