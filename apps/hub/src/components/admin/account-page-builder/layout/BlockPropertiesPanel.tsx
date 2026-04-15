@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PagePreview } from "../../page-builder/layout/PagePreview"
 import { PageAuthBlock } from "@/components/admin/page-builder/blocks/auth/PageAuthBlock"
 import { PageRichTextEditorBlock } from "@/components/admin/page-builder/blocks/rich-text-editor/PageRichTextEditorBlock"
@@ -48,7 +49,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <div className="h-full overflow-y-auto">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -147,7 +148,7 @@ export function BlockPropertiesPanel({
           )}
         </div>
       )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { SiteThemeProvider } from "@/components/frontend/layout/site-theme-provider"
 import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationBlock"
 import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface SelectablePreviewBlock {
@@ -44,56 +45,31 @@ const DEFAULT_EMPTY_TITLE = "No blocks added yet"
 
 function DefaultPreviewSkeleton() {
   return (
-    <div>
-      <div className="border-b px-8 py-4">
-        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-6">
-          <div className="h-6 w-28 animate-pulse rounded bg-muted" />
-          <div className="hidden gap-6 md:flex">
-            <div className="h-4 w-14 animate-pulse rounded bg-muted/60" />
-            <div className="h-4 w-16 animate-pulse rounded bg-muted/60" />
-            <div className="h-4 w-12 animate-pulse rounded bg-muted/60" />
+    <div className="mx-auto max-w-[1152px] space-y-12 px-8 py-12">
+      <div className="grid gap-10 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="h-12 w-full animate-pulse rounded bg-muted" />
+          <div className="h-12 w-4/5 animate-pulse rounded bg-muted" />
+          <div className="space-y-2 pt-2">
+            <div className="h-4 w-full animate-pulse rounded bg-muted/60" />
+            <div className="h-4 w-11/12 animate-pulse rounded bg-muted/60" />
+            <div className="h-4 w-3/4 animate-pulse rounded bg-muted/60" />
           </div>
-          <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
         </div>
+        <div className="aspect-video animate-pulse rounded-xl bg-muted/40" />
       </div>
 
-      <div className="mx-auto max-w-[1152px] space-y-12 px-8 py-12">
-        <div className="grid gap-10 lg:grid-cols-2">
-          <div className="space-y-4">
-            <div className="h-12 w-full animate-pulse rounded bg-muted" />
-            <div className="h-12 w-4/5 animate-pulse rounded bg-muted" />
-            <div className="space-y-2 pt-2">
-              <div className="h-4 w-full animate-pulse rounded bg-muted/60" />
-              <div className="h-4 w-11/12 animate-pulse rounded bg-muted/60" />
-              <div className="h-4 w-3/4 animate-pulse rounded bg-muted/60" />
+      <div className="grid gap-5 md:grid-cols-3">
+        {[1, 2, 3].map(item => (
+          <div key={item} className="space-y-3">
+            <div className="h-40 animate-pulse rounded-lg bg-muted/40" />
+            <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+            <div className="space-y-2">
+              <div className="h-3.5 animate-pulse rounded bg-muted/40" />
+              <div className="h-3.5 w-5/6 animate-pulse rounded bg-muted/40" />
             </div>
           </div>
-          <div className="aspect-video animate-pulse rounded-xl bg-muted/40" />
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-3">
-          {[1, 2, 3].map(item => (
-            <div key={item} className="space-y-3">
-              <div className="h-40 animate-pulse rounded-lg bg-muted/40" />
-              <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
-              <div className="space-y-2">
-                <div className="h-3.5 animate-pulse rounded bg-muted/40" />
-                <div className="h-3.5 w-5/6 animate-pulse rounded bg-muted/40" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="border-t px-8 py-8">
-        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4">
-          <div className="h-4 w-40 animate-pulse rounded bg-muted/60" />
-          <div className="flex gap-4">
-            <div className="h-4 w-12 animate-pulse rounded bg-muted/40" />
-            <div className="h-4 w-14 animate-pulse rounded bg-muted/40" />
-            <div className="h-4 w-10 animate-pulse rounded bg-muted/40" />
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -191,7 +167,7 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
     <SiteThemeProvider site={site} isPreview enableThemeToggle={enableThemeToggle}>
       <div
         ref={containerRef}
-        className={cn(className, "preview-container")}
+        className={cn(className, "preview-container flex h-full min-h-0 flex-col")}
         style={previewStyles}
         onClick={isInteractive ? handleClick : undefined}
         onClickCapture={isInteractive ? handleClickCapture : undefined}
@@ -218,27 +194,29 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
           `}</style>
         )}
 
-        <div className="relative w-full bg-background">
+        <div className="relative flex h-full min-h-0 flex-col bg-background">
           {navigation && (
             <NavBlock {...navigation} site={site} isPreview />
           )}
 
-          {isLoading ? (
-            loadingFallback || <DefaultPreviewSkeleton />
-          ) : isEmpty ? (
-            <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <div className="mb-2 text-lg font-medium">{emptyTitle}</div>
-                <div className="text-sm">{emptyDescription}</div>
+          <ScrollArea className="min-h-0 flex-1">
+            {isLoading ? (
+              loadingFallback || <DefaultPreviewSkeleton />
+            ) : isEmpty ? (
+              <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <div className="mb-2 text-lg font-medium">{emptyTitle}</div>
+                  <div className="text-sm">{emptyDescription}</div>
+                </div>
               </div>
-            </div>
-          ) : (
-            children
-          )}
+            ) : (
+              children
+            )}
 
-          {footer && (
-            <FooterBlock {...footer} site={site} />
-          )}
+            {footer && (
+              <FooterBlock {...footer} site={site} />
+            )}
+          </ScrollArea>
         </div>
       </div>
     </SiteThemeProvider>

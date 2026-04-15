@@ -1,6 +1,7 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "./PostPreview"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -54,7 +55,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <div className="h-full overflow-y-auto">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -135,7 +136,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }

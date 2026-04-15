@@ -1,5 +1,6 @@
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { EventContentBlock } from "@/components/admin/event-builder/blocks/EventContentBlock"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { EventPreview } from "./EventPreview"
 
 interface EventBlock {
@@ -53,7 +54,7 @@ export function BlockPropertiesPanel({
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
-      <div className="h-full overflow-y-auto">
+      <ScrollArea className="h-full">
       {selectedBlock ? (
         <div className="pb-10">
         <AdminLayout>
@@ -98,7 +99,7 @@ export function BlockPropertiesPanel({
           />
         </div>
       )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }
