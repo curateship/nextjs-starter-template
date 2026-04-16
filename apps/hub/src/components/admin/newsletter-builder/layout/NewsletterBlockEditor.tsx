@@ -20,8 +20,6 @@ export function NewsletterBlockEditor({
   content,
   onContentChange,
   siteId,
-  subject,
-  onSubjectChange,
 }: NewsletterBlockEditorProps) {
   if (block.type === "newsletter-rich-text") {
     return (
@@ -29,8 +27,6 @@ export function NewsletterBlockEditor({
         content={content}
         onContentChange={onContentChange}
         siteId={siteId}
-        subject={subject}
-        onSubjectChange={onSubjectChange}
       />
     )
   }

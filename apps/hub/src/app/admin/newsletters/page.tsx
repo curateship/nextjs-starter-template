@@ -28,7 +28,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, Wand2, List, FileEdit, Send, ChevronDown } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
@@ -420,10 +420,6 @@ export default function NewslettersPage() {
             }
             actions={
               <>
-                <Button variant="outline" onClick={() => router.push('/admin/newsletters/skills')}>
-                  <Wand2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create with AI</span>
-                </Button>
                 <Button onClick={() => setShowCreateDialog(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Newsletter</span>
