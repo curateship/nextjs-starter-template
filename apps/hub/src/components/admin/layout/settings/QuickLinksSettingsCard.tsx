@@ -435,26 +435,26 @@ export function QuickLinksSettingsCard({
             internal links or{" "}<code>https://example.com</code>{" "}for external links.
           </CardDescription>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAddLink}
-          className="h-8 w-8 p-0"
-          aria-label="Add quick link"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {quickLinks.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
-            No quick links. Click + to add one.
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+              No quick links.
+            </div>
+            <button
+              type="button"
+              onClick={handleAddLink}
+              className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+              aria-label="Add quick link"
+            >
+                <Plus className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={quickLinks.map((link) => link.id)} strategy={horizontalListSortingStrategy}>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {quickLinks.map((link) => (
                   <SortableQuickLinkItem
                     key={link.id}
@@ -463,6 +463,14 @@ export function QuickLinksSettingsCard({
                     onDelete={handleDeleteLink}
                   />
                 ))}
+                <button
+                  type="button"
+                  onClick={handleAddLink}
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                  aria-label="Add quick link"
+                >
+                    <Plus className="h-4 w-4" />
+                </button>
               </div>
             </SortableContext>
           </DndContext>
