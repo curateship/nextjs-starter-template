@@ -6,11 +6,13 @@ interface DividerBlockProps {
   content: {
     spacingTop?: number
     spacingBottom?: number
-    dividerStyle?: 'none' | 'line' | 'dots' | 'icon'
+    dividerStyle?: 'none' | 'line' | 'line-with-icon' | 'dots' | 'icon'
     lineStyle?: 'solid' | 'dashed' | 'dotted'
     lineThickness?: number
     lineColor?: string
     icon?: string
+    dividerImage?: string
+    dividerImageOpacity?: number
     containerWidth?: string // 'full' | 'custom'
     customWidth?: number // Custom width in pixels
   }
@@ -26,6 +28,8 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
     lineThickness = 1,
     lineColor = '',
     icon = 'dots',
+    dividerImage = '',
+    dividerImageOpacity = 100,
     containerWidth = 'full',
     customWidth = 1200
   } = content
@@ -57,6 +61,59 @@ export function DividerBlock({ content, className = "" }: DividerBlockProps) {
       return (
         <div className="flex justify-center items-center text-muted-foreground/50 text-xl">
           {iconMap[icon] || iconMap.dots}
+        </div>
+      )
+    }
+
+    if (dividerStyle === 'line-with-icon') {
+      if (!dividerImage) {
+        return (
+          <div>
+            <div 
+              className={cn(
+                "border-t w-full",
+                !lineColor && "border-muted"
+              )}
+              style={{
+                borderTopStyle: lineStyle || 'solid',
+                borderTopWidth: `${lineThickness}px`,
+                ...(lineColor && { borderTopColor: lineColor })
+              }}
+            />
+          </div>
+        )
+      }
+
+      return (
+        <div className="flex items-center gap-4">
+          <div
+            className={cn(
+              "w-full border-t",
+              !lineColor && "border-muted"
+            )}
+            style={{
+              borderTopStyle: lineStyle || 'solid',
+              borderTopWidth: `${lineThickness}px`,
+              ...(lineColor && { borderTopColor: lineColor })
+            }}
+          />
+          <img
+            src={dividerImage}
+            alt=""
+            className="h-10 w-auto max-w-20 shrink-0 object-contain"
+            style={{ opacity: Math.max(0, Math.min(100, dividerImageOpacity)) / 100 }}
+          />
+          <div
+            className={cn(
+              "w-full border-t",
+              !lineColor && "border-muted"
+            )}
+            style={{
+              borderTopStyle: lineStyle || 'solid',
+              borderTopWidth: `${lineThickness}px`,
+              ...(lineColor && { borderTopColor: lineColor })
+            }}
+          />
         </div>
       )
     }

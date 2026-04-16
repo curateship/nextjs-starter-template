@@ -57,7 +57,7 @@ export function PageBuilderHeader({
   }
   
   return (
-    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-[57px] z-40">
+    <div className="sticky top-[57px] z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="flex h-14 items-center px-6">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" asChild>

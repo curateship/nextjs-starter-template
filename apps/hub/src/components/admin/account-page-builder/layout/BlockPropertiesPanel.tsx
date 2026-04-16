@@ -90,6 +90,7 @@ export function BlockPropertiesPanel({
             {selectedBlock.type === 'divider' && (
               <PageDividerBlock
                 {...selectedBlock.content}
+                siteId={siteId}
                 onSpacingTopChange={(value) => updateBlockContent('spacingTop', value)}
                 onSpacingBottomChange={(value) => updateBlockContent('spacingBottom', value)}
                 onDividerStyleChange={(value) => updateBlockContent('dividerStyle', value)}
@@ -98,6 +99,8 @@ export function BlockPropertiesPanel({
                 onLineThicknessChange={(value) => updateBlockContent('lineThickness', value)}
                 onLineColorChange={(value) => updateBlockContent('lineColor', value)}
                 onIconChange={(value) => updateBlockContent('icon', value)}
+                onDividerImageChange={(value) => updateBlockContent('dividerImage', value)}
+                onDividerImageOpacityChange={(value) => updateBlockContent('dividerImageOpacity', value)}
                 onContainerWidthChange={(value) => updateBlockContent('containerWidth', value)}
                 onCustomWidthChange={(value) => updateBlockContent('customWidth', value)}
                 onVisibilityChange={(value) => updateBlockContent('visibility', value)}

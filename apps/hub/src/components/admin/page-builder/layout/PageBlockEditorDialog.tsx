@@ -123,6 +123,7 @@ export function PageBlockEditorDialog({
               {selectedBlock.type === "divider" && (
                 <PageDividerBlock
                   {...draftContent}
+                  siteId={siteId}
                   onSpacingTopChange={(value) => onContentChange("spacingTop", value)}
                   onSpacingBottomChange={(value) => onContentChange("spacingBottom", value)}
                   onDividerStyleChange={(value) => onContentChange("dividerStyle", value)}
@@ -131,6 +132,8 @@ export function PageBlockEditorDialog({
                   onLineThicknessChange={(value) => onContentChange("lineThickness", value)}
                   onLineColorChange={(value) => onContentChange("lineColor", value)}
                   onIconChange={(value) => onContentChange("icon", value)}
+                  onDividerImageChange={(value) => onContentChange("dividerImage", value)}
+                  onDividerImageOpacityChange={(value) => onContentChange("dividerImageOpacity", value)}
                   onContainerWidthChange={(value) => onContentChange("containerWidth", value)}
                   onCustomWidthChange={(value) => onContentChange("customWidth", value)}
                   onVisibilityChange={(value) => onContentChange("visibility", value)}

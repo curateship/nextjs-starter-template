@@ -52,7 +52,6 @@ export function TestimonialsBlock({ content, siteWidth, customWidth }: Testimoni
       }}
       siteWidth={siteWidth as 'full' | 'custom'}
       customWidth={customWidth}
-      className="!py-0"
     >
       <DefaultTestimonialRenderer items={testimonialItems} config={currentConfig} />
     </BlockContainer>
