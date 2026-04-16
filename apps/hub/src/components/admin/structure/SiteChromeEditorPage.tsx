@@ -157,6 +157,47 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
     }
   }
 
+  const persistNavigationContent = async (nextNavigationContent: Record<string, any>) => {
+    if (!site) return false
+
+    try {
+      setSaving(true)
+      setError(null)
+      setSaveMessage("")
+
+      const result = await updateSiteNavigationAction(site.id, nextNavigationContent)
+
+      if (!result.success) {
+        setError(result.error || "Failed to save changes")
+        return false
+      }
+
+      const updatedSite: SiteWithTheme = {
+        ...site,
+        settings: {
+          ...(site.settings || {}),
+          navigation: nextNavigationContent,
+        },
+      }
+
+      setNavigationContent(nextNavigationContent)
+      setSite(updatedSite)
+      if (currentSite?.id === updatedSite.id) {
+        setCurrentSite(updatedSite)
+      }
+
+      setSaveMessage("Navigation saved")
+      window.setTimeout(() => setSaveMessage(""), 3000)
+      return true
+    } catch (saveError) {
+      console.error("Failed to save navigation:", saveError)
+      setError("Failed to save navigation")
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <>
       <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, mode)} />
@@ -214,6 +255,7 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
               onContentChange={(field, value) => {
                 setNavigationContent(prev => ({ ...prev, [field]: value }))
               }}
+              onContentPersist={persistNavigationContent}
               siteId={site.id}
               blockId="site-structure-navigation"
               siteFavicon={site.settings?.favicon}

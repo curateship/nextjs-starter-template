@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useMemo, useState, useEffect, memo } from 'react'
 import { cn } from '@/lib/utils/tailwind'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
+import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/auth/client'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -23,6 +24,7 @@ import {
 interface MenuItem {
   name: string;
   href: string;
+  icon?: QuickLinkIconName;
   hasDropdown: boolean;
   dropdownItems?: Array<{ name: string; href: string }>;
 }
@@ -50,8 +52,8 @@ interface NavBlockProps {
       [key: string]: any;
     };
   };
-  links?: Array<{ text: string; url: string }>;
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean }>;
+  links?: Array<{ text: string; url: string; icon?: QuickLinkIconName }>;
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconName }>;
   navigationStyle?: string;
   styleConfig?: Record<string, NavigationStyle>;
   showAuthenticatedUserMenu?: boolean;
@@ -72,6 +74,17 @@ function getUserInitials(user: SessionUser | null) {
     return `${parts[0][0] || 'U'}${parts[1][0] || 'U'}`.toUpperCase()
   }
   return source.slice(0, 2).toUpperCase()
+}
+
+function NavItemLabel({ label, icon }: { label: string; icon?: QuickLinkIconName }) {
+  const Icon = getQuickLinkIconOrNull(icon)
+
+  return (
+    <span className="flex items-center gap-2">
+      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+      <span>{label}</span>
+    </span>
+  )
 }
 
 // Desktop dropdown menu item component
@@ -95,7 +108,7 @@ const DesktopDropdownItem = ({
       className="flex items-center gap-1 duration-150 hover:opacity-80"
       style={{ color: textColor || undefined }}
     >
-      <span>{item.name}</span>
+      <NavItemLabel label={item.name} icon={item.icon} />
       <ChevronDown 
         className={cn(
           "size-4 transition-transform duration-200", 
@@ -159,7 +172,7 @@ const DesktopNav = ({
               className="block duration-150 hover:opacity-80"
               style={{ color: textColor || undefined }}
             >
-              <span>{item.name}</span>
+              <NavItemLabel label={item.name} icon={item.icon} />
             </Link>
           )}
         </li>
@@ -172,7 +185,7 @@ const DesktopNav = ({
 const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: string }) => (
   <div>
     <div className="mb-2 font-semibold" style={{ color: textColor || undefined }}>
-      {item.name}
+      <NavItemLabel label={item.name} icon={item.icon} />
     </div>
     <div className="ml-4 space-y-2">
       {item.dropdownItems?.map((dropdownItem, dropdownIndex) => (
@@ -203,7 +216,7 @@ const MobileNav = ({ menuItems, textColor }: { menuItems: MenuItem[]; textColor?
               className="block duration-150 hover:opacity-80"
               style={{ color: textColor || undefined }}
             >
-              <span>{item.name}</span>
+              <NavItemLabel label={item.name} icon={item.icon} />
             </Link>
           )}
         </li>
@@ -232,7 +245,7 @@ const MobileMenuButton = ({
 
 // Call-to-action buttons component
 const CTAButtons = ({ buttons }: {
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; icon?: QuickLinkIconName }>
 }) => {
   // Don't render anything if no buttons provided
   if (!buttons || buttons.length === 0) {
@@ -261,7 +274,7 @@ const CTAButtons = ({ buttons }: {
           variant={button.style === 'primary' ? 'default' : button.style}
         >
           <Link href={sanitizeUrl(button.url, '#')}>
-            <span>{button.text}</span>
+            <NavItemLabel label={button.text} icon={button.icon} />
           </Link>
         </Button>
       ))}
@@ -358,7 +371,7 @@ const MobileMenuPanel = ({
   defaultTheme = 'system'
 }: { 
   menuItems: MenuItem[];
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost' }>;
+  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; icon?: QuickLinkIconName }>;
   showAuthenticatedUserMenu: boolean;
   sessionUser: SessionUser | null;
   onSignOut: () => void;
@@ -395,6 +408,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
     return (links || []).map(link => ({
       name: link.text,
       href: sanitizeUrl(link.url, ''),
+      icon: link.icon,
       hasDropdown: false,
       dropdownItems: []
     })).filter(link => link.href)
@@ -566,7 +580,7 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                     className="text-xs px-2 py-1 h-8"
                   >
                     <Link href={sanitizeUrl(button.url, '#')}>
-                      <span>{button.text}</span>
+                      <NavItemLabel label={button.text} icon={button.icon} />
                     </Link>
                   </Button>
                 ))}

@@ -1,4 +1,5 @@
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
+import { isQuickLinkIconName } from '@/lib/utils/site-quick-links'
 
 export interface SiteChromeSettings {
   navigation: Record<string, any> | null
@@ -10,10 +11,18 @@ function sanitizeUrlItems(items: unknown) {
 
   return items
     .filter((item): item is Record<string, any> => !!item && typeof item === 'object')
-    .map(item => ({
-      ...item,
-      url: sanitizeUrl(item.url, ''),
-    }))
+    .map(item => {
+      const sanitizedItem = {
+        ...item,
+        url: sanitizeUrl(item.url, ''),
+      }
+
+      if (!isQuickLinkIconName(item.icon)) {
+        delete sanitizedItem.icon
+      }
+
+      return sanitizedItem
+    })
     .filter(item => item.url)
 }
 

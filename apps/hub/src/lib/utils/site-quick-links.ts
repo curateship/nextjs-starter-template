@@ -238,6 +238,10 @@ export function getQuickLinkIconLabel(icon?: string): string {
   return QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label || "No icon"
 }
 
+export function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
+  return typeof value === "string" && value in QUICK_LINK_ICONS
+}
+
 export function normalizeSiteQuickLinks(value: unknown): SiteQuickLink[] {
   if (!Array.isArray(value)) return []
 
@@ -254,8 +258,8 @@ function normalizeSiteQuickLink(item: unknown, index: number): SiteQuickLink | n
 
   if (!label || !href || !isValidQuickLinkHref(href)) return null
 
-  const icon = typeof item.icon === "string" && item.icon in QUICK_LINK_ICONS
-    ? item.icon as QuickLinkIconName
+  const icon = isQuickLinkIconName(item.icon)
+    ? item.icon
     : undefined
 
   return {

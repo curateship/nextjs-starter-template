@@ -21,6 +21,10 @@ function resolveCurrentSite(availableSites: SiteWithTheme[]) {
     return null
   }
 
+  if (typeof window === 'undefined') {
+    return availableSites[0]
+  }
+
   const savedId = localStorage.getItem('selectedSiteId')
   if (savedId && SITE_ID_PATTERN.test(savedId)) {
     const savedSite = availableSites.find((site) => site.id === savedId)
@@ -51,9 +55,11 @@ export function SiteSwitcherProvider({
   initialSites,
   pageSize: initialPageSize,
 }: SiteSwitcherProviderProps) {
-  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(null)
+  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
+    initialSites !== undefined ? resolveCurrentSite(initialSites) : null
+  )
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(initialSites === undefined)
   const [error, setError] = useState<string | null>(null)
   const [pageSize] = useState(initialPageSize ?? 50)
 

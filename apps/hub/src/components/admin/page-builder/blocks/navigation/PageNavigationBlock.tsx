@@ -1,35 +1,49 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical, Globe, Check } from "lucide-react"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { cn } from "@/lib/utils/tailwind"
-import { Checkbox } from "@/components/ui/checkbox"
+import {
+  QUICK_LINK_ICON_OPTIONS,
+  getQuickLinkIcon,
+  getQuickLinkIconOrNull,
+  type QuickLinkIconName,
+} from "@/lib/utils/site-quick-links"
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  type DragEndEvent,
   useSensor,
   useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core"
 import {
-  arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
+  arrayMove,
   horizontalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import {
+  sortableKeyboardCoordinates,
   useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { Check, Globe, GripVertical, ImageIcon, Plus, Search, Trash2 } from "lucide-react"
 import { NAVIGATION_STYLES } from "."
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
@@ -37,132 +51,227 @@ interface NavigationLink {
   text: string
   url: string
   id?: string
+  icon?: QuickLinkIconName
 }
 
 interface NavigationButton {
   text: string
   url: string
-  style: 'primary' | 'outline' | 'ghost'
+  style: "primary" | "outline" | "ghost"
   showOnMobile?: boolean
   id?: string
+  icon?: QuickLinkIconName
 }
 
 interface PageNavigationBlockProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
+  onContentPersist?: (nextContent: Record<string, any>) => Promise<boolean>
   siteId: string
   blockId: string
   siteFavicon?: string
   onBack?: () => void
 }
 
-// Sortable button item component
-function SortableButtonItem({
-  button,
-  index,
-  updateButton,
-  removeButton
-}: {
-  button: NavigationButton
-  index: number
-  updateButton: (index: number, field: keyof NavigationButton, value: string | boolean) => void
-  removeButton: (index: number) => void
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: button.id || `button-${index}` })
+const ACTION_BUTTON_CLASS =
+  "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+function createNavigationItemId(prefix: "link" | "button") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`
   }
 
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function NavigationIconField({
+  value,
+  onChange,
+}: {
+  value?: QuickLinkIconName
+  onChange: (value?: QuickLinkIconName) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+
+  const SelectedIcon = getQuickLinkIconOrNull(value)
+  const DefaultIcon = getQuickLinkIcon()
+  const normalizedQuery = query.trim().toLowerCase()
+  const showDefaultOption =
+    !normalizedQuery || "default icon".includes(normalizedQuery)
+
+  const filteredOptions = useMemo(() => {
+    if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
+
+    return QUICK_LINK_ICON_OPTIONS.filter((option) => {
+      const haystack = [
+        option.label,
+        option.value,
+        ...(option.keywords || []),
+      ].join(" ").toLowerCase()
+
+      return haystack.includes(normalizedQuery)
+    })
+  }, [normalizedQuery])
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
-    >
-      <div className="flex gap-1 items-center">
-        <div
-          {...attributes}
-          {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
+    <>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Icon</p>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            "h-9 w-full shrink-0 px-3",
+            SelectedIcon
+              ? "w-9 p-0"
+              : "text-muted-foreground"
+          )}
+          onClick={() => setOpen(true)}
         >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={button.text}
-            onChange={(e) => updateButton(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 rounded-md text-sm"
-            placeholder="Button Text"
-          />
-          <input
-            type="text"
-            value={button.url}
-            onChange={(e) => updateButton(index, 'url', e.target.value)}
-            className="w-28 px-3 py-2 rounded-md text-sm"
-            placeholder="URL"
-          />
-          <Select
-            value={button.style}
-            onValueChange={(value) => updateButton(index, 'style', value)}
-          >
-            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="primary">Primary</SelectItem>
-              <SelectItem value="outline">Outline</SelectItem>
-              <SelectItem value="ghost">Ghost</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="ml-3 flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={button.showOnMobile || false}
-              onCheckedChange={(checked) => updateButton(index, 'showOnMobile', checked === true)}
-              className="h-4 w-4"
-              title="Show on mobile"
-            />
-            <span className="text-xs text-muted-foreground">Mobile</span>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => removeButton(index)}
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-          </Button>
-        </div>
+          {SelectedIcon ? (
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+              <SelectedIcon className="h-4 w-4 shrink-0" />
+            </span>
+          ) : (
+            <span className="text-center text-[10px] leading-tight font-medium">
+              Choose Icon
+            </span>
+          )}
+        </Button>
       </div>
-    </div>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen)
+          if (!nextOpen) {
+            setQuery("")
+          }
+        }}
+      >
+        <AdminModalContent className="max-w-xl">
+          <AdminModalHeader className="pb-2">
+            <AdminModalTitle>Choose Icon</AdminModalTitle>
+            <AdminModalDescription>
+              Pick an icon for this navigation item.
+            </AdminModalDescription>
+          </AdminModalHeader>
+
+          <AdminModalBody
+            className="space-y-3 pb-6"
+            onWheelCapture={(event) => event.stopPropagation()}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-9"
+                placeholder="Search icons"
+              />
+            </div>
+
+            <ScrollArea className="h-[320px] pr-2 overscroll-contain">
+              {filteredOptions.length === 0 && !showDefaultOption ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">
+                  No icons match that search.
+                </div>
+              ) : (
+                <div className="grid grid-cols-6 gap-2">
+                  {showDefaultOption && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(undefined)
+                        setOpen(false)
+                        setQuery("")
+                      }}
+                      className={cn(
+                        "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                        !value ? "bg-primary/5" : "hover:bg-muted/50"
+                      )}
+                      aria-label="Use default icon"
+                    >
+                      {!value && (
+                        <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      )}
+                      <DefaultIcon className="h-5 w-5" />
+                      <span className="line-clamp-2 text-[11px] leading-tight">
+                        Default
+                      </span>
+                    </button>
+                  )}
+                  {filteredOptions.map((option) => {
+                    const Icon = getQuickLinkIcon(option.value)
+                    const isSelected = option.value === value
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          onChange(option.value)
+                          setOpen(false)
+                          setQuery("")
+                        }}
+                        className={cn(
+                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                          isSelected ? "bg-primary/5" : "hover:bg-muted/50"
+                        )}
+                        aria-label={`Choose ${option.label} icon`}
+                      >
+                        {isSelected && (
+                          <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                            <Check className="h-3 w-3" />
+                          </span>
+                        )}
+                        <Icon className="h-5 w-5" />
+                        <span className="line-clamp-2 text-[11px] leading-tight">
+                          {option.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+          </AdminModalBody>
+
+          <AdminModalFooter className="sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setOpen(false)
+                setQuery("")
+              }}
+            >
+              Back
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </Dialog>
+    </>
   )
 }
 
-// Sortable link item component
 function SortableLinkItem({
   link,
   index,
-  updateLink,
-  removeLink
+  onEdit,
+  onChange,
+  onDelete,
 }: {
   link: NavigationLink
   index: number
-  updateLink: (index: number, field: 'text' | 'url', value: string) => void
-  removeLink: (index: number) => void
+  onEdit: (index: number) => void
+  onChange: (index: number, patch: Pick<NavigationLink, "text" | "url" | "icon">) => void
+  onDelete: (index: number) => void
 }) {
+  const itemId = link.id || createNavigationItemId("link")
   const {
     attributes,
     listeners,
@@ -170,60 +279,154 @@ function SortableLinkItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: link.id || `link-${index}` })
+  } = useSortable({ id: itemId })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+  const SelectedIcon = getQuickLinkIconOrNull(link.icon)
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
     >
-      <div className="flex gap-1 items-center">
-        <div
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <button
+          type="button"
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Reorder ${link.text || "navigation link"}`}
         >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={link.text}
-            onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 rounded-md text-sm"
-            placeholder="Link Text"
-          />
-          <input
-            type="text"
-            value={link.url}
-            onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 rounded-md text-sm"
-            placeholder="URL"
-          />
-        </div>
+          <GripVertical className="h-4 w-4" />
+        </button>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={() => removeLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${link.text || "navigation link"}`}
+          title={link.text || "Navigation link settings"}
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <span className="truncate">{link.text || "Link"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          aria-label={`Delete ${link.text || "navigation link"}`}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
   )
 }
 
-export function PageNavigationBlock({ content, onContentChange, siteId, blockId, siteFavicon, onBack }: PageNavigationBlockProps) {
+function SortableButtonItem({
+  button,
+  index,
+  onEdit,
+  onChange,
+  onDelete,
+}: {
+  button: NavigationButton
+  index: number
+  onEdit: (index: number) => void
+  onChange: (index: number, nextButton: NavigationButton) => void
+  onDelete: (index: number) => void
+}) {
+  const itemId = button.id || createNavigationItemId("button")
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: itemId })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  const SelectedIcon = getQuickLinkIconOrNull(button.icon)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    >
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Reorder ${button.text || "action button"}`}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[220px] justify-start gap-2 px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${button.text || "action button"}`}
+          title={button.text || "Action button settings"}
+        >
+          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <span className="truncate">{button.text || "Button"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          aria-label={`Delete ${button.text || "action button"}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function PageNavigationBlock({
+  content,
+  onContentChange,
+  onContentPersist,
+  siteId,
+  blockId,
+  siteFavicon,
+  onBack,
+}: PageNavigationBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
+  const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)
+  const [editingButtonIndex, setEditingButtonIndex] = useState<number | null>(null)
+  const [linkDraft, setLinkDraft] = useState<Pick<NavigationLink, "text" | "url" | "icon">>({
+    text: "",
+    url: "",
+    icon: undefined,
+  })
+  const [buttonDraft, setButtonDraft] = useState<NavigationButton>({
+    text: "",
+    url: "",
+    style: "primary",
+    showOnMobile: false,
+    icon: undefined,
+  })
+  const [modalSaving, setModalSaving] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -234,14 +437,26 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
     })
   )
 
-  const logo = content.logo || ''
-  const logoUrl = content.logoUrl || ''
-  const links: NavigationLink[] = content.links || []
-  const buttons: NavigationButton[] = content.buttons || []
+  const logo = content.logo || ""
+  const logoUrl = content.logoUrl || ""
+  const links = useMemo<NavigationLink[]>(
+    () => (Array.isArray(content.links) ? content.links : []),
+    [content.links]
+  )
+  const buttons = useMemo<NavigationButton[]>(
+    () => (Array.isArray(content.buttons) ? content.buttons : []),
+    [content.buttons]
+  )
   const showAuthenticatedUserMenu = content.showAuthenticatedUserMenu === true
-  const navigationStyle = content.navigationStyle || 'default'
-  const styleConfig = content.styleConfig || {}
-  const currentStyleConfig = styleConfig[navigationStyle] || {}
+  const navigationStyle = content.navigationStyle || "default"
+  const styleConfig = useMemo<Record<string, any>>(
+    () => (content.styleConfig && typeof content.styleConfig === "object" ? content.styleConfig : {}),
+    [content.styleConfig]
+  )
+  const currentStyleConfig = useMemo<Record<string, any>>(
+    () => styleConfig[navigationStyle] || {},
+    [navigationStyle, styleConfig]
+  )
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     const updated = {
@@ -251,276 +466,394 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
         [field]: value,
       },
     }
-    onContentChange('styleConfig', updated)
+    onContentChange("styleConfig", updated)
   }, [styleConfig, navigationStyle, currentStyleConfig, onContentChange])
 
-  // Ensure all links and buttons have unique IDs
   useEffect(() => {
-    if (!links || !Array.isArray(links)) return
-    const linksNeedIds = links.some(link => !link.id)
-    if (linksNeedIds) {
-      const linksWithIds = links.map((link, index) => ({
+    if (!Array.isArray(links)) return
+    if (!links.some((link) => !link.id)) return
+
+    onContentChange(
+      "links",
+      links.map((link) => ({
         ...link,
-        id: link.id || `link-${Date.now()}-${index}-${Math.random()}`
+        id: link.id || createNavigationItemId("link"),
       }))
-      onContentChange('links', linksWithIds)
-    }
+    )
   }, [links, onContentChange])
 
   useEffect(() => {
-    if (!buttons || !Array.isArray(buttons)) return
-    const buttonsNeedIds = buttons.some(button => !button.id)
-    if (buttonsNeedIds) {
-      const buttonsWithIds = buttons.map((button, index) => ({
+    if (!Array.isArray(buttons)) return
+    if (!buttons.some((button) => !button.id)) return
+
+    onContentChange(
+      "buttons",
+      buttons.map((button) => ({
         ...button,
-        id: button.id || `button-${Date.now()}-${index}-${Math.random()}`
+        id: button.id || createNavigationItemId("button"),
       }))
-      onContentChange('buttons', buttonsWithIds)
-    }
+    )
   }, [buttons, onContentChange])
 
   const addLink = () => {
-    onContentChange('links', [...links, { text: "", url: "", id: `link-${Date.now()}-${Math.random()}` }])
+    onContentChange("links", [
+      ...links,
+      {
+        text: "",
+        url: "",
+        id: createNavigationItemId("link"),
+      },
+    ])
+  }
+
+  const openLinkEditor = (index: number) => {
+    const link = links[index]
+    if (!link) return
+
+    setLinkDraft({
+      text: link.text,
+      url: link.url,
+      icon: link.icon,
+    })
+    setEditingLinkIndex(index)
+  }
+
+  const updateLink = (index: number, patch: Pick<NavigationLink, "text" | "url" | "icon">) => {
+    const nextLinks = [...links]
+    nextLinks[index] = { ...nextLinks[index], ...patch }
+
+    onContentChange(
+      "links",
+      nextLinks
+    )
   }
 
   const removeLink = (index: number) => {
-    onContentChange('links', links.filter((_, i) => i !== index))
+    onContentChange("links", links.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  const updateLink = (index: number, field: 'text' | 'url', value: string) => {
-    const newLinks = [...links]
-    newLinks[index] = { ...newLinks[index], [field]: value }
-    onContentChange('links', newLinks)
+  const saveLinkEditor = () => {
+    if (editingLinkIndex === null) return
+    const nextLinks = [...links]
+    nextLinks[editingLinkIndex] = {
+      ...nextLinks[editingLinkIndex],
+      text: linkDraft.text,
+      url: linkDraft.url.trim(),
+      icon: linkDraft.icon,
+    }
+
+    const nextContent = { ...content, links: nextLinks }
+
+    if (!onContentPersist) {
+      onContentChange("links", nextLinks)
+      setEditingLinkIndex(null)
+      return
+    }
+
+    setModalSaving(true)
+    void onContentPersist(nextContent)
+      .then((success) => {
+        if (success) {
+          setEditingLinkIndex(null)
+        }
+      })
+      .finally(() => {
+        setModalSaving(false)
+      })
   }
 
   const handleLinkDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-    if (over && active.id !== over.id) {
-      const oldIndex = links.findIndex((link) => link.id === active.id)
-      const newIndex = links.findIndex((link) => link.id === over.id)
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onContentChange('links', arrayMove(links, oldIndex, newIndex))
-      }
-    }
+    if (!over || active.id === over.id) return
+
+    const oldIndex = links.findIndex((link) => link.id === active.id)
+    const newIndex = links.findIndex((link) => link.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+    onContentChange("links", arrayMove(links, oldIndex, newIndex))
   }
 
   const addButton = () => {
-    onContentChange('buttons', [...buttons, { text: "", url: "", style: "primary" as const, id: `button-${Date.now()}-${Math.random()}` }])
+    onContentChange("buttons", [
+      ...buttons,
+      {
+        text: "",
+        url: "",
+        style: "primary" as const,
+        showOnMobile: false,
+        id: createNavigationItemId("button"),
+      },
+    ])
+  }
+
+  const openButtonEditor = (index: number) => {
+    const button = buttons[index]
+    if (!button) return
+
+    setButtonDraft({
+      ...button,
+      showOnMobile: button.showOnMobile === true,
+    })
+    setEditingButtonIndex(index)
+  }
+
+  const updateButton = (index: number, nextButton: NavigationButton) => {
+    const nextButtons = [...buttons]
+    nextButtons[index] = nextButton
+
+    onContentChange(
+      "buttons",
+      nextButtons
+    )
   }
 
   const removeButton = (index: number) => {
-    onContentChange('buttons', buttons.filter((_, i) => i !== index))
+    onContentChange("buttons", buttons.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  const updateButton = (index: number, field: keyof NavigationButton, value: string | boolean) => {
-    const newButtons = [...buttons]
-    newButtons[index] = { ...newButtons[index], [field]: value }
-    onContentChange('buttons', newButtons)
+  const saveButtonEditor = () => {
+    if (editingButtonIndex === null) return
+    const nextButtons = [...buttons]
+    nextButtons[editingButtonIndex] = {
+      ...(buttons[editingButtonIndex] || {}),
+      ...buttonDraft,
+      url: buttonDraft.url.trim(),
+      showOnMobile: buttonDraft.showOnMobile === true,
+    }
+
+    const nextContent = { ...content, buttons: nextButtons }
+
+    if (!onContentPersist) {
+      onContentChange("buttons", nextButtons)
+      setEditingButtonIndex(null)
+      return
+    }
+
+    setModalSaving(true)
+    void onContentPersist(nextContent)
+      .then((success) => {
+        if (success) {
+          setEditingButtonIndex(null)
+        }
+      })
+      .finally(() => {
+        setModalSaving(false)
+      })
   }
 
   const handleButtonDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-    if (over && active.id !== over.id) {
-      const oldIndex = buttons.findIndex((button) => button.id === active.id)
-      const newIndex = buttons.findIndex((button) => button.id === over.id)
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onContentChange('buttons', arrayMove(buttons, oldIndex, newIndex))
-      }
-    }
+    if (!over || active.id === over.id) return
+
+    const oldIndex = buttons.findIndex((button) => button.id === active.id)
+    const newIndex = buttons.findIndex((button) => button.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+    onContentChange("buttons", arrayMove(buttons, oldIndex, newIndex))
   }
 
   const ActivePanel = NAVIGATION_STYLES[navigationStyle]?.AdminPanel
 
   return (
-    <BlockTabs
-      onBack={onBack}
-      tabs={[
+    <>
+      <BlockTabs
+        onBack={onBack}
+        tabs={[
         {
           value: "content",
           label: "Content",
           content: (
             <>
-              {/* Logo Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Logo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <div className="shrink-0 pr-4">
-                  {logo && logo !== '/images/logo.png' ? (
-                    <div
-                      className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setShowPicker(true)}
-                    >
-                      <img
-                        src={logo}
-                        alt="Logo"
-                        className="h-full w-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                          <p className="text-xs font-medium">Click to change</p>
-                        </div>
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Logo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-start">
+                      <div className="shrink-0 pr-4">
+                        {logo && logo !== "/images/logo.png" ? (
+                          <div
+                            className="relative h-12 w-32 cursor-pointer overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-90"
+                            onClick={() => setShowPicker(true)}
+                          >
+                            <img
+                              src={logo}
+                              alt="Logo"
+                              className="h-full w-full object-contain"
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none"
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100">
+                              <div className="text-center text-white">
+                                <ImageIcon className="mx-auto mb-1 h-4 w-4" />
+                                <p className="text-xs font-medium">Click to change</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : siteFavicon ? (
+                          <div className="cursor-pointer" onClick={() => setShowPicker(true)}>
+                            <img
+                              src={siteFavicon}
+                              alt="Site favicon (used as logo)"
+                              className="h-10 w-10 cursor-pointer object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="flex h-12 w-32 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                            onClick={() => setShowPicker(true)}
+                          >
+                            <div className="text-center">
+                              <Globe className="mx-auto h-4 w-4 text-muted-foreground/50" />
+                              <p className="mt-1 text-xs text-muted-foreground">Click to select</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1">
+                        <input
+                          id="logoUrl"
+                          type="text"
+                          value={logoUrl}
+                          onChange={(event) => onContentChange("logoUrl", event.target.value)}
+                          className="w-full rounded-md border px-3 py-2 text-sm"
+                          placeholder="https://example.com (leave empty for site homepage)"
+                        />
                       </div>
                     </div>
-                  ) : siteFavicon ? (
-                    <div
-                      className="cursor-pointer"
-                      onClick={() => setShowPicker(true)}
-                    >
-                      <img
-                        src={siteFavicon}
-                        alt="Site favicon (used as logo)"
-                        className="h-10 w-10 object-contain cursor-pointer"
-                      />
+
+                    {siteFavicon && (!logo || logo === "/images/logo.png") && (
+                      <p className="text-xs text-muted-foreground">
+                        Currently using favicon as fallback logo. Click on image to change
+                      </p>
+                    )}
+                  </div>
+
+                  <MediaPicker
+                    open={showPicker}
+                    onOpenChange={setShowPicker}
+                    onSelectMedia={(imageUrl) => {
+                      onContentChange("logo", imageUrl)
+                      setShowPicker(false)
+                    }}
+                    currentMediaUrl={logo}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Navigation Links</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {links.length === 0 ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+                        No navigation links.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addLink}
+                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                        aria-label="Add navigation link"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
                     </div>
                   ) : (
-                    <div
-                      className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                      onClick={() => setShowPicker(true)}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleLinkDragEnd}
                     >
-                      <div className="text-center">
-                        <Globe className="mx-auto w-4 h-4 text-muted-foreground/50" />
-                        <p className="text-xs text-muted-foreground mt-1">Click to select</p>
-                      </div>
-                    </div>
+                      <SortableContext
+                        items={links.map((link) => link.id || "")}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          {links.map((link, index) => (
+                            <SortableLinkItem
+                              key={link.id || `nav-link-${index}`}
+                              link={link}
+                              index={index}
+                              onEdit={openLinkEditor}
+                              onChange={updateLink}
+                              onDelete={removeLink}
+                            />
+                          ))}
+                          <button
+                            type="button"
+                            onClick={addLink}
+                            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                            aria-label="Add navigation link"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </SortableContext>
+                    </DndContext>
                   )}
-                </div>
+                </CardContent>
+              </Card>
 
-                <div className="flex-1">
-                  <input
-                    id="logoUrl"
-                    type="text"
-                    value={logoUrl}
-                    onChange={(e) => onContentChange('logoUrl', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md text-sm"
-                    placeholder="https://example.com (leave empty for site homepage)"
-                  />
-                </div>
-              </div>
-
-              {siteFavicon && (!logo || logo === '/images/logo.png') && (
-                <p className="text-xs text-muted-foreground">
-                  Currently using favicon as fallback logo. Click on image to change
-                </p>
-              )}
-            </div>
-
-            {/* Image Picker Modal */}
-            <MediaPicker
-              open={showPicker}
-              onOpenChange={setShowPicker}
-              onSelectMedia={(imageUrl) => {
-                onContentChange('logo', imageUrl)
-                setShowPicker(false)
-              }}
-              currentMediaUrl={logo}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Navigation Links Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Navigation Links</CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addLink}
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleLinkDragEnd}
-            >
-              <SortableContext
-                items={links.map(l => l.id || '')}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex flex-wrap gap-2">
-                  {links.map((link, index) => (
-                    <SortableLinkItem
-                      key={link.id || `nav-link-${index}`}
-                      link={link}
-                      index={index}
-                      updateLink={updateLink}
-                      removeLink={removeLink}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {links.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                No navigation links. Click + to add one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Action Buttons</CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addButton}
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleButtonDragEnd}
-            >
-              <SortableContext
-                items={buttons.map(b => b.id || '')}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex flex-wrap gap-2">
-                  {buttons.map((button, index) => (
-                    <SortableButtonItem
-                      key={button.id || `nav-button-${index}`}
-                      button={button}
-                      index={index}
-                      updateButton={updateButton}
-                      removeButton={removeButton}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {buttons.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                No action buttons. Click + to add one.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Action Buttons</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {buttons.length === 0 ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+                        No action buttons.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addButton}
+                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                        aria-label="Add action button"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleButtonDragEnd}
+                    >
+                      <SortableContext
+                        items={buttons.map((button) => button.id || "")}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          {buttons.map((button, index) => (
+                            <SortableButtonItem
+                              key={button.id || `nav-button-${index}`}
+                              button={button}
+                              index={index}
+                              onEdit={openButtonEditor}
+                              onChange={updateButton}
+                              onDelete={removeButton}
+                            />
+                          ))}
+                          <button
+                            type="button"
+                            onClick={addButton}
+                            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                            aria-label="Add action button"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </CardContent>
+              </Card>
             </>
           ),
         },
@@ -545,15 +878,14 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
           label: "Settings",
           content: (
             <>
-              {/* Navigation Style Selector */}
-              <div className="space-y-2 my-12 mb-4 mx-4">
-                <Label className="text-sm font-medium px-1">Navigation Style</Label>
-                <div className="grid grid-cols-2 gap-2 max-w-sm">
+              <div className="my-12 mx-4 mb-4 space-y-2">
+                <Label className="px-1 text-sm font-medium">Navigation Style</Label>
+                <div className="grid max-w-sm grid-cols-2 gap-2">
                   {Object.entries(NAVIGATION_STYLES).map(([key, style]) => (
                     <button
                       key={key}
                       type="button"
-                      onClick={() => onContentChange('navigationStyle', key)}
+                      onClick={() => onContentChange("navigationStyle", key)}
                       className={cn(
                         "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                         navigationStyle === key
@@ -561,18 +893,20 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                           : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
                       )}
                     >
-                      <div className={cn(
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                        navigationStyle === key
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/30"
-                      )}>
+                      <div
+                        className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          navigationStyle === key
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30"
+                        )}
+                      >
                         {navigationStyle === key && <Check className="h-3 w-3" />}
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{style.label}</div>
                         {style.description && (
-                          <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">{style.description}</div>
                         )}
                       </div>
                     </button>
@@ -583,21 +917,20 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
               <VisibilitySettings
                 title="Element Visibility"
                 visibility={content.visibility}
-                onChange={(v) => onContentChange('visibility', v)}
+                onChange={(value) => onContentChange("visibility", value)}
                 includeHideBlock={false}
                 fields={[
-                  { key: 'ctaButtons', label: 'CTA Buttons' },
+                  { key: "ctaButtons", label: "CTA Buttons" },
                 ]}
               />
 
               <VisibilitySettings
                 title="Block Visibility"
                 visibility={content.visibility}
-                onChange={(v) => onContentChange('visibility', v)}
+                onChange={(value) => onContentChange("visibility", value)}
                 fields={[]}
               />
 
-              {/* Navigation Width */}
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Navigation Width</CardTitle>
@@ -607,26 +940,32 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                     <div className="flex items-center gap-3">
                       <div className="flex items-center space-x-2">
                         <Checkbox
-                          checked={currentStyleConfig.containerWidth === 'full'}
-                          onCheckedChange={(checked) => handleStyleConfigChange('containerWidth', checked ? 'full' : 'custom')}
+                          checked={currentStyleConfig.containerWidth === "full"}
+                          onCheckedChange={(checked) =>
+                            handleStyleConfigChange("containerWidth", checked ? "full" : "custom")
+                          }
                         />
                         <Label className="text-sm">Full Width</Label>
                       </div>
-                      {currentStyleConfig.containerWidth !== 'full' && (
+                      {currentStyleConfig.containerWidth !== "full" && (
                         <div className="w-32">
                           <Input
                             type="number"
                             min="320"
                             max="2560"
-                            value={currentStyleConfig.customWidth || ''}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              if (value === '') {
-                                handleStyleConfigChange('customWidth', undefined)
-                              } else {
-                                const numValue = parseInt(value)
-                                handleStyleConfigChange('customWidth', isNaN(numValue) ? undefined : numValue)
+                            value={currentStyleConfig.customWidth || ""}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              if (value === "") {
+                                handleStyleConfigChange("customWidth", undefined)
+                                return
                               }
+
+                              const parsedValue = parseInt(value, 10)
+                              handleStyleConfigChange(
+                                "customWidth",
+                                Number.isNaN(parsedValue) ? undefined : parsedValue
+                              )
                             }}
                             placeholder="1152"
                             className="h-auto w-full px-3 py-2 text-sm"
@@ -634,7 +973,7 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                         </div>
                       )}
                     </div>
-                    {currentStyleConfig.containerWidth !== 'full' && (
+                    {currentStyleConfig.containerWidth !== "full" && (
                       <p className="text-xs text-muted-foreground">
                         Default: 1152px · Range: 320-2560px
                       </p>
@@ -651,17 +990,20 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                   <div className="flex items-center gap-3">
                     <Checkbox
                       checked={showAuthenticatedUserMenu}
-                      onCheckedChange={(checked) => onContentChange('showAuthenticatedUserMenu', checked === true)}
+                      onCheckedChange={(checked) =>
+                        onContentChange("showAuthenticatedUserMenu", checked === true)
+                      }
                     />
                     <div className="space-y-0.5">
                       <Label>Show User Menu When Signed In</Label>
-                      <p className="text-sm text-muted-foreground">Swap CTA buttons for a dashboard/account menu after login</p>
+                      <p className="text-sm text-muted-foreground">
+                        Swap CTA buttons for a dashboard/account menu after login
+                      </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Dark Mode */}
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Dark Mode</CardTitle>
@@ -670,11 +1012,15 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
                   <div className="flex items-center gap-3">
                     <Checkbox
                       checked={currentStyleConfig.showDarkModeToggle !== false}
-                      onCheckedChange={(checked) => handleStyleConfigChange('showDarkModeToggle', checked)}
+                      onCheckedChange={(checked) =>
+                        handleStyleConfigChange("showDarkModeToggle", checked)
+                      }
                     />
                     <div className="space-y-0.5">
                       <Label>Show Toggle</Label>
-                      <p className="text-sm text-muted-foreground">Display theme switcher in navigation</p>
+                      <p className="text-sm text-muted-foreground">
+                        Display theme switcher in navigation
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -682,7 +1028,169 @@ export function PageNavigationBlock({ content, onContentChange, siteId, blockId,
             </>
           ),
         },
-      ]}
-    />
+        ]}
+      />
+
+      <Dialog
+        open={editingLinkIndex !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setEditingLinkIndex(null)
+          }
+        }}
+      >
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Navigation Link Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the label, destination URL, and optional icon for this link.
+            </AdminModalDescription>
+          </AdminModalHeader>
+
+          <AdminModalBody className="space-y-6 pb-6">
+            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
+              <NavigationIconField
+                value={linkDraft.icon}
+                onChange={(icon) => setLinkDraft((prev) => ({ ...prev, icon }))}
+              />
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Name</p>
+                <Input
+                  value={linkDraft.text}
+                  onChange={(event) => setLinkDraft((prev) => ({ ...prev, text: event.target.value }))}
+                  placeholder="Label"
+                  aria-label="Navigation link name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">URL</p>
+                <Input
+                  value={linkDraft.url}
+                  onChange={(event) => setLinkDraft((prev) => ({ ...prev, url: event.target.value }))}
+                  placeholder="/about or https://example.com"
+                  aria-label="Navigation link URL"
+                />
+              </div>
+            </div>
+          </AdminModalBody>
+
+          <AdminModalFooter className="sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={modalSaving}
+              onClick={() => setLinkDraft((prev) => ({ ...prev, icon: undefined }))}
+            >
+              Remove Icon
+            </Button>
+            <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
+              {modalSaving ? "Saving..." : "Save"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </Dialog>
+
+      <Dialog
+        open={editingButtonIndex !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setEditingButtonIndex(null)
+          }
+        }}
+      >
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Action Button Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the label, destination URL, style, mobile visibility, and optional icon.
+            </AdminModalDescription>
+          </AdminModalHeader>
+
+          <AdminModalBody className="pb-6">
+            <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
+              <NavigationIconField
+                value={buttonDraft.icon}
+                onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
+              />
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Name</p>
+                <Input
+                  value={buttonDraft.text}
+                  onChange={(event) => setButtonDraft((prev) => ({ ...prev, text: event.target.value }))}
+                  placeholder="Label"
+                  aria-label="Action button name"
+                />
+              </div>
+
+              <div className="min-w-0 space-y-2">
+                <p className="text-sm font-medium">URL</p>
+                <Input
+                  value={buttonDraft.url}
+                  onChange={(event) => setButtonDraft((prev) => ({ ...prev, url: event.target.value }))}
+                  placeholder="/contact or https://example.com"
+                  aria-label="Action button URL"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Style</p>
+                <Select
+                  value={buttonDraft.style}
+                  onValueChange={(value: NavigationButton["style"]) =>
+                    setButtonDraft((prev) => ({ ...prev, style: value }))
+                  }
+                >
+                  <SelectTrigger size="button" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary</SelectItem>
+                    <SelectItem value="outline">Outline</SelectItem>
+                    <SelectItem value="ghost">Ghost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Show on mobile</p>
+                <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
+                  <Checkbox
+                    checked={buttonDraft.showOnMobile === true}
+                    onCheckedChange={(checked) =>
+                      setButtonDraft((prev) => ({ ...prev, showOnMobile: checked === true }))
+                    }
+                    id="navigation-button-show-mobile"
+                  />
+                  <Label htmlFor="navigation-button-show-mobile">Enabled</Label>
+                </div>
+              </div>
+            </div>
+          </AdminModalBody>
+
+          <AdminModalFooter className="sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setEditingButtonIndex(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={modalSaving}
+              onClick={() => setButtonDraft((prev) => ({ ...prev, icon: undefined }))}
+            >
+              Remove Icon
+            </Button>
+            <Button type="button" disabled={modalSaving} onClick={saveButtonEditor}>
+              {modalSaving ? "Saving..." : "Save"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </Dialog>
+    </>
   )
 }
