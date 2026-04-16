@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils/tailwind"
 import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
+  getQuickLinkIconOrNull,
   getQuickLinkIconLabel,
   type QuickLinkIconName,
   type SiteQuickLink,
@@ -73,7 +74,7 @@ function QuickLinkSettingsButton({
   const [draftHref, setDraftHref] = useState(href)
   const [draftIcon, setDraftIcon] = useState<QuickLinkIconName | undefined>(value)
 
-  const SelectedIcon = getQuickLinkIcon(draftIcon)
+  const SelectedIcon = getQuickLinkIconOrNull(draftIcon)
   const DefaultIcon = getQuickLinkIcon()
   const selectedLabel = getQuickLinkIconLabel(draftIcon)
   const normalizedQuery = query.trim().toLowerCase()
@@ -96,16 +97,19 @@ function QuickLinkSettingsButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={() => setOpen(true)}
-        className={ACTION_BUTTON_CLASS}
-        aria-label={`Edit settings for ${label || "quick link"}`}
-        title="Quick link settings"
-      >
-        <Settings2 className="h-4 w-4" />
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => setOpen(true)}
+          className="h-9 max-w-[180px] justify-start gap-2 px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${label || "quick link"}`}
+          title={label || "Quick link settings"}
+        >
+          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <span className="truncate">{label || "Quick link"}</span>
+        </Button>
+      </div>
 
       <Dialog
         open={open}
@@ -135,10 +139,23 @@ function QuickLinkSettingsButton({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9 w-9 p-0"
+                  className={cn(
+                    "h-9 shrink-0",
+                    SelectedIcon
+                      ? "w-9 p-0"
+                      : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
+                  )}
                   onClick={() => setIconPickerOpen(true)}
                 >
-                  <SelectedIcon className="h-4 w-4 shrink-0" />
+                  {SelectedIcon ? (
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                      <SelectedIcon className="h-4 w-4 shrink-0" />
+                    </span>
+                  ) : (
+                    <span className="text-center text-[10px] leading-tight font-medium">
+                      Choose Icon
+                    </span>
+                  )}
                 </Button>
               </div>
 
@@ -167,6 +184,13 @@ function QuickLinkSettingsButton({
           <AdminModalFooter className="sm:justify-end">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDraftIcon(undefined)}
+            >
+              Remove Icon
             </Button>
             <Button
               type="button"
@@ -337,13 +361,6 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
         >
           <GripVertical className="h-4 w-4" />
         </button>
-        <Input
-          value={link.label}
-          onChange={(event) => onChange(link.id, { label: event.target.value })}
-          className="h-9 w-20 border-0 px-3 text-sm shadow-none"
-          placeholder="Label"
-          aria-label="Quick link label"
-        />
         <QuickLinkSettingsButton
           label={link.label}
           value={link.icon}

@@ -226,8 +226,16 @@ export function getQuickLinkIcon(icon?: string): LucideIcon {
   return QUICK_LINK_ICONS[DEFAULT_ICON]
 }
 
+export function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
+  if (icon && icon in QUICK_LINK_ICONS) {
+    return QUICK_LINK_ICONS[icon as QuickLinkIconName]
+  }
+
+  return null
+}
+
 export function getQuickLinkIconLabel(icon?: string): string {
-  return QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label || "Default"
+  return QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label || "No icon"
 }
 
 export function normalizeSiteQuickLinks(value: unknown): SiteQuickLink[] {

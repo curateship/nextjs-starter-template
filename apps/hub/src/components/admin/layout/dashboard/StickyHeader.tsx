@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { BarChart3, Blocks, FileText, PanelLeft, Settings2, type LucideIcon } from "lucide-react"
 import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
-import { getQuickLinkIcon } from "@/lib/utils/site-quick-links"
+import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 import { Button } from "@/components/ui/button"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { usePathname } from "next/navigation"
@@ -103,7 +103,13 @@ export function StickyHeader({
             <div className="inline-flex h-8 items-center rounded-md gap-1">
               {headerNavItems.map((item) => {
                 const Icon =
-                  item.icon ?? (item.iconName || isMobile ? getQuickLinkIcon(item.iconName) : null)
+                  item.icon ?? (
+                    item.iconName
+                      ? getQuickLinkIconOrNull(item.iconName)
+                      : isMobile
+                        ? getQuickLinkIcon()
+                        : null
+                  )
                 const showItemLabel = !isMobile && item.key !== "toggle-sidebar"
                 const itemClassName = cn(
                   "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
