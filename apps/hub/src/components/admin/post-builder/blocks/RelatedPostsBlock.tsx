@@ -1,11 +1,10 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 
 interface RelatedPostsBlockProps {
   content: Record<string, any>
@@ -32,17 +31,14 @@ export function RelatedPostsBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
             <>
-              <Card className="shadow-sm mx-6">
-                <CardHeader>
-                  <CardTitle className="text-base">Header Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Header Settings">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="rp-title">Title</Label>
@@ -63,14 +59,9 @@ export function RelatedPostsBlock({
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              <Card className="shadow-sm mx-6 mt-4">
-                <CardHeader>
-                  <CardTitle className="text-base">Content Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Content Settings">
                   <div className="grid grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="rp-displayMode">Display Mode</Label>
@@ -129,8 +120,7 @@ export function RelatedPostsBlock({
                       </Select>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             </>
           ),
         },
@@ -138,7 +128,7 @@ export function RelatedPostsBlock({
           value: "styling",
           label: "Styling",
           content: (
-            <div className="px-6 text-center text-muted-foreground py-8">
+            <div className="py-8 text-center text-muted-foreground">
               No styling options available for this block.
             </div>
           ),
@@ -147,11 +137,7 @@ export function RelatedPostsBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <Card className="shadow-sm mx-6">
-              <CardHeader>
-                <CardTitle className="text-base">Display Options</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <BlockEditorSection heading="Display Options">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="rp-showImage">Show Image</Label>
                   <Switch
@@ -191,8 +177,7 @@ export function RelatedPostsBlock({
                     className="w-20"
                   />
                 </div>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
       ]}

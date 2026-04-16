@@ -21,12 +21,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BlockPropertiesPanel } from "@/components/admin/event-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
-import { getSiteEventsAction, updateEventAction } from "@/lib/actions/events/event-actions"
+import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { EventPreview } from "@/components/admin/event-builder/layout/EventPreview"
+import { EventBlockEditorModal } from "@/components/admin/event-builder/layout/EventBlockEditorModal"
 
 export default function EventBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -97,6 +99,11 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     eventId: events.find(d => d.slug === selectedEvent)?.id,
     currentEvent: events.find(d => d.slug === selectedEvent)
   })
+  const selectedBlock = builderState.selectedBlock
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [draftEventTitle, setDraftEventTitle] = useState("")
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current event data with staged deletions filtered out
   const currentEventData = events.find(d => d.slug === selectedEvent)
@@ -105,6 +112,23 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     name: currentEventData?.title || selectedEvent,
     blocks: localBlocks[selectedEvent] || []
   }
+
+  useEffect(() => {
+    if (!selectedBlock) {
+      setDraftContent({})
+      setDraftEventTitle("")
+      setBlockSaveError(null)
+      return
+    }
+
+    setDraftContent(
+      selectedBlock.content
+        ? JSON.parse(JSON.stringify(selectedBlock.content))
+        : {}
+    )
+    setDraftEventTitle(currentEventData?.title || selectedEvent)
+    setBlockSaveError(null)
+  }, [selectedBlock, currentEventData?.title, selectedEvent])
 
   // Handle event change with URL update
   const handleEventChange = (eventSlug: string) => {
@@ -183,6 +207,86 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     updateCurrentEvent({ title })
   }
 
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (isSavingBlock) return
+    builderState.setSelectedBlock(null)
+    setBlockSaveError(null)
+  }
+
+  const handleSaveBlockEditor = async () => {
+    if (!selectedBlock || !currentEventData?.id) return
+
+    setIsSavingBlock(true)
+    setBlockSaveError(null)
+
+    try {
+      const currentBlocks = localBlocks[selectedEvent] || []
+      const nextBlocks = currentBlocks.map((block) =>
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      )
+
+      let updatedEvent: Event | null = null
+      if (
+        selectedBlock.type === "event-content" &&
+        draftEventTitle.trim() &&
+        draftEventTitle.trim() !== (currentEventData?.title || "")
+      ) {
+        const { data, error } = await updateEventAction(currentEventData.id, { title: draftEventTitle.trim() })
+        if (error || !data) {
+          setBlockSaveError(error || "Failed to save event title")
+          return
+        }
+        updatedEvent = data
+      }
+
+      const existingContentBlocks = currentEventData?.content_blocks || {}
+      const preservedSettings: Record<string, any> = {}
+      Object.entries(existingContentBlocks).forEach(([key, value]) => {
+        if (typeof value !== "object" || value === null || key.startsWith("_")) {
+          preservedSettings[key] = value
+        }
+      })
+
+      const nextContentBlocks: Record<string, any> = { ...preservedSettings }
+      nextBlocks.forEach((block, index) => {
+        nextContentBlocks[block.id] = {
+          id: block.id,
+          type: block.type,
+          content: block.content,
+          display_order: index,
+        }
+      })
+
+      const result = await updateEventBlocksAction(currentEventData.id, nextContentBlocks)
+      if (!result.success) {
+        setBlockSaveError(result.error || "Failed to save block")
+        return
+      }
+
+      setLocalBlocks((current) => ({
+        ...current,
+        [selectedEvent]: nextBlocks,
+      }))
+      if (updatedEvent) {
+        handleEventUpdated(updatedEvent)
+      }
+      builderState.setSelectedBlock(null)
+    } catch (error) {
+      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+    } finally {
+      setIsSavingBlock(false)
+    }
+  }
+
   // Only show loading state for critical errors (not during normal loading)
   if (!site && siteError) {
     return (
@@ -259,29 +363,45 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         )}
       />
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={builderState.selectedBlock}
-          updateBlockContent={builderState.updateBlockContent}
+        <div className="flex-1 overflow-hidden border-r bg-background">
+          <ScrollArea className="h-full">
+            <EventPreview
+              blocks={currentEvent.blocks}
+              event={currentEventData ? {
+                id: currentEventData.id || 'preview',
+                title: currentEventData.title || currentEvent.name,
+                slug: currentEventData.slug,
+                meta_description: currentEventData.meta_description || undefined,
+                site_id: currentEventData.site_id,
+                featured_image: currentEventData.featured_image || null,
+                description: currentEventData.description || null,
+                is_published: currentEventData.is_published || false,
+              } : undefined}
+              site={{
+                id: siteId,
+                name: site?.name || 'Event Site',
+                subdomain: site?.subdomain || 'preview',
+                settings: site?.settings
+              }}
+              className="min-h-full"
+              blocksLoading={blocksLoading}
+              allBlocks={currentEvent.blocks}
+              onSelectBlock={builderState.setSelectedBlock}
+            />
+          </ScrollArea>
+        </div>
+
+        <EventBlockEditorModal
+          block={selectedBlock}
+          content={draftContent}
           siteId={siteId}
-          currentEvent={{
-            ...currentEvent,
-            id: currentEventData?.id,
-            title: currentEventData?.title,
-            meta_description: currentEventData?.meta_description || undefined,
-            site_id: currentEventData?.site_id,
-            featured_image: currentEventData?.featured_image,
-            description: currentEventData?.description
-          }}
-          site={{
-            id: siteId,
-            name: site?.name || 'Event Site',
-            subdomain: site?.subdomain || 'preview',
-            settings: site?.settings
-          }}
-          blocksLoading={blocksLoading}
-          onTitleChange={handleTitleChange}
-          onSelectBlock={builderState.setSelectedBlock}
-          onBack={() => builderState.setSelectedBlock(null)}
+          eventTitle={draftEventTitle}
+          onEventTitleChange={setDraftEventTitle}
+          onContentChange={handleDraftChange}
+          onClose={handleCloseBlockEditor}
+          onSave={handleSaveBlockEditor}
+          saving={isSavingBlock}
+          error={blockSaveError}
         />
 
         {blockListOpen && (

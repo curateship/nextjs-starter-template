@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -133,6 +132,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
@@ -140,7 +140,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
             content: (
               <>
                 {/* Post Title */}
-                <div className="space-y-2 px-6 mb-4">
+                <div className="space-y-2">
                   <Label htmlFor="post-title">Post Title</Label>
                   <Input
                     id="post-title"
@@ -152,7 +152,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
                 </div>
 
                 {/* Rich Text Editor */}
-                <div className="space-y-2 px-6">
+                <div className="space-y-2">
                   <Label>Content</Label>
                   <div className="border rounded-md overflow-hidden">
                         {/* TipTap Toolbar */}
@@ -301,8 +301,8 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
             label: "Settings",
             content: (
               <>
-                <div className="space-y-2 mb-4 mx-4">
-                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Block Style</Label>
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
                       <button
@@ -335,11 +335,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
                   </div>
                 </div>
 
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Display Options</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <BlockEditorSection heading="Display Options">
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
                         <Label htmlFor="show-author">Show Author</Label>
@@ -363,8 +359,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
                         onCheckedChange={(checked) => onContentChange('showDate', checked)}
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                </BlockEditorSection>
               </>
             ),
           },

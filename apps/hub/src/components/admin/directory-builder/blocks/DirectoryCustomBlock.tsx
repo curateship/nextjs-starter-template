@@ -19,8 +19,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -55,20 +54,16 @@ export function DirectoryCustomBlock({
     return (
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: 'content',
             label: 'Content',
             content: (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Custom Block Missing</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <BlockEditorSection heading="Custom Block Missing" contentClassName="space-y-3 text-sm text-muted-foreground">
                   <p>This directory block references a custom block template that could not be found.</p>
                   <p>Create or restore the template before editing this block again.</p>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             ),
           },
         ]}
@@ -79,16 +74,13 @@ export function DirectoryCustomBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: 'content',
           label: 'Content',
           content: (
-            <Card>
-              <CardHeader>
-                <CardTitle>{template.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
+            <BlockEditorSection heading={template.name} contentClassName="space-y-6">
                 {template.fields.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     This custom block has no fields yet.
@@ -101,19 +93,14 @@ export function DirectoryCustomBlock({
                     onChange={(nextValues) => onContentChange('values', nextValues)}
                   />
                 )}
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
           value: 'template',
           label: 'Template',
           content: (
-            <Card>
-              <CardHeader>
-                <CardTitle>Template Info</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <BlockEditorSection heading="Template Info" contentClassName="space-y-3 text-sm text-muted-foreground">
                 <div>
                   <span className="font-medium text-foreground">Name:</span> {template.name}
                 </div>
@@ -129,8 +116,7 @@ export function DirectoryCustomBlock({
                     Edit Template
                   </Link>
                 </Button>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
       ]}

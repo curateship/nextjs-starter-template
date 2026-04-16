@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/directory-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/directory-builder/config/directory-block-types"
@@ -29,6 +28,9 @@ import {
   getDirectoryCustomBlockSelectionType,
   parseDirectoryCustomBlockSelectionType,
 } from "@/lib/actions/directories/directory-custom-blocks/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
+import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
@@ -57,6 +59,9 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
   const [previewTitle, setPreviewTitle] = useState("Preview Directory")
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   const directoryNavLinks = getDirectoryAdminTopNavLinks("templates")
 
@@ -84,6 +89,21 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   useEffect(() => {
     loadTemplate()
   }, [loadTemplate])
+
+  useEffect(() => {
+    if (!selectedBlock) {
+      setDraftContent({})
+      setBlockSaveError(null)
+      return
+    }
+
+    setDraftContent(
+      selectedBlock.content
+        ? JSON.parse(JSON.stringify(selectedBlock.content))
+        : {}
+    )
+    setBlockSaveError(null)
+  }, [selectedBlock])
 
   function updateBlockContent(field: string, value: any) {
     if (!selectedBlock) return
@@ -116,6 +136,53 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
 
   function handleReorderBlocks(reorderedBlocks: DirectoryEditorBlock[]) {
     setBlocks(reorderedBlocks)
+  }
+
+  function handleDraftChange(field: string, value: any) {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function handleCloseBlockEditor() {
+    if (isSavingBlock) return
+    setSelectedBlock(null)
+    setBlockSaveError(null)
+  }
+
+  async function handleSaveBlockEditor() {
+    if (!template || !selectedBlock) return
+
+    setIsSavingBlock(true)
+    setBlockSaveError(null)
+
+    try {
+      const nextBlocks = blocks.map((block) =>
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      )
+      const contentBlocks = directoryBlocksToJson(nextBlocks, template.content_blocks || {})
+      const { data, error: saveError } = await updateDirectoryTemplate(template.id, {
+        content_blocks: contentBlocks,
+      })
+
+      if (saveError || !data) {
+        setBlockSaveError(saveError || "Failed to save block")
+        return
+      }
+
+      setBlocks(nextBlocks)
+      setTemplate(data)
+      setSaveMessage("Saved!")
+      setTimeout(() => setSaveMessage(""), 3000)
+      setSelectedBlock(null)
+    } catch (error) {
+      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+    } finally {
+      setIsSavingBlock(false)
+    }
   }
 
   function handleAddBlocks(selections: BlockSelection[]) {
@@ -350,28 +417,42 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={selectedBlock}
-          updateBlockContent={updateBlockContent}
+        <div className="flex-1 overflow-hidden border-r bg-background">
+          <ScrollArea className="h-full">
+            <DirectoryPreview
+              blocks={blocks}
+              directory={{
+                slug: 'preview-template',
+                name: previewTitle,
+                title: previewTitle,
+                id: 'preview-template',
+                site_id: template?.site_id || currentSite?.id || 'preview-site',
+                featured_image: null,
+                description: null,
+                status: 'draft',
+              } as any}
+              site={previewSite}
+              customBlockTemplates={customBlockTemplates}
+              blocksLoading={loading}
+              allBlocks={blocks}
+              onSelectBlock={setSelectedBlock as any}
+            />
+          </ScrollArea>
+        </div>
+
+        <DirectoryBlockEditorModal
+          block={selectedBlock}
+          content={draftContent}
           siteId={template?.site_id || currentSite?.id || ''}
-          currentDirectory={{
-            slug: 'preview-template',
-            name: previewTitle,
-            title: previewTitle,
-            blocks,
-            id: 'preview-template',
-            site_id: template?.site_id || currentSite?.id || 'preview-site',
-            featured_image: null,
-            description: null,
-            status: 'draft',
-          }}
-          site={previewSite}
+          directoryTitle={previewTitle}
+          onDirectoryTitleChange={setPreviewTitle}
+          onContentChange={handleDraftChange}
           customBlockTemplates={customBlockTemplates}
-          blocksLoading={loading}
-          onTitleChange={setPreviewTitle}
-          onSelectBlock={setSelectedBlock}
-          onBack={() => setSelectedBlock(null)}
           showDirectoryTitleField={false}
+          onClose={handleCloseBlockEditor}
+          onSave={handleSaveBlockEditor}
+          saving={isSavingBlock}
+          error={blockSaveError}
         />
 
         {blockListOpen && (

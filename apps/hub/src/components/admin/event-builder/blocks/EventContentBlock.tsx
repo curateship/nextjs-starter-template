@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -132,6 +131,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
@@ -139,8 +139,8 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
             content: (
               <>
                 {/* Style Selector */}
-                <div className="space-y-2 mb-4 mx-4">
-                  <Label className="text-sm font-medium px-1">Block Style</Label>
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm font-medium">Block Style</Label>
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(EVENT_CONTENT_STYLES).map(([key, style]) => (
                       <button
@@ -174,7 +174,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
                 </div>
 
                 {/* Event Title */}
-                <div className="space-y-2 px-6 mb-4">
+                <div className="space-y-2 mb-4">
                   <Label htmlFor="event-title">Event Title</Label>
                   <Input
                     id="event-title"
@@ -186,7 +186,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
                 </div>
 
                 {/* Rich Text Editor */}
-                <div className="space-y-2 px-6">
+                <div className="space-y-2">
                   <Label>Content</Label>
                   <div className="border rounded-md overflow-hidden">
                         {/* TipTap Toolbar */}
@@ -334,11 +334,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
             value: "settings",
             label: "Settings",
             content: (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Display Options</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Display Options">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label htmlFor="show-featured-image">Show Featured Image</Label>
@@ -350,8 +346,7 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
                       onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
                     />
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             ),
           },
         ]}

@@ -23,15 +23,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BlockPropertiesPanel } from "@/components/admin/directory-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
 import { searchSiteDirectoriesAction } from "@/lib/actions/directories/directory-list-actions"
-import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { directoryBlocksToJson } from "@/components/admin/directory-builder/config/directory-block-utils"
+import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import { Blocks, Search } from "lucide-react"
 import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
+import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -130,6 +133,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     customBlockTemplates,
     currentDirectory: currentDirectoryData || undefined
   })
+  const selectedBlock = builderState.selectedBlock
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [draftDirectoryTitle, setDraftDirectoryTitle] = useState("")
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current directory data with staged deletions filtered out
   const currentDirectory = {
@@ -137,6 +145,23 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     name: currentDirectoryData?.title || selectedDirectory,
     blocks: localBlocks[selectedDirectory] || []
   }
+
+  useEffect(() => {
+    if (!selectedBlock) {
+      setDraftContent({})
+      setDraftDirectoryTitle("")
+      setBlockSaveError(null)
+      return
+    }
+
+    setDraftContent(
+      selectedBlock.content
+        ? JSON.parse(JSON.stringify(selectedBlock.content))
+        : {}
+    )
+    setDraftDirectoryTitle(currentDirectoryData?.title || selectedDirectory)
+    setBlockSaveError(null)
+  }, [selectedBlock, currentDirectoryData?.title, selectedDirectory])
 
   const customBlockDefinitions = customBlockTemplates.map(template => ({
     type: getDirectoryCustomBlockSelectionType(template.id),
@@ -227,6 +252,69 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   const handleTitleChange = (title: string) => {
     void updateCurrentDirectory({ title })
+  }
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (isSavingBlock) return
+    builderState.setSelectedBlock(null)
+    setBlockSaveError(null)
+  }
+
+  const handleSaveBlockEditor = async () => {
+    if (!selectedBlock || !currentDirectoryData?.id) return
+
+    setIsSavingBlock(true)
+    setBlockSaveError(null)
+
+    try {
+      const currentBlocks = localBlocks[selectedDirectory] || []
+      const nextBlocks = currentBlocks.map((block) =>
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      )
+
+      let updatedDirectory: Directory | null = null
+      if (
+        selectedBlock.type === "directory-content" &&
+        draftDirectoryTitle.trim() &&
+        draftDirectoryTitle.trim() !== (currentDirectoryData?.title || "")
+      ) {
+        const { data, error } = await updateDirectoryAction(currentDirectoryData.id, { title: draftDirectoryTitle.trim() })
+        if (error || !data) {
+          setBlockSaveError(error || "Failed to save directory title")
+          return
+        }
+        updatedDirectory = data
+      }
+
+      const contentBlocks = directoryBlocksToJson(nextBlocks, currentDirectoryData.content_blocks || {})
+      const result = await updateDirectoryBlocksAction(currentDirectoryData.id, contentBlocks)
+      if (!result.success) {
+        setBlockSaveError(result.error || "Failed to save block")
+        return
+      }
+
+      setLocalBlocks((current) => ({
+        ...current,
+        [selectedDirectory]: nextBlocks,
+      }))
+      if (updatedDirectory) {
+        await handleDirectoryUpdated(updatedDirectory)
+      }
+      builderState.setSelectedBlock(null)
+    } catch (error) {
+      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+    } finally {
+      setIsSavingBlock(false)
+    }
   }
 
   // Only show loading state for critical errors (not during normal loading)
@@ -328,30 +416,47 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         )}
       />
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={builderState.selectedBlock}
-          updateBlockContent={builderState.updateBlockContent}
+        <div className="flex-1 overflow-hidden border-r bg-background">
+          <ScrollArea className="h-full">
+            <DirectoryPreview
+              blocks={currentDirectory.blocks}
+              directory={currentDirectoryData ? {
+                id: currentDirectoryData.id || 'preview',
+                title: currentDirectoryData.title || currentDirectory.name,
+                slug: currentDirectoryData.slug,
+                meta_description: currentDirectoryData.meta_description || undefined,
+                site_id: currentDirectoryData.site_id,
+                featured_image: currentDirectoryData.featured_image || null,
+                description: currentDirectoryData.description || null,
+                status: currentDirectoryData.status || 'draft',
+              } : undefined}
+              site={{
+                id: siteId,
+                name: site?.name || 'Directory Site',
+                subdomain: site?.subdomain || 'preview',
+                settings: site?.settings
+              }}
+              className="min-h-full"
+              blocksLoading={blocksLoading}
+              allBlocks={currentDirectory.blocks}
+              customBlockTemplates={customBlockTemplates}
+              onSelectBlock={builderState.setSelectedBlock}
+            />
+          </ScrollArea>
+        </div>
+
+        <DirectoryBlockEditorModal
+          block={selectedBlock}
+          content={draftContent}
           siteId={siteId}
-          currentDirectory={{
-            ...currentDirectory,
-            id: currentDirectoryData?.id,
-            title: currentDirectoryData?.title,
-            meta_description: currentDirectoryData?.meta_description || undefined,
-            site_id: currentDirectoryData?.site_id,
-            featured_image: currentDirectoryData?.featured_image,
-            description: currentDirectoryData?.description
-          }}
-          site={{
-            id: siteId,
-            name: site?.name || 'Directory Site',
-            subdomain: site?.subdomain || 'preview',
-            settings: site?.settings
-          }}
+          directoryTitle={draftDirectoryTitle}
+          onDirectoryTitleChange={setDraftDirectoryTitle}
+          onContentChange={handleDraftChange}
           customBlockTemplates={customBlockTemplates}
-          blocksLoading={blocksLoading}
-          onTitleChange={handleTitleChange}
-          onSelectBlock={builderState.setSelectedBlock}
-          onBack={() => builderState.setSelectedBlock(null)}
+          onClose={handleCloseBlockEditor}
+          onSave={handleSaveBlockEditor}
+          saving={isSavingBlock}
+          error={blockSaveError}
         />
 
         {blockListOpen && (
