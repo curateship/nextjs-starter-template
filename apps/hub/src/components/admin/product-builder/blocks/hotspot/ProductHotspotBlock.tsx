@@ -327,7 +327,7 @@ export function ProductHotspotBlock({
       {/* Fixed position tooltip for editing hotspots */}
       {editingHotspot && (
         <div 
-          className="fixed bg-white border border-gray-200 shadow-2xl rounded-lg p-3 min-w-64 max-w-80 z-[9999]"
+          className="fixed bg-white border border-gray-200 shadow-2xl rounded-lg p-3 min-w-64 max-w-80 z-9999"
           style={{
             left: `${tooltipPosition.x}px`,
             top: tooltipPosition.showAbove ? `${tooltipPosition.y - 120}px` : `${tooltipPosition.y + 20}px`,

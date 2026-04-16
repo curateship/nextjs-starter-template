@@ -1,0 +1,197 @@
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
+import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
+import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
+import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"
+import { PageListingViewBlock } from "../blocks/listing-view/PageListingViewBlock"
+import { PageDividerBlock } from "../blocks/divider/PageDividerBlock"
+import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
+import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
+import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
+import { getBlockName } from "../config/page-block-types"
+import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
+
+interface PageBlockEditorDialogProps {
+  selectedBlock: PageBlock | null
+  draftContent: Record<string, any>
+  siteId: string
+  isSaving: boolean
+  onOpenChange: (open: boolean) => void
+  onContentChange: (field: string, value: any) => void
+  onSave: () => void
+}
+
+export function PageBlockEditorDialog({
+  selectedBlock,
+  draftContent,
+  siteId,
+  isSaving,
+  onOpenChange,
+  onContentChange,
+  onSave,
+}: PageBlockEditorDialogProps) {
+  if (!selectedBlock) return null
+
+  return (
+    <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
+      <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+        <AdminModalHeader>
+          <AdminModalTitle>
+            Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
+          </AdminModalTitle>
+        </AdminModalHeader>
+
+        <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
+          <ScrollArea className="h-full">
+            <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+              {selectedBlock.type === "hero" && (
+                <PageHeroBlock
+                  content={draftContent}
+                  onContentChange={onContentChange}
+                  siteId={siteId}
+                  blockId={selectedBlock.id}
+                />
+              )}
+
+              {selectedBlock.type === "rich-text" && (
+                <PageRichTextEditorBlock
+                  content={{
+                    title: draftContent.title || "",
+                    subtitle: draftContent.subtitle || "",
+                    headerAlign: draftContent.headerAlign || "left",
+                    content: draftContent.content || "",
+                    hideHeader: draftContent.hideHeader,
+                    hideEditorHeader: draftContent.hideEditorHeader,
+                    visibility: draftContent.visibility,
+                  }}
+                  onContentChange={(contentObj) => {
+                    onContentChange("title", contentObj.title)
+                    onContentChange("subtitle", contentObj.subtitle)
+                    onContentChange("headerAlign", contentObj.headerAlign)
+                    onContentChange("content", contentObj.content)
+                  }}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+
+              {selectedBlock.type === "faq" && (
+                <PageFaqBlock
+                  title={draftContent.title ?? ""}
+                  subtitle={draftContent.subtitle ?? ""}
+                  headerAlign={draftContent.headerAlign ?? "left"}
+                  faqItems={draftContent.faqItems ?? draftContent.faqs}
+                  onTitleChange={(value) => onContentChange("title", value)}
+                  onSubtitleChange={(value) => onContentChange("subtitle", value)}
+                  onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
+                  onFaqItemsChange={(value) => onContentChange("faqItems", value)}
+                  visibility={draftContent.visibility}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+
+              {selectedBlock.type === "listing-views" && (
+                <PageListingViewBlock
+                  {...draftContent}
+                  onTitleChange={(value) => onContentChange("title", value)}
+                  onSubtitleChange={(value) => onContentChange("subtitle", value)}
+                  onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
+                  onMobileHeaderAlignChange={(value) => onContentChange("mobileHeaderAlign", value)}
+                  onContentTypeChange={(value) => onContentChange("contentType", value)}
+                  onDisplayModeChange={(value) => onContentChange("displayMode", value)}
+                  onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
+                  onColumnsChange={(value) => onContentChange("columns", value)}
+                  onSortByChange={(value) => onContentChange("sortBy", value)}
+                  onSortOrderChange={(value) => onContentChange("sortOrder", value)}
+                  onShowImageChange={(value) => onContentChange("showImage", value)}
+                  onShowTitleChange={(value) => onContentChange("showTitle", value)}
+                  onShowDescriptionChange={(value) => onContentChange("showDescription", value)}
+                  onIsPaginatedChange={(value) => onContentChange("isPaginated", value)}
+                  onItemsPerPageChange={(value) => onContentChange("itemsPerPage", value)}
+                  onViewAllTextChange={(value) => onContentChange("viewAllText", value)}
+                  onViewAllLinkChange={(value) => onContentChange("viewAllLink", value)}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+
+              {selectedBlock.type === "divider" && (
+                <PageDividerBlock
+                  {...draftContent}
+                  onSpacingTopChange={(value) => onContentChange("spacingTop", value)}
+                  onSpacingBottomChange={(value) => onContentChange("spacingBottom", value)}
+                  onDividerStyleChange={(value) => onContentChange("dividerStyle", value)}
+                  onLineStyleChange={(value) => onContentChange("lineStyle", value)}
+                  onLineWidthChange={(value) => onContentChange("lineWidth", value)}
+                  onLineThicknessChange={(value) => onContentChange("lineThickness", value)}
+                  onLineColorChange={(value) => onContentChange("lineColor", value)}
+                  onIconChange={(value) => onContentChange("icon", value)}
+                  onContainerWidthChange={(value) => onContentChange("containerWidth", value)}
+                  onCustomWidthChange={(value) => onContentChange("customWidth", value)}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+
+              {selectedBlock.type === "auth" && (
+                <PageAuthBlock
+                  {...draftContent}
+                  onDefaultTabChange={(value) => onContentChange("defaultTab", value)}
+                  onShowLoginTabChange={(value) => onContentChange("showLoginTab", value)}
+                  onShowRegisterTabChange={(value) => onContentChange("showRegisterTab", value)}
+                  onLoginRedirectPathChange={(value) => onContentChange("loginRedirectPath", value)}
+                  onRegisterRedirectPathChange={(value) => onContentChange("registerRedirectPath", value)}
+                  onEmailVerificationEnabledChange={(value) => onContentChange("emailVerificationEnabled", value)}
+                  onLoginButtonTextChange={(value) => onContentChange("loginButtonText", value)}
+                  onRegisterButtonTextChange={(value) => onContentChange("registerButtonText", value)}
+                  onResetButtonTextChange={(value) => onContentChange("resetButtonText", value)}
+                  onLoginTitleChange={(value) => onContentChange("loginTitle", value)}
+                  onLoginDescriptionChange={(value) => onContentChange("loginDescription", value)}
+                  onRegisterTitleChange={(value) => onContentChange("registerTitle", value)}
+                  onRegisterDescriptionChange={(value) => onContentChange("registerDescription", value)}
+                  onResetTitleChange={(value) => onContentChange("resetTitle", value)}
+                  onResetDescriptionChange={(value) => onContentChange("resetDescription", value)}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+
+              {selectedBlock.type === "testimonials" && (
+                <PageTestimonialsBlock
+                  content={draftContent}
+                  onContentChange={onContentChange}
+                  siteId={siteId}
+                  blockId={selectedBlock.id}
+                />
+              )}
+
+              {selectedBlock.type === "embedded" && (
+                <PageEmbeddedBlock
+                  {...draftContent}
+                  onCodeChange={(value) => onContentChange("code", value)}
+                  onTypeChange={(value) => onContentChange("type", value)}
+                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                />
+              )}
+            </div>
+          </ScrollArea>
+        </AdminModalBody>
+
+        <AdminModalFooter className="sm:justify-end">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </AdminModalFooter>
+      </AdminModalContent>
+    </Dialog>
+  )
+}

@@ -337,7 +337,7 @@ export function ProductSettingsModal({
                 </FieldDescription>
               </Field>
 
-              <Field className="[&>[data-slot=field-label]]:w-fit [&>[data-slot=field-description]]:max-w-md [&>div]:w-fit">
+              <Field className="*:data-[slot=field-label]:w-fit *:data-[slot=field-description]:max-w-md [&>div]:w-fit">
                 <FieldLabel>Featured Image</FieldLabel>
                 {featuredImage ? (
                   <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
@@ -346,7 +346,7 @@ export function ProductSettingsModal({
                       alt="Featured image preview"
                       className="h-full w-full object-contain"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                    <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
                     <button
                       type="button"
                       onClick={handleRemoveImage}

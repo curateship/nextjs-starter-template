@@ -23,7 +23,7 @@ interface UsePageBuilderReturn {
   isSaving: boolean
   saveMessage: string
   deleting: string | null
-  updateBlockContent: (field: string, value: any) => void
+  saveSelectedBlockContent: (content: Record<string, any>) => Promise<boolean>
   handleDeleteBlock: (block: any) => Promise<void>
   handleReorderBlocks: (blocks: any[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => Promise<void>
@@ -47,22 +47,59 @@ export function usePageBuilder({
     setSelectedBlock(null)
   }, [selectedPage])
 
-  const updateBlockContent = (field: string, value: any) => {
-    if (!selectedBlock) return
+  const persistBlocks = async (pageBlocks: any[]) => {
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const currentPage = pages.find(p => p.slug === selectedPage)
+      if (!currentPage) {
+        setSaveMessage("Error: Page not found")
+        setTimeout(() => setSaveMessage(""), 5000)
+        return false
+      }
+
+      const jsonBlocks = convertBlocksToJson(pageBlocks)
+      const { error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
+
+      if (error) {
+        setSaveMessage(`Error: ${error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+        return false
+      }
+
+      setSaveMessage("Saved!")
+      setTimeout(() => setSaveMessage(""), 3000)
+      return true
+    } catch (error) {
+      console.error('Error saving blocks:', error)
+      setSaveMessage("Error saving blocks")
+      setTimeout(() => setSaveMessage(""), 5000)
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const saveSelectedBlockContent = async (content: Record<string, any>) => {
+    if (!selectedBlock) return false
 
     const updatedBlocks = { ...blocks }
     const blockIndex = updatedBlocks[selectedPage].findIndex(b => b.id === selectedBlock.id)
-    if (blockIndex !== -1) {
-      updatedBlocks[selectedPage][blockIndex] = {
-        ...updatedBlocks[selectedPage][blockIndex],
-        content: {
-          ...updatedBlocks[selectedPage][blockIndex].content,
-          [field]: value
-        }
-      }
-      setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+
+    if (blockIndex === -1) {
+      return false
     }
+
+    updatedBlocks[selectedPage][blockIndex] = {
+      ...updatedBlocks[selectedPage][blockIndex],
+      content,
+    }
+
+    setBlocks(updatedBlocks)
+    setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
+
+    return persistBlocks(updatedBlocks[selectedPage])
   }
 
   const handleDeleteBlock = async (block: any) => {
@@ -131,35 +168,7 @@ export function usePageBuilder({
       return
     }
 
-    setIsSaving(true)
-    setSaveMessage("Saving...")
-
-    try {
-      const currentPage = pages.find(p => p.slug === selectedPage)
-      if (!currentPage) {
-        setSaveMessage("Error: Page not found")
-        setTimeout(() => setSaveMessage(""), 5000)
-        return
-      }
-
-      const jsonBlocks = convertBlocksToJson(blocks[selectedPage])
-      const results = await Promise.all([updatePageBlocksAction(currentPage.id, jsonBlocks)])
-      const errors = results.filter(result => result.error)
-
-      if (errors.length > 0) {
-        setSaveMessage(`Error: ${errors[0].error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-      } else {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
-      }
-    } catch (error) {
-      console.error('Error saving blocks:', error)
-      setSaveMessage("Error saving blocks")
-      setTimeout(() => setSaveMessage(""), 5000)
-    } finally {
-      setIsSaving(false)
-    }
+    await persistBlocks(blocks[selectedPage])
   }
 
   const handleAddBlocks = async (selections: BlockSelection[]) => {
@@ -216,7 +225,7 @@ export function usePageBuilder({
     isSaving,
     saveMessage,
     deleting,
-    updateBlockContent,
+    saveSelectedBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,

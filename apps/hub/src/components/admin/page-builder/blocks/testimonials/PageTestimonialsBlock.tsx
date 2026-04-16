@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical, Check, ImageIcon } from "lucide-react"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
@@ -240,18 +239,15 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
     <>
       <BlockTabs
         onBack={onBack}
+        headerClassName="pt-0"
         tabs={[
           {
             value: "content",
             label: "Content",
             content: (
               <>
-                {/* Header Settings */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Header Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                <BlockEditorSection heading="Header Settings">
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label>Title</Label>
                       <Input
@@ -274,7 +270,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                         value={content.headerAlign ?? 'center'}
                         onValueChange={(v) => onContentChange('headerAlign', v)}
                       >
-                        <SelectTrigger className="w-fit">
+                        <SelectTrigger size="button" className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -283,21 +279,10 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                         </SelectContent>
                       </Select>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </BlockEditorSection>
 
-                {/* Testimonial Items */}
-                <Card className="shadow-sm">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Testimonial Items</CardTitle>
-                      <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Item
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
+                <BlockEditorSection heading="Testimonial Items">
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -323,12 +308,18 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                     </DndContext>
 
                     {localItems.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No testimonials yet. Click &quot;Add Item&quot; to create one.
-                      </div>
+                      <BlockEditorEmptyState>
+                        <p>No testimonials yet. Click &quot;Add Item&quot; to create one.</p>
+                      </BlockEditorEmptyState>
                     )}
-                  </CardContent>
-                </Card>
+
+                    <div className="pt-2">
+                      <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Item
+                      </Button>
+                    </div>
+                </BlockEditorSection>
               </>
             ),
           },
@@ -336,32 +327,30 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
             value: "styling",
             label: "Styling",
             content: (
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">
+              <BlockEditorSection
+                heading={
+                  <>
                     {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {ActiveAdminPanel ? (
-                    <ActiveAdminPanel
-                      config={currentStyleConfig}
-                      onConfigChange={handleStyleConfigChange}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-sm">No settings for this style.</p>
-                  )}
-                </CardContent>
-              </Card>
+                  </>
+                }
+              >
+                {ActiveAdminPanel ? (
+                  <ActiveAdminPanel
+                    config={currentStyleConfig}
+                    onConfigChange={handleStyleConfigChange}
+                  />
+                ) : (
+                  <p className="text-muted-foreground text-sm">No settings for this style.</p>
+                )}
+              </BlockEditorSection>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <>
-                <div className="space-y-2 mb-4 mx-4">
-                  <Label className="text-sm font-medium px-1">Testimonial Style</Label>
+              <div className="space-y-6">
+                <BlockEditorSection heading="Testimonial Style">
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
                       <button
@@ -392,7 +381,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                       </button>
                     ))}
                   </div>
-                </div>
+                </BlockEditorSection>
                 <VisibilitySettings
                   title="Element Visibility"
                   visibility={content.visibility}
@@ -409,7 +398,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
                   onChange={(v) => onContentChange('visibility', v)}
                   fields={[]}
                 />
-              </>
+              </div>
             ),
           },
         ]}

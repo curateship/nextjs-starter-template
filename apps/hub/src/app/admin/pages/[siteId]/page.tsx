@@ -22,12 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BlockPropertiesPanel } from "@/components/admin/page-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { PAGE_BLOCK_TYPES } from "@/components/admin/page-builder/config/page-block-types"
+import { PagePreview } from "@/components/admin/page-builder/layout/PagePreview"
+import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/PageBlockEditorDialog"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -43,6 +45,8 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
@@ -117,6 +121,11 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       index === self.findIndex(b => b.id === block.id)
     )
   }
+
+  useEffect(() => {
+    if (!builderState.selectedBlock) return
+    setDraftContent(builderState.selectedBlock.content)
+  }, [builderState.selectedBlock])
   
   // Handle page change with URL update
   const handlePageChange = (pageSlug: string) => {
@@ -165,6 +174,32 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const handleSelectSiteChrome = (type: 'navigation' | 'footer') => {
     const returnTo = encodeURIComponent(`/admin/pages/${siteId}?page=${selectedPage}`)
     router.push(`/admin/sites/${siteId}/structure/${type}?returnTo=${returnTo}`)
+  }
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (!builderState.selectedBlock) return
+
+    setDraftContent(builderState.selectedBlock.content)
+    builderState.setSelectedBlock(null)
+  }
+
+  const handleSaveBlockEditor = async () => {
+    if (!builderState.selectedBlock) return
+
+    setIsSavingBlock(true)
+    const saved = await builderState.saveSelectedBlockContent(draftContent)
+    setIsSavingBlock(false)
+
+    if (saved) {
+      builderState.setSelectedBlock(null)
+    }
   }
 
   // Only show error state for critical failures
@@ -249,21 +284,37 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         )}
       />
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
+        <div className="flex-1 overflow-hidden border-r bg-background">
+          <ScrollArea className="h-full">
+            <PagePreview
+              blocks={currentPage.blocks}
+              site={site ? {
+                id: site.id,
+                name: site.name,
+                subdomain: site.subdomain,
+                settings: site.settings
+              } : undefined}
+              className="min-h-full"
+              blocksLoading={blocksLoading}
+              allBlocks={currentPage.blocks}
+              onSelectBlock={builderState.setSelectedBlock}
+              onSelectSiteChrome={handleSelectSiteChrome}
+            />
+          </ScrollArea>
+        </div>
+
+        <PageBlockEditorDialog
           selectedBlock={builderState.selectedBlock}
-          updateBlockContent={builderState.updateBlockContent}
+          draftContent={draftContent}
           siteId={siteId}
-          currentPage={currentPage}
-          site={site ? {
-            id: site.id,
-            name: site.name,
-            subdomain: site.subdomain,
-            settings: site.settings
-          } : undefined}
-          blocksLoading={blocksLoading}
-          onBack={() => builderState.setSelectedBlock(null)}
-          onSelectBlock={builderState.setSelectedBlock}
-          onSelectSiteChrome={handleSelectSiteChrome}
+          isSaving={isSavingBlock}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseBlockEditor()
+            }
+          }}
+          onContentChange={handleDraftChange}
+          onSave={handleSaveBlockEditor}
         />
 
         {blockListOpen && (

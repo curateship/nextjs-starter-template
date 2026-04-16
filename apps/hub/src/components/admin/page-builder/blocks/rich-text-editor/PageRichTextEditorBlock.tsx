@@ -1,7 +1,7 @@
 "use client"
 
-import { RichTextEditor, type RichTextEditorProps } from "@/components/admin/shared/RichTextEditor"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
+import type { RichTextEditorProps } from "@/components/admin/shared/RichTextEditor"
 
 interface PageRichTextEditorBlockProps extends RichTextEditorProps {
   content: RichTextEditorProps['content'] & {
@@ -10,28 +10,28 @@ interface PageRichTextEditorBlockProps extends RichTextEditorProps {
   onVisibilityChange?: (value: Record<string, boolean>) => void
 }
 
-export function PageRichTextEditorBlock({ content, onContentChange, onVisibilityChange, compact, inline }: PageRichTextEditorBlockProps) {
+export function PageRichTextEditorBlock({ content, onContentChange, onVisibilityChange, compact }: PageRichTextEditorBlockProps) {
   return (
-    <RichTextEditor content={content} onContentChange={onContentChange} compact={compact} inline={inline}>
-      {onVisibilityChange && (
-        <>
-          <VisibilitySettings
-            title="Element Visibility"
-            visibility={content.visibility}
-            onChange={onVisibilityChange}
-            includeHideBlock={false}
-            fields={[
-              { key: 'header', label: 'Section Header' },
-            ]}
-          />
-          <VisibilitySettings
-            title="Block Visibility"
-            visibility={content.visibility}
-            onChange={onVisibilityChange}
-            fields={[]}
-          />
-        </>
-      )}
-    </RichTextEditor>
+    <ProductRichTextEditorBlock
+      content={{
+        header: content.title,
+        subheader: content.subtitle,
+        headerAlign: content.headerAlign,
+        richtextContent: content.content,
+        hideHeader: content.hideHeader,
+        hideEditorHeader: content.hideEditorHeader,
+      }}
+      onContentChange={(nextContent) =>
+        onContentChange({
+          title: nextContent.header,
+          subtitle: nextContent.subheader,
+          headerAlign: nextContent.headerAlign,
+          content: nextContent.richtextContent,
+        })
+      }
+      compact={compact}
+      visibility={content.visibility}
+      onVisibilityChange={onVisibilityChange}
+    />
   )
 }

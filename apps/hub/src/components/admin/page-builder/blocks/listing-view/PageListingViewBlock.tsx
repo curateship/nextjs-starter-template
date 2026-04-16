@@ -1,11 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
 import { Checkbox } from "@/components/ui/checkbox"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedListingViewsBlockProps {
@@ -90,17 +87,14 @@ export function PageListingViewBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
             <div className="space-y-4">
-              <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Header Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-8">
+              <BlockEditorSection heading="Header Settings" contentClassName="space-y-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
@@ -153,75 +147,54 @@ export function PageListingViewBlock({
           <div className="flex gap-6">
             <div className="space-y-2">
               <Label>Header Alignment</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 {(['left', 'center'] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => onHeaderAlignChange(option)}
-                    className={cn(
-                      "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                      headerAlign === option
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                      headerAlign === option
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-muted-foreground/30"
-                    )}>
-                      {headerAlign === option && <Check className="h-2.5 w-2.5" />}
-                    </div>
-                    <span className="capitalize">{option}</span>
-                  </button>
+                  <div key={option} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`listing-header-align-${option}`}
+                      checked={headerAlign === option}
+                      onCheckedChange={() => onHeaderAlignChange(option)}
+                    />
+                    <Label
+                      htmlFor={`listing-header-align-${option}`}
+                      className="text-sm capitalize cursor-pointer"
+                    >
+                      {option}
+                    </Label>
+                  </div>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Mobile Header Alignment</Label>
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 {(['left', 'center'] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => onMobileHeaderAlignChange(option)}
-                    className={cn(
-                      "relative flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                      mobileHeaderAlign === option
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                      mobileHeaderAlign === option
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-muted-foreground/30"
-                    )}>
-                      {mobileHeaderAlign === option && <Check className="h-2.5 w-2.5" />}
-                    </div>
-                    <span className="capitalize">{option}</span>
-                  </button>
+                  <div key={option} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`listing-mobile-header-align-${option}`}
+                      checked={mobileHeaderAlign === option}
+                      onCheckedChange={() => onMobileHeaderAlignChange(option)}
+                    />
+                    <Label
+                      htmlFor={`listing-mobile-header-align-${option}`}
+                      className="text-sm capitalize cursor-pointer"
+                    >
+                      {option}
+                    </Label>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Content Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <BlockEditorSection heading="Content Settings">
           <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
               <Select value={contentType} onValueChange={onContentTypeChange}>
-                <SelectTrigger id="contentType">
+                <SelectTrigger id="contentType" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +206,7 @@ export function PageListingViewBlock({
             <div className="space-y-2">
               <Label htmlFor="displayMode">Display Mode</Label>
               <Select value={displayMode} onValueChange={onDisplayModeChange}>
-                <SelectTrigger id="displayMode">
+                <SelectTrigger id="displayMode" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,7 +223,7 @@ export function PageListingViewBlock({
                 onValueChange={(v) => onColumnsChange(parseInt(v))}
                 disabled={displayMode === 'list'}
               >
-                <SelectTrigger id="columns">
+                <SelectTrigger id="columns" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -264,7 +237,7 @@ export function PageListingViewBlock({
             <div className="space-y-2">
               <Label htmlFor="sortBy">Sort By</Label>
               <Select value={sortBy} onValueChange={onSortByChange}>
-                <SelectTrigger id="sortBy">
+                <SelectTrigger id="sortBy" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -278,7 +251,7 @@ export function PageListingViewBlock({
             <div className="space-y-2">
               <Label htmlFor="sortOrder">Sort Order</Label>
               <Select value={sortOrder} onValueChange={onSortOrderChange}>
-                <SelectTrigger id="sortOrder">
+                <SelectTrigger id="sortOrder" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -288,8 +261,7 @@ export function PageListingViewBlock({
               </Select>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </BlockEditorSection>
             </div>
           ),
         },
@@ -298,11 +270,7 @@ export function PageListingViewBlock({
           label: "Settings",
           content: (
             <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Display Options</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Display Options">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="showImage"
@@ -358,8 +326,7 @@ export function PageListingViewBlock({
                     </span>
                   </div>
 
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
               {onVisibilityChange && (
                 <>

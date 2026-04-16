@@ -4,10 +4,10 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Trash2, GripVertical } from "lucide-react"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
@@ -81,6 +81,20 @@ function hasInvalidFaqIds(faqItems: FaqItem[]) {
   })
 }
 
+function areFaqItemsEqual(left: FaqItem[], right: FaqItem[]) {
+  if (left.length !== right.length) return false
+
+  return left.every((item, index) => {
+    const other = right[index]
+
+    return (
+      item.id === other?.id &&
+      item.question === other?.question &&
+      item.answer === other?.answer
+    )
+  })
+}
+
 // Sortable FAQ item component
 function SortableFaqItem({
   item,
@@ -139,18 +153,18 @@ function SortableFaqItem({
         <div className="px-2 pt-2 space-y-3">
           <div>
             <Label className="font-medium">Question:</Label>
-            <input
+            <Input
               type="text"
               id={`question-${index}`}
               value={item.question}
               onChange={(e) => updateFaqItem(index, 'question', e.target.value)}
-              className="w-full px-3 py-2 border rounded-md mt-1"
+              className="mt-1"
               placeholder="Enter question..."
             />
           </div>
           <div>
             <Label className="font-medium">Answer:</Label>
-            <textarea
+            <Textarea
               id={`answer-${index}`}
               value={item.answer}
               onChange={(e) => {
@@ -160,7 +174,7 @@ function SortableFaqItem({
                 target.style.height = 'auto'
                 target.style.height = `${target.scrollHeight}px`
               }}
-              className="w-full px-3 py-2 border rounded-md min-h-[2.5rem] resize-none overflow-hidden mt-1"
+              className="mt-1 min-h-[2.5rem] resize-none overflow-hidden"
               placeholder="Enter answer..."
               style={{ height: 'auto' }}
             />
@@ -188,12 +202,17 @@ export function PageFaqBlock({
 
   useEffect(() => {
     const normalizedItems = normalizeFaqItems(faqItems)
-    setLocalFaqItems(normalizedItems)
+    setLocalFaqItems((currentItems) => (
+      areFaqItemsEqual(currentItems, normalizedItems) ? currentItems : normalizedItems
+    ))
 
     if (hasInvalidFaqIds(faqItems)) {
       onFaqItemsChange?.(normalizedItems)
     }
-  }, [faqItems, onFaqItemsChange])
+    // Intentionally sync only from faqItems. The parent callback is recreated per render.
+    // Including it here causes the effect to loop while normalizing local FAQ state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faqItems])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -247,18 +266,14 @@ export function PageFaqBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
             <div className="space-y-6">
-              {/* Header Settings Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Header Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Header Settings">
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="faq-title">Title</Label>
@@ -283,7 +298,7 @@ export function PageFaqBlock({
                     <div className="space-y-2">
                       <Label htmlFor="faq-align">Header Alignment</Label>
                       <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                        <SelectTrigger id="faq-align">
+                        <SelectTrigger id="faq-align" size="button">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -293,26 +308,9 @@ export function PageFaqBlock({
                       </Select>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* FAQ Items Card */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">FAQ Items</CardTitle>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addNewFaqItem}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Item
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="FAQ Items">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -337,12 +335,23 @@ export function PageFaqBlock({
                   </DndContext>
 
                   {localFaqItems.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No FAQ items yet. Click &quot;Add Item&quot; to create one.
-                    </div>
+                    <BlockEditorEmptyState>
+                      <p>No FAQ items yet. Click &quot;Add Item&quot; to create one.</p>
+                    </BlockEditorEmptyState>
                   )}
-                </CardContent>
-              </Card>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addNewFaqItem}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Item
+                    </Button>
+                  </div>
+              </BlockEditorSection>
             </div>
           ),
         },

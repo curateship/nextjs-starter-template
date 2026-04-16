@@ -1,8 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedEmbeddedBlockProps {
@@ -27,22 +26,18 @@ export function PageEmbeddedBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
             <div className="space-y-4">
-              {/* Type Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Embed Type</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Embed Type">
                   <div className="space-y-2">
                     <Label htmlFor="embedType">Content Type</Label>
                     <Select value={type} onValueChange={onTypeChange}>
-                      <SelectTrigger id="embedType">
+                      <SelectTrigger id="embedType" size="button">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -56,15 +51,9 @@ export function PageEmbeddedBlock({
                         : 'Paste JavaScript code or script tags for tracking and analytics'}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* Code Editor */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Embedded Code</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Embedded Code">
                   <div className="space-y-2">
                     <Label htmlFor="embeddedCode">
                       {type === 'html' ? 'HTML Code' : 'Script Code'}
@@ -84,8 +73,7 @@ export function PageEmbeddedBlock({
                       The code will be rendered exactly as entered on your public page.
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             </div>
           ),
         },

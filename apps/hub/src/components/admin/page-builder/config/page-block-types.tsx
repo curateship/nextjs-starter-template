@@ -62,7 +62,8 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: HelpCircle,
     description: 'Frequently asked questions with expandable answers',
     defaultContent: {
-      faqs: [{
+      faqItems: [{
+        id: `faq-${Date.now()}-1`,
         question: 'Sample Question',
         answer: 'Sample answer goes here...'
       }]

@@ -1,9 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedDividerBlockProps {
@@ -84,18 +83,14 @@ export function PageDividerBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "styling",
           label: "Styling",
           content: (
             <div className="space-y-4">
-              {/* Quick Presets */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Quick Presets</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Quick Presets">
                   <div className="flex gap-2">
                     <Button
                       type="button"
@@ -122,15 +117,9 @@ export function PageDividerBlock({
                       Decorative Break
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* Spacing Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Spacing Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Spacing Settings">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="spacingTop">Top Spacing (px)</Label>
@@ -166,22 +155,16 @@ export function PageDividerBlock({
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              {/* Divider Style */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Divider Style</CardTitle>
-                </CardHeader>
-                <CardContent>
+              <BlockEditorSection heading="Divider Style">
                   <div className="space-y-4">
                     {dividerStyle === 'line' ? (
                       <div className="grid grid-cols-5 gap-3">
                         <div className="space-y-2">
                           <Label htmlFor="dividerStyle">Type</Label>
                           <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                            <SelectTrigger id="dividerStyle">
+                            <SelectTrigger id="dividerStyle" size="button">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -196,7 +179,7 @@ export function PageDividerBlock({
                         <div className="space-y-2">
                           <Label htmlFor="lineStyle">Style</Label>
                           <Select value={lineStyle} onValueChange={onLineStyleChange}>
-                            <SelectTrigger id="lineStyle">
+                            <SelectTrigger id="lineStyle" size="button">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -272,7 +255,7 @@ export function PageDividerBlock({
                         <div className="space-y-2">
                           <Label htmlFor="dividerStyle">Type</Label>
                           <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                            <SelectTrigger id="dividerStyle">
+                            <SelectTrigger id="dividerStyle" size="button">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -287,7 +270,7 @@ export function PageDividerBlock({
                         <div className="space-y-2">
                           <Label htmlFor="icon">Icon</Label>
                           <Select value={icon} onValueChange={onIconChange}>
-                            <SelectTrigger id="icon">
+                            <SelectTrigger id="icon" size="button">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -305,7 +288,7 @@ export function PageDividerBlock({
                       <div className="space-y-2">
                         <Label htmlFor="dividerStyle">Divider Type</Label>
                         <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
-                          <SelectTrigger id="dividerStyle">
+                          <SelectTrigger id="dividerStyle" size="button">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -318,8 +301,7 @@ export function PageDividerBlock({
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             </div>
           ),
         },
