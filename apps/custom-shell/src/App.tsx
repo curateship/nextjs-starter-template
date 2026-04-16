@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { DashboardContent } from "@/components/demo/dashboard-content"
+import { Navbar09Demo } from "@/components/demo/navbar-09"
 import { DataTable4 } from "@/components/demo/data-table4"
 import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
@@ -132,6 +133,19 @@ export function App() {
   const isMediaRoute = currentPath === "/admin/media"
   const isImagesRoute = currentPath === "/admin/media/images"
   const isFoldersRoute = currentPath === "/admin/media/folders"
+  const isNavbar09DemoRoute = currentPath === "/demo/navbar-09"
+
+  if (isNavbar09DemoRoute) {
+    return (
+      <div
+        className="min-h-screen bg-background"
+        data-shell-theme={config.themePreset}
+        data-shell-font={config.fontPreset}
+      >
+        <Navbar09Demo />
+      </div>
+    )
+  }
 
   return (
     <div
