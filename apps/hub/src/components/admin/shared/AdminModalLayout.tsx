@@ -52,7 +52,7 @@ function AdminModalDescription({
 function AdminModalBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex-1 overflow-y-auto px-6 py-6", className)}
+      className={cn("overflow-y-auto px-6 pt-6 pb-0", className)}
       {...props}
     />
   )

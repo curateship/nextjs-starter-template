@@ -400,9 +400,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                 <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
               </AdminModalHeader>
 
-              <AdminModalBody className="min-h-0 overflow-hidden p-0">
+              <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
                 <ScrollArea className="h-full">
-                  <div className="px-6 py-6 pr-8 [&_h3]:pt-4">
+                  <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
                     {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
                       <ProductContentBlock
                         content={draftContent}

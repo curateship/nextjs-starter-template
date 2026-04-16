@@ -7,12 +7,22 @@ import { Button } from "@/components/ui/button"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { blocksToJson, parseBlocksFromJson, useBlockEditor } from "@/components/admin/newsletter-builder/config/useBlockEditor"
+import { NewsletterPreviewPane } from "@/components/admin/newsletter-builder/layout/NewsletterPreviewPane"
+import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/layout/NewsletterBlockEditor"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   getSystemEmailEditorAction,
   saveSystemEmailTemplateAction,
@@ -45,9 +55,13 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [draftSubject, setDraftSubject] = useState("")
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const blockEditor = useBlockEditor()
   const requiresSiteContext = !isGlobalTemplateKey(templateKey)
+  const selectedBlock = blockEditor.selectedBlock
 
   useEffect(() => {
     if (requiresSiteContext && !currentSite?.id) {
@@ -81,8 +95,21 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     }
   }, [currentSite?.id, requiresSiteContext, templateKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!selectedBlock) return
+
+    setDraftContent(selectedBlock.content)
+    setDraftSubject(template?.subject || "")
+  }, [selectedBlock, template?.subject])
+
   async function handleSave() {
     if (!template) return
+
+    await persistTemplate(blockEditor.blocks, template.subject)
+  }
+
+  async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"], nextSubject: string) {
+    if (!template) return false
 
     setIsSaving(true)
     setSaveMessage('Saving...')
@@ -90,8 +117,8 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     const result = await saveSystemEmailTemplateAction({
       templateKey: template.template_key,
       siteId: template.site_id,
-      subject: template.subject,
-      contentBlocks: blocksToJson(blockEditor.blocks),
+      subject: nextSubject,
+      contentBlocks: blocksToJson(nextBlocks),
       fromName: template.from_name,
       replyTo: template.reply_to,
     })
@@ -99,7 +126,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     if (!result.success) {
       setSaveMessage(`Error: ${result.error || 'Failed to save'}`)
       setIsSaving(false)
-      return
+      return false
     }
 
     const refreshed = await getSystemEmailEditorAction(template.template_key, template.site_id)
@@ -111,6 +138,28 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
     setSaveMessage('Saved!')
     setIsSaving(false)
     setTimeout(() => setSaveMessage(''), 3000)
+    return true
+  }
+
+  function handleCloseBlockEditor() {
+    if (!selectedBlock) return
+
+    setDraftContent(selectedBlock.content)
+    setDraftSubject(template?.subject || "")
+    blockEditor.setSelectedBlock(null)
+  }
+
+  async function handleSaveBlockEditor() {
+    const updatedBlocks = blockEditor.replaceSelectedBlockContent(draftContent)
+    if (!updatedBlocks) return
+
+    setIsSavingBlock(true)
+    const saved = await persistTemplate(updatedBlocks, draftSubject)
+    setIsSavingBlock(false)
+
+    if (saved) {
+      blockEditor.setSelectedBlock(null)
+    }
   }
 
   if (loading) {
@@ -237,15 +286,15 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={blockEditor.selectedBlock}
+        <NewsletterPreviewPane
+          selectedBlock={selectedBlock}
           blocks={blockEditor.blocks}
           previewWidth={PREVIEW_WIDTHS[previewWidth]}
           updateBlockContent={blockEditor.updateBlockContent}
           onSelectBlock={blockEditor.setSelectedBlock}
           siteId={currentSite?.id || ''}
           subject={template.subject}
-          onSubjectChange={(value) => setTemplate((current) => current ? { ...current, subject: value } : current)}
+          onSubjectChange={(value: string) => setTemplate((current) => current ? { ...current, subject: value } : current)}
         />
 
         {blockListOpen && (
@@ -264,6 +313,52 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
           />
         )}
       </div>
+
+      {selectedBlock && (
+        <Dialog
+          open={!!selectedBlock}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseBlockEditor()
+            }
+          }}
+        >
+          <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+            <AdminModalHeader>
+              <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
+            </AdminModalHeader>
+
+            <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
+              <ScrollArea className="h-full">
+                <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+                  <NewsletterBlockEditor
+                    block={selectedBlock}
+                    content={draftContent}
+                    onContentChange={(field, value) => {
+                      setDraftContent((current) => ({
+                        ...current,
+                        [field]: value,
+                      }))
+                    }}
+                    siteId={currentSite?.id || ""}
+                    subject={draftSubject}
+                    onSubjectChange={setDraftSubject}
+                  />
+                </div>
+              </ScrollArea>
+            </AdminModalBody>
+
+            <AdminModalFooter className="sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                {isSavingBlock ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
+        </Dialog>
+      )}
 
       <BlockSelectionModal
         open={blockModalOpen}

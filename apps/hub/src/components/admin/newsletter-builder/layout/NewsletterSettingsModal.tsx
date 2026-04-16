@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +22,13 @@ import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Users, TestTube } from "lucide-react"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 
 interface NewsletterSettingsModalProps {
   open: boolean
@@ -223,9 +227,9 @@ export function NewsletterSettingsModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent size="admin">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle className="flex items-center gap-3">
               Newsletter Settings
               <div className="flex items-center space-x-2">
                 <div className={`w-2 h-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
@@ -233,21 +237,21 @@ export function NewsletterSettingsModal({
                   {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
                 </span>
               </div>
-            </DialogTitle>
-          </DialogHeader>
+            </AdminModalTitle>
+          </AdminModalHeader>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          )}
-          {successMsg && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 text-sm">{successMsg}</p>
-            </div>
-          )}
+          <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+            {successMsg && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm text-green-800">{successMsg}</p>
+              </div>
+            )}
 
-          <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="grid-cols-3 gap-1">
                 <TabsTrigger value="general">General</TabsTrigger>
@@ -424,7 +428,7 @@ export function NewsletterSettingsModal({
                             <div>
                               <Label htmlFor="send-window-tz">Timezone</Label>
                               <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone} disabled={isSent}>
-                                <SelectTrigger id="send-window-tz">
+                                <SelectTrigger id="send-window-tz" size="button">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="z-60">
@@ -452,7 +456,7 @@ export function NewsletterSettingsModal({
                   <div>
                     <Label htmlFor="audience-select">Segment</Label>
                     <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
-                      <SelectTrigger id="audience-select">
+                      <SelectTrigger id="audience-select" size="button">
                         <SelectValue placeholder="Select audience" />
                       </SelectTrigger>
                       <SelectContent className="z-60">
@@ -496,17 +500,16 @@ export function NewsletterSettingsModal({
               </TabsContent>
             </Tabs>
 
-            {/* Actions */}
-            <div className="flex justify-between pt-4">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Close
-              </Button>
-              <Button onClick={handleSave} disabled={saving || isSent}>
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
+          </AdminModalBody>
+          <AdminModalFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              Close
+            </Button>
+            <Button onClick={handleSave} disabled={saving || isSent}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
       </Dialog>
 
     </>

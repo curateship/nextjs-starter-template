@@ -8,12 +8,12 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog } from "@/components/ui/dialog"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  AdminModalContent,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import dynamic from "next/dynamic"
 
 const CreateNewsletterModal = dynamic(() =>
@@ -675,10 +675,10 @@ export default function NewslettersPage() {
 
           {/* Create Newsletter Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Newsletter</DialogTitle>
-              </DialogHeader>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Newsletter</AdminModalTitle>
+              </AdminModalHeader>
               <CreateNewsletterModal
                 onSuccess={(newsletter) => {
                   setShowCreateDialog(false)
@@ -686,7 +686,7 @@ export default function NewslettersPage() {
                 }}
                 onCancel={() => setShowCreateDialog(false)}
               />
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
 
           {/* Newsletter Settings Modal */}

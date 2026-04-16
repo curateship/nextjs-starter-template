@@ -204,7 +204,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               </div>
             ) : (
               <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                <SelectTrigger id="newsletter-template">
+                <SelectTrigger id="newsletter-template" size="button">
                   <SelectValue placeholder="Select template" />
                 </SelectTrigger>
                 <SelectContent className="z-60">
@@ -334,7 +334,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                       <div>
                         <Label htmlFor="create-send-window-tz">Timezone</Label>
                         <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone}>
-                          <SelectTrigger id="create-send-window-tz">
+                          <SelectTrigger id="create-send-window-tz" size="button">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="z-60">
@@ -362,7 +362,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             <div>
               <Label htmlFor="create-audience-select">Segment</Label>
               <Select value={audienceMode} onValueChange={handleAudienceModeChange}>
-                <SelectTrigger id="create-audience-select">
+                <SelectTrigger id="create-audience-select" size="button">
                   <SelectValue placeholder="Select audience" />
                 </SelectTrigger>
                 <SelectContent className="z-60">

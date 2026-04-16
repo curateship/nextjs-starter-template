@@ -1,21 +1,31 @@
 "use client"
 
-import { useState, use } from "react"
+import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { NewsletterSettingsModal } from "@/components/admin/newsletter-builder/layout/NewsletterSettingsModal"
 import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/layout/PublishNewsletterModal"
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
+import { NewsletterPreviewPane } from "@/components/admin/newsletter-builder/layout/NewsletterPreviewPane"
+import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/layout/NewsletterBlockEditor"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, Send } from "lucide-react"
 
 interface PageProps {
@@ -109,9 +119,47 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [publishModalOpen, setPublishModalOpen] = useState(false)
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [draftSubject, setDraftSubject] = useState("")
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const builder = useNewsletterBuilder({ newsletterId })
   const newsletterNavLinks = getNewsletterAdminTopNavLinks("newsletters")
+  const selectedBlock = builder.selectedBlock
+
+  useEffect(() => {
+    if (!selectedBlock) return
+
+    setDraftContent(selectedBlock.content)
+    setDraftSubject(builder.subject)
+  }, [selectedBlock, builder.subject])
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (!selectedBlock) return
+
+    setDraftContent(selectedBlock.content)
+    setDraftSubject(builder.subject)
+    builder.setSelectedBlock(null)
+  }
+
+  const handleSaveBlockEditor = async () => {
+    if (!selectedBlock) return
+
+    setIsSavingBlock(true)
+    const saved = await builder.saveSelectedBlockContent(draftContent, draftSubject)
+    setIsSavingBlock(false)
+
+    if (saved) {
+      builder.setSelectedBlock(null)
+    }
+  }
 
   if (builder.loading) {
     return (
@@ -334,8 +382,8 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={builder.selectedBlock}
+        <NewsletterPreviewPane
+          selectedBlock={selectedBlock}
           blocks={builder.blocks}
           previewWidth={PREVIEW_WIDTHS[previewWidth]}
           emailWidth={builder.newsletter?.metadata?.maxWidth || 600}
@@ -361,6 +409,47 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
           />
         )}
       </div>
+
+      {selectedBlock && (
+        <Dialog
+          open={!!selectedBlock}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseBlockEditor()
+            }
+          }}
+        >
+          <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+            <AdminModalHeader>
+              <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
+            </AdminModalHeader>
+
+            <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
+              <ScrollArea className="h-full">
+                <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+                  <NewsletterBlockEditor
+                    block={selectedBlock}
+                    content={draftContent}
+                    onContentChange={handleDraftChange}
+                    siteId={currentSite?.id || ""}
+                    subject={draftSubject}
+                    onSubjectChange={setDraftSubject}
+                  />
+                </div>
+              </ScrollArea>
+            </AdminModalBody>
+
+            <AdminModalFooter className="sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                {isSavingBlock ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
+        </Dialog>
+      )}
 
       <BlockSelectionModal
         open={blockModalOpen}

@@ -658,9 +658,9 @@ export function RichTextEditor({
 
       {/* Rich Text Editor */}
       {inline ? (
-        <div className="border rounded-md overflow-hidden">
+        <div className="overflow-hidden">
           {/* Toolbar */}
-          <div className="flex flex-wrap gap-1 p-2 bg-muted/20 border-b">
+          <div className="flex flex-wrap gap-1 p-2 bg-muted/20">
             {toolbarButtons}
             {toolbarContent && (
               <div className="flex items-center gap-1">

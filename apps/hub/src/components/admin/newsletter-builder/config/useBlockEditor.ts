@@ -19,6 +19,7 @@ export interface UseBlockEditorReturn {
   selectedBlock: NewsletterBlock | null
   setSelectedBlock: (block: NewsletterBlock | null) => void
   updateBlockContent: (blockId: string, field: string, value: any) => void
+  replaceSelectedBlockContent: (content: Record<string, any>) => NewsletterBlock[] | null
   handleDeleteBlock: (block: NewsletterBlock) => void
   handleReorderBlocks: (blocks: NewsletterBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
@@ -67,6 +68,23 @@ export function useBlockEditor(): UseBlockEditorReturn {
     })
   }
 
+  const replaceSelectedBlockContent = (content: Record<string, any>) => {
+    if (!selectedBlock) return null
+
+    const updatedBlocks = blocks.map((block) =>
+      block.id === selectedBlock.id
+        ? { ...block, content }
+        : block
+    )
+
+    const updatedSelectedBlock = updatedBlocks.find((block) => block.id === selectedBlock.id) || null
+
+    setBlocks(updatedBlocks)
+    setSelectedBlock(updatedSelectedBlock)
+
+    return updatedBlocks
+  }
+
   const handleDeleteBlock = (block: NewsletterBlock) => {
     setBlocks(prev => prev.filter(b => b.id !== block.id))
     if (selectedBlock?.id === block.id) {
@@ -103,6 +121,7 @@ export function useBlockEditor(): UseBlockEditorReturn {
     selectedBlock,
     setSelectedBlock,
     updateBlockContent,
+    replaceSelectedBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,

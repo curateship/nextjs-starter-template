@@ -26,10 +26,12 @@ interface UseNewsletterBuilderReturn {
   loading: boolean
   error: string | null
   updateBlockContent: ReturnType<typeof useBlockEditor>['updateBlockContent']
+  replaceSelectedBlockContent: ReturnType<typeof useBlockEditor>['replaceSelectedBlockContent']
   handleDeleteBlock: ReturnType<typeof useBlockEditor>['handleDeleteBlock']
   handleReorderBlocks: ReturnType<typeof useBlockEditor>['handleReorderBlocks']
   handleAddBlocks: ReturnType<typeof useBlockEditor>['handleAddBlocks']
   handleSave: () => Promise<void>
+  saveSelectedBlockContent: (content: Record<string, any>, nextSubject?: string) => Promise<boolean>
   reloadNewsletter: () => Promise<void>
 }
 
@@ -61,25 +63,31 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     loadNewsletter()
   }, [newsletterId])
 
-  const handleSave = async () => {
-    if (!newsletter) return
+  const persistNewsletter = async (nextBlocks: ReturnType<typeof useBlockEditor>['blocks'], nextSubject = subject) => {
+    if (!newsletter) return false
+
     setIsSaving(true)
     setSaveMessage("Saving...")
 
-    const contentBlocks = blocksToJson(blockEditor.blocks)
+    const contentBlocks = blocksToJson(nextBlocks)
 
     try {
       const { data, error: saveError } = await updateNewsletter(newsletter.id, {
-        subject,
+        subject: nextSubject,
         content_blocks: contentBlocks
       })
       if (saveError) {
         setSaveMessage(`Error: ${saveError}`)
         setTimeout(() => setSaveMessage(""), 5000)
-      } else if (data) {
+        return false
+      }
+
+      if (data) {
         setNewsletter(data)
+        setSubject(nextSubject)
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)
+        return true
       }
     } catch (err) {
       setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
@@ -87,6 +95,22 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     } finally {
       setIsSaving(false)
     }
+
+    return false
+  }
+
+  const handleSave = async () => {
+    await persistNewsletter(blockEditor.blocks, subject)
+  }
+
+  const saveSelectedBlockContent = async (content: Record<string, any>, nextSubject = subject) => {
+    const updatedBlocks = blockEditor.replaceSelectedBlockContent(content)
+
+    if (!updatedBlocks) {
+      return false
+    }
+
+    return persistNewsletter(updatedBlocks, nextSubject)
   }
 
   return {
@@ -101,10 +125,12 @@ export function useNewsletterBuilder({ newsletterId }: UseNewsletterBuilderParam
     loading,
     error,
     updateBlockContent: blockEditor.updateBlockContent,
+    replaceSelectedBlockContent: blockEditor.replaceSelectedBlockContent,
     handleDeleteBlock: blockEditor.handleDeleteBlock,
     handleReorderBlocks: blockEditor.handleReorderBlocks,
     handleAddBlocks: blockEditor.handleAddBlocks,
     handleSave,
+    saveSelectedBlockContent,
     reloadNewsletter: loadNewsletter
   }
 }

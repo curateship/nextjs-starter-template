@@ -6,15 +6,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockPropertiesPanel } from "@/components/admin/newsletter-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
+import { NewsletterPreviewPane } from "@/components/admin/newsletter-builder/layout/NewsletterPreviewPane"
+import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/layout/NewsletterBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Monitor, Tablet, Smartphone, Save, Pencil, Check, X } from "lucide-react"
 
 interface PageProps {
@@ -42,13 +52,21 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const blockEditor = useBlockEditor()
   const newsletterNavLinks = getNewsletterAdminTopNavLinks("templates")
+  const selectedBlock = blockEditor.selectedBlock
 
   useEffect(() => {
     loadTemplate()
   }, [templateId])
+
+  useEffect(() => {
+    if (!selectedBlock) return
+    setDraftContent(selectedBlock.content)
+  }, [selectedBlock])
 
   async function loadTemplate() {
     setLoading(true)
@@ -66,10 +84,15 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
   async function handleSave() {
     if (!template) return
+    await persistTemplate(blockEditor.blocks)
+  }
+
+  async function persistTemplate(nextBlocks: ReturnType<typeof useBlockEditor>["blocks"]) {
+    if (!template) return false
     setIsSaving(true)
     setSaveMessage("Saving...")
 
-    const contentBlocks = blocksToJson(blockEditor.blocks)
+    const contentBlocks = blocksToJson(nextBlocks)
 
     try {
       const { data, error: saveError } = await updateTemplate(template.id, {
@@ -78,10 +101,12 @@ export default function TemplateEditorPage({ params }: PageProps) {
       if (saveError) {
         setSaveMessage(`Error: ${saveError}`)
         setTimeout(() => setSaveMessage(""), 5000)
+        return false
       } else if (data) {
         setTemplate(data)
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)
+        return true
       }
     } catch (err) {
       setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
@@ -89,6 +114,8 @@ export default function TemplateEditorPage({ params }: PageProps) {
     } finally {
       setIsSaving(false)
     }
+
+    return false
   }
 
   async function handleSaveName() {
@@ -98,6 +125,26 @@ export default function TemplateEditorPage({ params }: PageProps) {
       setTemplate(data)
     }
     setEditingName(false)
+  }
+
+  function handleCloseBlockEditor() {
+    if (!selectedBlock) return
+
+    setDraftContent(selectedBlock.content)
+    blockEditor.setSelectedBlock(null)
+  }
+
+  async function handleSaveBlockEditor() {
+    const updatedBlocks = blockEditor.replaceSelectedBlockContent(draftContent)
+    if (!updatedBlocks) return
+
+    setIsSavingBlock(true)
+    const saved = await persistTemplate(updatedBlocks)
+    setIsSavingBlock(false)
+
+    if (saved) {
+      blockEditor.setSelectedBlock(null)
+    }
   }
 
   if (loading) {
@@ -270,8 +317,8 @@ export default function TemplateEditorPage({ params }: PageProps) {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <BlockPropertiesPanel
-          selectedBlock={blockEditor.selectedBlock}
+        <NewsletterPreviewPane
+          selectedBlock={selectedBlock}
           blocks={blockEditor.blocks}
           previewWidth={PREVIEW_WIDTHS[previewWidth]}
           updateBlockContent={blockEditor.updateBlockContent}
@@ -294,6 +341,50 @@ export default function TemplateEditorPage({ params }: PageProps) {
           />
         )}
       </div>
+
+      {selectedBlock && (
+        <Dialog
+          open={!!selectedBlock}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseBlockEditor()
+            }
+          }}
+        >
+          <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+            <AdminModalHeader>
+              <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
+            </AdminModalHeader>
+
+            <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
+              <ScrollArea className="h-full">
+                <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+                  <NewsletterBlockEditor
+                    block={selectedBlock}
+                    content={draftContent}
+                    onContentChange={(field, value) => {
+                      setDraftContent((current) => ({
+                        ...current,
+                        [field]: value,
+                      }))
+                    }}
+                    siteId={currentSite?.id || ""}
+                  />
+                </div>
+              </ScrollArea>
+            </AdminModalBody>
+
+            <AdminModalFooter className="sm:justify-end">
+              <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                {isSavingBlock ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
+        </Dialog>
+      )}
 
       <BlockSelectionModal
         open={blockModalOpen}

@@ -13,9 +13,8 @@ import {
   type AIProvider,
 } from "@/lib/utils/ai-models"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -201,13 +200,14 @@ export function NewsletterRichTextBlock({
   return (
     <BlockTabs
       onBack={onBack}
+      headerClassName="pt-0"
       tabs={[
         {
           value: "content",
           label: "Content",
           content: (
-            <Card className="shadow-sm">
-              <CardContent className="p-0">
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-md">
                 <RichTextEditor
                   content={{ content: normalizedHtmlContent, hideHeader: true, hideEditorHeader: true }}
                   onContentChange={(c) => onContentChange('htmlContent', normalizeNewsletterRichTextHtml(c.content))}
@@ -237,19 +237,15 @@ export function NewsletterRichTextBlock({
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ),
         },
         {
           value: "styling",
           label: "Styling",
           content: (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Background & Spacing</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <BlockEditorSection heading="Background & Spacing">
                 <div>
                   <Label htmlFor="richtext-bg-color">Background Color</Label>
                   <div className="flex items-center gap-2 mt-1">
@@ -284,8 +280,7 @@ export function NewsletterRichTextBlock({
                     style={{ width: '100%' }}
                   />
                 </div>
-              </CardContent>
-            </Card>
+            </BlockEditorSection>
           ),
         },
         {
@@ -293,11 +288,7 @@ export function NewsletterRichTextBlock({
           label: "Settings",
           content: (
             <div className="space-y-6">
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Image Output</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+              <BlockEditorSection heading="Image Output">
                   <div>
                     <Label htmlFor="newsletter-image-border-size">Border Size (px)</Label>
                     <Input
@@ -327,17 +318,16 @@ export function NewsletterRichTextBlock({
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
 
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
+              <BlockEditorSection
+                heading={(
+                  <span className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
                     AI Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                  </span>
+                )}
+              >
                   <div>
                     <Label htmlFor="newsletter-ai-subject">Subject</Label>
                     <Input
@@ -374,7 +364,7 @@ export function NewsletterRichTextBlock({
                         </p>
                       ) : (
                         <Select value={activeProvider || ''} onValueChange={handleProviderChange}>
-                          <SelectTrigger className="w-full sm:w-[220px]">
+                          <SelectTrigger size="button" className="w-full sm:w-[220px]">
                             <SelectValue placeholder="Select AI provider" />
                           </SelectTrigger>
                           <SelectContent>
@@ -398,7 +388,7 @@ export function NewsletterRichTextBlock({
                             onContentChange('aiModel', value)
                           }}
                         >
-                          <SelectTrigger className="w-full sm:w-[260px]">
+                          <SelectTrigger size="button" className="w-full sm:w-[260px]">
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
                           <SelectContent>
@@ -420,8 +410,7 @@ export function NewsletterRichTextBlock({
                   <p className="text-sm text-muted-foreground">
                     AI generation uses the subject, the current editor content, and this saved prompt.
                   </p>
-                </CardContent>
-              </Card>
+              </BlockEditorSection>
             </div>
           ),
         },
