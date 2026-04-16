@@ -77,6 +77,7 @@ const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
 interface FooterBlockProps {
   logo?: string;
   logoUrl?: string;
+  copyright?: string;
   site?: {
     id: string;
     subdomain: string;
@@ -88,14 +89,9 @@ interface FooterBlockProps {
   };
   links?: Array<{ text: string; url: string }>;
   socialLinks?: Array<{ platform: string; url: string }>;
-  style?: {
-    backgroundColor: string;
-    textColor: string;
-  };
-  visibility?: Record<string, boolean>;
 }
 
-export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, visibility }: FooterBlockProps) {
+export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks }: FooterBlockProps) {
     const footerLinks = (links || [])
         .map(link => ({
             ...link,
@@ -120,15 +116,14 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
     // Generate auto copyright text
     const currentYear = new Date().getFullYear()
     const siteName = site?.name || "Your Site"
-    const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
+    const copyrightText =
+        typeof copyright === 'string' && copyright.trim()
+            ? copyright
+            : `© ${currentYear} ${siteName}. All rights reserved.`
     return (
         <footer
             data-block-type="footer"
             className="py-1 bg-background text-foreground"
-            style={{
-                ...(style?.backgroundColor ? { backgroundColor: style.backgroundColor } : {}),
-                ...(style?.textColor ? { color: style.textColor } : {}),
-            }}
         >
             <div className="mx-auto max-w-5xl px-6">
                 <Link
@@ -160,7 +155,7 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
                     )}
                 </Link>
 
-                {footerLinks.length > 0 && visibility?.footerLinks !== false && (
+                {footerLinks.length > 0 && (
                     <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
                         {footerLinks.map((link, index) => (
                             <Link
@@ -172,14 +167,14 @@ export function FooterBlock({ logo, logoUrl, site, links, socialLinks, style, vi
                         ))}
                     </div>
                 )}
-{socialLinks && socialLinks.length > 0 && visibility?.socialLinks !== false && (
+{socialLinks && socialLinks.length > 0 && (
                     <div className="my-8 flex flex-wrap justify-center gap-6 text-sm">
                         {socialLinks.map((social, index) => (
                             <SocialIcon key={index} platform={social.platform} url={social.url} />
                         ))}
                     </div>
                 )}
-                <span className="text-muted-foreground block text-center text-sm">
+                <span className="mt-8 pb-4 text-muted-foreground block text-center text-sm">
                     {copyrightText}
                 </span>
             </div>

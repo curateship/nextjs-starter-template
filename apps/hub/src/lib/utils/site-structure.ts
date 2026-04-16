@@ -180,13 +180,18 @@ export function sanitizeNavigationSettings(
 export function sanitizeFooterSettings(footer: Record<string, any> | null | undefined) {
   if (!footer || typeof footer !== 'object') return null
 
-  return {
-    ...footer,
+  const sanitizedFooter: Record<string, any> = {
     logo: isSafeUrl(footer.logo) ? footer.logo : '',
     logoUrl: sanitizeUrl(footer.logoUrl, '/'),
     links: sanitizeUrlItems(footer.links),
     socialLinks: sanitizeUrlItems(footer.socialLinks),
   }
+
+  if (typeof footer.copyright === 'string' && footer.copyright.trim()) {
+    sanitizedFooter.copyright = footer.copyright
+  }
+
+  return sanitizedFooter
 }
 
 export function resolveSiteNavigation(settings: Record<string, any> | null | undefined) {

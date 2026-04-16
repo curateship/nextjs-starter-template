@@ -19,6 +19,7 @@ import { BUILT_IN_NAVIGATION_ACTION_ITEM_IDS } from "@/lib/utils/navigation-acti
 import {
   createDefaultNavigationAccountMenu,
   resolveSiteChrome,
+  sanitizeFooterSettings,
   sanitizeNavigationSettings,
 } from "@/lib/utils/site-structure"
 
@@ -46,8 +47,7 @@ const DEFAULT_FOOTER = {
   logoUrl: '/',
   links: [{ id: 'footer-link-default-0', text: 'Home', url: '/' }],
   socialLinks: [],
-  copyright: '© All rights reserved.',
-  style: { backgroundColor: '', textColor: '#6c757d' },
+  copyright: '',
 }
 
 interface SiteChromeEditorPageProps {
@@ -149,9 +149,10 @@ export function SiteChromeEditorPage({
       const nextNavigationContent = sanitizeNavigationSettings(navigationContent, {
         publicAuthPagePath,
       }) || defaultNavigation
+      const nextFooterContent = sanitizeFooterSettings(footerContent) || DEFAULT_FOOTER
       const result = mode === 'navigation'
         ? await updateSiteNavigationAction(site.id, nextNavigationContent)
-        : await updateSiteFooterAction(site.id, footerContent)
+        : await updateSiteFooterAction(site.id, nextFooterContent)
 
       if (!result.success) {
         setError(result.error || 'Failed to save changes')
@@ -164,12 +165,14 @@ export function SiteChromeEditorPage({
           ...(site.settings || {}),
           ...(mode === 'navigation'
             ? { navigation: nextNavigationContent }
-            : { footer: footerContent }),
+            : { footer: nextFooterContent }),
         },
       }
 
       if (mode === 'navigation') {
         setNavigationContent(nextNavigationContent)
+      } else {
+        setFooterContent(nextFooterContent)
       }
       setSite(updatedSite)
       if (currentSite?.id === updatedSite.id) {
@@ -224,6 +227,48 @@ export function SiteChromeEditorPage({
     } catch (saveError) {
       console.error("Failed to save navigation:", saveError)
       setError("Failed to save navigation")
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const persistFooterContent = async (nextFooterContent: Record<string, any>) => {
+    if (!site) return false
+
+    try {
+      setSaving(true)
+      setError(null)
+      setSaveMessage("")
+
+      const sanitizedFooter = sanitizeFooterSettings(nextFooterContent) || DEFAULT_FOOTER
+      const result = await updateSiteFooterAction(site.id, sanitizedFooter)
+
+      if (!result.success) {
+        setError(result.error || "Failed to save changes")
+        return false
+      }
+
+      const updatedSite: SiteWithTheme = {
+        ...site,
+        settings: {
+          ...(site.settings || {}),
+          footer: sanitizedFooter,
+        },
+      }
+
+      setFooterContent(sanitizedFooter)
+      setSite(updatedSite)
+      if (currentSite?.id === updatedSite.id) {
+        setCurrentSite(updatedSite)
+      }
+
+      setSaveMessage("Footer saved")
+      window.setTimeout(() => setSaveMessage(""), 3000)
+      return true
+    } catch (saveError) {
+      console.error("Failed to save footer:", saveError)
+      setError("Failed to save footer")
       return false
     } finally {
       setSaving(false)
@@ -294,20 +339,11 @@ export function SiteChromeEditorPage({
             />
           ) : (
             <PageFooterBlock
-              logo={footerContent.logo || ''}
-              logoUrl={footerContent.logoUrl || '/'}
-              links={footerContent.links || []}
-              socialLinks={footerContent.socialLinks || []}
-              style={footerContent.style || { backgroundColor: '', textColor: '#6c757d' }}
-              visibility={footerContent.visibility}
-              onLogoChange={(value) => setFooterContent(prev => ({ ...prev, logo: value }))}
-              onLogoUrlChange={(value) => setFooterContent(prev => ({ ...prev, logoUrl: value }))}
-              onLinksChange={(value) => setFooterContent(prev => ({ ...prev, links: value }))}
-              onSocialLinksChange={(value) => setFooterContent(prev => ({ ...prev, socialLinks: value }))}
-              onStyleChange={(value) => setFooterContent(prev => ({ ...prev, style: value }))}
-              onVisibilityChange={(value) => setFooterContent(prev => ({ ...prev, visibility: value }))}
-              siteId={site.id}
-              blockId="site-structure-footer"
+              content={footerContent}
+              onContentChange={(field, value) => {
+                setFooterContent(prev => ({ ...prev, [field]: value }))
+              }}
+              onContentPersist={persistFooterContent}
               siteFavicon={site.settings?.favicon}
               siteName={site.name}
             />

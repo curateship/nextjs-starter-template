@@ -820,6 +820,7 @@ export const NavBlock = memo(function NavBlock({
             user={sessionUser}
             onSignOut={handleSignOut}
             showAdminLink={showAdminLink}
+            bordered={false}
             mounted={mounted}
           />
         )

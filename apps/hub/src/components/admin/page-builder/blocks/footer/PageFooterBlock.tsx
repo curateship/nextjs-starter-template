@@ -1,35 +1,60 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useMemo, useState } from "react"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Dialog } from "@/components/ui/dialog"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Plus, Trash2, ImageIcon, GripVertical } from "lucide-react"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  type DragEndEvent,
   useSensor,
   useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core'
+} from "@dnd-kit/core"
 import {
-  arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  arrayMove,
   horizontalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import {
+  sortableKeyboardCoordinates,
   useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
+  ArrowLeft,
+  Facebook,
+  Github,
+  Globe,
+  GripVertical,
+  ImageIcon,
+  Instagram,
+  Linkedin,
+  Music2,
+  Plus,
+  Trash2,
+  Twitter,
+  type LucideIcon,
+  Youtube,
+} from "lucide-react"
 
 interface FooterLink {
   text: string
@@ -43,46 +68,76 @@ interface SocialLink {
   id?: string
 }
 
-interface FooterStyle {
-  backgroundColor: string
-  textColor: string
-}
-
 interface FooterBlockProps {
-  logo: string
-  logoUrl: string
-  links: FooterLink[]
-  socialLinks: SocialLink[]
-  style: FooterStyle
-  onLogoChange: (value: string) => void
-  onLogoUrlChange: (value: string) => void
-  onLinksChange: (links: FooterLink[]) => void
-  onSocialLinksChange: (socialLinks: SocialLink[]) => void
-  onStyleChange: (style: FooterStyle) => void
-  visibility?: Record<string, boolean>
-  onVisibilityChange?: (value: Record<string, boolean>) => void
-  siteId: string
-  blockId: string
+  content: Record<string, any>
+  onContentChange: (field: string, value: any) => void
+  onContentPersist?: (nextContent: Record<string, any>) => Promise<boolean>
   siteFavicon?: string
   siteName?: string
   onBack?: () => void
 }
 
-const socialPlatforms = [
-  'twitter', 'facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'github'
-]
+const ACTION_BUTTON_CLASS =
+  "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
-// Sortable footer link item component
+const SOCIAL_PLATFORM_OPTIONS = [
+  { value: "twitter", label: "Twitter", Icon: Twitter },
+  { value: "facebook", label: "Facebook", Icon: Facebook },
+  { value: "instagram", label: "Instagram", Icon: Instagram },
+  { value: "linkedin", label: "LinkedIn", Icon: Linkedin },
+  { value: "youtube", label: "YouTube", Icon: Youtube },
+  { value: "tiktok", label: "TikTok", Icon: Music2 },
+  { value: "github", label: "GitHub", Icon: Github },
+] as const
+
+function createFooterItemId(prefix: "link" | "social") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function getSocialPlatformMeta(platform?: string): {
+  label: string
+  Icon: LucideIcon
+} {
+  const option = SOCIAL_PLATFORM_OPTIONS.find((item) => item.value === platform)
+  if (option) {
+    return { label: option.label, Icon: option.Icon }
+  }
+
+  if (!platform) {
+    return { label: "Social Link", Icon: Globe }
+  }
+
+  return {
+    label: platform.charAt(0).toUpperCase() + platform.slice(1),
+    Icon: Globe,
+  }
+}
+
+function SocialPlatformLabel({ platform }: { platform?: string }) {
+  const { label, Icon } = getSocialPlatformMeta(platform)
+
+  return (
+    <span className="flex items-center gap-2">
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{label}</span>
+    </span>
+  )
+}
+
 function SortableFooterLinkItem({
   link,
   index,
-  updateLink,
-  removeLink
+  onEdit,
+  onDelete,
 }: {
   link: FooterLink
   index: number
-  updateLink: (index: number, field: 'text' | 'url', value: string) => void
-  removeLink: (index: number) => void
+  onEdit: (index: number) => void
+  onDelete: (index: number) => void
 }) {
   const {
     attributes,
@@ -91,7 +146,7 @@ function SortableFooterLinkItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: link.id || `footer-link-${index}` })
+  } = useSortable({ id: link.id! })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -103,40 +158,37 @@ function SortableFooterLinkItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
     >
-      <div className="flex gap-1 items-center">
-        <div
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <button
+          type="button"
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Reorder ${link.text || "footer link"}`}
         >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={link.text}
-            onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 rounded-md text-sm"
-            placeholder="Link Text"
-          />
-          <input
-            type="text"
-            value={link.url}
-            onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 rounded-md text-sm"
-            placeholder="URL"
-          />
-        </div>
+          <GripVertical className="h-4 w-4" />
+        </button>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={() => removeLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[220px] justify-start px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${link.text || "footer link"}`}
+          title={link.text || "Footer link settings"}
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <span className="truncate">{link.text || "Link"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
+          aria-label={`Delete ${link.text || "footer link"}`}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -146,61 +198,55 @@ function SortableFooterLinkItem({
 function StaticFooterLinkItem({
   link,
   index,
-  updateLink,
-  removeLink
+  onEdit,
+  onDelete,
 }: {
   link: FooterLink
   index: number
-  updateLink: (index: number, field: 'text' | 'url', value: string) => void
-  removeLink: (index: number) => void
+  onEdit: (index: number) => void
+  onDelete: (index: number) => void
 }) {
   return (
-    <div className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit">
-      <div className="flex gap-1 items-center">
-        <div className="grip-handle text-muted-foreground flex-shrink-0">
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <input
-            type="text"
-            value={link.text}
-            onChange={(e) => updateLink(index, 'text', e.target.value)}
-            className="w-24 px-3 py-2 rounded-md text-sm"
-            placeholder="Link Text"
-          />
-          <input
-            type="text"
-            value={link.url}
-            onChange={(e) => updateLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 rounded-md text-sm"
-            placeholder="URL"
-          />
+    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
+          <GripVertical className="h-4 w-4" />
         </div>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={() => removeLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[220px] justify-start px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${link.text || "footer link"}`}
+          title={link.text || "Footer link settings"}
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <span className="truncate">{link.text || "Link"}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
+          aria-label={`Delete ${link.text || "footer link"}`}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
   )
 }
 
-// Sortable social link item component
 function SortableSocialLinkItem({
   socialLink,
   index,
-  updateSocialLink,
-  removeSocialLink
+  onEdit,
+  onDelete,
 }: {
   socialLink: SocialLink
   index: number
-  updateSocialLink: (index: number, field: 'platform' | 'url', value: string) => void
-  removeSocialLink: (index: number) => void
+  onEdit: (index: number) => void
+  onDelete: (index: number) => void
 }) {
   const {
     attributes,
@@ -209,7 +255,7 @@ function SortableSocialLinkItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: socialLink.id || `social-link-${index}` })
+  } = useSortable({ id: socialLink.id! })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -221,48 +267,37 @@ function SortableSocialLinkItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit"
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
     >
-      <div className="flex gap-1 items-center">
-        <div
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <button
+          type="button"
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Reorder ${socialLink.platform || "social link"}`}
         >
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <Select
-            value={socialLink.platform}
-            onValueChange={(value) => updateSocialLink(index, 'platform', value)}
-          >
-            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
-              <SelectValue placeholder="Platform" />
-            </SelectTrigger>
-            <SelectContent>
-              {socialPlatforms.map(platform => (
-                <SelectItem key={platform} value={platform}>
-                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <input
-            type="text"
-            value={socialLink.url}
-            onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 rounded-md text-sm"
-            placeholder="Social URL"
-          />
-        </div>
+          <GripVertical className="h-4 w-4" />
+        </button>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={() => removeSocialLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[240px] justify-start px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${socialLink.platform || "social link"}`}
+          title={socialLink.platform || "Social link settings"}
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <SocialPlatformLabel platform={socialLink.platform} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
+          aria-label={`Delete ${socialLink.platform || "social link"}`}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -272,52 +307,39 @@ function SortableSocialLinkItem({
 function StaticSocialLinkItem({
   socialLink,
   index,
-  updateSocialLink,
-  removeSocialLink
+  onEdit,
+  onDelete,
 }: {
   socialLink: SocialLink
   index: number
-  updateSocialLink: (index: number, field: 'platform' | 'url', value: string) => void
-  removeSocialLink: (index: number) => void
+  onEdit: (index: number) => void
+  onDelete: (index: number) => void
 }) {
   return (
-    <div className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit">
-      <div className="flex gap-1 items-center">
-        <div className="grip-handle text-muted-foreground flex-shrink-0">
-          <GripVertical className="w-4 h-4" />
-        </div>
-        <div className="flex gap-1">
-          <Select
-            value={socialLink.platform}
-            onValueChange={(value) => updateSocialLink(index, 'platform', value)}
-          >
-            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
-              <SelectValue placeholder="Platform" />
-            </SelectTrigger>
-            <SelectContent>
-              {socialPlatforms.map(platform => (
-                <SelectItem key={platform} value={platform}>
-                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <input
-            type="text"
-            value={socialLink.url}
-            onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-            className="w-32 px-3 py-2 rounded-md text-sm"
-            placeholder="Social URL"
-          />
+    <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
+          <GripVertical className="h-4 w-4" />
         </div>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          onClick={() => removeSocialLink(index)}
-          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          onClick={() => onEdit(index)}
+          className="h-9 max-w-[240px] justify-start px-3 text-sm font-medium"
+          aria-label={`Edit settings for ${socialLink.platform || "social link"}`}
+          title={socialLink.platform || "Social link settings"}
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <SocialPlatformLabel platform={socialLink.platform} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => onDelete(index)}
+          className={`${ACTION_BUTTON_CLASS} hover:bg-red-50`}
+          aria-label={`Delete ${socialLink.platform || "social link"}`}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -325,473 +347,621 @@ function StaticSocialLinkItem({
 }
 
 export function PageFooterBlock({
-  logo,
-  logoUrl,
-  links = [],
-  socialLinks = [],
-  style = { backgroundColor: '', textColor: '' },
-  onLogoChange,
-  onLogoUrlChange,
-  onLinksChange,
-  onSocialLinksChange,
-  onStyleChange,
-  visibility,
-  onVisibilityChange,
+  content,
+  onContentChange,
+  onContentPersist,
   siteFavicon,
   siteName = "Your Site",
   onBack,
 }: FooterBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
-  
+  const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)
+  const [editingSocialLinkIndex, setEditingSocialLinkIndex] = useState<number | null>(null)
+  const [creatingSocialLink, setCreatingSocialLink] = useState(false)
+  const [linkDraft, setLinkDraft] = useState<Pick<FooterLink, "text" | "url">>({
+    text: "",
+    url: "",
+  })
+  const [socialLinkDraft, setSocialLinkDraft] = useState<SocialLink>({
+    platform: SOCIAL_PLATFORM_OPTIONS[0].value,
+    url: "",
+  })
+  const [modalSaving, setModalSaving] = useState(false)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
 
+  const logo = content.logo || ""
+  const logoUrl = content.logoUrl || ""
+  const links = useMemo<FooterLink[]>(
+    () => (Array.isArray(content.links) ? content.links : []),
+    [content.links]
+  )
+  const socialLinks = useMemo<SocialLink[]>(
+    () => (Array.isArray(content.socialLinks) ? content.socialLinks : []),
+    [content.socialLinks]
+  )
+  const defaultCopyrightText = `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`
+  const copyrightText =
+    typeof content.copyright === "string"
+      ? content.copyright
+      : defaultCopyrightText
+  const sortableLinksReady = sortableReady && links.every((link) => !!link.id)
+  const sortableSocialLinksReady =
+    sortableReady && socialLinks.every((socialLink) => !!socialLink.id)
+
   useEffect(() => {
     setSortableReady(true)
   }, [])
-  
-  // Ensure all links have unique IDs
-  useEffect(() => {
-    const linksNeedIds = links.some(link => !link.id)
-    if (linksNeedIds) {
-      const linksWithIds = (links || []).map((link, index) => ({
-        ...link,
-        id: link.id || `footer-link-${Date.now()}-${index}-${Math.random()}`
-      }))
-      onLinksChange(linksWithIds)
-    }
-  }, [links, onLinksChange])
 
-  // Ensure all social links have unique IDs
   useEffect(() => {
-    const socialLinksNeedIds = socialLinks.some(link => !link.id)
-    if (socialLinksNeedIds) {
-      const socialLinksWithIds = (socialLinks || []).map((link, index) => ({
+    if (!links.some((link) => !link.id)) return
+
+    onContentChange(
+      "links",
+      links.map((link) => ({
         ...link,
-        id: link.id || `social-link-${Date.now()}-${index}-${Math.random()}`
+        id: link.id || createFooterItemId("link"),
       }))
-      onSocialLinksChange(socialLinksWithIds)
-    }
-  }, [socialLinks, onSocialLinksChange])
-  
+    )
+  }, [links, onContentChange])
+
+  useEffect(() => {
+    if (!socialLinks.some((socialLink) => !socialLink.id)) return
+
+    onContentChange(
+      "socialLinks",
+      socialLinks.map((socialLink) => ({
+        ...socialLink,
+        id: socialLink.id || createFooterItemId("social"),
+      }))
+    )
+  }, [socialLinks, onContentChange])
+
   const addLink = () => {
-    const currentLinks = links || []
-    const newLinks = [...currentLinks, { text: "", url: "", id: `footer-link-${Date.now()}-${Math.random()}` }]
-    onLinksChange(newLinks)
+    onContentChange("links", [
+      ...links,
+      {
+        text: "",
+        url: "",
+        id: createFooterItemId("link"),
+      },
+    ])
+  }
+
+  const openLinkEditor = (index: number) => {
+    const link = links[index]
+    if (!link) return
+
+    setLinkDraft({
+      text: link.text,
+      url: link.url,
+    })
+    setEditingLinkIndex(index)
   }
 
   const removeLink = (index: number) => {
-    const newLinks = (links || []).filter((_, i) => i !== index)
-    onLinksChange(newLinks)
+    onContentChange("links", links.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  const updateLink = (index: number, field: 'text' | 'url', value: string) => {
-    const currentLinks = links || []
-    const newLinks = [...currentLinks]
-    newLinks[index] = { ...newLinks[index], [field]: value }
-    onLinksChange(newLinks)
+  const saveLinkEditor = () => {
+    if (editingLinkIndex === null) return
+
+    const previousLinks = links
+    const nextLinks = [...links]
+    nextLinks[editingLinkIndex] = {
+      ...nextLinks[editingLinkIndex],
+      text: linkDraft.text,
+      url: linkDraft.url.trim(),
+    }
+
+    const nextContent = { ...content, links: nextLinks }
+
+    if (!onContentPersist) {
+      onContentChange("links", nextLinks)
+      setEditingLinkIndex(null)
+      return
+    }
+
+    onContentChange("links", nextLinks)
+    setModalSaving(true)
+    void onContentPersist(nextContent)
+      .then((success) => {
+        if (success) {
+          setEditingLinkIndex(null)
+        } else {
+          onContentChange("links", previousLinks)
+        }
+      })
+      .finally(() => {
+        setModalSaving(false)
+      })
   }
 
   const handleLinkDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
+    if (!over || active.id === over.id) return
 
-    if (over && active.id !== over.id) {
-      const oldIndex = links.findIndex((link) => link.id === active.id)
-      const newIndex = links.findIndex((link) => link.id === over.id)
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onLinksChange(arrayMove(links, oldIndex, newIndex))
-      }
-    }
+    const oldIndex = links.findIndex((link) => link.id === active.id)
+    const newIndex = links.findIndex((link) => link.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+    onContentChange("links", arrayMove(links, oldIndex, newIndex))
   }
 
   const addSocialLink = () => {
-    const currentSocialLinks = socialLinks || []
-    const newSocialLinks = [...currentSocialLinks, { platform: "twitter", url: "", id: `social-link-${Date.now()}-${Math.random()}` }]
-    onSocialLinksChange(newSocialLinks)
+    setSocialLinkDraft({
+      platform: SOCIAL_PLATFORM_OPTIONS[0].value,
+      url: "",
+    })
+    setCreatingSocialLink(true)
+  }
+
+  const openSocialLinkEditor = (index: number) => {
+    const socialLink = socialLinks[index]
+    if (!socialLink) return
+
+    setCreatingSocialLink(false)
+    setSocialLinkDraft({
+      ...socialLink,
+      platform: socialLink.platform || SOCIAL_PLATFORM_OPTIONS[0].value,
+    })
+    setEditingSocialLinkIndex(index)
   }
 
   const removeSocialLink = (index: number) => {
-    const newSocialLinks = (socialLinks || []).filter((_, i) => i !== index)
-    onSocialLinksChange(newSocialLinks)
+    onContentChange(
+      "socialLinks",
+      socialLinks.filter((_, itemIndex) => itemIndex !== index)
+    )
   }
 
-  const updateSocialLink = (index: number, field: 'platform' | 'url', value: string) => {
-    const currentSocialLinks = socialLinks || []
-    const newSocialLinks = [...currentSocialLinks]
-    newSocialLinks[index] = { ...newSocialLinks[index], [field]: value }
-    onSocialLinksChange(newSocialLinks)
+  const saveSocialLinkEditor = () => {
+    const previousSocialLinks = socialLinks
+    const nextSocialLinks = creatingSocialLink
+      ? [
+          ...socialLinks,
+          {
+            ...socialLinkDraft,
+            url: socialLinkDraft.url.trim(),
+            id: createFooterItemId("social"),
+          },
+        ]
+      : (() => {
+          if (editingSocialLinkIndex === null) return socialLinks
+
+          const nextItems = [...socialLinks]
+          nextItems[editingSocialLinkIndex] = {
+            ...(socialLinks[editingSocialLinkIndex] || {}),
+            ...socialLinkDraft,
+            url: socialLinkDraft.url.trim(),
+          }
+          return nextItems
+        })()
+
+    if (!creatingSocialLink && editingSocialLinkIndex === null) return
+
+    const nextContent = { ...content, socialLinks: nextSocialLinks }
+
+    if (!onContentPersist) {
+      onContentChange("socialLinks", nextSocialLinks)
+      setCreatingSocialLink(false)
+      setEditingSocialLinkIndex(null)
+      return
+    }
+
+    onContentChange("socialLinks", nextSocialLinks)
+    setModalSaving(true)
+    void onContentPersist(nextContent)
+      .then((success) => {
+        if (success) {
+          setCreatingSocialLink(false)
+          setEditingSocialLinkIndex(null)
+        } else {
+          onContentChange("socialLinks", previousSocialLinks)
+        }
+      })
+      .finally(() => {
+        setModalSaving(false)
+      })
   }
 
   const handleSocialLinkDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
+    if (!over || active.id === over.id) return
 
-    if (over && active.id !== over.id) {
-      const oldIndex = socialLinks.findIndex((link) => link.id === active.id)
-      const newIndex = socialLinks.findIndex((link) => link.id === over.id)
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onSocialLinksChange(arrayMove(socialLinks, oldIndex, newIndex))
-      }
-    }
+    const oldIndex = socialLinks.findIndex((socialLink) => socialLink.id === active.id)
+    const newIndex = socialLinks.findIndex((socialLink) => socialLink.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+    onContentChange("socialLinks", arrayMove(socialLinks, oldIndex, newIndex))
   }
-
-  const updateStyle = (field: keyof FooterStyle, value: string) => {
-    onStyleChange({ ...style, [field]: value })
-  }
-
-  // Generate auto copyright text
-  const currentYear = new Date().getFullYear()
-  const copyrightText = `© ${currentYear} ${siteName}. All rights reserved.`
 
   return (
-    <BlockTabs
-      onBack={onBack}
-      tabs={[
-        {
-          value: "content",
-          label: "Content",
-          content: (
-            <div className="space-y-4">
-              {/* Logo Card */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Logo & Copyright</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+    <>
+      <div className="flex w-full flex-col gap-4">
+        {onBack && (
+          <div className="px-4 pt-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
+            >
+              <ArrowLeft className="mr-1.5 h-4 w-3.5" />
+              Back
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <h2 className="text-base font-semibold leading-none tracking-tight">Settings</h2>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="space-y-3">
-                <Label>Logo</Label>
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    {logo && logo !== '/images/logo.png' ? (
-                      <div 
-                        className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity"
+                <div className="flex items-start">
+                  <div className="shrink-0 pr-4">
+                    {logo && logo !== "/images/logo.png" ? (
+                      <div
+                        className="relative h-12 w-32 cursor-pointer overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-90"
                         onClick={() => setShowPicker(true)}
                       >
                         <img
                           src={logo}
                           alt="Logo"
                           className="h-full w-full object-contain"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none"
                           }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                          <div className="text-white text-center">
-                            <ImageIcon className="mx-auto h-4 w-4 mb-1" />
+                        <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100">
+                          <div className="text-center text-white">
+                            <ImageIcon className="mx-auto mb-1 h-4 w-4" />
                             <p className="text-xs font-medium">Click to change</p>
                           </div>
                         </div>
                       </div>
                     ) : siteFavicon ? (
-                      <div 
-                        className="relative h-12 w-32 rounded-lg overflow-hidden bg-muted border cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
-                        onClick={() => setShowPicker(true)}
-                      >
+                      <div className="cursor-pointer" onClick={() => setShowPicker(true)}>
                         <img
                           src={siteFavicon}
                           alt="Site favicon (used as logo)"
-                          className="h-10 w-10 object-contain p-0.5"
+                          className="h-10 w-10 cursor-pointer object-contain"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
-                          <div className="text-white text-center">
-                            <ImageIcon className="mx-auto h-4 w-4 mb-1" />
-                            <p className="text-xs font-medium">Using favicon - Click to add logo</p>
-                          </div>
-                        </div>
                       </div>
                     ) : (
-                      <div 
-                        className="h-12 w-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      <div
+                        className="flex h-12 w-32 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowPicker(true)}
                       >
                         <div className="text-center">
-                          <ImageIcon className="mx-auto w-4 h-4 text-muted-foreground/50" />
-                          <p className="text-xs text-muted-foreground mt-1">Click to select</p>
+                          <ImageIcon className="mx-auto h-4 w-4 text-muted-foreground/50" />
+                          <p className="mt-1 text-xs text-muted-foreground">Click to select</p>
                         </div>
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex-1">
-                    <input
-                      id="logoUrl"
-                      type="text"
-                      value={logoUrl || ''}
-                      onChange={(e) => onLogoUrlChange(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md text-sm"
+                    <Input
+                      id="footerLogoUrl"
+                      value={logoUrl}
+                      onChange={(event) => onContentChange("logoUrl", event.target.value)}
                       placeholder="https://example.com (leave empty for site homepage)"
                     />
                   </div>
                 </div>
-              </div>
-              
-            </div>
-            
-            {/* Image Picker Modal */}
-            <MediaPicker
-              open={showPicker}
-              onOpenChange={setShowPicker}
-              onSelectMedia={(imageUrl) => {
-                onLogoChange(imageUrl)
-                setShowPicker(false)
-              }}
-              currentMediaUrl={logo}
-            />
-          </CardContent>
-        </Card>
 
-      {/* Footer Links Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Footer Links</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLink}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {sortableReady ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleLinkDragEnd}
-            >
-              <SortableContext
-                items={(links || []).map(l => l.id || '')}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex flex-wrap gap-2">
-                  {(links || []).map((link, index) => (
-                    <SortableFooterLinkItem
-                      key={link.id || `footer-link-${index}`}
+                {siteFavicon && (!logo || logo === "/images/logo.png") && (
+                  <p className="text-xs text-muted-foreground">
+                    Currently using favicon as fallback logo. Click on image to change
+                  </p>
+                )}
+              </div>
+
+              <MediaPicker
+                open={showPicker}
+                onOpenChange={setShowPicker}
+                onSelectMedia={(imageUrl) => {
+                  onContentChange("logo", imageUrl)
+                  setShowPicker(false)
+                }}
+                currentMediaUrl={logo}
+              />
+
+              <div className="space-y-2">
+                <Label className="px-1 text-sm font-medium">Copyright</Label>
+                <Input
+                  value={copyrightText}
+                  onChange={(event) => onContentChange("copyright", event.target.value)}
+                  placeholder={defaultCopyrightText}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <h2 className="text-base font-semibold leading-none tracking-tight">Footer Links</h2>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {links.length === 0 ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+                    No footer links.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addLink}
+                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                    aria-label="Add footer link"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : sortableLinksReady ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleLinkDragEnd}
+                >
+                  <SortableContext
+                    items={links.map((link) => link.id!)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {links.map((link, index) => (
+                        <SortableFooterLinkItem
+                          key={link.id}
+                          link={link}
+                          index={index}
+                          onEdit={openLinkEditor}
+                          onDelete={removeLink}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addLink}
+                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                        aria-label="Add footer link"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {links.map((link, index) => (
+                    <StaticFooterLinkItem
+                      key={link.id || `footer-link-static-${index}`}
                       link={link}
                       index={index}
-                      updateLink={updateLink}
-                      removeLink={removeLink}
+                      onEdit={openLinkEditor}
+                      onDelete={removeLink}
                     />
                   ))}
+                  <button
+                    type="button"
+                    onClick={addLink}
+                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                    aria-label="Add footer link"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
-              </SortableContext>
-            </DndContext>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {(links || []).map((link, index) => (
-                <StaticFooterLinkItem
-                  key={link.id || `footer-link-static-${index}`}
-                  link={link}
-                  index={index}
-                  updateLink={updateLink}
-                  removeLink={removeLink}
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader>
+              <h2 className="text-base font-semibold leading-none tracking-tight">Social Links</h2>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {socialLinks.length === 0 ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+                    No social links.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addSocialLink}
+                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                    aria-label="Add social link"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : sortableSocialLinksReady ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleSocialLinkDragEnd}
+                >
+                  <SortableContext
+                    items={socialLinks.map((socialLink) => socialLink.id!)}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      {socialLinks.map((socialLink, index) => (
+                        <SortableSocialLinkItem
+                          key={socialLink.id}
+                          socialLink={socialLink}
+                          index={index}
+                          onEdit={openSocialLinkEditor}
+                          onDelete={removeSocialLink}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addSocialLink}
+                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                        aria-label="Add social link"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {socialLinks.map((socialLink, index) => (
+                    <StaticSocialLinkItem
+                      key={socialLink.id || `social-link-static-${index}`}
+                      socialLink={socialLink}
+                      index={index}
+                      onEdit={openSocialLinkEditor}
+                      onDelete={removeSocialLink}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addSocialLink}
+                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                    aria-label="Add social link"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Dialog
+        open={editingLinkIndex !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setEditingLinkIndex(null)
+          }
+        }}
+      >
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Footer Link Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the label and destination URL for this footer link.
+            </AdminModalDescription>
+          </AdminModalHeader>
+
+          <AdminModalBody className="space-y-6 pb-6">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)] md:items-end">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Name</p>
+                <Input
+                  value={linkDraft.text}
+                  onChange={(event) =>
+                    setLinkDraft((prev) => ({ ...prev, text: event.target.value }))
+                  }
+                  placeholder="Label"
+                  aria-label="Footer link name"
                 />
-              ))}
-            </div>
-          )}
+              </div>
 
-          {links.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-              No footer links. Click + to add one.
+              <div className="space-y-2">
+                <p className="text-sm font-medium">URL</p>
+                <Input
+                  value={linkDraft.url}
+                  onChange={(event) =>
+                    setLinkDraft((prev) => ({ ...prev, url: event.target.value }))
+                  }
+                  placeholder="/about or https://example.com"
+                  aria-label="Footer link URL"
+                />
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </AdminModalBody>
 
-      {/* Social Links Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Social Links</CardTitle>
+          <AdminModalFooter className="sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
+              {modalSaving ? "Saving..." : "Save"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </Dialog>
+
+      <Dialog
+        open={editingSocialLinkIndex !== null || creatingSocialLink}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setCreatingSocialLink(false)
+            setEditingSocialLinkIndex(null)
+          }
+        }}
+      >
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Social Link Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the platform and destination URL for this social link.
+            </AdminModalDescription>
+          </AdminModalHeader>
+
+          <AdminModalBody className="space-y-6 pb-6">
+            <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-end">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Platform</p>
+                <Select
+                  value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
+                  onValueChange={(value) =>
+                    setSocialLinkDraft((prev) => ({ ...prev, platform: value }))
+                  }
+                >
+                  <SelectTrigger size="button" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SOCIAL_PLATFORM_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <SocialPlatformLabel platform={option.value} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">URL</p>
+                <Input
+                  value={socialLinkDraft.url}
+                  onChange={(event) =>
+                    setSocialLinkDraft((prev) => ({ ...prev, url: event.target.value }))
+                  }
+                  placeholder="https://twitter.com/example"
+                  aria-label="Social link URL"
+                />
+              </div>
+            </div>
+          </AdminModalBody>
+
+          <AdminModalFooter className="sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              onClick={addSocialLink}
-              className="h-8 w-8 p-0"
+              onClick={() => setEditingSocialLinkIndex(null)}
             >
-              <Plus className="h-4 w-4" />
+              Cancel
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {sortableReady ? (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleSocialLinkDragEnd}
-            >
-              <SortableContext
-                items={(socialLinks || []).map(l => l.id || '')}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex flex-wrap gap-2">
-                  {(socialLinks || []).map((socialLink, index) => (
-                    <SortableSocialLinkItem
-                      key={socialLink.id || `social-link-${index}`}
-                      socialLink={socialLink}
-                      index={index}
-                      updateSocialLink={updateSocialLink}
-                      removeSocialLink={removeSocialLink}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {(socialLinks || []).map((socialLink, index) => (
-                <StaticSocialLinkItem
-                  key={socialLink.id || `social-link-static-${index}`}
-                  socialLink={socialLink}
-                  index={index}
-                  updateSocialLink={updateSocialLink}
-                  removeSocialLink={removeSocialLink}
-                />
-              ))}
-            </div>
-          )}
-
-          {socialLinks.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-              No social links. Click + to add one.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-            </div>
-          ),
-        },
-        {
-          value: "styling",
-          label: "Styling",
-          content: (
-            <div className="space-y-4">
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base">Styling</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="footerCustomBgToggle"
-                          checked={style.backgroundColor !== '' && style.backgroundColor != null}
-                          onCheckedChange={(checked) => {
-                            updateStyle('backgroundColor', checked ? '#ffffff' : '')
-                          }}
-                        />
-                        <Label htmlFor="footerCustomBgToggle">Custom Background Color</Label>
-                      </div>
-                      {(!style.backgroundColor) && (
-                        <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
-                      )}
-                      {style.backgroundColor && (
-                        <div className="flex gap-2">
-                          <input
-                            id="footerBgColor"
-                            type="color"
-                            value={style.backgroundColor}
-                            onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                            className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                          />
-                          <input
-                            type="text"
-                            value={style.backgroundColor}
-                            onChange={(e) => updateStyle('backgroundColor', e.target.value)}
-                            className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                            placeholder="#ffffff"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="footerCustomTextToggle"
-                          checked={style.textColor !== '' && style.textColor != null}
-                          onCheckedChange={(checked) => {
-                            updateStyle('textColor', checked ? '#000000' : '')
-                          }}
-                        />
-                        <Label htmlFor="footerCustomTextToggle">Custom Text Color</Label>
-                      </div>
-                      {(!style.textColor) && (
-                        <p className="text-xs text-muted-foreground">Using theme default — adapts to light/dark mode</p>
-                      )}
-                      {style.textColor && (
-                        <div className="flex gap-2">
-                          <input
-                            id="footerTextColor"
-                            type="color"
-                            value={style.textColor}
-                            onChange={(e) => updateStyle('textColor', e.target.value)}
-                            className="w-8 h-8 rounded cursor-pointer shadow-sm border-0 p-1"
-                          />
-                          <input
-                            type="text"
-                            value={style.textColor}
-                            onChange={(e) => updateStyle('textColor', e.target.value)}
-                            className="flex-1 px-2 py-1 border rounded text-sm font-mono"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ),
-        },
-        {
-          value: "settings",
-          label: "Settings",
-          content: (
-            <div className="space-y-4">
-              {onVisibilityChange && (
-                <>
-                  <VisibilitySettings
-                    title="Element Visibility"
-                    visibility={visibility}
-                    onChange={onVisibilityChange}
-                    includeHideBlock={false}
-                    fields={[
-                      { key: 'footerLinks', label: 'Footer Links' },
-                      { key: 'socialLinks', label: 'Social Links' },
-                    ]}
-                  />
-                  <VisibilitySettings
-                    title="Block Visibility"
-                    visibility={visibility}
-                    onChange={onVisibilityChange}
-                    fields={[]}
-                  />
-                </>
-              )}
-            </div>
-          ),
-        },
-      ]}
-    />
+            <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>
+              {modalSaving ? "Saving..." : "Save"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </Dialog>
+    </>
   )
 }
