@@ -25,6 +25,7 @@ Before planning or coding in `apps/hub/`:
 - Do not add special frontend auth/dashboard namespaces. Site auth pages come from the account-pages builder and resolve through normal frontend slugs.
 - Do not treat `NEXT_PUBLIC_APP_DOMAIN` and `NEXT_PUBLIC_APP_URL` as interchangeable.
 - For large directory datasets, list/search/admin paths must use lean summary queries and must not read `content_blocks` unless loading a single item for editing or rendering.
+- Admin create, settings, and block-editor forms should use the shared admin form modal primitives in `src/components/admin/shared/AdminModalLayout.tsx`. Keep feature-specific modal files, but do not hand-roll new dialog chrome for standard builder forms.
 
 ## Documentation Rule
 

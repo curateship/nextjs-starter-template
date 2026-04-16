@@ -25,6 +25,7 @@ import { Users, TestTube } from "lucide-react"
 import {
   AdminModalBody,
   AdminModalContent,
+  AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
@@ -238,6 +239,9 @@ export function NewsletterSettingsModal({
                 </span>
               </div>
             </AdminModalTitle>
+            <AdminModalDescription>
+              Update the subject, drip settings, and audience for this newsletter.
+            </AdminModalDescription>
           </AdminModalHeader>
 
           <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">

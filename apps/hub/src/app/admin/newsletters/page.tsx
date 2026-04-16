@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
 import {
   AdminModalContent,
+  AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
@@ -678,6 +679,9 @@ export default function NewslettersPage() {
             <AdminModalContent>
               <AdminModalHeader>
                 <AdminModalTitle>Create New Newsletter</AdminModalTitle>
+                <AdminModalDescription>
+                  Set the subject, delivery options, and audience for a new newsletter draft.
+                </AdminModalDescription>
               </AdminModalHeader>
               <CreateNewsletterModal
                 onSuccess={(newsletter) => {

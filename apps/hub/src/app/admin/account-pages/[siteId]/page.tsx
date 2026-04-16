@@ -18,6 +18,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -595,10 +601,13 @@ export default function AccountPagesPage({ params }: PageProps) {
 
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent size="admin">
-            <DialogHeader>
-              <DialogTitle>Create New Page</DialogTitle>
-            </DialogHeader>
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Create New Account Page</AdminModalTitle>
+              <AdminModalDescription>
+                Add a new account page to your site. You can customize the content after creation.
+              </AdminModalDescription>
+            </AdminModalHeader>
             <CreateAccountPageModal
               siteId={siteId}
               onSuccess={(page) => {
@@ -607,7 +616,7 @@ export default function AccountPagesPage({ params }: PageProps) {
               }}
               onCancel={() => setShowCreateDialog(false)}
             />
-          </DialogContent>
+          </AdminModalContent>
         </Dialog>
 
         {/* User Dashboard Page Settings Modal */}

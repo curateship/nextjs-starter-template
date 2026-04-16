@@ -16,10 +16,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -399,24 +404,29 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
-              <DialogHeader>
-                <DialogTitle>Create Email Automation</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4 [&_label+input]:mt-2">
-                <div>
-                  <Label>Name *</Label>
-                  <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Fitness Lead Magnet Sequence" required />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Create the automation first, then choose one or more triggers in the builder.
-                </p>
-                <div className="flex justify-between pt-2">
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create Email Automation</AdminModalTitle>
+                <AdminModalDescription>
+                  Create the automation shell, then configure triggers and steps in the builder.
+                </AdminModalDescription>
+              </AdminModalHeader>
+              <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
+                <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
+                  <div>
+                    <Label>Name *</Label>
+                    <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Fitness Lead Magnet Sequence" required />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Create the automation first, then choose one or more triggers in the builder.
+                  </p>
+                </AdminModalBody>
+                <AdminModalFooter className="sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
                   <Button type="submit" disabled={creating || !createName.trim()}>{creating ? "Creating..." : "Create Automation"}</Button>
-                </div>
+                </AdminModalFooter>
               </form>
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
 
           {/* Delete Confirmations */}

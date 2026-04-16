@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { ImageIcon, X, Check } from "lucide-react"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { updateCategoryAction, type Category, type UpdateCategoryData } from "@/lib/actions/categories/category-actions"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
@@ -253,9 +257,9 @@ export function CategorySettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="admin">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+      <AdminModalContent>
+        <AdminModalHeader>
+          <AdminModalTitle className="flex items-center gap-3">
             Configure settings for &quot;{category.title}&quot;
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 rounded-full ${
@@ -265,22 +269,23 @@ export function CategorySettingsModal({
                 {category?.is_published ? 'Published' : 'Draft'}
               </span>
             </div>
-          </DialogTitle>
-        </DialogHeader>
+          </AdminModalTitle>
+        </AdminModalHeader>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
 
-        {saveMessage && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-800 text-sm">{saveMessage}</p>
-          </div>
-        )}
+            {saveMessage && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm text-green-800">{saveMessage}</p>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
               <div className="space-y-2">
                 <Label htmlFor="modal-title">Category Title *</Label>
                 <Input
@@ -406,8 +411,9 @@ export function CategorySettingsModal({
                   Rich text content for the category description
                 </p>
               </div>
+          </AdminModalBody>
 
-          <div className="flex justify-between pt-4">
+          <AdminModalFooter>
             <Button
               type="button"
               variant="outline"
@@ -438,7 +444,7 @@ export function CategorySettingsModal({
                 {saving ? "Saving..." : category?.is_published ? "Save" : "Publish"}
               </Button>
             </div>
-          </div>
+          </AdminModalFooter>
         </form>
 
         <MediaPicker
@@ -450,7 +456,7 @@ export function CategorySettingsModal({
           }}
           currentMediaUrl={featuredImage || ''}
         />
-      </DialogContent>
+      </AdminModalContent>
     </Dialog>
   )
 }

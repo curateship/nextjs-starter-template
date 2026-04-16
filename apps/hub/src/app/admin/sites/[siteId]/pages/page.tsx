@@ -16,6 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -598,10 +604,13 @@ export default function SitePagesPage({ params }: PageProps) {
 
         {/* Create Page Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent size="admin">
-            <DialogHeader>
-              <DialogTitle>Create New Page</DialogTitle>
-            </DialogHeader>
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Create New Page</AdminModalTitle>
+              <AdminModalDescription>
+                Add a new page to your site. You can customize the content after creation.
+              </AdminModalDescription>
+            </AdminModalHeader>
             <CreatePageModal 
               siteId={siteId}
               onSuccess={(page) => {
@@ -610,7 +619,7 @@ export default function SitePagesPage({ params }: PageProps) {
               }}
               onCancel={() => setShowCreateDialog(false)}
             />  
-          </DialogContent>
+          </AdminModalContent>
         </Dialog>
 
         {/* Page Settings Modal */}

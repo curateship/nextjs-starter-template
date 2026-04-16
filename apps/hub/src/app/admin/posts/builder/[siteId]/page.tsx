@@ -14,7 +14,13 @@ import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
 import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
@@ -329,16 +335,16 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Post</DialogTitle>
-                <DialogDescription>Add a new post to your blog. You can customize the content after creation.</DialogDescription>
-              </DialogHeader>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Post</AdminModalTitle>
+                <AdminModalDescription>Add a new post to your blog. You can customize the content after creation.</AdminModalDescription>
+              </AdminModalHeader>
               <CreatePostModal
                 onSuccess={(post) => { handlePostCreated(post); setShow(false); }}
                 onCancel={() => setShow(false)}
               />
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
         )}
         renderSettingsModal={(show, setShow) => (

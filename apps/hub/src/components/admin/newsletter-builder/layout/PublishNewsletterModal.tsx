@@ -3,14 +3,19 @@
 import { useState, useEffect } from "react"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
@@ -143,26 +148,30 @@ export function PublishNewsletterModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[560px] max-w-[95vw] p-8">
-        <DialogHeader className="mb-6">
-          <DialogTitle className="flex items-center gap-2">
+      <AdminModalContent>
+        <AdminModalHeader>
+          <AdminModalTitle className="flex items-center gap-2">
             <Radio className="h-5 w-5" />
             Publish Newsletter
-          </DialogTitle>
-        </DialogHeader>
+          </AdminModalTitle>
+          <AdminModalDescription>
+            Review the audience and delivery settings before broadcasting this newsletter.
+          </AdminModalDescription>
+        </AdminModalHeader>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-        {successMsg && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-800 text-sm">{successMsg}</p>
-          </div>
-        )}
+        <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+          {successMsg && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <p className="text-sm text-green-800">{successMsg}</p>
+            </div>
+          )}
 
-        <div className="space-y-2">
+          <div className="space-y-2">
           {/* Subject */}
           <div className="flex items-start justify-between py-1.5">
             <span className="text-sm text-muted-foreground">Subject</span>
@@ -249,7 +258,7 @@ export function PublishNewsletterModal({
           </div>
 
           {/* Test Email */}
-          <div className="pt-7 pb-3">
+          <div className="pt-7">
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <Label htmlFor="publish-test-email" className="text-sm text-muted-foreground">Send a test first</Label>
@@ -268,35 +277,34 @@ export function PublishNewsletterModal({
               </Button>
             </div>
           </div>
-
-          {/* Actions */}
-          <div className="flex justify-between pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={!hasAudience ? 0 : -1}>
-                    <Button
-                      onClick={handleConfirmAndBroadcast}
-                      disabled={sending || !hasAudience}
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {!hasAudience && (
-                  <TooltipContent side="top">
-                    Fix the audience requirement first.
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
           </div>
-        </div>
-      </DialogContent>
+        </AdminModalBody>
+        <AdminModalFooter className="sm:justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={!hasAudience ? 0 : -1}>
+                  <Button
+                    onClick={handleConfirmAndBroadcast}
+                    disabled={sending || !hasAudience}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!hasAudience && (
+                <TooltipContent side="top">
+                  Fix the audience requirement first.
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </AdminModalFooter>
+      </AdminModalContent>
     </Dialog>
   )
 }

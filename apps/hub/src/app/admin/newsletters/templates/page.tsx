@@ -13,12 +13,17 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Users, Filter, Zap, Star } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -428,31 +433,41 @@ export default function TemplatesPage() {
 
       {/* Create Template Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="w-[480px] max-w-[95vw] p-10" style={{ width: '480px', maxWidth: '95vw' }}>
-          <DialogHeader className="mb-6">
-            <DialogTitle>Create Template</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="template-name">Name *</Label>
-              <Input
-                id="template-name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Weekly Newsletter Layout"
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreate() } }}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Create Template</AdminModalTitle>
+            <AdminModalDescription>
+              Name the template before opening it in the newsletter builder.
+            </AdminModalDescription>
+          </AdminModalHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              handleCreate()
+            }}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
+              <div>
+                <Label htmlFor="template-name">Name *</Label>
+                <Input
+                  id="template-name"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g. Weekly Newsletter Layout"
+                />
+              </div>
+            </AdminModalBody>
+            <AdminModalFooter className="sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate} disabled={creating || !formName.trim()}>
+              <Button type="submit" disabled={creating || !formName.trim()}>
                 {creating ? "Creating..." : "Create Template"}
               </Button>
-            </div>
-          </div>
-        </DialogContent>
+            </AdminModalFooter>
+          </form>
+        </AdminModalContent>
       </Dialog>
 
       {/* Mass Delete Confirmation */}

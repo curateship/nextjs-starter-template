@@ -2,12 +2,11 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  AdminModalBody,
   AdminModalContent,
   AdminModalFooter,
   AdminModalHeader,
+  AdminModalScrollBody,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
@@ -44,16 +43,14 @@ export function PageBlockEditorDialog({
 
   return (
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
-      <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+      <AdminModalContent size="wide">
         <AdminModalHeader>
           <AdminModalTitle>
             Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
           </AdminModalTitle>
         </AdminModalHeader>
 
-        <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-          <ScrollArea className="h-full">
-            <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+        <AdminModalScrollBody>
               {selectedBlock.type === "hero" && (
                 <PageHeroBlock
                   content={draftContent}
@@ -179,9 +176,7 @@ export function PageBlockEditorDialog({
                   onVisibilityChange={(value) => onContentChange("visibility", value)}
                 />
               )}
-            </div>
-          </ScrollArea>
-        </AdminModalBody>
+        </AdminModalScrollBody>
 
         <AdminModalFooter className="sm:justify-end">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>

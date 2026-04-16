@@ -3,15 +3,17 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { ArrowLeft, Save, Eye, Plus, Settings, CheckCircle } from "lucide-react"
 import Link from "next/link"
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 
@@ -154,10 +156,13 @@ export function PageBuilderHeader({
       
       {/* Create Page Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent size="admin">
-          <DialogHeader>
-            <DialogTitle>Create New Page</DialogTitle>
-          </DialogHeader>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Create New Page</AdminModalTitle>
+            <AdminModalDescription>
+              Add a new page to your site. You can customize the content after creation.
+            </AdminModalDescription>
+          </AdminModalHeader>
           {site && (
             <CreatePageModal 
               siteId={site.id}
@@ -168,7 +173,7 @@ export function PageBuilderHeader({
               onCancel={() => setShowCreateDialog(false)}
             />
           )}
-        </DialogContent>
+        </AdminModalContent>
       </Dialog>
 
       {/* Edit Page Settings Dialog */}

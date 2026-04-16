@@ -17,11 +17,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -742,32 +747,36 @@ export default function SegmentDashboardPage() {
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent size="admin">
-          <DialogHeader>
-            <DialogTitle>Segment Settings</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-            <div>
-              <Label htmlFor="segment-name">Name</Label>
-              <Input
-                id="segment-name"
-                value={editForm.name}
-                onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Segment name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="segment-description">Description</Label>
-              <Textarea
-                id="segment-description"
-                value={editForm.description}
-                onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Segment description"
-                className="resize-none"
-                rows={3}
-              />
-            </div>
-            <div className="space-y-3">
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Segment Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the segment name, description, and membership rules.
+            </AdminModalDescription>
+          </AdminModalHeader>
+          <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+              <div>
+                <Label htmlFor="segment-name">Name</Label>
+                <Input
+                  id="segment-name"
+                  value={editForm.name}
+                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Segment name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="segment-description">Description</Label>
+                <Textarea
+                  id="segment-description"
+                  value={editForm.description}
+                  onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Segment description"
+                  className="resize-none"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-3">
               <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <Checkbox
@@ -1027,17 +1036,18 @@ export default function SegmentDashboardPage() {
                     : "Switching to static freezes the current members as a manual list."}
                 </p>
               )}
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
+              </div>
+            </AdminModalBody>
+            <AdminModalFooter className="sm:justify-end">
               <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                 Cancel
               </Button>
               <Button type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
-            </div>
+            </AdminModalFooter>
           </form>
-        </DialogContent>
+        </AdminModalContent>
       </Dialog>
     </>
   )

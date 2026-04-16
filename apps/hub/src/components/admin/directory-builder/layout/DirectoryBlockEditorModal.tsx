@@ -2,13 +2,12 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import {
-  AdminModalBody,
   AdminModalContent,
   AdminModalFooter,
   AdminModalHeader,
+  AdminModalScrollBody,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
 import { DirectoryBlockEditor } from "./DirectoryBlockEditor"
@@ -58,14 +57,12 @@ export function DirectoryBlockEditorModal({
         if (!open) onClose()
       }}
     >
-      <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+      <AdminModalContent size="wide">
         <AdminModalHeader>
           <AdminModalTitle>Edit {block.title}</AdminModalTitle>
         </AdminModalHeader>
 
-        <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-          <ScrollArea className="h-full">
-            <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+        <AdminModalScrollBody>
               <DirectoryBlockEditor
                 block={block}
                 content={content}
@@ -76,9 +73,7 @@ export function DirectoryBlockEditorModal({
                 customBlockTemplates={customBlockTemplates}
                 showDirectoryTitleField={showDirectoryTitleField}
               />
-            </div>
-          </ScrollArea>
-        </AdminModalBody>
+        </AdminModalScrollBody>
 
         <AdminModalFooter className="sm:justify-between">
           {error ? <p className="text-sm text-red-600">{error}</p> : <div />}

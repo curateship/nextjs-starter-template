@@ -11,10 +11,15 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -1221,11 +1226,14 @@ export default function ContactsPage() {
 
           {/* Filter Modal */}
           <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-            <DialogContent size="admin" className="flex flex-col overflow-hidden p-6">
-              <DialogHeader>
-                <DialogTitle>Filter Contacts</DialogTitle>
-              </DialogHeader>
-              <div className="min-h-0 overflow-y-auto space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Filter Contacts</AdminModalTitle>
+                <AdminModalDescription>
+                  Build rules to narrow the contacts shown in this dashboard.
+                </AdminModalDescription>
+              </AdminModalHeader>
+              <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
                 <div className="flex items-center gap-3 text-sm font-medium">
                   <span>Matching</span>
                   <Tabs
@@ -1461,12 +1469,11 @@ export default function ContactsPage() {
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
+                    </DropdownMenu>
+                  </div>
+              </AdminModalBody>
 
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-4">
+              <AdminModalFooter>
                 <button
                   type="button"
                   onClick={() => {
@@ -1486,8 +1493,8 @@ export default function ContactsPage() {
                     Apply Filters
                   </Button>
                 </div>
-              </div>
-            </DialogContent>
+              </AdminModalFooter>
+            </AdminModalContent>
           </Dialog>
 
           {/* Import Modal */}
@@ -1609,131 +1616,139 @@ export default function ContactsPage() {
 
           {/* Add Contact Modal */}
           <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-            <DialogContent size="admin" className="p-6">
-              <DialogHeader>
-                <DialogTitle>Add Contact</DialogTitle>
-              </DialogHeader>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Add Contact</AdminModalTitle>
+                <AdminModalDescription>
+                  Add a single contact to this site and optionally tag them.
+                </AdminModalDescription>
+              </AdminModalHeader>
 
-              <form onSubmit={handleAddContact} className="space-y-4 [&_label+input]:mt-2">
-                <div>
-                  <Label htmlFor="add-email">Email *</Label>
-                  <Input
-                    id="add-email"
-                    type="email"
-                    required
-                    placeholder="email@example.com"
-                    value={addForm.email}
-                    onChange={(e) => setAddForm(prev => ({ ...prev, email: e.target.value }))}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleAddContact} className="flex min-h-0 flex-1 flex-col">
+                <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
                   <div>
-                    <Label htmlFor="add-first">First Name</Label>
+                    <Label htmlFor="add-email">Email *</Label>
                     <Input
-                      id="add-first"
-                      placeholder="Jane"
-                      value={addForm.first_name}
-                      onChange={(e) => setAddForm(prev => ({ ...prev, first_name: e.target.value }))}
+                      id="add-email"
+                      type="email"
+                      required
+                      placeholder="email@example.com"
+                      value={addForm.email}
+                      onChange={(e) => setAddForm(prev => ({ ...prev, email: e.target.value }))}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="add-first">First Name</Label>
+                      <Input
+                        id="add-first"
+                        placeholder="Jane"
+                        value={addForm.first_name}
+                        onChange={(e) => setAddForm(prev => ({ ...prev, first_name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="add-last">Last Name</Label>
+                      <Input
+                        id="add-last"
+                        placeholder="Doe"
+                        value={addForm.last_name}
+                        onChange={(e) => setAddForm(prev => ({ ...prev, last_name: e.target.value }))}
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <Label htmlFor="add-last">Last Name</Label>
+                    <Label htmlFor="add-tags">Tags</Label>
                     <Input
-                      id="add-last"
-                      placeholder="Doe"
-                      value={addForm.last_name}
-                      onChange={(e) => setAddForm(prev => ({ ...prev, last_name: e.target.value }))}
+                      id="add-tags"
+                      placeholder="austin, fitness (comma-separated)"
+                      value={addForm.tags}
+                      onChange={(e) => setAddForm(prev => ({ ...prev, tags: e.target.value }))}
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="add-tags">Tags</Label>
-                  <Input
-                    id="add-tags"
-                    placeholder="austin, fitness (comma-separated)"
-                    value={addForm.tags}
-                    onChange={(e) => setAddForm(prev => ({ ...prev, tags: e.target.value }))}
-                  />
-                </div>
-
-                <div className="flex justify-between pt-2">
+                </AdminModalBody>
+                <AdminModalFooter className="sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setAddModalOpen(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={adding || !addForm.email}>
                     {adding ? "Adding..." : "Add Contact"}
                   </Button>
-                </div>
+                </AdminModalFooter>
               </form>
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
 
           {/* Edit Contact Modal */}
           <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) setEditContact(null) }}>
-            <DialogContent size="admin" className="p-6">
-              <DialogHeader>
-                <DialogTitle>Edit Contact</DialogTitle>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Edit Contact</AdminModalTitle>
+                <AdminModalDescription>
+                  Update this contact&apos;s details, tags, and subscription status.
+                </AdminModalDescription>
                 {editContact && (
-                  <p className="text-sm text-muted-foreground mt-1">{editContact.email}</p>
+                  <p className="text-sm text-muted-foreground">{editContact.email}</p>
                 )}
-              </DialogHeader>
+              </AdminModalHeader>
 
-              <form onSubmit={handleEditContact} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleEditContact} className="flex min-h-0 flex-1 flex-col">
+                <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-first">First Name</Label>
+                      <Input
+                        id="edit-first"
+                        value={editForm.first_name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-last">Last Name</Label>
+                      <Input
+                        id="edit-last"
+                        value={editForm.last_name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <Label htmlFor="edit-first">First Name</Label>
+                    <Label htmlFor="edit-tags">Tags</Label>
                     <Input
-                      id="edit-first"
-                      value={editForm.first_name}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
+                      id="edit-tags"
+                      placeholder="austin, fitness (comma-separated)"
+                      value={editForm.tags}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-last">Last Name</Label>
-                    <Input
-                      id="edit-last"
-                      value={editForm.last_name}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
-                    />
+                    <Label>Status</Label>
+                    <Select
+                      value={editForm.status}
+                      onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                        <SelectItem value="bounced">Bounced</SelectItem>
+                        <SelectItem value="complained">Complained</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="edit-tags">Tags</Label>
-                  <Input
-                    id="edit-tags"
-                    placeholder="austin, fitness (comma-separated)"
-                    value={editForm.tags}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select
-                    value={editForm.status}
-                    onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                      <SelectItem value="bounced">Bounced</SelectItem>
-                      <SelectItem value="complained">Complained</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex justify-between pt-2">
+                </AdminModalBody>
+                <AdminModalFooter className="sm:justify-end">
                   <Button type="button" variant="outline" onClick={() => setEditContact(null)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={saving}>
                     {saving ? "Saving..." : "Save"}
                   </Button>
-                </div>
+                </AdminModalFooter>
               </form>
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
 
           {/* Single Delete Confirmation */}

@@ -169,12 +169,18 @@ apps/hub/src/components/
 - `/components/ui/`: kebab-case (e.g., `product-hero-block.tsx`)
 - `/components/admin/` and `/components/frontend/`: PascalCase (e.g., `ProductHeroBlock.tsx`)
 
+**Admin modal convention:**
+- Standard admin create, settings, and block-editor forms should use the shared form modal primitives in `src/components/admin/shared/AdminModalLayout.tsx`.
+- Keep feature-specific modal files for their own form fields, save logic, and route wiring. Share the dialog shell, not the business logic.
+- Leave truly custom dialogs such as media pickers and other utility flows on custom shells until repetition proves they belong in the shared form modal system.
+
 ### Working On HUB
 
 Use this map before changing code:
 
 - Route bug or feature: inspect the matching route in `src/app/**`, then its renderer in `src/components/frontend/**`, then the action and schema it depends on.
 - Admin builder bug or feature: inspect the admin route in `src/app/admin/**`, then the builder under `src/components/admin/**`, then the action and schema it saves through.
+- Admin modal or builder form change: check whether the work belongs on the shared admin form modal primitives before hand-rolling new dialog spacing or footer layout.
 - Account/auth page routing task: inspect `src/app/[...slug]/page.tsx`, `src/lib/actions/account-pages/account-pages-frontend-actions.ts`, and the account-page builder/runtime files before changing redirects or slug behavior.
 - Structure/navigation/footer task: inspect the Structure routes plus `src/lib/utils/site-structure.ts` before changing page-builder behavior.
 - Auth task: inspect `src/lib/auth/server.ts`, `src/lib/auth/client.ts`, and `src/app/api/auth/[...all]/route.ts` first.

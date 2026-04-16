@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type AdminModalSize = "default" | "wide"
 
@@ -24,9 +25,9 @@ function AdminModalContent({
     <DialogContent
       size="admin"
       className={cn(
-        "flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden p-0",
+        "flex max-h-[calc(100vh-4rem)] min-h-0 flex-col overflow-hidden p-0",
         size === "default" && "max-w-[840px]",
-        size === "wide" && "max-w-[960px]",
+        size === "wide" && "h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]",
         className
       )}
       {...props}
@@ -52,9 +53,28 @@ function AdminModalDescription({
 function AdminModalBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("overflow-y-auto px-6 pt-6 pb-0", className)}
+      className={cn("min-h-0 overflow-y-auto px-6 pt-6 pb-0", className)}
       {...props}
     />
+  )
+}
+
+function AdminModalScrollBody({
+  className,
+  viewportClassName,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  viewportClassName?: string
+}) {
+  return (
+    <AdminModalBody className={cn("flex-1 overflow-hidden p-0", className)} {...props}>
+      <ScrollArea className="h-full">
+        <div className={cn("px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4", viewportClassName)}>
+          {children}
+        </div>
+      </ScrollArea>
+    </AdminModalBody>
   )
 }
 
@@ -62,7 +82,7 @@ function AdminModalFooter({ className, ...props }: React.ComponentProps<typeof D
   return (
     <DialogFooter
       className={cn(
-        "border-t border-border/60 px-6 py-6 sm:flex-row sm:items-center sm:justify-between",
+        "px-6 py-6 sm:flex-row sm:items-center sm:justify-between",
         className
       )}
       {...props}
@@ -76,5 +96,6 @@ export {
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
+  AdminModalScrollBody,
   AdminModalTitle,
 }

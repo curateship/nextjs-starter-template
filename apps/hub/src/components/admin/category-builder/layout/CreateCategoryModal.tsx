@@ -11,11 +11,15 @@ import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
 
@@ -135,17 +139,18 @@ export function CreateCategoryModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent size="admin">
-        <DialogHeader>
-          <DialogTitle>Create Category</DialogTitle>
-          <DialogDescription>
+      <AdminModalContent>
+        <AdminModalHeader>
+          <AdminModalTitle>Create Category</AdminModalTitle>
+          <AdminModalDescription>
             Add a new category to organize your content.
-          </DialogDescription>
-        </DialogHeader>
+          </AdminModalDescription>
+        </AdminModalHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {error && (
-            <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
+            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
               {error}
             </div>
           )}
@@ -268,8 +273,9 @@ export function CreateCategoryModal({
               Rich text content for the category description
             </p>
           </div>
+          </AdminModalBody>
 
-          <div className="flex items-center justify-between">
+          <AdminModalFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -289,7 +295,7 @@ export function CreateCategoryModal({
                 {isSubmitting ? 'Saving...' : 'Continue'}
               </Button>
             </div>
-          </div>
+          </AdminModalFooter>
 
           <MediaPicker
             open={showImagePicker}
@@ -301,7 +307,7 @@ export function CreateCategoryModal({
             currentMediaUrl={featuredImage || ''}
           />
         </form>
-      </DialogContent>
+      </AdminModalContent>
     </Dialog>
   )
 }

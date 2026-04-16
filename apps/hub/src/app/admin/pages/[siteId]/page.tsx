@@ -17,11 +17,13 @@ import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSe
 import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { PAGE_BLOCK_TYPES } from "@/components/admin/page-builder/config/page-block-types"
@@ -260,17 +262,17 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Page</DialogTitle>
-                <DialogDescription>Add a new page to your site. You can customize the content after creation.</DialogDescription>
-              </DialogHeader>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Page</AdminModalTitle>
+                <AdminModalDescription>Add a new page to your site. You can customize the content after creation.</AdminModalDescription>
+              </AdminModalHeader>
               <CreatePageModal
                 siteId={siteId}
                 onSuccess={(page) => { handlePageCreated(page); setShow(false); }}
                 onCancel={() => setShow(false)}
               />
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
         )}
         renderSettingsModal={(show, setShow, currentItem) => (

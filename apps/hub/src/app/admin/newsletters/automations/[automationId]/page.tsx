@@ -14,10 +14,15 @@ import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -868,11 +873,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
-            <DialogHeader>
-              <DialogTitle>Trigger</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Trigger</AdminModalTitle>
+              <AdminModalDescription>
+                Choose what event enrolls a contact into this automation.
+              </AdminModalDescription>
+            </AdminModalHeader>
+            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>When should this automation start?</Label>
                 <Select
@@ -943,51 +951,53 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   )}
                 </div>
               )}
-
-              <div className="flex justify-between pt-2">
-                <div className="flex gap-2">
-                  {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
-                    <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
-                      Remove
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setTriggerEditorOpen(false)
-                      setEditingTriggerIndex(null)
-                      if (selectedTriggerIndex >= displayedTriggerNodes.length) {
-                        setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
-                      }
-                    }}
-                  >
-                    Cancel
+            </AdminModalBody>
+            <AdminModalFooter>
+              <div className="flex gap-2">
+                {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
+                  <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                    Remove
                   </Button>
-                </div>
+                )}
                 <Button
-                  onClick={saveTrigger}
-                  disabled={
-                    savingTrigger
-                    || (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0))
-                    || (
-                      (draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase")
-                      && (!draftProductId || productTriggerOptions.length === 0)
-                    )
-                  }
+                  variant="outline"
+                  onClick={() => {
+                    setTriggerEditorOpen(false)
+                    setEditingTriggerIndex(null)
+                    if (selectedTriggerIndex >= displayedTriggerNodes.length) {
+                      setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
+                    }
+                  }}
                 >
-                  {savingTrigger ? "Saving..." : "Save"}
+                  Cancel
                 </Button>
               </div>
-            </div>
-          </DialogContent>
+              <Button
+                onClick={saveTrigger}
+                disabled={
+                  savingTrigger
+                  || (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0))
+                  || (
+                    (draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase")
+                    && (!draftProductId || productTriggerOptions.length === 0)
+                  )
+                }
+              >
+                {savingTrigger ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
         </Dialog>
 
         <Dialog open={editingDelay !== null} onOpenChange={open => { if (!open) setEditingDelay(null) }}>
-          <DialogContent className="w-[calc(100vw-2rem)] max-w-[540px] p-6">
-            <DialogHeader>
-              <DialogTitle>Time Delay</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Time Delay</AdminModalTitle>
+              <AdminModalDescription>
+                Set how long the automation should wait before the next step runs.
+              </AdminModalDescription>
+            </AdminModalHeader>
+            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>Wait for</Label>
                 <Select value={delayType} onValueChange={setDelayType}>
@@ -1052,15 +1062,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <Input type="date" value={delayDate} onChange={event => setDelayDate(event.target.value)} />
                 </div>
               )}
-
-              <div className="flex justify-between pt-2">
-                <Button variant="outline" onClick={() => setEditingDelay(null)}>Cancel</Button>
-                <Button onClick={saveDelayNode} disabled={savingNode}>
-                  {savingNode ? "Saving..." : "Save"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
+            </AdminModalBody>
+            <AdminModalFooter className="sm:justify-end">
+              <Button variant="outline" onClick={() => setEditingDelay(null)}>Cancel</Button>
+              <Button onClick={saveDelayNode} disabled={savingNode}>
+                {savingNode ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
         </Dialog>
       </AdminLayout>
     </div>

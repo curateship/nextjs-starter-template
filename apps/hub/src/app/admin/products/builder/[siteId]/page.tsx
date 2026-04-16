@@ -31,11 +31,11 @@ import {
   Dialog,
 } from "@/components/ui/dialog"
 import {
-  AdminModalBody,
   AdminModalContent,
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
+  AdminModalScrollBody,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
 import { ProductPreview } from "@/components/admin/product-builder/layout/ProductPreview"
@@ -395,14 +395,12 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               }
             }}
           >
-            <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+            <AdminModalContent size="wide">
               <AdminModalHeader>
                 <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
               </AdminModalHeader>
 
-              <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-                <ScrollArea className="h-full">
-                  <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+              <AdminModalScrollBody>
                     {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
                       <ProductContentBlock
                         content={draftContent}
@@ -621,9 +619,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         blockId={selectedBlock.id}
                       />
                     )}
-                  </div>
-                </ScrollArea>
-              </AdminModalBody>
+              </AdminModalScrollBody>
 
               <AdminModalFooter className="sm:justify-end">
                 <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>

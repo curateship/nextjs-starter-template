@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -13,6 +10,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -235,188 +240,182 @@ export function SkillModal({ open, onOpenChange, skill, siteId, onSaved }: Skill
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[600px] max-w-[95vw] max-h-[85vh] overflow-y-auto p-6">
-          <DialogHeader>
-            <DialogTitle>{skill ? 'Edit Skill' : 'Create Skill'}</DialogTitle>
-          </DialogHeader>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>{skill ? 'Edit Skill' : 'Create Skill'}</AdminModalTitle>
+            <AdminModalDescription>
+              Define the AI prompt, references, and generation settings for this newsletter skill.
+            </AdminModalDescription>
+          </AdminModalHeader>
 
-          {error && (
-            <div className="p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-700 dark:bg-red-950/20 dark:border-red-800 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="prompt">Prompt</TabsTrigger>
-              <TabsTrigger value="references">References</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-            </TabsList>
-
-            {/* Tab 1: Prompt */}
-            <TabsContent value="prompt" className="space-y-4 pt-4">
-              <div>
-                <Label htmlFor="skill-name">Skill Name *</Label>
-                <Input
-                  id="skill-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder='e.g. "30 Newsletters about productivity"'
-                />
+          <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/20 dark:text-red-400">
+                {error}
               </div>
+            )}
 
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="prompt">Prompt</TabsTrigger>
+                <TabsTrigger value="references">References</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
+              </TabsList>
 
-              <div>
-                <Label htmlFor="skill-prompt">Prompt *</Label>
-                <Textarea
-                  id="skill-prompt"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Write instructions for the AI. What should each newsletter be about? What tone, length, format?"
-                  rows={8}
-                />
-              </div>
-            </TabsContent>
-
-            {/* Tab 2: References */}
-            <TabsContent value="references" className="space-y-4 pt-4">
-              <div>
-                <Label htmlFor="reference-text">Voice Guide / Reference Notes</Label>
-                <Textarea
-                  id="reference-text"
-                  value={referenceText}
-                  onChange={(e) => setReferenceText(e.target.value)}
-                  placeholder="Paste your voice guide, example newsletters, writing style notes, or any reference content the AI should follow..."
-                  rows={10}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  This text is included with every AI generation as additional context
-                </p>
-              </div>
-
-              <div>
-                <Label>Reference Files</Label>
-                <div className="space-y-2 mt-2">
-                  {/* List attached files */}
-                  {referenceFileUrls.map((url) => (
-                    <div key={url} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
-                      <span className="text-sm truncate flex-1">{url.split('/').pop()}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => removeReferenceFile(url)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-
-                  {/* Add file button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowMediaPicker(true)}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Add Reference File
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Tab 3: Settings */}
-            <TabsContent value="settings" className="space-y-4 pt-4">
-              {/* AI Provider */}
-              <div>
-                <Label>AI Provider</Label>
-                {aiProviders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    No AI providers configured. Add an API key in Site Settings → Integrations.
-                  </p>
-                ) : (
-                  <Select value={provider} onValueChange={(value) => handleProviderChange(value as AIProvider)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select AI provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {aiProviders.map((aiProvider) => (
-                        <SelectItem key={aiProvider} value={aiProvider}>
-                          {getAIProviderLabel(aiProvider)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              {/* Model */}
-              {provider && availableModels.length > 0 && (
+              <TabsContent value="prompt" className="space-y-4">
                 <div>
-                  <Label>Model</Label>
-                  <Select value={model} onValueChange={setModel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableModels.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="skill-name">Skill Name *</Label>
+                  <Input
+                    id="skill-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder='e.g. "30 Newsletters about productivity"'
+                  />
                 </div>
-              )}
 
-              {/* Temperature */}
-              <div>
-                <Label>Temperature: {temperature.toFixed(1)}</Label>
-                <Slider
-                  value={[temperature]}
-                  onValueChange={([val]) => setTemperature(val)}
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  className="mt-2"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Lower = more focused/predictable. Higher = more creative/varied.
-                </p>
-              </div>
-
-              {/* Allowed block types */}
-              <div>
-                <Label>Allowed Block Types</Label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Which block types the AI can generate. Header/footer are auto-added from your default template if unchecked.
-                </p>
-                <div className="space-y-2">
-                  {BLOCK_TYPE_OPTIONS.map((blockType) => (
-                    <label key={blockType.value} className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        checked={allowedBlockTypes.includes(blockType.value)}
-                        onCheckedChange={() => toggleBlockType(blockType.value)}
-                      />
-                      <span className="text-sm">{blockType.label}</span>
-                      <span className="text-xs text-muted-foreground">— {blockType.description}</span>
-                    </label>
-                  ))}
+                <div>
+                  <Label htmlFor="skill-prompt">Prompt *</Label>
+                  <Textarea
+                    id="skill-prompt"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Write instructions for the AI. What should each newsletter be about? What tone, length, format?"
+                    rows={8}
+                  />
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+              </TabsContent>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
+              <TabsContent value="references" className="space-y-4">
+                <div>
+                  <Label htmlFor="reference-text">Voice Guide / Reference Notes</Label>
+                  <Textarea
+                    id="reference-text"
+                    value={referenceText}
+                    onChange={(e) => setReferenceText(e.target.value)}
+                    placeholder="Paste your voice guide, example newsletters, writing style notes, or any reference content the AI should follow..."
+                    rows={10}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This text is included with every AI generation as additional context
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Reference Files</Label>
+                  <div className="mt-2 space-y-2">
+                    {referenceFileUrls.map((url) => (
+                      <div key={url} className="flex items-center gap-2 rounded border bg-muted/30 p-2">
+                        <span className="flex-1 truncate text-sm">{url.split('/').pop()}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => removeReferenceFile(url)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMediaPicker(true)}
+                    >
+                      <Upload className="mr-1 h-4 w-4" />
+                      Add Reference File
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="settings" className="space-y-4">
+                <div>
+                  <Label>AI Provider</Label>
+                  {aiProviders.length === 0 ? (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      No AI providers configured. Add an API key in Site Settings → Integrations.
+                    </p>
+                  ) : (
+                    <Select value={provider} onValueChange={(value) => handleProviderChange(value as AIProvider)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select AI provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aiProviders.map((aiProvider) => (
+                          <SelectItem key={aiProvider} value={aiProvider}>
+                            {getAIProviderLabel(aiProvider)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {provider && availableModels.length > 0 && (
+                  <div>
+                    <Label>Model</Label>
+                    <Select value={model} onValueChange={setModel}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div>
+                  <Label>Temperature: {temperature.toFixed(1)}</Label>
+                  <Slider
+                    value={[temperature]}
+                    onValueChange={([val]) => setTemperature(val)}
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    className="mt-2"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Lower = more focused/predictable. Higher = more creative/varied.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>Allowed Block Types</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Which block types the AI can generate. Header/footer are auto-added from your default template if unchecked.
+                  </p>
+                  <div className="space-y-2">
+                    {BLOCK_TYPE_OPTIONS.map((blockType) => (
+                      <label key={blockType.value} className="flex cursor-pointer items-center gap-2">
+                        <Checkbox
+                          checked={allowedBlockTypes.includes(blockType.value)}
+                          onCheckedChange={() => toggleBlockType(blockType.value)}
+                        />
+                        <span className="text-sm">{blockType.label}</span>
+                        <span className="text-xs text-muted-foreground">- {blockType.description}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </AdminModalBody>
+
+          <AdminModalFooter className="sm:justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving || !name.trim() || !prompt.trim()}>
               {saving ? "Saving..." : skill ? "Update Skill" : "Create Skill"}
             </Button>
-          </div>
-        </DialogContent>
+          </AdminModalFooter>
+        </AdminModalContent>
       </Dialog>
 
       {/* Media Picker for reference files */}

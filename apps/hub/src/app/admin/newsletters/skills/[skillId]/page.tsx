@@ -15,10 +15,15 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Play, Check, X, Pencil, ExternalLink, Wand2, Settings,
   Mail, Users, Filter, Zap, FileText
@@ -469,11 +474,14 @@ export default function SkillOutputsPage() {
 
       {/* Edit Output Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent size="admin" className="max-h-[85vh] overflow-hidden flex flex-col p-10">
-          <DialogHeader>
-            <DialogTitle>Edit Output</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2 min-h-0 flex flex-col flex-1">
+        <AdminModalContent size="wide">
+          <AdminModalHeader>
+            <AdminModalTitle>Edit Output</AdminModalTitle>
+            <AdminModalDescription>
+              Review and revise the generated subject and body before approving this output.
+            </AdminModalDescription>
+          </AdminModalHeader>
+          <AdminModalBody className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             <div className="shrink-0">
               <Label htmlFor="edit-subject">Subject Line</Label>
               <Input
@@ -494,16 +502,16 @@ export default function SkillOutputsPage() {
                 />
               </ScrollArea>
             </div>
-            <div className="flex justify-end gap-2 pt-2 shrink-0">
-              <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveEdit} disabled={saving || !editSubject.trim()}>
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
+          </AdminModalBody>
+          <AdminModalFooter className="sm:justify-end">
+            <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving || !editSubject.trim()}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
       </Dialog>
 
       {/* Edit Skill Modal */}

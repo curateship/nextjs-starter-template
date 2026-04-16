@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react"
 import { 
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +12,13 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
@@ -267,9 +271,9 @@ export function PostSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="admin">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+      <AdminModalContent>
+        <AdminModalHeader>
+          <AdminModalTitle className="flex items-center gap-3">
             Configure settings for &quot;{post.title}&quot;
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${
@@ -279,17 +283,17 @@ export function PostSettingsModal({
                     {post?.is_published ? 'Published' : 'Draft'}
                   </span>
                 </div>
-              </DialogTitle>
-            </DialogHeader>
+              </AdminModalTitle>
+            </AdminModalHeader>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
 
-
-        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Post Title */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -306,13 +310,13 @@ export function PostSettingsModal({
             {/* Post Slug */}
             <div className="col-span-2">
               <Label htmlFor="modal-slug">Post URL</Label>
-              <Input
-                id="modal-slug"
-                value={formData.slug || ''}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="post-url-slug"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
+            <Input
+              id="modal-slug"
+              value={formData.slug || ''}
+              onChange={(e) => handleSlugChange(e.target.value)}
+              placeholder="post-url-slug"
+            />
+              <p className="mt-1 text-xs text-muted-foreground">
                 {slugManuallyEdited
                   ? "Custom URL slug. Clear this field to auto-generate from title again."
                   : "Auto-generated from title. You can edit this to customize the URL."}
@@ -393,7 +397,7 @@ export function PostSettingsModal({
               onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
               placeholder="A brief summary of your post content"
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               Brief summary shown in post listings and previews
             </p>
           </div>
@@ -407,7 +411,7 @@ export function PostSettingsModal({
                 selectedCategoryIds={selectedCategoryIds}
                 onSelectionChange={setSelectedCategoryIds}
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Assign this post to one or more categories
               </p>
             </div>
@@ -426,7 +430,7 @@ export function PostSettingsModal({
               compact={true}
               inline={true}
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               Rich text content for the post body
             </p>
           </div>
@@ -440,28 +444,29 @@ export function PostSettingsModal({
               onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
               placeholder="A brief description of this post for search engines"
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
             </p>
           </div>
+          </AdminModalBody>
 
-          {/* Form Actions */}
-          <div className="flex justify-between pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
+          <AdminModalFooter>
+            {saveMessage && (
+              <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-green-700">{saveMessage}</span>
+              </div>
+            )}
+            {!saveMessage && <div />}
             <div className="flex items-center space-x-2">
-              {saveMessage && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
-                </div>
-              )}
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
               <Button 
                 type="submit" 
                 variant="outline"
@@ -477,7 +482,7 @@ export function PostSettingsModal({
                 {saving ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
               </Button>
             </div>
-          </div>
+          </AdminModalFooter>
         </form>
 
         {/* Image Picker Modal */}
@@ -490,7 +495,7 @@ export function PostSettingsModal({
           }}
           currentMediaUrl={formData.featured_image || ''}
         />
-      </DialogContent>
+      </AdminModalContent>
     </Dialog>
   )
 }

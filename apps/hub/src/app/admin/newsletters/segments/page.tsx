@@ -13,13 +13,18 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -652,12 +657,15 @@ export default function SegmentsPage() {
 
       {/* Create/Edit Segment Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent size="admin">
-          <DialogHeader>
-            <DialogTitle>{editingSegment ? "Edit Segment" : "Create Segment"}</DialogTitle>
-          </DialogHeader>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>{editingSegment ? "Edit Segment" : "Create Segment"}</AdminModalTitle>
+            <AdminModalDescription>
+              Set the segment name, description, and membership rules.
+            </AdminModalDescription>
+          </AdminModalHeader>
 
-          <div className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+          <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
             <div>
               <Label htmlFor="segment-name">Name *</Label>
               <Input
@@ -933,16 +941,16 @@ export default function SegmentsPage() {
                 </p>
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
-                {saving ? "Saving..." : editingSegment ? "Update Segment" : "Create Segment"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
+          </AdminModalBody>
+          <AdminModalFooter className="sm:justify-end">
+            <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
+              {saving ? "Saving..." : editingSegment ? "Update Segment" : "Create Segment"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
       </Dialog>
 
       {/* Mass Delete Confirmation */}

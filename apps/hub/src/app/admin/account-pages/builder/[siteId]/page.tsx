@@ -16,11 +16,13 @@ import { AccountPageSettingsModal } from "@/components/admin/account-page-builde
 import { CreateAccountPageModal } from "@/components/admin/account-page-builder/layout/CreateAccountPageModal"
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { BlockPropertiesPanel } from "@/components/admin/account-page-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -217,11 +219,11 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
         showSidebarToggle={false}
         renderCreateModal={(show, setShow) => (
           <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Account Page</DialogTitle>
-                <DialogDescription>Add a new account or auth page. You can customize the content after creation.</DialogDescription>
-              </DialogHeader>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Account Page</AdminModalTitle>
+                <AdminModalDescription>Add a new account or auth page. You can customize the content after creation.</AdminModalDescription>
+              </AdminModalHeader>
               <CreateAccountPageModal
                 siteId={siteId}
                 onSuccess={(page) => {
@@ -230,7 +232,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
                 }}
                 onCancel={() => setShow(false)}
               />
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
         )}
         renderSettingsModal={(show, setShow, currentItem) => (

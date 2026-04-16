@@ -17,6 +17,12 @@ import {
   DialogTitle,
   DialogPortal,
 } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 
 import dynamic from "next/dynamic"
 
@@ -590,10 +596,13 @@ export default function PostsPage() {
 
         {/* Create Post Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent size="admin">
-            <DialogHeader>
-              <DialogTitle>Create New Post</DialogTitle>
-            </DialogHeader>
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>Create New Post</AdminModalTitle>
+              <AdminModalDescription>
+                Add a new post to your blog. You can customize the content after creation.
+              </AdminModalDescription>
+            </AdminModalHeader>
             <CreatePostModal
               onSuccess={(post, continueToBuilder) => {
                 setPosts(prev => [...prev, post])
@@ -604,7 +613,7 @@ export default function PostsPage() {
               }}
               onCancel={() => setShowCreateDialog(false)}
             />
-          </DialogContent>
+          </AdminModalContent>
         </Dialog>
 
         {/* Post Settings Modal */}

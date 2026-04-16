@@ -14,12 +14,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -278,22 +282,23 @@ export default function ContactDashboardPage() {
             actions={
               <div className="flex items-center gap-2">
                 <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={loading || !contact}>
-                      Settings
-                    </Button>
-                  </DialogTrigger>
-                  {contact && (
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Settings</DialogTitle>
-                        <DialogDescription>
-                          Update this contact&apos;s name, status, and tags.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleSave} className="space-y-4">
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={loading || !contact}>
+                    Settings
+                  </Button>
+                </DialogTrigger>
+                {contact && (
+                  <AdminModalContent>
+                    <AdminModalHeader>
+                      <AdminModalTitle>Settings</AdminModalTitle>
+                      <AdminModalDescription>
+                        Update this contact&apos;s name, status, and tags.
+                      </AdminModalDescription>
+                    </AdminModalHeader>
+                    <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+                      <AdminModalBody className="space-y-4 [&_label+input]:mt-2 [&_label+button]:mt-2">
                         <div>
-                          <Label className="text-xs mb-1 block">First Name</Label>
+                          <Label>First Name</Label>
                           <Input
                             value={editForm.first_name}
                             onChange={e => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
@@ -301,7 +306,7 @@ export default function ContactDashboardPage() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs mb-1 block">Last Name</Label>
+                          <Label>Last Name</Label>
                           <Input
                             value={editForm.last_name}
                             onChange={e => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
@@ -309,7 +314,7 @@ export default function ContactDashboardPage() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs mb-1 block">Status</Label>
+                          <Label>Status</Label>
                           <Select value={editForm.status} onValueChange={v => setEditForm(prev => ({ ...prev, status: v }))}>
                             <SelectTrigger>
                               <SelectValue />
@@ -323,21 +328,27 @@ export default function ContactDashboardPage() {
                           </Select>
                         </div>
                         <div>
-                          <Label className="text-xs mb-1 block">Tags</Label>
+                          <Label>Tags</Label>
                           <Input
                             value={editForm.tags}
                             onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
                             placeholder="tag1, tag2, tag3"
                           />
-                          <p className="text-xs text-muted-foreground mt-1">Separate with commas</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Separate with commas</p>
                         </div>
-                        <Button type="submit" disabled={saving} className="w-full">
+                      </AdminModalBody>
+                      <AdminModalFooter className="sm:justify-end">
+                        <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)} disabled={saving}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={saving}>
                           {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
                         </Button>
-                      </form>
-                    </DialogContent>
-                  )}
-                </Dialog>
+                      </AdminModalFooter>
+                    </form>
+                  </AdminModalContent>
+                )}
+              </Dialog>
                 <Button
                   variant="destructive"
                   size="sm"

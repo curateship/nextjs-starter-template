@@ -2,12 +2,11 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  AdminModalBody,
   AdminModalContent,
   AdminModalFooter,
   AdminModalHeader,
+  AdminModalScrollBody,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
 import { PostBlockEditor } from "./PostBlockEditor"
@@ -47,14 +46,12 @@ export function PostBlockEditorModal({
         if (!open) onClose()
       }}
     >
-      <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+      <AdminModalContent size="wide">
         <AdminModalHeader>
           <AdminModalTitle>Edit {block.type}</AdminModalTitle>
         </AdminModalHeader>
 
-        <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-          <ScrollArea className="h-full">
-            <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+        <AdminModalScrollBody>
               <PostBlockEditor
                 block={block}
                 content={content}
@@ -63,9 +60,7 @@ export function PostBlockEditorModal({
                 postTitle={postTitle}
                 onPostTitleChange={onPostTitleChange}
               />
-            </div>
-          </ScrollArea>
-        </AdminModalBody>
+        </AdminModalScrollBody>
 
         <AdminModalFooter className="sm:justify-between">
           {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
