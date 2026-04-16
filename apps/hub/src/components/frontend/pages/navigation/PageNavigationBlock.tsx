@@ -1,10 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, X, ChevronDown, Globe, LayoutDashboard, LogOut, Shield } from 'lucide-react'
+import { Menu, X, ChevronDown, Globe, LogOut, MoreVertical, Shield, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useMemo, useState, useEffect, memo } from 'react'
+import { useMemo, useState, useEffect, memo, type ReactNode } from 'react'
 import { cn } from '@/lib/utils/tailwind'
+import {
+  ACCOUNT_MENU_ACTION_ITEM_ID,
+  DARK_MODE_ACTION_ITEM_ID,
+  getResolvedNavigationButtonId,
+  normalizeNavigationActionItemOrder,
+} from '@/lib/utils/navigation-action-items'
+import {
+  normalizeNavigationAccountMenu,
+  type NavigationAccountMenuSettings,
+  type NavigationActionSettings,
+} from '@/lib/utils/site-structure'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
@@ -30,8 +41,6 @@ interface MenuItem {
 }
 
 interface NavigationStyle {
-  backgroundColor?: string;
-  textColor?: string;
   blurEffect?: 'none' | 'light' | 'medium' | 'heavy';
   containerWidth?: 'full' | 'custom';
   customWidth?: number;
@@ -53,10 +62,11 @@ interface NavBlockProps {
     };
   };
   links?: Array<{ text: string; url: string; icon?: QuickLinkIconName }>;
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconName }>;
+  buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconName }>;
+  accountMenu?: NavigationAccountMenuSettings;
+  actionItemOrder?: string[];
   navigationStyle?: string;
   styleConfig?: Record<string, NavigationStyle>;
-  showAuthenticatedUserMenu?: boolean;
   visibility?: Record<string, boolean>;
   isPreview?: boolean;
 }
@@ -92,21 +102,18 @@ const DesktopDropdownItem = ({
   item, 
   dropdownOpen, 
   handleDropdownMouseEnter, 
-  handleDropdownMouseLeave,
-  textColor 
+  handleDropdownMouseLeave
 }: {
   item: MenuItem;
   dropdownOpen: boolean;
   handleDropdownMouseEnter: () => void;
   handleDropdownMouseLeave: () => void;
-  textColor?: string;
 }) => (
   <div className="relative">
     <button
       onMouseEnter={handleDropdownMouseEnter}
       onMouseLeave={handleDropdownMouseLeave}
       className="flex items-center gap-1 duration-150 hover:opacity-80"
-      style={{ color: textColor || undefined }}
     >
       <NavItemLabel label={item.name} icon={item.icon} />
       <ChevronDown 
@@ -129,7 +136,6 @@ const DesktopDropdownItem = ({
               key={dropdownIndex}
               href={sanitizeUrl(dropdownItem.href, '#')}
               className="block px-4 py-2 text-sm hover:bg-muted hover:opacity-80"
-              style={{ color: textColor || undefined }}
             >
               {dropdownItem.name}
             </Link>
@@ -145,14 +151,12 @@ const DesktopNav = ({
   menuItems, 
   dropdownOpen, 
   handleDropdownMouseEnter, 
-  handleDropdownMouseLeave,
-  textColor
+  handleDropdownMouseLeave
 }: {
   menuItems: MenuItem[];
   dropdownOpen: boolean;
   handleDropdownMouseEnter: () => void;
   handleDropdownMouseLeave: () => void;
-  textColor?: string;
 }) => (
   <div className="hidden lg:block">
     <ul className="flex gap-8 text-md font-semibold">
@@ -164,13 +168,11 @@ const DesktopNav = ({
               dropdownOpen={dropdownOpen}
               handleDropdownMouseEnter={handleDropdownMouseEnter}
               handleDropdownMouseLeave={handleDropdownMouseLeave}
-              textColor={textColor}
             />
           ) : (
             <Link
               href={sanitizeUrl(item.href, '#')}
               className="block duration-150 hover:opacity-80"
-              style={{ color: textColor || undefined }}
             >
               <NavItemLabel label={item.name} icon={item.icon} />
             </Link>
@@ -182,9 +184,9 @@ const DesktopNav = ({
 )
 
 // Mobile dropdown menu item component
-const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: string }) => (
+const MobileDropdownItem = ({ item }: { item: MenuItem }) => (
   <div>
-    <div className="mb-2 font-semibold" style={{ color: textColor || undefined }}>
+    <div className="mb-2 font-semibold">
       <NavItemLabel label={item.name} icon={item.icon} />
     </div>
     <div className="ml-4 space-y-2">
@@ -193,7 +195,6 @@ const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: s
           key={dropdownIndex}
           href={sanitizeUrl(dropdownItem.href, '#')}
           className="block text-sm hover:opacity-80"
-          style={{ color: textColor || undefined }}
         >
           {dropdownItem.name}
         </Link>
@@ -203,18 +204,17 @@ const MobileDropdownItem = ({ item, textColor }: { item: MenuItem; textColor?: s
 )
 
 // Mobile navigation menu component
-const MobileNav = ({ menuItems, textColor }: { menuItems: MenuItem[]; textColor?: string }) => (
+const MobileNav = ({ menuItems }: { menuItems: MenuItem[] }) => (
   <div className="lg:hidden">
     <ul className="space-y-6 text-base">
       {menuItems.map((item, index) => (
         <li key={index}>
           {item.hasDropdown ? (
-            <MobileDropdownItem item={item} textColor={textColor} />
+            <MobileDropdownItem item={item} />
           ) : (
             <Link
               href={sanitizeUrl(item.href, '#')}
               className="block duration-150 hover:opacity-80"
-              style={{ color: textColor || undefined }}
             >
               <NavItemLabel label={item.name} icon={item.icon} />
             </Link>
@@ -243,57 +243,122 @@ const MobileMenuButton = ({
   </button>
 )
 
-// Call-to-action buttons component
-const CTAButtons = ({ buttons }: {
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; icon?: QuickLinkIconName }>
-}) => {
-  // Don't render anything if no buttons provided
-  if (!buttons || buttons.length === 0) {
-    return null
-  }
+interface ResolvedNavigationButton {
+  id: string
+  text: string
+  url: string
+  style: 'primary' | 'outline' | 'ghost'
+  showOnMobile?: boolean
+  icon?: QuickLinkIconName
+}
 
-  const validButtons = buttons
-    .map(button => ({
-      ...button,
-      url: sanitizeUrl(button.url, ''),
-    }))
-    .filter(button => button && button.text && button.url)
+type NavigationActionItem =
+  | {
+      id: string
+      kind: 'button'
+      button: ResolvedNavigationButton
+    }
+  | {
+      id: typeof ACCOUNT_MENU_ACTION_ITEM_ID
+      kind: 'account-menu'
+    }
+  | {
+      id: typeof DARK_MODE_ACTION_ITEM_ID
+      kind: 'dark-mode'
+    }
 
-  // Don't render anything if all buttons are invalid
-  if (validButtons.length === 0) {
-    return null
-  }
+type AccountMenuGuestAction = NavigationActionSettings & {
+  id: 'login' | 'register'
+}
 
-  return (
-    <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      {validButtons.map((button, index) => (
-        <Button
-          key={index}
-          asChild
-          size="sm"
-          variant={button.style === 'primary' ? 'default' : button.style}
-        >
-          <Link href={sanitizeUrl(button.url, '#')}>
-            <NavItemLabel label={button.text} icon={button.icon} />
-          </Link>
-        </Button>
-      ))}
-    </div>
-  )
+const NavigationActionButton = ({
+  button,
+  className,
+}: {
+  button: ResolvedNavigationButton
+  className?: string
+}) => (
+  <Button
+    asChild
+    size="sm"
+    variant={button.style === 'primary' ? 'default' : button.style}
+    className={className}
+  >
+    <Link href={sanitizeUrl(button.url, '#')}>
+      <NavItemLabel label={button.text} icon={button.icon} />
+    </Link>
+  </Button>
+)
+
+const StaticIconMenuButton = ({
+  icon,
+  ariaLabel,
+  className,
+}: {
+  icon: ReactNode
+  ariaLabel: string
+  className?: string
+}) => (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    disabled
+    aria-label={ariaLabel}
+    className={className}
+  >
+    {icon}
+  </Button>
+)
+
+function getAccountMenuGuestActions(accountMenu: NavigationAccountMenuSettings) {
+  const guestActions: AccountMenuGuestAction[] = [
+    {
+      id: 'login',
+      ...accountMenu.login,
+      url: sanitizeUrl(accountMenu.login.url, ''),
+    },
+    {
+      id: 'register',
+      ...accountMenu.register,
+      url: sanitizeUrl(accountMenu.register.url, ''),
+    },
+  ]
+
+  return guestActions.filter((action) => action.text && action.url)
 }
 
 const DesktopUserMenu = ({
   user,
   onSignOut,
   showAdminLink,
+  bordered = true,
+  mounted = true,
 }: {
   user: SessionUser
   onSignOut: () => void
   showAdminLink: boolean
+  bordered?: boolean
+  mounted?: boolean
 }) => (
+  !mounted ? (
+    <StaticIconMenuButton
+      ariaLabel="Account menu"
+      className={cn('h-10 w-10 rounded-full', bordered && 'border')}
+      icon={
+        <Avatar className="h-9 w-9">
+          <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+        </Avatar>
+      }
+    />
+  ) : (
   <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn('h-10 w-10 rounded-full', bordered && 'border')}
+      >
         <Avatar className="h-9 w-9">
           <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
         </Avatar>
@@ -320,85 +385,139 @@ const DesktopUserMenu = ({
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
+  )
 )
 
-const MobileUserMenuPanel = ({
-  user,
-  onSignOut,
-  showAdminLink,
+const MobileGuestAccountMenu = ({
+  actions,
+  mounted = true,
 }: {
-  user: SessionUser
-  onSignOut: () => void
-  showAdminLink: boolean
-}) => (
-  <div className="space-y-3 rounded-2xl border p-4">
-    <div className="flex items-center gap-3">
-      <Avatar className="h-10 w-10">
-        <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{user.name || 'Signed in'}</div>
-        {user.email && <div className="truncate text-xs text-muted-foreground">{user.email}</div>}
-      </div>
-    </div>
-    <div className="flex flex-col gap-2">
-      {showAdminLink && (
-        <Button asChild variant="outline">
-          <Link href="/admin">
-            <Shield className="size-4" />
-            Admin
-          </Link>
+  actions: AccountMenuGuestAction[]
+  mounted?: boolean
+}) => {
+  if (actions.length === 0) return null
+
+  if (!mounted) {
+    return (
+      <StaticIconMenuButton
+        ariaLabel="Open account menu"
+        className="h-9 w-9 rounded-full"
+        icon={<UserRound className="h-4 w-4" />}
+      />
+    )
+  }
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-full"
+          aria-label="Open account menu"
+        >
+          <UserRound className="h-4 w-4" />
         </Button>
-      )}
-      <Button variant="ghost" onClick={onSignOut}>
-        <LogOut className="size-4" />
-        Sign out
-      </Button>
-    </div>
-  </div>
-)
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {actions.map((action) => (
+          <DropdownMenuItem key={action.id} asChild>
+            <Link href={sanitizeUrl(action.url, '#')}>
+              <NavItemLabel label={action.text} icon={action.icon} />
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const MobileActionOverflowMenu = ({
+  items,
+  defaultTheme = 'system',
+  mounted = true,
+}: {
+  items: NavigationActionItem[]
+  defaultTheme?: 'system' | 'light' | 'dark'
+  mounted?: boolean
+}) => {
+  const renderableItems = items.filter((item) => item.kind !== 'account-menu')
+  if (renderableItems.length === 0) return null
+
+  if (!mounted) {
+    return (
+      <StaticIconMenuButton
+        ariaLabel="More navigation actions"
+        className="h-9 w-9"
+        icon={<MoreVertical className="h-4 w-4" />}
+      />
+    )
+  }
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          aria-label="More navigation actions"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {renderableItems.map((item) => {
+          if (item.kind === 'button') {
+            return (
+              <DropdownMenuItem key={item.id} asChild>
+                <Link href={sanitizeUrl(item.button.url, '#')}>
+                  <NavItemLabel label={item.button.text} icon={item.button.icon} />
+                </Link>
+              </DropdownMenuItem>
+            )
+          }
+
+          return (
+            <DropdownMenuItem key={item.id} asChild>
+              <SiteThemeToggle defaultTheme={defaultTheme} variant="menu-item" />
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 // Mobile menu panel component
-const MobileMenuPanel = ({ 
-  menuItems, 
-  buttons,
-  showAuthenticatedUserMenu,
-  sessionUser,
-  onSignOut,
-  showAdminLink,
-  textColor,
-  showDarkModeToggle,
-  defaultTheme = 'system'
-}: { 
-  menuItems: MenuItem[];
-  buttons?: Array<{ text: string; url: string; style: 'primary' | 'outline' | 'ghost'; icon?: QuickLinkIconName }>;
-  showAuthenticatedUserMenu: boolean;
-  sessionUser: SessionUser | null;
-  onSignOut: () => void;
-  showAdminLink: boolean;
-  textColor?: string;
-  showDarkModeToggle?: boolean;
-  defaultTheme?: 'system' | 'light' | 'dark';
+const MobileMenuPanel = ({
+  menuItems,
+}: {
+  menuItems: MenuItem[]
 }) => (
   <div 
     data-mobile-menu-content
     className="bg-background in-data-[state=active]:block mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 lg:hidden"
   >
-    <MobileNav menuItems={menuItems} textColor={textColor} />
-    <div className="flex flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-      {showAuthenticatedUserMenu && sessionUser ? (
-        <MobileUserMenuPanel user={sessionUser} onSignOut={onSignOut} showAdminLink={showAdminLink} />
-      ) : (
-        <CTAButtons buttons={buttons} />
-      )}
-      {showDarkModeToggle && (
-        <SiteThemeToggle defaultTheme={defaultTheme} />
-      )}
-    </div>
+    <MobileNav menuItems={menuItems} />
   </div>
 )
 
-export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, buttons, navigationStyle, styleConfig, showAuthenticatedUserMenu = false, visibility, isPreview = false }: NavBlockProps) {
+export const NavBlock = memo(function NavBlock({
+  logo,
+  logoUrl,
+  site,
+  links,
+  buttons,
+  accountMenu,
+  actionItemOrder,
+  navigationStyle,
+  styleConfig,
+  visibility,
+  isPreview = false,
+}: NavBlockProps) {
   const style = useMemo<NavigationStyle | undefined>(() => {
     const activeStyle = navigationStyle || 'default'
     return styleConfig?.[activeStyle]
@@ -414,18 +533,140 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
     })).filter(link => link.href)
   }, [links])
 
-  const safeButtons = useMemo(() => {
+  const ctaButtonsVisible = visibility?.ctaButtons !== false
+
+  const resolvedButtons = useMemo<ResolvedNavigationButton[]>(() => {
     return (buttons || [])
-      .map(button => ({
+      .map((button, index) => ({
         ...button,
+        id: getResolvedNavigationButtonId(button, index),
         url: sanitizeUrl(button.url, ''),
       }))
       .filter(button => button.text && button.url)
   }, [buttons])
+  const orderedActionIds = useMemo(
+    () => normalizeNavigationActionItemOrder(
+      actionItemOrder,
+      resolvedButtons.map((button) => button.id)
+    ),
+    [actionItemOrder, resolvedButtons]
+  )
+  const resolvedAccountMenu = useMemo(
+    () => normalizeNavigationAccountMenu(accountMenu),
+    [accountMenu]
+  )
+  const guestDesktopAccountActions = useMemo(
+    () => getAccountMenuGuestActions(resolvedAccountMenu),
+    [resolvedAccountMenu]
+  )
+  const guestMobileAccountActions = useMemo(
+    () =>
+      guestDesktopAccountActions.filter((action) => action.showOnMobile === true),
+    [guestDesktopAccountActions]
+  )
 
   const sessionUser = useSiteAuthUser() as SessionUser | null
-  const shouldShowUserMenu = showAuthenticatedUserMenu && !!sessionUser
   const showAdminLink = sessionUser?.role === 'super_admin'
+  const desktopActionItems = useMemo<NavigationActionItem[]>(() => {
+    const buttonById = new Map(resolvedButtons.map((button) => [button.id, button]))
+
+    return orderedActionIds.reduce<NavigationActionItem[]>((items, itemId) => {
+      if (itemId === ACCOUNT_MENU_ACTION_ITEM_ID) {
+        const hasAccountMenuContent = !!sessionUser || guestDesktopAccountActions.length > 0
+
+        if (hasAccountMenuContent) {
+          items.push({ id: ACCOUNT_MENU_ACTION_ITEM_ID, kind: 'account-menu' })
+        }
+        return items
+      }
+
+      if (itemId === DARK_MODE_ACTION_ITEM_ID) {
+        if (style?.showDarkModeToggle) {
+          items.push({ id: DARK_MODE_ACTION_ITEM_ID, kind: 'dark-mode' })
+        }
+        return items
+      }
+
+      const button = buttonById.get(itemId)
+      if (button && ctaButtonsVisible) {
+        items.push({ id: itemId, kind: 'button', button })
+      }
+
+      return items
+    }, [])
+  }, [
+    ctaButtonsVisible,
+    guestDesktopAccountActions.length,
+    orderedActionIds,
+    resolvedButtons,
+    sessionUser,
+    style?.showDarkModeToggle,
+  ])
+  const mobileActionItems = useMemo<NavigationActionItem[]>(() => {
+    const mobileButtons = new Map(
+      resolvedButtons
+        .filter((button) => button.showOnMobile)
+        .map((button) => [button.id, button])
+    )
+
+    return orderedActionIds.reduce<NavigationActionItem[]>((items, itemId) => {
+      if (itemId === ACCOUNT_MENU_ACTION_ITEM_ID) {
+        const hasAccountMenuContent = !!sessionUser || guestMobileAccountActions.length > 0
+
+        if (hasAccountMenuContent) {
+          items.push({ id: ACCOUNT_MENU_ACTION_ITEM_ID, kind: 'account-menu' })
+        }
+        return items
+      }
+
+      if (itemId === DARK_MODE_ACTION_ITEM_ID) {
+        if (style?.showDarkModeToggle) {
+          items.push({ id: DARK_MODE_ACTION_ITEM_ID, kind: 'dark-mode' })
+        }
+        return items
+      }
+
+      const button = mobileButtons.get(itemId)
+      if (button && ctaButtonsVisible) {
+        items.push({ id: itemId, kind: 'button', button })
+      }
+
+      return items
+    }, [])
+  }, [
+    ctaButtonsVisible,
+    guestMobileAccountActions.length,
+    orderedActionIds,
+    resolvedButtons,
+    sessionUser,
+    style?.showDarkModeToggle,
+  ])
+  const { inlineMobileActionItems, overflowMobileActionItems } = useMemo(() => {
+    if (mobileActionItems.length <= 2) {
+      return {
+        inlineMobileActionItems: mobileActionItems,
+        overflowMobileActionItems: [] as NavigationActionItem[],
+      }
+    }
+
+    const inlineIds = new Set<string>()
+    const pinnedAccountMenu = mobileActionItems.find((item) => item.kind === 'account-menu')
+    if (pinnedAccountMenu) {
+      inlineIds.add(pinnedAccountMenu.id)
+    }
+
+    let remainingSlots = 2 - inlineIds.size
+    for (const item of mobileActionItems) {
+      if (inlineIds.has(item.id) || remainingSlots <= 0) continue
+      inlineIds.add(item.id)
+      remainingSlots -= 1
+    }
+
+    return {
+      inlineMobileActionItems: mobileActionItems.filter((item) => inlineIds.has(item.id)),
+      overflowMobileActionItems: mobileActionItems.filter((item) => !inlineIds.has(item.id)),
+    }
+  }, [mobileActionItems])
 
   const handleSignOut = async () => {
     await authClient.signOut()
@@ -435,6 +676,11 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
   // State management for responsive navigation
   const [menuState, setMenuState] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Handle dropdown hover immediately so the menu feels responsive
   const handleDropdownMouseEnter = () => {
@@ -512,6 +758,90 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
     return { maxWidth: '1152px' }
   }
 
+  const renderDesktopActionItem = (item: NavigationActionItem) => {
+    if (item.kind === 'button') {
+      return <NavigationActionButton key={item.id} button={item.button} />
+    }
+
+    if (item.kind === 'account-menu') {
+      if (sessionUser) {
+        return (
+          <DesktopUserMenu
+            key={item.id}
+            user={sessionUser}
+            onSignOut={handleSignOut}
+            showAdminLink={showAdminLink}
+            bordered={false}
+            mounted={mounted}
+          />
+        )
+      }
+
+      if (guestDesktopAccountActions.length === 0) {
+        return null
+      }
+
+      return (
+        <div key={item.id} className="flex items-center gap-2">
+          {guestDesktopAccountActions.map((action) => (
+            <NavigationActionButton
+              key={`${item.id}-${action.id}`}
+              button={action}
+            />
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <SiteThemeToggle
+        key={item.id}
+        defaultTheme={site?.settings?.default_theme}
+      />
+    )
+  }
+
+  const renderMobileInlineActionItem = (item: NavigationActionItem) => {
+    if (item.kind === 'button') {
+      return (
+        <NavigationActionButton
+          key={item.id}
+          button={item.button}
+          className="h-8 px-2 py-1 text-xs"
+        />
+      )
+    }
+
+    if (item.kind === 'account-menu') {
+      if (sessionUser) {
+        return (
+          <DesktopUserMenu
+            key={item.id}
+            user={sessionUser}
+            onSignOut={handleSignOut}
+            showAdminLink={showAdminLink}
+            mounted={mounted}
+          />
+        )
+      }
+
+      return (
+        <MobileGuestAccountMenu
+          key={item.id}
+          actions={guestMobileAccountActions}
+          mounted={mounted}
+        />
+      )
+    }
+
+    return (
+      <SiteThemeToggle
+        key={item.id}
+        defaultTheme={site?.settings?.default_theme}
+      />
+    )
+  }
+
   return (
     <header
       data-block-type="navigation"
@@ -519,11 +849,8 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
         'z-50 w-full border-b',
         isPreview ? 'sticky top-0' : 'fixed top-0',
         blurClass,
-        (!style?.backgroundColor) && 'bg-background/90'
+        'bg-background/90'
       )}
-      style={{
-        backgroundColor: style?.backgroundColor ? `${style.backgroundColor}E6` : undefined,
-      }}
     >
       <nav
         data-state={menuState && 'active'}
@@ -565,25 +892,17 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                     }}
                   />
                 ) : (
-                  <Globe className="h-8 w-8" style={{ color: style?.textColor || undefined }} />
+                  <Globe className="h-8 w-8" />
                 )}
               </Link>
 
               <div className="flex items-center gap-2 lg:hidden">
-                {/* Mobile Action Buttons - show buttons marked for mobile */}
-                {!shouldShowUserMenu && visibility?.ctaButtons !== false && safeButtons.filter(button => button.showOnMobile).map((button, index) => (
-                  <Button
-                    key={`mobile-${index}`}
-                    asChild
-                    size="sm"
-                    variant={button.style === 'primary' ? 'default' : button.style}
-                    className="text-xs px-2 py-1 h-8"
-                  >
-                    <Link href={sanitizeUrl(button.url, '#')}>
-                      <NavItemLabel label={button.text} icon={button.icon} />
-                    </Link>
-                  </Button>
-                ))}
+                {inlineMobileActionItems.map(renderMobileInlineActionItem)}
+                <MobileActionOverflowMenu
+                  items={overflowMobileActionItems}
+                  defaultTheme={site?.settings?.default_theme}
+                  mounted={mounted}
+                />
                 <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
               </div>
               <DesktopNav 
@@ -591,32 +910,16 @@ export const NavBlock = memo(function NavBlock({ logo, logoUrl, site, links, but
                 dropdownOpen={dropdownOpen}
                 handleDropdownMouseEnter={handleDropdownMouseEnter}
                 handleDropdownMouseLeave={handleDropdownMouseLeave}
-                textColor={style?.textColor}
               />
             </div>
 
-            {/* Desktop Actions - CTA Buttons and Theme Toggle */}
+            {/* Desktop Actions */}
             <div className="hidden lg:flex items-center gap-3">
-              {shouldShowUserMenu ? (
-                <DesktopUserMenu user={sessionUser} onSignOut={handleSignOut} showAdminLink={showAdminLink} />
-              ) : (
-                visibility?.ctaButtons !== false && <CTAButtons buttons={safeButtons} />
-              )}
-              {style?.showDarkModeToggle && (
-                <SiteThemeToggle defaultTheme={site?.settings?.default_theme} />
-              )}
+              {desktopActionItems.map(renderDesktopActionItem)}
             </div>
 
             <MobileMenuPanel
               menuItems={menuItems}
-              buttons={visibility?.ctaButtons !== false ? safeButtons : undefined}
-              showAuthenticatedUserMenu={showAuthenticatedUserMenu}
-              sessionUser={sessionUser}
-              onSignOut={handleSignOut}
-              showAdminLink={showAdminLink}
-              textColor={style?.textColor} 
-              showDarkModeToggle={style?.showDarkModeToggle}
-              defaultTheme={site?.settings?.default_theme}
             />
           </div>
         </div>

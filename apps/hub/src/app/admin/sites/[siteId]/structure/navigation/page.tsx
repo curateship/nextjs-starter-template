@@ -1,7 +1,5 @@
-"use client"
-
-import { use } from "react"
 import { SiteChromeEditorPage } from "@/components/admin/structure/SiteChromeEditorPage"
+import { getPublicAuthPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 
 interface PageProps {
   params: Promise<{
@@ -9,7 +7,17 @@ interface PageProps {
   }>
 }
 
-export default function SiteNavigationStructurePage({ params }: PageProps) {
-  const { siteId } = use(params)
-  return <SiteChromeEditorPage siteId={siteId} mode="navigation" />
+export default async function SiteNavigationStructurePage({
+  params,
+}: PageProps) {
+  const { siteId } = await params
+  const { path: publicAuthPagePath } = await getPublicAuthPagePath(siteId)
+
+  return (
+    <SiteChromeEditorPage
+      siteId={siteId}
+      mode="navigation"
+      publicAuthPagePath={publicAuthPagePath}
+    />
+  )
 }

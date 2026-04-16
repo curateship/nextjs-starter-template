@@ -36,6 +36,10 @@ function resolveCurrentSite(availableSites: SiteWithTheme[]) {
   return availableSites[0]
 }
 
+function getDefaultCurrentSite(availableSites: SiteWithTheme[]) {
+  return availableSites[0] ?? null
+}
+
 function persistResolvedSite(site: SiteWithTheme | null) {
   if (site) {
     localStorage.setItem('selectedSiteId', site.id)
@@ -56,7 +60,7 @@ export function SiteSwitcherProvider({
   pageSize: initialPageSize,
 }: SiteSwitcherProviderProps) {
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
-    initialSites !== undefined ? resolveCurrentSite(initialSites) : null
+    initialSites !== undefined ? getDefaultCurrentSite(initialSites) : null
   )
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
   const [loading, setLoading] = useState(initialSites === undefined)

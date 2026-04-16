@@ -143,6 +143,53 @@ function SortableFooterLinkItem({
   )
 }
 
+function StaticFooterLinkItem({
+  link,
+  index,
+  updateLink,
+  removeLink
+}: {
+  link: FooterLink
+  index: number
+  updateLink: (index: number, field: 'text' | 'url', value: string) => void
+  removeLink: (index: number) => void
+}) {
+  return (
+    <div className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit">
+      <div className="flex gap-1 items-center">
+        <div className="grip-handle text-muted-foreground flex-shrink-0">
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="flex gap-1">
+          <input
+            type="text"
+            value={link.text}
+            onChange={(e) => updateLink(index, 'text', e.target.value)}
+            className="w-24 px-3 py-2 rounded-md text-sm"
+            placeholder="Link Text"
+          />
+          <input
+            type="text"
+            value={link.url}
+            onChange={(e) => updateLink(index, 'url', e.target.value)}
+            className="w-32 px-3 py-2 rounded-md text-sm"
+            placeholder="URL"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeLink(index)}
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // Sortable social link item component
 function SortableSocialLinkItem({
   socialLink,
@@ -222,6 +269,61 @@ function SortableSocialLinkItem({
   )
 }
 
+function StaticSocialLinkItem({
+  socialLink,
+  index,
+  updateSocialLink,
+  removeSocialLink
+}: {
+  socialLink: SocialLink
+  index: number
+  updateSocialLink: (index: number, field: 'platform' | 'url', value: string) => void
+  removeSocialLink: (index: number) => void
+}) {
+  return (
+    <div className="border rounded-lg p-2 bg-background hover:border-muted-foreground/50 transition-colors w-fit">
+      <div className="flex gap-1 items-center">
+        <div className="grip-handle text-muted-foreground flex-shrink-0">
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <div className="flex gap-1">
+          <Select
+            value={socialLink.platform}
+            onValueChange={(value) => updateSocialLink(index, 'platform', value)}
+          >
+            <SelectTrigger className="w-fit border-0 shadow-none gap-1 [&>svg]:ml-0">
+              <SelectValue placeholder="Platform" />
+            </SelectTrigger>
+            <SelectContent>
+              {socialPlatforms.map(platform => (
+                <SelectItem key={platform} value={platform}>
+                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input
+            type="text"
+            value={socialLink.url}
+            onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
+            className="w-32 px-3 py-2 rounded-md text-sm"
+            placeholder="Social URL"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeSocialLink(index)}
+          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+        >
+          <Trash2 className="h-2.5 w-2.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function PageFooterBlock({
   logo,
   logoUrl,
@@ -240,6 +342,7 @@ export function PageFooterBlock({
   onBack,
 }: FooterBlockProps) {
   const [showPicker, setShowPicker] = useState(false)
+  const [sortableReady, setSortableReady] = useState(false)
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -251,6 +354,10 @@ export function PageFooterBlock({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  useEffect(() => {
+    setSortableReady(true)
+  }, [])
   
   // Ensure all links have unique IDs
   useEffect(() => {
@@ -463,28 +570,42 @@ export function PageFooterBlock({
           </div>
         </CardHeader>
         <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleLinkDragEnd}
-          >
-            <SortableContext
-              items={(links || []).map(l => l.id || '')}
-              strategy={horizontalListSortingStrategy}
+          {sortableReady ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleLinkDragEnd}
             >
-              <div className="flex flex-wrap gap-2">
-                {(links || []).map((link, index) => (
-                  <SortableFooterLinkItem
-                    key={link.id || `footer-link-${index}`}
-                    link={link}
-                    index={index}
-                    updateLink={updateLink}
-                    removeLink={removeLink}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={(links || []).map(l => l.id || '')}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {(links || []).map((link, index) => (
+                    <SortableFooterLinkItem
+                      key={link.id || `footer-link-${index}`}
+                      link={link}
+                      index={index}
+                      updateLink={updateLink}
+                      removeLink={removeLink}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {(links || []).map((link, index) => (
+                <StaticFooterLinkItem
+                  key={link.id || `footer-link-static-${index}`}
+                  link={link}
+                  index={index}
+                  updateLink={updateLink}
+                  removeLink={removeLink}
+                />
+              ))}
+            </div>
+          )}
 
           {links.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
@@ -511,28 +632,42 @@ export function PageFooterBlock({
           </div>
         </CardHeader>
         <CardContent>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleSocialLinkDragEnd}
-          >
-            <SortableContext
-              items={(socialLinks || []).map(l => l.id || '')}
-              strategy={horizontalListSortingStrategy}
+          {sortableReady ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleSocialLinkDragEnd}
             >
-              <div className="flex flex-wrap gap-2">
-                {(socialLinks || []).map((socialLink, index) => (
-                  <SortableSocialLinkItem
-                    key={socialLink.id || `social-link-${index}`}
-                    socialLink={socialLink}
-                    index={index}
-                    updateSocialLink={updateSocialLink}
-                    removeSocialLink={removeSocialLink}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+              <SortableContext
+                items={(socialLinks || []).map(l => l.id || '')}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {(socialLinks || []).map((socialLink, index) => (
+                    <SortableSocialLinkItem
+                      key={socialLink.id || `social-link-${index}`}
+                      socialLink={socialLink}
+                      index={index}
+                      updateSocialLink={updateSocialLink}
+                      removeSocialLink={removeSocialLink}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {(socialLinks || []).map((socialLink, index) => (
+                <StaticSocialLinkItem
+                  key={socialLink.id || `social-link-static-${index}`}
+                  socialLink={socialLink}
+                  index={index}
+                  updateSocialLink={updateSocialLink}
+                  removeSocialLink={removeSocialLink}
+                />
+              ))}
+            </div>
+          )}
 
           {socialLinks.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">

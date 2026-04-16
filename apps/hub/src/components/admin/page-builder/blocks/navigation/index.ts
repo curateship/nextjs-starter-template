@@ -1,10 +1,9 @@
 import { ComponentType } from "react"
-import { DefaultNavigationConfig } from "./DefaultNavigationConfig"
 
 export interface NavigationStyleDefinition {
   label: string
   description: string
-  AdminPanel: ComponentType<NavigationStyleAdminProps>
+  AdminPanel?: ComponentType<NavigationStyleAdminProps>
 }
 
 export interface NavigationStyleAdminProps {
@@ -18,6 +17,5 @@ export const NAVIGATION_STYLES: Record<string, NavigationStyleDefinition> = {
   default: {
     label: 'Default',
     description: 'Standard navigation bar',
-    AdminPanel: DefaultNavigationConfig,
   },
 }

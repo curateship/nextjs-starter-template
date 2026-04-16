@@ -15,24 +15,30 @@ import { PageNavigationBlock } from "@/components/admin/page-builder/blocks/navi
 import { PageFooterBlock } from "@/components/admin/page-builder/blocks/footer/PageFooterBlock"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/sites/site-actions"
-import { resolveSiteChrome } from "@/lib/utils/site-structure"
+import { BUILT_IN_NAVIGATION_ACTION_ITEM_IDS } from "@/lib/utils/navigation-action-items"
+import {
+  createDefaultNavigationAccountMenu,
+  resolveSiteChrome,
+  sanitizeNavigationSettings,
+} from "@/lib/utils/site-structure"
 
-const DEFAULT_NAVIGATION = {
+function createDefaultNavigation(publicAuthPagePath?: string | null) {
+  return {
   logo: '',
   logoUrl: '/',
   links: [{ id: 'link-default-0', text: 'Home', url: '/' }],
   buttons: [],
-  showAuthenticatedUserMenu: false,
+  actionItemOrder: [...BUILT_IN_NAVIGATION_ACTION_ITEM_IDS],
+  accountMenu: createDefaultNavigationAccountMenu(publicAuthPagePath),
   navigationStyle: 'default',
   styleConfig: {
     default: {
-      textColor: '',
       blurEffect: 'light',
       containerWidth: 'custom',
-      backgroundColor: '',
       showDarkModeToggle: true,
     },
   },
+}
 }
 
 const DEFAULT_FOOTER = {
@@ -47,11 +53,20 @@ const DEFAULT_FOOTER = {
 interface SiteChromeEditorPageProps {
   siteId: string
   mode: 'navigation' | 'footer'
+  publicAuthPagePath?: string | null
 }
 
-export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps) {
+export function SiteChromeEditorPage({
+  siteId,
+  mode,
+  publicAuthPagePath,
+}: SiteChromeEditorPageProps) {
   const searchParams = useSearchParams()
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
+  const defaultNavigation = useMemo(
+    () => createDefaultNavigation(publicAuthPagePath),
+    [publicAuthPagePath]
+  )
   const cachedSite = useMemo(
     () => sites.find(site => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null),
     [currentSite, siteId, sites]
@@ -62,7 +77,7 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
-  const [navigationContent, setNavigationContent] = useState<Record<string, any>>(DEFAULT_NAVIGATION)
+  const [navigationContent, setNavigationContent] = useState<Record<string, any>>(defaultNavigation)
   const [footerContent, setFooterContent] = useState<Record<string, any>>(DEFAULT_FOOTER)
 
   const returnTo = searchParams.get('returnTo')
@@ -73,7 +88,11 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
     if (cachedSite) {
       setSite(cachedSite)
       const chrome = resolveSiteChrome(cachedSite.settings)
-      setNavigationContent(chrome.navigation || DEFAULT_NAVIGATION)
+      setNavigationContent(
+        sanitizeNavigationSettings(chrome.navigation || defaultNavigation, {
+          publicAuthPagePath,
+        }) || defaultNavigation
+      )
       setFooterContent(chrome.footer || DEFAULT_FOOTER)
       setLoading(false)
       return
@@ -95,7 +114,11 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
 
         setSite(result.data)
         const chrome = resolveSiteChrome(result.data.settings)
-        setNavigationContent(chrome.navigation || DEFAULT_NAVIGATION)
+        setNavigationContent(
+          sanitizeNavigationSettings(chrome.navigation || defaultNavigation, {
+            publicAuthPagePath,
+          }) || defaultNavigation
+        )
         setFooterContent(chrome.footer || DEFAULT_FOOTER)
       } catch (loadError) {
         if (!cancelled) {
@@ -113,7 +136,7 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
     return () => {
       cancelled = true
     }
-  }, [cachedSite, siteId])
+  }, [cachedSite, defaultNavigation, publicAuthPagePath, siteId])
 
   const handleSave = async () => {
     if (!site) return
@@ -123,8 +146,11 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
       setError(null)
       setSaveMessage("")
 
+      const nextNavigationContent = sanitizeNavigationSettings(navigationContent, {
+        publicAuthPagePath,
+      }) || defaultNavigation
       const result = mode === 'navigation'
-        ? await updateSiteNavigationAction(site.id, navigationContent)
+        ? await updateSiteNavigationAction(site.id, nextNavigationContent)
         : await updateSiteFooterAction(site.id, footerContent)
 
       if (!result.success) {
@@ -137,11 +163,14 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
         settings: {
           ...(site.settings || {}),
           ...(mode === 'navigation'
-            ? { navigation: navigationContent }
+            ? { navigation: nextNavigationContent }
             : { footer: footerContent }),
         },
       }
 
+      if (mode === 'navigation') {
+        setNavigationContent(nextNavigationContent)
+      }
       setSite(updatedSite)
       if (currentSite?.id === updatedSite.id) {
         setCurrentSite(updatedSite)
@@ -165,7 +194,10 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
       setError(null)
       setSaveMessage("")
 
-      const result = await updateSiteNavigationAction(site.id, nextNavigationContent)
+      const sanitizedNavigation = sanitizeNavigationSettings(nextNavigationContent, {
+        publicAuthPagePath,
+      }) || defaultNavigation
+      const result = await updateSiteNavigationAction(site.id, sanitizedNavigation)
 
       if (!result.success) {
         setError(result.error || "Failed to save changes")
@@ -176,11 +208,11 @@ export function SiteChromeEditorPage({ siteId, mode }: SiteChromeEditorPageProps
         ...site,
         settings: {
           ...(site.settings || {}),
-          navigation: nextNavigationContent,
+          navigation: sanitizedNavigation,
         },
       }
 
-      setNavigationContent(nextNavigationContent)
+      setNavigationContent(sanitizedNavigation)
       setSite(updatedSite)
       if (currentSite?.id === updatedSite.id) {
         setCurrentSite(updatedSite)

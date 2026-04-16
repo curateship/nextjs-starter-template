@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/site-structure'
+import { getPublicAuthPagePath } from '@/lib/actions/account-pages/account-pages-frontend-actions'
 
 export interface Site {
   id: string
@@ -376,7 +377,12 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
 
     return { success: true, error: null }
   } catch (error) {
-    return { success: false, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    console.error('Failed to update site chrome field', {
+      fieldName,
+      siteId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { success: false, error: 'Failed to save site settings' }
   }
 }
 
@@ -447,8 +453,12 @@ async function updateSiteChromeField(
     if (data === null || data === undefined) {
       delete updatedSettings[fieldName]
     } else {
+      const { path: publicAuthPagePath } = fieldName === 'navigation'
+        ? await getPublicAuthPagePath(siteId)
+        : { path: null }
+
       updatedSettings[fieldName] = fieldName === 'navigation'
-        ? sanitizeNavigationSettings(data)
+        ? sanitizeNavigationSettings(data, { publicAuthPagePath })
         : sanitizeFooterSettings(data)
     }
 
