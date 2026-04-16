@@ -18,19 +18,20 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Check, GripVertical, Link2, Plus, Search, Trash2 } from "lucide-react"
+import { Check, GripVertical, Plus, Search, Settings2, Trash2 } from "lucide-react"
+import {
+  AdminModalBody,
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/shared/AdminModalLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils/tailwind"
 import {
   QUICK_LINK_ICON_OPTIONS,
@@ -54,19 +55,27 @@ interface SortableQuickLinkItemProps {
 const ACTION_BUTTON_CLASS =
   "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
-function IconPickerButton({
+function QuickLinkSettingsButton({
+  label,
   value,
-  onChange,
+  href,
+  onSave,
 }: {
+  label: string
   value?: QuickLinkIconName
-  onChange: (value: QuickLinkIconName | undefined) => void
+  href: string
+  onSave: (patch: Pick<SiteQuickLink, "label" | "href" | "icon">) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [draftLabel, setDraftLabel] = useState(label)
+  const [draftHref, setDraftHref] = useState(href)
+  const [draftIcon, setDraftIcon] = useState<QuickLinkIconName | undefined>(value)
 
-  const SelectedIcon = getQuickLinkIcon(value)
+  const SelectedIcon = getQuickLinkIcon(draftIcon)
   const DefaultIcon = getQuickLinkIcon()
-  const selectedLabel = getQuickLinkIconLabel(value)
+  const selectedLabel = getQuickLinkIconLabel(draftIcon)
   const normalizedQuery = query.trim().toLowerCase()
   const showDefaultOption =
     !normalizedQuery || "default link".includes(normalizedQuery)
@@ -91,169 +100,208 @@ function IconPickerButton({
         type="button"
         variant="ghost"
         onClick={() => setOpen(true)}
-        className={cn(ACTION_BUTTON_CLASS, value && "text-foreground")}
-        aria-label={`Choose quick link icon (${selectedLabel})`}
-        title={`Icon: ${selectedLabel}`}
+        className={ACTION_BUTTON_CLASS}
+        aria-label={`Edit settings for ${label || "quick link"}`}
+        title="Quick link settings"
       >
-        <SelectedIcon className="h-4 w-4" />
+        <Settings2 className="h-4 w-4" />
       </Button>
 
       <Dialog
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen)
-          if (!nextOpen) setQuery("")
+          if (nextOpen) {
+            setDraftLabel(label)
+            setDraftHref(href)
+            setDraftIcon(value)
+          }
+          setIconPickerOpen(false)
+          setQuery("")
         }}
       >
-        <DialogContent className="max-w-3xl p-0">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle>Choose Icon</DialogTitle>
-            <DialogDescription>
-              Pick an icon for this quick link from the Lucide icon set.
-            </DialogDescription>
-          </DialogHeader>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Quick Link Settings</AdminModalTitle>
+            <AdminModalDescription>
+              Update the name, destination URL, and dashboard icon for this quick link.
+            </AdminModalDescription>
+          </AdminModalHeader>
 
-          <div className="space-y-3 px-6 pb-6">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="pl-9"
-                placeholder="Search icons"
-              />
+          <AdminModalBody className="space-y-6 pb-6">
+            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Icon</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  onClick={() => setIconPickerOpen(true)}
+                >
+                  <SelectedIcon className="h-4 w-4 shrink-0" />
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Name</p>
+                <Input
+                  value={draftLabel}
+                  onChange={(event) => setDraftLabel(event.target.value)}
+                  placeholder="Label"
+                  aria-label="Quick link name"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">URL</p>
+                <Input
+                  value={draftHref}
+                  onChange={(event) => setDraftHref(event.target.value)}
+                  placeholder="/settings or https://example.com"
+                  aria-label="Quick link URL"
+                />
+              </div>
             </div>
+          </AdminModalBody>
 
-            <ScrollArea className="h-[420px] pr-2">
-              {filteredOptions.length === 0 && !showDefaultOption ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  No icons match that search.
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
-                  {showDefaultOption && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onChange(undefined)
-                        setOpen(false)
-                        setQuery("")
-                      }}
-                      className={cn(
-                        "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                        !value
-                          ? "bg-primary/5"
-                          : "hover:bg-muted/50"
-                      )}
-                      aria-label="Use default icon"
-                    >
-                      {!value && (
-                        <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                          <Check className="h-3 w-3" />
-                        </span>
-                      )}
-                      <DefaultIcon className="h-5 w-5" />
-                      <span className="line-clamp-2 text-[11px] leading-tight">
-                        Default
-                      </span>
-                    </button>
-                  )}
-                  {filteredOptions.map((option) => {
-                    const Icon = getQuickLinkIcon(option.value)
-                    const isSelected = option.value === value
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          onChange(option.value)
-                          setOpen(false)
-                          setQuery("")
-                        }}
-                        className={cn(
-                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                          isSelected
-                            ? "bg-primary/5"
-                            : "hover:bg-muted/50"
-                        )}
-                        aria-label={`Choose ${option.label} icon`}
-                      >
-                        {isSelected && (
-                          <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                            <Check className="h-3 w-3" />
-                          </span>
-                        )}
-                        <Icon className="h-5 w-5" />
-                        <span className="line-clamp-2 text-[11px] leading-tight">
-                          {option.label}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </ScrollArea>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  )
-}
-
-function UrlEditorButton({
-  value,
-  onChange,
-}: {
-  value: string
-  onChange: (value: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [draftValue, setDraftValue] = useState(value)
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
-        if (nextOpen) {
-          setDraftValue(value)
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(ACTION_BUTTON_CLASS, value.trim() && "text-foreground")}
-          aria-label={value.trim() ? "Edit quick link URL" : "Add quick link URL"}
-          title={value.trim() || "Set quick link URL"}
-        >
-          <Link2 className="h-4 w-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[360px] p-3" align="end">
-        <div className="flex items-center gap-2">
-          <Input
-            value={draftValue}
-            onChange={(event) => setDraftValue(event.target.value)}
-            placeholder="/settings or https://example.com"
-            aria-label="Quick link URL"
-          />
-          <Button
-            type="button"
-            size="sm"
-            className="h-9"
-            onClick={() => {
-              onChange(draftValue.trim())
-              setOpen(false)
+          <AdminModalFooter className="sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                onSave({
+                  label: draftLabel,
+                  href: draftHref.trim(),
+                  icon: draftIcon,
+                })
+                setOpen(false)
+              }}
+            >
+              Save
+            </Button>
+          </AdminModalFooter>
+          <Dialog
+            open={iconPickerOpen}
+            onOpenChange={(nextOpen) => {
+              setIconPickerOpen(nextOpen)
+              if (!nextOpen) {
+                setQuery("")
+              }
             }}
           >
-            Save
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+            <AdminModalContent className="max-w-xl">
+              <AdminModalHeader className="pb-2">
+                <AdminModalTitle>Choose Icon</AdminModalTitle>
+                <AdminModalDescription>
+                  Pick an icon for this quick link.
+                </AdminModalDescription>
+              </AdminModalHeader>
+
+              <AdminModalBody
+                className="space-y-3 pb-6"
+                onWheelCapture={(event) => event.stopPropagation()}
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className="pl-9"
+                    placeholder="Search icons"
+                  />
+                </div>
+
+                <ScrollArea className="h-[320px] pr-2 overscroll-contain">
+                  {filteredOptions.length === 0 && !showDefaultOption ? (
+                    <div className="py-10 text-center text-sm text-muted-foreground">
+                      No icons match that search.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-6 gap-2">
+                      {showDefaultOption && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftIcon(undefined)
+                            setIconPickerOpen(false)
+                            setQuery("")
+                          }}
+                          className={cn(
+                            "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                            !draftIcon
+                              ? "bg-primary/5"
+                              : "hover:bg-muted/50"
+                          )}
+                          aria-label="Use default icon"
+                        >
+                          {!draftIcon && (
+                            <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          )}
+                          <DefaultIcon className="h-5 w-5" />
+                          <span className="line-clamp-2 text-[11px] leading-tight">
+                            Default
+                          </span>
+                        </button>
+                      )}
+                      {filteredOptions.map((option) => {
+                        const Icon = getQuickLinkIcon(option.value)
+                        const isSelected = option.value === draftIcon
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setDraftIcon(option.value)
+                              setIconPickerOpen(false)
+                              setQuery("")
+                            }}
+                            className={cn(
+                              "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                              isSelected
+                                ? "bg-primary/5"
+                                : "hover:bg-muted/50"
+                            )}
+                            aria-label={`Choose ${option.label} icon`}
+                          >
+                            {isSelected && (
+                              <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
+                            <Icon className="h-5 w-5" />
+                            <span className="line-clamp-2 text-[11px] leading-tight">
+                              {option.label}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+              </AdminModalBody>
+
+              <AdminModalFooter className="sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIconPickerOpen(false)
+                    setQuery("")
+                  }}
+                >
+                  Back
+                </Button>
+              </AdminModalFooter>
+            </AdminModalContent>
+          </Dialog>
+        </AdminModalContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -296,13 +344,11 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
           placeholder="Label"
           aria-label="Quick link label"
         />
-        <IconPickerButton
+        <QuickLinkSettingsButton
+          label={link.label}
           value={link.icon}
-          onChange={(icon) => onChange(link.id, { icon })}
-        />
-        <UrlEditorButton
-          value={link.href}
-          onChange={(href) => onChange(link.id, { href })}
+          href={link.href}
+          onSave={(patch) => onChange(link.id, patch)}
         />
         <Button
           type="button"
