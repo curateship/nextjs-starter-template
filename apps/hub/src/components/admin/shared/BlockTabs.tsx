@@ -43,7 +43,7 @@ export function BlockTabs({
             Back
           </button>
         )}
-        <TabsList className="gap-1">
+        <TabsList>
           {tabs.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label}

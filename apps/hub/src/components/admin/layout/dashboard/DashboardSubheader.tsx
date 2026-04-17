@@ -74,7 +74,7 @@ export function DashboardSubheader({ items, tabs, preActions, actions, className
           {/* Filter tabs */}
           {tabs && (
             <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
-              <TabsList className="gap-1">
+              <TabsList>
                 {tabs.items.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>
                     {tab.icon && <tab.icon className="h-3.5 w-3.5 mr-1.5" />}

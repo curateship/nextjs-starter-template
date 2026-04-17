@@ -1244,7 +1244,7 @@ export default function ContactsPage() {
                       }
                     }}
                   >
-                    <TabsList className="h-11 gap-1 rounded-lg bg-muted/70 p-1">
+                    <TabsList className="h-11 rounded-lg bg-muted/70 p-1">
                       <TabsTrigger value="all" className="rounded-md px-4 py-2">
                         all
                       </TabsTrigger>

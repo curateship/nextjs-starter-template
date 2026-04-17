@@ -193,7 +193,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid-cols-3 gap-1">
+          <TabsList className="grid-cols-3">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="drip-options">Drip Options</TabsTrigger>
           <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>

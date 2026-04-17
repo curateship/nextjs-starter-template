@@ -58,10 +58,10 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import {
   Check,
+  Contrast,
   Globe,
   GripVertical,
   ImageIcon,
-  Moon,
   Plus,
   Search,
   Trash2,
@@ -843,9 +843,9 @@ export function PageNavigationBlock({
         {
           id: DARK_MODE_ACTION_ITEM_ID,
           kind: "special",
-          label: "Dark Mode",
+          label: "Theme Switcher",
           hidden: currentStyleConfig.showDarkModeToggle === false,
-          icon: Moon,
+          icon: Contrast,
         },
       ],
     ])
