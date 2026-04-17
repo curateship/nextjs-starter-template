@@ -377,12 +377,11 @@ export async function deleteSiteAction(siteId: string): Promise<{ success: boole
 
     return { success: true, error: null }
   } catch (error) {
-    console.error('Failed to update site chrome field', {
-      fieldName,
+    console.error('Failed to delete site', {
       siteId,
       error: error instanceof Error ? error.message : String(error),
     })
-    return { success: false, error: 'Failed to save site settings' }
+    return { success: false, error: 'Failed to delete site' }
   }
 }
 
@@ -473,7 +472,12 @@ async function updateSiteChromeField(
 
     return { success: true, error: null }
   } catch (error) {
-    return { success: false, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    console.error('Failed to update site chrome field', {
+      fieldName,
+      siteId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { success: false, error: 'Failed to save site settings' }
   }
 }
 
