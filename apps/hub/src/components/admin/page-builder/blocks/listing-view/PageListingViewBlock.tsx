@@ -95,7 +95,7 @@ export function PageListingViewBlock({
           content: (
             <div className="space-y-4">
               <BlockEditorSection heading="Header Settings" contentClassName="space-y-8">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)]">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
               <Input
@@ -115,30 +115,29 @@ export function PageListingViewBlock({
                 placeholder="Enter block subtitle"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="viewAllText">View All Button Text</Label>
+              <Input
+                id="viewAllText"
+                value={viewAllText}
+                onChange={(e) => onViewAllTextChange(e.target.value)}
+                placeholder="View all products"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="viewAllLink">View All Button Link</Label>
+              <Input
+                id="viewAllLink"
+                value={viewAllLink}
+                onChange={(e) => onViewAllLinkChange(e.target.value)}
+                placeholder="/products"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="viewAllText">View All Button Text</Label>
-                <Input
-                  id="viewAllText"
-                  value={viewAllText}
-                  onChange={(e) => onViewAllTextChange(e.target.value)}
-                  placeholder="View all products"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="viewAllLink">View All Button Link</Label>
-                <Input
-                  id="viewAllLink"
-                  value={viewAllLink}
-                  onChange={(e) => onViewAllLinkChange(e.target.value)}
-                  placeholder="/products"
-                />
-              </div>
-            </div>
             <p className="text-sm text-muted-foreground">
               Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
             </p>
