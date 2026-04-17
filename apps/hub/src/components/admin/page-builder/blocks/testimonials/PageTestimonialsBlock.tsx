@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, GripVertical, Check, ImageIcon } from "lucide-react"
+import { Plus, Trash2, GripVertical, Check } from "lucide-react"
 import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -102,72 +102,62 @@ function SortableTestimonialItem({
           </Button>
         </div>
 
-        <div className="px-2 pt-2 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="px-2 pt-2">
+          <div className="grid grid-cols-[auto_minmax(0,0.5fr)_minmax(0,0.5fr)_minmax(0,3fr)] items-start gap-3">
+            <div className="shrink-0">
+              <Label htmlFor={`testimonial-avatar-${item.id}`} className="sr-only">
+                Avatar
+              </Label>
+              <button
+                id={`testimonial-avatar-${item.id}`}
+                type="button"
+                onClick={() => onPickAvatar(index)}
+                aria-label={item.avatar ? "Change testimonial avatar" : "Select testimonial avatar"}
+                className="rounded-full transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <Avatar className="size-11 rounded-full border border-input bg-muted">
+                  {item.avatar ? (
+                    <AvatarImage src={item.avatar} alt={item.name || `Testimonial ${index + 1}`} />
+                  ) : null}
+                  <AvatarFallback className="bg-muted text-[9px] font-medium lowercase text-muted-foreground">
+                    no icon
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            </div>
             <div>
-              <Label className="font-medium">Name</Label>
+              <Label htmlFor={`testimonial-name-${item.id}`} className="sr-only">
+                Name
+              </Label>
               <Input
+                id={`testimonial-name-${item.id}`}
                 value={item.name}
                 onChange={(e) => updateItem(index, 'name', e.target.value)}
-                placeholder="John Doe"
-                className="mt-1"
+                placeholder="Name"
               />
             </div>
             <div>
-              <Label className="font-medium">Role</Label>
+              <Label htmlFor={`testimonial-role-${item.id}`} className="sr-only">
+                Role
+              </Label>
               <Input
+                id={`testimonial-role-${item.id}`}
                 value={item.role}
                 onChange={(e) => updateItem(index, 'role', e.target.value)}
-                placeholder="CEO & Founder"
-                className="mt-1"
+                placeholder="Role"
               />
             </div>
-          </div>
-          <div>
-            <Label className="font-medium">Avatar</Label>
-            <div className="mt-1 flex items-center gap-2">
-              <Avatar className="size-9 rounded-full ring-1 ring-input">
-                {item.avatar ? (
-                  <AvatarImage src={item.avatar} alt={item.name} />
-                ) : null}
-                <AvatarFallback>{item.name?.charAt(0) || '?'}</AvatarFallback>
-              </Avatar>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onPickAvatar(index)}
-              >
-                <ImageIcon className="w-3 h-3 mr-1" />
-                {item.avatar ? 'Change' : 'Select'}
-              </Button>
-              {item.avatar && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-muted-foreground"
-                  onClick={() => updateItem(index, 'avatar', '')}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              )}
+            <div>
+              <Label htmlFor={`testimonial-quote-${item.id}`} className="sr-only">
+                Quote
+              </Label>
+              <Input
+                id={`testimonial-quote-${item.id}`}
+                value={item.content}
+                onChange={(e) => updateItem(index, 'content', e.target.value)}
+                placeholder="Quote"
+              />
             </div>
-          </div>
-          <div>
-            <Label className="font-medium">Quote</Label>
-            <textarea
-              value={item.content}
-              onChange={(e) => {
-                updateItem(index, 'content', e.target.value)
-                const target = e.target as HTMLTextAreaElement
-                target.style.height = 'auto'
-                target.style.height = `${target.scrollHeight}px`
-              }}
-              className="w-full px-3 py-2 border rounded-md min-h-10 resize-none overflow-hidden mt-1"
-              placeholder="Their testimonial quote..."
-              style={{ height: 'auto' }}
-            />
           </div>
         </div>
       </div>
@@ -414,6 +404,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, blockI
           }
         }}
         currentMediaUrl={avatarPickerIndex !== null ? localItems[avatarPickerIndex]?.avatar : undefined}
+        site_id={siteId}
       />
     </>
   )
