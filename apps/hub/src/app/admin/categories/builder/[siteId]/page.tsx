@@ -9,11 +9,9 @@ import Link from "next/link"
 import { useCategoryData } from "@/components/admin/category-builder/config/useCategoryData"
 import { useCategoryBuilder } from "@/components/admin/category-builder/config/useCategoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
-import { CreateCategoryModal } from "@/components/admin/category-builder/layout/CreateCategoryModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -110,18 +108,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     blocks: localBlocks[selectedCategory] || []
   }
 
-  // Handle category change with URL update
-  const handleCategoryChange = (categorySlug: string) => {
-    if (categorySlug !== selectedCategory) {
-      setSelectedCategory(categorySlug)
-      setLocalBlocks(prev => ({
-        ...prev,
-        [categorySlug]: prev[categorySlug] || []
-      }))
-      router.replace(`/admin/categories/builder/${siteId}?category=${categorySlug}`)
-    }
-  }
-
   // Handle category information updates
   const updateCurrentCategory = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
     if (!currentCategoryData?.id) return
@@ -184,48 +170,29 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { href: `/admin/categories/${siteId}`, label: "Categories" },
-          { label: currentCategoryData?.title || "", isPage: true }
-        ]}
-        items={categories}
-        selectedItemSlug={selectedCategory}
-        onItemChange={handleCategoryChange}
-        entityName="Category"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/categories/${item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => show && site ? (
-          <CreateCategoryModal
-            siteId={site.id}
-            existingCategories={categories}
-            onCreated={(category) => {
-              setCategories(prev => [...prev, category])
-              handleCategoryChange(category.slug)
-              setShow(false)
-            }}
-            onClose={() => setShow(false)}
-          />
-        ) : null}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          <CategorySettingsModal
-            open={show}
-            onOpenChange={setShow}
-            category={(currentItem ? currentCategoryData : null) || null}
-            existingCategories={categories}
-            onSuccess={(updatedCategory) => {
-              setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c))
-            }}
+      <DashboardStickyHeader
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            onPublish={handlePublish}
+            isPublishing={isPublishing}
+            isPublished={Boolean(currentCategoryData?.is_published)}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentCategoryData}
+            renderSettingsModal={(show, setShow) => (
+              <CategorySettingsModal
+                open={show}
+                onOpenChange={setShow}
+                category={currentCategoryData || null}
+                existingCategories={categories}
+                onSuccess={(updatedCategory) => {
+                  setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c))
+                }}
+              />
+            )}
           />
         )}
       />

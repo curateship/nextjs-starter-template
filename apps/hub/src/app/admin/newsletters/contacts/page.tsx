@@ -857,7 +857,7 @@ export default function ContactsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("contacts")} />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("contacts", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

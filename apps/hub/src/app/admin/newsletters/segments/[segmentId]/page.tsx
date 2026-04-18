@@ -7,6 +7,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -186,6 +187,7 @@ function formatDynamicConditionLabel(condition: DynamicConditionForm) {
 export default function SegmentDashboardPage() {
   const params = useParams()
   const router = useRouter()
+  const { currentSite } = useSiteSwitcher()
   const segmentId = params.segmentId as string
 
   // Segment data
@@ -409,7 +411,7 @@ export default function SegmentDashboardPage() {
   }
 
   // Nav links — Segments tab active
-  const navLinks = getNewsletterAdminTopNavLinks("segments")
+  const navLinks = getNewsletterAdminTopNavLinks("segments", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)
   const invalidDynamicConditions = editForm.segmentType === "dynamic" && !buildDynamicRuleFromForm(dynamicConditions)
 
   function addDynamicCondition(type: DynamicConditionForm["type"]) {

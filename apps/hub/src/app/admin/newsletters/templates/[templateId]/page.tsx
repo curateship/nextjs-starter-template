@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -25,7 +25,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
-import { Monitor, Tablet, Smartphone, Save, Pencil, Check, X } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Pencil, Check, X } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
@@ -56,7 +56,8 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const blockEditor = useBlockEditor()
-  const newsletterNavLinks = getNewsletterAdminTopNavLinks("templates")
+  const newsletterSettingsHref = currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined
+  const newsletterNavLinks = getNewsletterAdminTopNavLinks("templates", newsletterSettingsHref)
   const selectedBlock = blockEditor.selectedBlock
 
   useEffect(() => {
@@ -150,21 +151,18 @@ export default function TemplateEditorPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters/templates", label: "Templates" },
-            { label: "Loading...", isPage: true },
-          ]}
-          rightActions={
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-              <div className="h-8 w-20 bg-muted rounded animate-pulse" />
-            </div>
-          }
+        <DashboardStickyHeader
+          navLinks={newsletterNavLinks}
+          rightActions={(
+            <StickybarTopRightActions
+              rightActions={(
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+                  <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+                </div>
+              )}
+            />
+          )}
         />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 border-r bg-background overflow-hidden">
@@ -199,15 +197,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters/templates", label: "Templates" },
-            { label: "Error", isPage: true },
-          ]}
-        />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -220,100 +209,81 @@ export default function TemplateEditorPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={newsletterNavLinks} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/newsletters/templates", label: "Templates" },
-          { label: template?.name || "Editor", isPage: true },
-        ]}
-        rightActions={
-          <div className="flex items-center gap-2">
-            {saveMessage && (
-              <span className={`text-sm ${saveMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                {saveMessage}
-              </span>
-            )}
+      <DashboardStickyHeader
+        navLinks={newsletterNavLinks}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                {editingName ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      className="h-8 w-48 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName()
+                        if (e.key === 'Escape') { setEditingName(false); setNameInput(template?.name || "") }
+                      }}
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setEditingName(false); setNameInput(template?.name || "") }}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingName(true)}
+                    title="Rename template"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                    Rename
+                  </Button>
+                )}
 
-            {/* Template name inline edit */}
-            {editingName ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  className="h-8 w-48 text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveName()
-                    if (e.key === 'Escape') { setEditingName(false); setNameInput(template?.name || "") }
-                  }}
-                  autoFocus
-                />
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { setEditingName(false); setNameInput(template?.name || "") }}>
-                  <X className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center border rounded-md h-8 overflow-hidden">
+                  <Button
+                    variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-r-none"
+                    onClick={() => setPreviewWidth('desktop')}
+                    title="Desktop (600px)"
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-none border-x"
+                    onClick={() => setPreviewWidth('tablet')}
+                    title="Tablet (480px)"
+                  >
+                    <Tablet className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-l-none"
+                    onClick={() => setPreviewWidth('mobile')}
+                    title="Mobile (320px)"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setEditingName(true)}
-                title="Rename template"
-              >
-                <Pencil className="w-3.5 h-3.5 mr-1" />
-                Rename
-              </Button>
             )}
-
-            {/* Responsive toggle */}
-            <div className="flex items-center border rounded-md h-8 overflow-hidden">
-              <Button
-                variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-r-none"
-                onClick={() => setPreviewWidth('desktop')}
-                title="Desktop (600px)"
-              >
-                <Monitor className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-none border-x"
-                onClick={() => setPreviewWidth('tablet')}
-                title="Tablet (480px)"
-              >
-                <Tablet className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-l-none"
-                onClick={() => setPreviewWidth('mobile')}
-                title="Mobile (320px)"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-
-            {/* Save button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
-              <Save className="w-4 h-4 mr-1" />
-              Save
-            </Button>
-          </div>
-        }
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            saveMessage={saveMessage}
+            isSaving={isSaving}
+            onSave={handleSave}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+          />
+        )}
       />
 
       <div className="flex-1 flex overflow-hidden">

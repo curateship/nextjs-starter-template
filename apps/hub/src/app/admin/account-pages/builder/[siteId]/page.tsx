@@ -10,19 +10,9 @@ import Link from "next/link"
 import { useAccountPageData } from "@/components/admin/account-page-builder/config/useAccountPageData"
 import { useAccountPageBuilder } from "@/components/admin/account-page-builder/config/useAccountPageBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { AccountPageSettingsModal } from "@/components/admin/account-page-builder/layout/AccountPageSettingsModal"
-import { CreateAccountPageModal } from "@/components/admin/account-page-builder/layout/CreateAccountPageModal"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
 import { BlockPropertiesPanel } from "@/components/admin/account-page-builder/layout/BlockPropertiesPanel"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -31,7 +21,6 @@ import {
   getAccountPagesAction,
   type AccountPage
 } from "@/lib/actions/account-pages/account-pages-actions"
-import { getAccountPagePath } from "@/lib/utils/account-page-path"
 
 export default function AccountPageBuilderPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -122,29 +111,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     )
   }
 
-  // Handle page change with URL update
-  const handlePageChange = (pageSlug: string) => {
-    if (pageSlug !== selectedPage) {
-      setSelectedPage(pageSlug)
-      // Ensure blocks array exists for this page
-      setLocalBlocks(prev => ({
-        ...prev,
-        [pageSlug]: prev[pageSlug] || []
-      }))
-      router.replace(`/admin/account-pages/builder/${siteId}?page=${pageSlug}`)
-    }
-  }
-
-  const handlePageCreated = (newPage: AccountPage) => {
-    setPages(prev => [...prev, newPage])
-    setLocalBlocks(prev => ({
-      ...prev,
-      [newPage.slug]: []
-    }))
-    setSelectedPage(newPage.slug)
-    router.replace(`/admin/account-pages/builder/${siteId}?page=${newPage.slug}`)
-  }
-
   const handlePageUpdated = (updatedPage: AccountPage) => {
     setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
 
@@ -197,53 +163,25 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={getPageAdminTopNavLinks(siteId, "account-pages")} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { href: `/admin/sites/${siteId}/pages`, label: "Structure" },
-          { href: `/admin/account-pages/${siteId}`, label: "Account Pages" },
-          { label: currentPageData?.title || "", isPage: true }
-        ]}
-        items={pages}
-        selectedItemSlug={selectedPage}
-        onItemChange={handlePageChange}
-        entityName="Account Page"
-        getItemUrl={(item) => getAccountPagePath(item.slug)}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => (
-          <Dialog open={show} onOpenChange={setShow}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Account Page</AdminModalTitle>
-                <AdminModalDescription>Add a new account or auth page. You can customize the content after creation.</AdminModalDescription>
-              </AdminModalHeader>
-              <CreateAccountPageModal
-                siteId={siteId}
-                onSuccess={(page) => {
-                  handlePageCreated(page)
-                  setShow(false)
-                }}
-                onCancel={() => setShow(false)}
+      <DashboardStickyHeader
+        navLinks={getPageAdminTopNavLinks(siteId, "account-pages")}
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentPageData}
+            renderSettingsModal={(show, setShow) => (
+              <AccountPageSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                page={currentPageData || null}
+                site={null}
+                onSuccess={handlePageUpdated}
               />
-            </AdminModalContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          <AccountPageSettingsModal
-            open={show}
-            onOpenChange={setShow}
-            page={(currentItem ? currentPageData : null) || null}
-            site={null}
-            onSuccess={(updatedPage) => {
-              handlePageUpdated(updatedPage)
-            }}
+            )}
           />
         )}
       />

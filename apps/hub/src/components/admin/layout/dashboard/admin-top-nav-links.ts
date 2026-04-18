@@ -14,6 +14,7 @@ import {
   Package,
   Search,
   ShoppingCart,
+  Settings2,
   Users,
   Zap,
   Navigation,
@@ -36,8 +37,9 @@ type NewsletterAdminSection =
   | "segments"
   | "automations"
   | "templates"
+  | "settings"
 type DirectoryAdminSection = "directory" | "templates" | "custom-blocks"
-type PlatformEmailAdminSection = "templates" | "emails"
+type PlatformEmailAdminSection = "templates" | "emails" | "settings"
 type PlatformSettingsAdminSection = "settings" | "apps-integration"
 type SiteHealthAdminSection = "overview" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
@@ -46,6 +48,7 @@ export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTo
   return [
     { label: "Products", href: "/admin/products", icon: Package, active: active === "products" },
     { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: active === "orders" },
+    { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3, active: active === "analytics" },
   ]
 }
 
@@ -58,26 +61,41 @@ export function getPageAdminTopNavLinks(siteId: string, active: PageAdminSection
   ]
 }
 
-export function getNewsletterAdminTopNavLinks(active?: NewsletterAdminSection): AdminTopNavLink[] {
-  return [
+export function getNewsletterAdminTopNavLinks(active?: NewsletterAdminSection, newsletterSettingsHref?: string): AdminTopNavLink[] {
+  const links: AdminTopNavLink[] = [
     { label: "Newsletters", href: "/admin/newsletters", icon: Mail, active: active === "newsletters" },
     { label: "Contacts", href: "/admin/newsletters/contacts", icon: Users, active: active === "contacts" },
     { label: "Segments", href: "/admin/newsletters/segments", icon: Filter, active: active === "segments" },
     { label: "Automations", href: "/admin/newsletters/automations", icon: Zap, active: active === "automations" },
   ]
+
+  if (newsletterSettingsHref) {
+    links.push({ label: "Templates", href: "/admin/newsletters/templates", icon: FileText, active: active === "templates" })
+    links.push({ label: "Settings", href: newsletterSettingsHref, icon: Settings2, active: active === "settings" })
+  }
+
+  return links
 }
 
 export function getDirectoryAdminTopNavLinks(active: DirectoryAdminSection): AdminTopNavLink[] {
   return [
     { label: "Directory", href: "/admin/directories", icon: FolderOpen, active: active === "directory" },
+    { label: "Templates", href: "/admin/directories/templates", icon: FileText, active: active === "templates" },
+    { label: "Custom Blocks", href: "/admin/directories/custom-blocks", icon: Blocks, active: active === "custom-blocks" },
   ]
 }
 
-export function getPlatformEmailAdminTopNavLinks(active: PlatformEmailAdminSection): AdminTopNavLink[] {
-  return [
+export function getPlatformEmailAdminTopNavLinks(active: PlatformEmailAdminSection, emailSettingsHref?: string): AdminTopNavLink[] {
+  const links: AdminTopNavLink[] = [
     { label: "Email Templates", href: "/admin/platforms/emails", icon: FileText, active: active === "templates" },
     { label: "Email Accounts", href: "/admin/platforms/emails/senders", icon: Mail, active: active === "emails" },
   ]
+
+  if (emailSettingsHref) {
+    links.push({ label: "Email Settings", href: emailSettingsHref, icon: Settings2, active: active === "settings" })
+  }
+
+  return links
 }
 
 export function getPlatformSettingsAdminTopNavLinks(active: PlatformSettingsAdminSection): AdminTopNavLink[] {

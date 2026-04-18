@@ -10,11 +10,9 @@ import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderToolbar, type BuilderItem } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
-import { CreateProductModal } from "@/components/admin/product-builder/layout/CreateProductModal"
 import { ProductContentBlock } from "@/components/admin/product-builder/blocks/content/ProductContentBlock"
 import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
@@ -143,28 +141,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     })
   }, [selectedBlock, currentProductData?.description, currentProductData?.featured_image, currentProductData?.title])
   
-  // Handle product change with URL update
-  const handleProductChange = (productSlug: string) => {
-    if (productSlug !== selectedProduct) {
-      setSelectedProduct(productSlug)
-      // Ensure blocks array exists for this product
-      setLocalBlocks(prev => ({
-        ...prev,
-        [productSlug]: prev[productSlug] || []
-      }))
-      router.replace(`/admin/products/builder/${siteId}?product=${productSlug}`)
-    }
-  }
-
-  // Handle product creation
-  const handleProductCreated = async (newProduct: Product) => {
-    setProducts(prev => [...prev, newProduct])
-    setSelectedProduct(newProduct.slug)
-    router.replace(`/admin/products/builder/${siteId}?product=${newProduct.slug}`)
-    // Reload blocks from DB to pick up API-generated default blocks
-    await reloadBlocks()
-  }
-
   // Handle product updates
   const handleProductUpdated = (updatedProduct: Product) => {
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
@@ -312,48 +288,28 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <StickyHeader navLinks={getProductAdminTopNavLinks("products")} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/products", label: "Products" },
-          { label: currentProductData?.title || "", isPage: true }
-        ]}
-        items={products}
-        selectedItemSlug={selectedProduct}
-        onItemChange={handleProductChange}
-        entityName="Product"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/products/${item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => (
-        <Dialog open={show} onOpenChange={setShow}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Product</AdminModalTitle>
-                <AdminModalDescription>Add a new product to your catalog. You can customize the content after creation.</AdminModalDescription>
-              </AdminModalHeader>
-              <CreateProductModal
-                onSuccess={(product) => { handleProductCreated(product); setShow(false); }}
-                onCancel={() => setShow(false)}
+      <StickyHeader
+        navLinks={getProductAdminTopNavLinks("products")}
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            onPublish={handlePublish}
+            isPublishing={isPublishing}
+            isPublished={Boolean(currentProductData?.is_published)}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentProductData}
+            renderSettingsModal={(show, setShow) => (
+              <ProductSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                product={currentProductData || null}
+                site={currentSite}
+                onSuccess={handleProductUpdated}
               />
-            </AdminModalContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          <ProductSettingsModal
-            open={show}
-            onOpenChange={setShow}
-            product={(currentItem ? currentProductData : null) || null}
-            site={currentSite}
-            onSuccess={handleProductUpdated}
+            )}
           />
         )}
       />

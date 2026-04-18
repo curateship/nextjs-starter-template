@@ -7,6 +7,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -56,6 +57,7 @@ import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 export default function ContactDashboardPage() {
   const params = useParams()
   const router = useRouter()
+  const { currentSite } = useSiteSwitcher()
   const contactId = params.contactId as string
 
   // Contact data
@@ -265,7 +267,7 @@ export default function ContactDashboardPage() {
     : ""
 
   // Nav links (same as contacts list page)
-  const navLinks = getNewsletterAdminTopNavLinks("contacts")
+  const navLinks = getNewsletterAdminTopNavLinks("contacts", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)
 
   return (
     <>

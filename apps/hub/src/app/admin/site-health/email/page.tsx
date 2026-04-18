@@ -54,7 +54,7 @@ export default function EmailHealthPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getPlatformEmailAdminTopNavLinks("emails")} />
+      <StickyHeader navLinks={getPlatformEmailAdminTopNavLinks("emails", currentSite?.id ? `/admin/sites/${currentSite.id}/settings?tab=email` : undefined)} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

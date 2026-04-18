@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -26,7 +26,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/shared/AdminModalLayout"
-import { Monitor, Tablet, Smartphone, Settings, Save, Pause, Play, Send } from "lucide-react"
+import { Monitor, Tablet, Smartphone, Pause, Play } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -117,14 +117,14 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [publishModalOpen, setPublishModalOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftSubject, setDraftSubject] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const builder = useNewsletterBuilder({ newsletterId })
-  const newsletterNavLinks = getNewsletterAdminTopNavLinks("newsletters")
+  const newsletterSettingsHref = currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined
+  const newsletterNavLinks = getNewsletterAdminTopNavLinks("newsletters", newsletterSettingsHref)
   const selectedBlock = builder.selectedBlock
 
   useEffect(() => {
@@ -164,23 +164,20 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
   if (builder.loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters", label: "Newsletters" },
-            { label: "Loading...", isPage: true },
-          ]}
-          rightActions={
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-              <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-              <div className="h-8 w-20 bg-muted rounded animate-pulse" />
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-            </div>
-          }
+        <DashboardStickyHeader
+          navLinks={newsletterNavLinks}
+          rightActions={(
+            <StickybarTopRightActions
+              rightActions={(
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+                  <div className="h-8 w-8 bg-muted rounded animate-pulse" />
+                  <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+                  <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+                </div>
+              )}
+            />
+          )}
         />
         <div className="flex-1 flex overflow-hidden">
           {/* Left panel skeleton */}
@@ -238,15 +235,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters", label: "Newsletters" },
-            { label: "Error", isPage: true },
-          ]}
-        />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{builder.error}</p>
@@ -259,94 +247,69 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={newsletterNavLinks} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/newsletters", label: "Newsletters" },
-          { label: builder.newsletter?.subject || "Builder", isPage: true },
-        ]}
-        rightActions={
-          <div className="flex items-center gap-2">
-            {/* Save message */}
-            {builder.saveMessage && (
-              <span className={`text-sm ${builder.saveMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                {builder.saveMessage}
-              </span>
+      <DashboardStickyHeader
+        navLinks={newsletterNavLinks}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                <div className="flex items-center border rounded-md h-8 overflow-hidden">
+                  <Button
+                    variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-r-none"
+                    onClick={() => setPreviewWidth('desktop')}
+                    title="Desktop (600px)"
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-none border-x"
+                    onClick={() => setPreviewWidth('tablet')}
+                    title="Tablet (480px)"
+                  >
+                    <Tablet className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-l-none"
+                    onClick={() => setPreviewWidth('mobile')}
+                    title="Mobile (320px)"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             )}
-
-            {/* Responsive toggle */}
-            <div className="flex items-center border rounded-md h-8 overflow-hidden">
-              <Button
-                variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-r-none"
-                onClick={() => setPreviewWidth('desktop')}
-                title="Desktop (600px)"
-              >
-                <Monitor className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-none border-x"
-                onClick={() => setPreviewWidth('tablet')}
-                title="Tablet (480px)"
-              >
-                <Tablet className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-l-none"
-                onClick={() => setPreviewWidth('mobile')}
-                title="Mobile (320px)"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            {/* Settings */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSettingsModalOpen(true)}
-            >
-              <Settings className="w-4 h-4 mr-1" />
-              Settings
-            </Button>
-
-            {/* Save button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={builder.handleSave}
-              disabled={builder.isSaving}
-            >
-              <Save className="w-4 h-4 mr-1" />
-              Save
-            </Button>
-
-            {/* Publish button */}
-            {builder.newsletter && builder.newsletter.status !== 'sent' && builder.newsletter.status !== 'sending' && builder.newsletter.status !== 'paused' && (
-              <Button
-                size="sm"
-                onClick={async () => {
+            saveMessage={builder.saveMessage}
+            isSaving={builder.isSaving}
+            onSave={builder.handleSave}
+            onPublish={builder.newsletter && builder.newsletter.status !== 'sent' && builder.newsletter.status !== 'sending' && builder.newsletter.status !== 'paused'
+              ? async () => {
                   await builder.handleSave()
                   setPublishModalOpen(true)
+                }
+              : undefined}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!builder.newsletter}
+            renderSettingsModal={(show, setShow) => (
+              <NewsletterSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                newsletter={builder.newsletter}
+                siteId={currentSite?.id || ''}
+                onSuccess={() => {
+                  builder.reloadNewsletter()
+                  setShow(false)
                 }}
-                disabled={builder.isSaving}
-              >
-                <Send className="w-4 h-4 mr-1" />
-                Publish
-              </Button>
+              />
             )}
-
-          </div>
-        }
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+          />
+        )}
       />
 
       {/* Drip progress / paused alert bar */}
@@ -457,17 +420,6 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         onAddBlocks={builder.handleAddBlocks}
         blockTypes={NEWSLETTER_BLOCK_TYPES}
         entityName="newsletter"
-      />
-
-      <NewsletterSettingsModal
-        open={settingsModalOpen}
-        onOpenChange={setSettingsModalOpen}
-        newsletter={builder.newsletter}
-        siteId={currentSite?.id || ''}
-        onSuccess={(updated) => {
-          builder.reloadNewsletter()
-          setSettingsModalOpen(false)
-        }}
       />
 
       <PublishNewsletterModal

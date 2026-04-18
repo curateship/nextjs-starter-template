@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -180,7 +180,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const productTriggerOptions = draftTriggerType === "lead_magnet_signup" ? leadMagnetProducts : purchaseProducts
   const productTriggerLabel = draftTriggerType === "lead_magnet_signup" ? "Lead magnet" : "Product"
   const centerAxisStyle = { transform: "translateX(1.5px)" }
-  const newsletterNavLinks = getNewsletterAdminTopNavLinks("automations")
+  const newsletterSettingsHref = siteId ? `/admin/sites/${siteId}/settings/newsletters` : undefined
+  const newsletterNavLinks = getNewsletterAdminTopNavLinks("automations", newsletterSettingsHref)
 
   const flash = (message: string) => {
     setSaveMessage(message)
@@ -573,21 +574,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters/automations", label: "Automations" },
-            { label: "Loading...", isPage: true },
-          ]}
-          rightActions={
-            <>
-              <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
-              <div className="h-8 w-20 animate-pulse rounded bg-muted" />
-            </>
-          }
+        <DashboardStickyHeader
+          navLinks={newsletterNavLinks}
+          rightActions={(
+            <StickybarTopRightActions
+              rightActions={(
+                <>
+                  <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+                  <div className="h-8 w-20 animate-pulse rounded bg-muted" />
+                </>
+              )}
+            />
+          )}
         />
         <AdminLayout>
           <div className="mx-auto w-full max-w-2xl px-6 py-8">
@@ -637,15 +635,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <DashboardStickyHeader navLinks={newsletterNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/newsletters/automations", label: "Automations" },
-            { label: "Error", isPage: true },
-          ]}
-        />
         <AdminLayout>
           <div className="w-full p-8 text-center">
             <p className="mb-4 text-red-600">{error}</p>
@@ -658,34 +647,31 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <DashboardStickyHeader navLinks={newsletterNavLinks} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/newsletters/automations", label: "Automations" },
-          { label: automation.name, isPage: true },
-        ]}
-        rightActions={
-          <>
-            {saveMessage && <span className="text-sm text-green-600">{saveMessage}</span>}
-            <Badge
-              variant={automation.status === "active" ? "default" : "secondary"}
-              className={automation.status === "active" ? "bg-green-100 text-green-800" : ""}
-            >
-              {automation.status === "active" ? "Active" : automation.status === "paused" ? "Paused" : "Draft"}
-            </Badge>
-            <Button
-              size="sm"
-              variant={automation.status === "active" ? "destructive" : "default"}
-              onClick={handleStatusToggle}
-              disabled={saving || (automation.status !== "active" && (!triggerConfigured || nodes.filter(node => node.node_type === "email").length === 0))}
-            >
-              {automation.status === "active" ? "Pause" : "Activate"}
-            </Button>
-          </>
-        }
+      <DashboardStickyHeader
+        navLinks={newsletterNavLinks}
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={saveMessage}
+            rightActions={(
+              <>
+                <Badge
+                  variant={automation.status === "active" ? "default" : "secondary"}
+                  className={automation.status === "active" ? "bg-green-100 text-green-800" : ""}
+                >
+                  {automation.status === "active" ? "Active" : automation.status === "paused" ? "Paused" : "Draft"}
+                </Badge>
+                <Button
+                  size="sm"
+                  variant={automation.status === "active" ? "destructive" : "default"}
+                  onClick={handleStatusToggle}
+                  disabled={saving || (automation.status !== "active" && (!triggerConfigured || nodes.filter(node => node.node_type === "email").length === 0))}
+                >
+                  {automation.status === "active" ? "Pause" : "Activate"}
+                </Button>
+              </>
+            )}
+          />
+        )}
       />
       <AdminLayout>
         <div className="mx-auto w-full max-w-2xl px-6 py-8">

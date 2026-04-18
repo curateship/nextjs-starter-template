@@ -433,7 +433,7 @@ export default function SegmentsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("segments")} />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("segments", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

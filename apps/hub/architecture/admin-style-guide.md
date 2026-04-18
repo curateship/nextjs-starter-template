@@ -137,7 +137,7 @@ A builder page (products, newsletters, pages) follows this structure:
 
 ```tsx
 <div className="flex flex-col h-full overflow-hidden">
-  <StickyHeader breadcrumbItems={[...]} rightActions={...} />
+  <StickyHeader navLinks={[...]} rightActions={...} />
   <div className="flex-1 flex overflow-hidden">
     {/* Left panel — block config or preview */}
     <div className="flex-1 border-r bg-background overflow-y-auto pb-10">
@@ -152,6 +152,7 @@ A builder page (products, newsletters, pages) follows this structure:
 ```
 
 The key difference: builder pages don't wrap the entire page in AdminLayout — they wrap just the block config content area in it, since the canvas/preview and block list have their own layouts.
+Builder pages should not add a second toolbar row. Section navigation lives in `StickyHeader` on the left, and current-item actions live in `StickyHeader.rightActions` on the right.
 
 ## Rule 6: Numeric inputs (padding, spacing, thickness, etc.)
 

@@ -10,20 +10,9 @@ import Link from "next/link"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
 import { usePageBuilder } from "@/components/admin/page-builder/config/usePageBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { PageSettingsModal } from "@/components/admin/page-builder/layout/PageSettingsModal"
-import { CreatePageModal } from "@/components/admin/page-builder/layout/CreatePageModal"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { PAGE_BLOCK_TYPES } from "@/components/admin/page-builder/config/page-block-types"
@@ -129,27 +118,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     setDraftContent(builderState.selectedBlock.content)
   }, [builderState.selectedBlock])
   
-  // Handle page change with URL update
-  const handlePageChange = (pageSlug: string) => {
-    if (pageSlug !== selectedPage) {
-      setSelectedPage(pageSlug)
-      // Ensure blocks array exists for this page
-      setLocalBlocks(prev => ({
-        ...prev,
-        [pageSlug]: prev[pageSlug] || []
-      }))
-      router.replace(`/admin/pages/${siteId}?page=${pageSlug}`)
-    }
-  }
-
-  // Handle page creation
-  const handlePageCreated = async (newPage: Page) => {
-    setPages(prev => [...prev, newPage])
-    setSelectedPage(newPage.slug)
-    router.replace(`/admin/pages/${siteId}?page=${newPage.slug}`)
-    await reloadBlocks()
-  }
-
   // Handle page updates
   const handlePageUpdated = (updatedPage: Page) => {
     setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
@@ -240,48 +208,25 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
           Editing Theme: {site?.name}
         </div>
       )}
-      <DashboardStickyHeader navLinks={getPageAdminTopNavLinks(siteId, "pages")} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: site ? `/admin/sites/${site.id}/dashboard` : `/admin/sites/${siteId}/dashboard`, label: "Dashboard" },
-          { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Structure" },
-          { href: site ? `/admin/sites/${site.id}/pages` : `/admin/sites/${siteId}/pages`, label: "Pages" },
-          { label: currentPageData?.title || "", isPage: true }
-        ]}
-        items={pages}
-        selectedItemSlug={selectedPage}
-        onItemChange={handlePageChange}
-        entityName="Page"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/${item.slug === 'home' ? '' : item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => (
-          <Dialog open={show} onOpenChange={setShow}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Page</AdminModalTitle>
-                <AdminModalDescription>Add a new page to your site. You can customize the content after creation.</AdminModalDescription>
-              </AdminModalHeader>
-              <CreatePageModal
-                siteId={siteId}
-                onSuccess={(page) => { handlePageCreated(page); setShow(false); }}
-                onCancel={() => setShow(false)}
+      <DashboardStickyHeader
+        navLinks={getPageAdminTopNavLinks(siteId, "pages")}
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentPageData}
+            renderSettingsModal={(show, setShow) => (
+              <PageSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                page={currentPageData || null}
+                site={site}
+                onSuccess={handlePageUpdated}
               />
-            </AdminModalContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          <PageSettingsModal
-            open={show}
-            onOpenChange={setShow}
-            page={(currentItem ? currentPageData : null) || null}
-            site={site}
-            onSuccess={handlePageUpdated}
+            )}
           />
         )}
       />

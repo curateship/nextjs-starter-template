@@ -9,18 +9,9 @@ import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
-import { CreatePostModal } from "@/components/admin/post-builder/layout/CreatePostModal"
-import { Dialog } from "@/components/ui/dialog"
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
@@ -164,22 +155,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     setBlockSaveError(null)
   }, [selectedBlock, currentPostData?.title])
   
-  // Handle post change with URL update
-  const handlePostChange = (postSlug: string) => {
-    if (postSlug !== selectedPost) {
-      setSelectedPost(postSlug)
-      router.replace(`/admin/posts/builder/${siteId}?post=${postSlug}`)
-    }
-  }
-
-  // Handle post creation
-  const handlePostCreated = (newPost: Post) => {
-    setPosts(prev => [...prev, newPost])
-    // Switch to the newly created post
-    setSelectedPost(newPost.slug)
-    router.replace(`/admin/posts/builder/${siteId}?post=${newPost.slug}`)
-  }
-
   // Handle post updates
   const handlePostUpdated = (updatedPost: Post) => {
     setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
@@ -312,48 +287,26 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/posts", label: "Posts" },
-          { label: currentPostData?.title || "", isPage: true }
-        ]}
-        items={posts}
-        selectedItemSlug={selectedPost}
-        onItemChange={handlePostChange}
-        entityName="Post"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/posts/${item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={false}
-        onSave={builderState.handleSaveAllBlocks}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => (
-          <Dialog open={show} onOpenChange={setShow}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Post</AdminModalTitle>
-                <AdminModalDescription>Add a new post to your blog. You can customize the content after creation.</AdminModalDescription>
-              </AdminModalHeader>
-              <CreatePostModal
-                onSuccess={(post) => { handlePostCreated(post); setShow(false); }}
-                onCancel={() => setShow(false)}
+      <DashboardStickyHeader
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            onSave={builderState.handleSaveAllBlocks}
+            onPublish={handlePublish}
+            isPublishing={isPublishing}
+            isPublished={Boolean(currentPostData?.is_published)}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentPostData}
+            renderSettingsModal={(show, setShow) => (
+              <PostSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                post={currentPostData || null}
+                site={currentSite}
+                onSuccess={handlePostUpdated}
               />
-            </AdminModalContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow) => (
-          <PostSettingsModal
-            open={show}
-            onOpenChange={setShow}
-            post={currentPostData || null}
-            site={currentSite}
-            onSuccess={handlePostUpdated}
+            )}
           />
         )}
       />

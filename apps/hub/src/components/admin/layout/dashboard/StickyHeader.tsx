@@ -4,11 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
-import { BarChart3, Blocks, FileText, PanelLeft, Settings2, type LucideIcon } from "lucide-react"
+import { PanelLeft, type LucideIcon } from "lucide-react"
 import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
-import { Button } from "@/components/ui/button"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { usePathname } from "next/navigation"
 
 interface NavLink {
   label: string
@@ -44,21 +41,6 @@ export function StickyHeader({
   rightActions,
 }: StickyHeaderProps) {
   const { isMobile, toggleSidebar } = useSidebar()
-  const { currentSite } = useSiteSwitcher()
-  const pathname = usePathname()
-  const newsletterSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings/newsletters` : null
-  const emailSettingsHref = currentSite ? `/admin/sites/${currentSite.id}/settings?tab=email` : null
-  const isNewsletterSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/newsletters")))
-  const isPlatformEmailSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/platforms/emails")))
-  const isProductSection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/products") || link.href.startsWith("/admin/orders")))
-  const isDirectorySection = Boolean(navLinks?.some((link) => link.href.startsWith("/admin/directories")))
-  const productAnalyticsActive = pathname.startsWith("/admin/products/analytics")
-  const directoryCustomBlocksActive = pathname.startsWith("/admin/directories/custom-blocks")
-  const directoryTemplatesActive = pathname.startsWith("/admin/directories/templates")
-  const showNewsletterTemplatesButton = isNewsletterSection
-  const showNewsletterSettingsButton = Boolean(newsletterSettingsHref) && isNewsletterSection
-  const showEmailSettingsButton = Boolean(emailSettingsHref) && isPlatformEmailSection
-  const newsletterTemplatesActive = pathname.startsWith("/admin/newsletters/templates")
   const headerNavItems: HeaderNavItem[] = [
     ...(isMobile
       ? [
@@ -187,54 +169,6 @@ export function StickyHeader({
         {/* Right side: page-specific actions */}
         <div className="flex items-center gap-2 pr-1">
           {rightActions}
-          {isProductSection && (
-            <Button variant={productAnalyticsActive ? "default" : "outline"} asChild size="sm">
-              <Link href="/admin/products/analytics">
-                <BarChart3 className="h-4 w-4" />
-                Analytics
-              </Link>
-            </Button>
-          )}
-          {isDirectorySection && (
-            <Button variant={directoryCustomBlocksActive ? "default" : "outline"} asChild size="sm">
-              <Link href="/admin/directories/custom-blocks">
-                <Blocks className="h-4 w-4" />
-                Custom Blocks
-              </Link>
-            </Button>
-          )}
-          {isDirectorySection && (
-            <Button variant={directoryTemplatesActive ? "default" : "outline"} asChild size="sm">
-              <Link href="/admin/directories/templates">
-                <FileText className="h-4 w-4" />
-                Templates
-              </Link>
-            </Button>
-          )}
-          {showNewsletterTemplatesButton && (
-            <Button variant={newsletterTemplatesActive ? "default" : "outline"} asChild size="sm">
-              <Link href="/admin/newsletters/templates">
-                <FileText className="h-4 w-4" />
-                Templates
-              </Link>
-            </Button>
-          )}
-          {showNewsletterSettingsButton && newsletterSettingsHref && (
-            <Button variant="outline" asChild size="sm">
-              <Link href={newsletterSettingsHref}>
-                <Settings2 className="h-4 w-4" />
-                Settings
-              </Link>
-            </Button>
-          )}
-          {showEmailSettingsButton && emailSettingsHref && (
-            <Button variant="outline" asChild size="sm">
-              <Link href={emailSettingsHref}>
-                <Settings2 className="h-4 w-4" />
-                Email Settings
-              </Link>
-            </Button>
-          )}
         </div>
       </div>
     </header>

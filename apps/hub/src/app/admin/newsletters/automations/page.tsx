@@ -214,7 +214,7 @@ export default function EmailAutomationsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("automations")} />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("automations", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

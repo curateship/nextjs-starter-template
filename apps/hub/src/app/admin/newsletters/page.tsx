@@ -367,7 +367,7 @@ export default function NewslettersPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("newsletters")} />
+      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("newsletters", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

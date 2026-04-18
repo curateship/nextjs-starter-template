@@ -9,11 +9,9 @@ import Link from "next/link"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import { CreateEventModal } from "@/components/admin/event-builder/layout/CreateEventModal"
 import {
   Dialog,
   DialogContent,
@@ -129,27 +127,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     setDraftEventTitle(currentEventData?.title || selectedEvent)
     setBlockSaveError(null)
   }, [selectedBlock, currentEventData?.title, selectedEvent])
-
-  // Handle event change with URL update
-  const handleEventChange = (eventSlug: string) => {
-    if (eventSlug !== selectedEvent) {
-      setSelectedEvent(eventSlug)
-      // Ensure blocks array exists for this event
-      setLocalBlocks(prev => ({
-        ...prev,
-        [eventSlug]: prev[eventSlug] || []
-      }))
-      router.replace(`/admin/events/builder/${siteId}?event=${eventSlug}`)
-    }
-  }
-
-  // Handle event creation
-  const handleEventCreated = async (newEvent: Event) => {
-    setEvents(prev => [...prev, newEvent])
-    setSelectedEvent(newEvent.slug)
-    router.replace(`/admin/events/builder/${siteId}?event=${newEvent.slug}`)
-    await reloadBlocks()
-  }
 
   // Handle event updates
   const handleEventUpdated = (updatedEvent: Event) => {
@@ -317,48 +294,27 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader />
-      <BuilderToolbar
-        className="top-16 z-40"
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/events", label: "Events" },
-          { label: currentEventData?.title || "", isPage: true }
-        ]}
-        items={events}
-        selectedItemSlug={selectedEvent}
-        onItemChange={handleEventChange}
-        entityName="Event"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/events/${item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        showSidebarToggle={false}
-        renderCreateModal={(show, setShow) => (
-          <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Event</DialogTitle>
-                <DialogDescription>Add a new event to your site. You can customize the content after creation.</DialogDescription>
-              </DialogHeader>
-              <CreateEventModal
-                onSuccess={(event) => { handleEventCreated(event); setShow(false); }}
-                onCancel={() => setShow(false)}
+      <DashboardStickyHeader
+        rightActions={(
+          <StickybarTopRightActions
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            onPublish={handlePublish}
+            isPublishing={isPublishing}
+            isPublished={Boolean(currentEventData?.is_published)}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentEventData}
+            renderSettingsModal={(show, setShow) => (
+              <EventSettingsModal
+                open={show}
+                onOpenChange={setShow}
+                event={currentEventData || null}
+                site={currentSite}
+                onSuccess={handleEventUpdated}
               />
-            </DialogContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          <EventSettingsModal
-            open={show}
-            onOpenChange={setShow}
-            event={(currentItem ? currentEventData : null) || null}
-            site={currentSite}
-            onSuccess={handleEventUpdated}
+            )}
           />
         )}
       />

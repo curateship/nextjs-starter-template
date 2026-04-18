@@ -58,7 +58,7 @@ export default function PlatformEmailsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates")} />
+      <StickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates", currentSite?.id ? `/admin/sites/${currentSite.id}/settings?tab=email` : undefined)} />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader

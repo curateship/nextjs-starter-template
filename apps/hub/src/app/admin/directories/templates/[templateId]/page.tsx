@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
@@ -294,15 +294,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader navLinks={directoryNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/directories/templates", label: "Templates" },
-            { label: "Loading...", isPage: true },
-          ]}
-        />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 border-r bg-background overflow-hidden">
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
@@ -330,15 +321,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader navLinks={directoryNavLinks} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: "/admin", label: "Dashboard" },
-            { href: "/admin/directories/templates", label: "Templates" },
-            { label: "Error", isPage: true },
-          ]}
-        />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -353,67 +335,57 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={directoryNavLinks} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: "/admin", label: "Dashboard" },
-          { href: "/admin/directories/templates", label: "Templates" },
-          { label: template?.name || "Editor", isPage: true },
-        ]}
-        rightActions={
-          <div className="flex items-center gap-2">
-            {saveMessage && (
-              <span className={`text-sm ${saveMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                {saveMessage}
-              </span>
-            )}
-
-            {editingName ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  value={nameInput}
-                  onChange={(event) => setNameInput(event.target.value)}
-                  className="h-8 w-48 text-sm"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') handleSaveName()
-                    if (event.key === 'Escape') {
-                      setEditingName(false)
-                      setNameInput(template?.name || "")
-                    }
-                  }}
-                  autoFocus
-                />
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => {
-                    setEditingName(false)
-                    setNameInput(template?.name || "")
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+      <DashboardStickyHeader
+        navLinks={directoryNavLinks}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                {editingName ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={nameInput}
+                      onChange={(event) => setNameInput(event.target.value)}
+                      className="h-8 w-48 text-sm"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') handleSaveName()
+                        if (event.key === 'Escape') {
+                          setEditingName(false)
+                          setNameInput(template?.name || "")
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        setEditingName(false)
+                        setNameInput(template?.name || "")
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setEditingName(true)} title="Rename template">
+                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                    Rename
+                  </Button>
+                )}
               </div>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => setEditingName(true)} title="Rename template">
-                <Pencil className="w-3.5 h-3.5 mr-1" />
-                Rename
-              </Button>
             )}
-
-            <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        }
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            saveMessage={saveMessage}
+            isSaving={isSaving}
+            onSave={handleSave}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+          />
+        )}
       />
 
       <div className="flex-1 flex overflow-hidden">

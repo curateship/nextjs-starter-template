@@ -10,19 +10,10 @@ import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
-import { CreateDirectoryModal } from "@/components/admin/directory-builder/layout/CreateDirectoryModal"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
@@ -130,32 +121,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     },
   }))
 
-  // Handle directory change with URL update
-  const handleDirectoryChange = (directorySlug: string) => {
-    if (directorySlug !== selectedDirectory) {
-      // Ensure blocks array exists for this directory
-      setLocalBlocks(prev => ({
-        ...prev,
-        [directorySlug]: prev[directorySlug] || []
-      }))
-      router.replace(`/admin/directories/builder/${siteId}?directory=${directorySlug}`)
-    }
-  }
-
-  // Handle directory creation
-  const handleDirectoryCreated = async (newDirectory: Directory) => {
-    setDirectoryOptions((prev) => {
-      const next = [newDirectory, ...prev.filter((directory) => directory.id !== newDirectory.id)]
-      return next.slice(0, 20)
-    })
-    router.replace(`/admin/directories/builder/${siteId}?directory=${newDirectory.slug}`)
-    await reloadBlocks()
-  }
-
   // Handle directory updates
   const handleDirectoryUpdated = async (updatedDirectory: Directory) => {
-    setDirectoryOptions((prev) => prev.map((directory) => directory.id === updatedDirectory.id ? updatedDirectory : directory))
-
     if (currentDirectoryData && currentDirectoryData.slug !== updatedDirectory.slug) {
       // Move blocks from old slug to new slug
       setLocalBlocks(prev => {
@@ -308,14 +275,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     )
   }
 
-  const toolbarItems = (() => {
-    const items = currentDirectoryData
-      ? [currentDirectoryData, ...directoryOptions.filter((directory) => directory.id !== currentDirectoryData.id)]
-      : directoryOptions
-
-    return items.slice(0, 20)
-  })()
-
   const previewBlocks = selectedBlock
     ? currentDirectory.blocks.map((block) => (
         block.id === selectedBlock.id
@@ -335,66 +294,47 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={getDirectoryAdminTopNavLinks("directory")} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: "/admin/directories", label: "Directory" },
-          { label: currentDirectoryData?.title || "", isPage: true }
-        ]}
-        items={toolbarItems}
-        selectedItemSlug={selectedDirectory}
-        onItemChange={handleDirectoryChange}
-        entityName="Directory"
-        getItemUrl={(item) => `${currentSite ? getSiteUrl(currentSite) : ''}/directories/${item.slug}`}
-        saveMessage={builderState.saveMessage}
-        isSaving={builderState.isSaving}
-        onSave={builderState.handleSaveAllBlocks}
-        onPublish={handlePublish}
-        isPublishing={isPublishing}
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-        rightActions={
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={directorySearch}
-                onChange={(event) => setDirectorySearch(event.target.value)}
-                placeholder="Search directories"
-                className="h-9 w-56 pl-8"
-              />
-            </div>
-            {siteError && (
-              <span className="text-xs text-red-600">{siteError}</span>
+      <DashboardStickyHeader
+        navLinks={getDirectoryAdminTopNavLinks("directory")}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={directorySearch}
+                    onChange={(event) => setDirectorySearch(event.target.value)}
+                    placeholder="Search directories"
+                    className="h-9 w-56 pl-8"
+                  />
+                </div>
+                {siteError ? (
+                  <span className="text-xs text-red-600">{siteError}</span>
+                ) : null}
+              </div>
             )}
-          </div>
-        }
-        renderCreateModal={(show, setShow) => (
-          <Dialog open={show} onOpenChange={setShow}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Directory</DialogTitle>
-                <DialogDescription>Add a new directory to your site. You can customize the content after creation.</DialogDescription>
-              </DialogHeader>
-              <CreateDirectoryModal
-                onSuccess={(directory) => { handleDirectoryCreated(directory); setShow(false); }}
-                onCancel={() => setShow(false)}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-        renderSettingsModal={(show, setShow, currentItem) => (
-          show && currentItem ? (
-            <DirectorySettingsModal
-              open={show}
-              onOpenChange={setShow}
-              directory={currentDirectoryData || null}
-              site={currentSite}
-              onSuccess={handleDirectoryUpdated}
-            />
-          ) : null
+            saveMessage={builderState.saveMessage}
+            isSaving={builderState.isSaving}
+            onSave={builderState.handleSaveAllBlocks}
+            onPublish={handlePublish}
+            isPublishing={isPublishing}
+            isPublished={currentDirectoryData?.status === "published"}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            settingsDisabled={!currentDirectoryData}
+            renderSettingsModal={(show, setShow) => (
+              show ? (
+                <DirectorySettingsModal
+                  open={show}
+                  onOpenChange={setShow}
+                  directory={currentDirectoryData || null}
+                  site={currentSite}
+                  onSuccess={handleDirectoryUpdated}
+                />
+              ) : null
+            )}
+          />
         )}
       />
       <div className="flex-1 flex overflow-hidden">

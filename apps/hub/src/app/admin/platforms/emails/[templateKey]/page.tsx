@@ -2,9 +2,9 @@
 
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
-import { Monitor, Save, Smartphone, Tablet } from "lucide-react"
+import { Monitor, Smartphone, Tablet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { BuilderToolbar } from "@/components/admin/shared/BuilderToolbar"
+import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
 import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
@@ -62,6 +62,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const blockEditor = useBlockEditor()
   const requiresSiteContext = !isGlobalTemplateKey(templateKey)
   const selectedBlock = blockEditor.selectedBlock
+  const emailSettingsHref = currentSite?.id ? `/admin/sites/${currentSite.id}/settings?tab=email` : undefined
 
   useEffect(() => {
     if (requiresSiteContext && !currentSite?.id) {
@@ -165,15 +166,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates")} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: '/admin/platforms/emails', label: 'Email Templates' },
-            { label: 'Loading...', isPage: true },
-          ]}
-        />
+        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)} />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 border-r bg-background overflow-hidden">
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
@@ -206,15 +199,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   if (error || !template) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates")} />
-        <BuilderToolbar
-          className="top-16 z-40"
-          showSidebarToggle={false}
-          breadcrumbItems={[
-            { href: '/admin/platforms/emails', label: 'Email Templates' },
-            { label: 'Error', isPage: true },
-          ]}
-        />
+        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error || 'Template not found'}</p>
@@ -229,60 +214,50 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates")} />
-      <BuilderToolbar
-        className="top-16 z-40"
-        showSidebarToggle={false}
-        breadcrumbItems={[
-          { href: '/admin/platforms/emails', label: 'Email Templates' },
-          { label: template.name, isPage: true },
-        ]}
-        rightActions={
-          <div className="flex items-center gap-2">
-            {saveMessage && (
-              <span className={`text-sm ${saveMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                {saveMessage}
-              </span>
+      <DashboardStickyHeader
+        navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                <div className="flex items-center border rounded-md h-8 overflow-hidden">
+                  <Button
+                    variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-r-none"
+                    onClick={() => setPreviewWidth('desktop')}
+                    title="Desktop"
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-none border-x"
+                    onClick={() => setPreviewWidth('tablet')}
+                    title="Tablet"
+                  >
+                    <Tablet className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-l-none"
+                    onClick={() => setPreviewWidth('mobile')}
+                    title="Mobile"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
             )}
-
-            <div className="flex items-center border rounded-md h-8 overflow-hidden">
-              <Button
-                variant={previewWidth === 'desktop' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-r-none"
-                onClick={() => setPreviewWidth('desktop')}
-                title="Desktop"
-              >
-                <Monitor className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'tablet' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-none border-x"
-                onClick={() => setPreviewWidth('tablet')}
-                title="Tablet"
-              >
-                <Tablet className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant={previewWidth === 'mobile' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-l-none"
-                onClick={() => setPreviewWidth('mobile')}
-                title="Mobile"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-
-            <Button variant="outline" size="sm" onClick={handleSave} disabled={isSaving}>
-              <Save className="w-4 h-4 mr-1" />
-              Save
-            </Button>
-          </div>
-        }
-        blockListOpen={blockListOpen}
-        onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            saveMessage={saveMessage}
+            isSaving={isSaving}
+            onSave={handleSave}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+          />
+        )}
       />
 
       <div className="flex-1 flex overflow-hidden">

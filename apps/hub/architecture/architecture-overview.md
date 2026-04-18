@@ -173,6 +173,7 @@ apps/hub/src/components/
 - Standard admin create, settings, and block-editor forms should use the shared form modal primitives in `src/components/admin/shared/AdminModalLayout.tsx`.
 - Keep feature-specific modal files for their own form fields, save logic, and route wiring. Share the dialog shell, not the business logic.
 - Leave truly custom dialogs such as media pickers and other utility flows on custom shells until repetition proves they belong in the shared form modal system.
+- Builder and editor pages should keep a single `StickyHeader`: section navigation on the left, current-item actions in `rightActions`, and no extra toolbar row beneath it.
 
 ### Working On HUB
 
