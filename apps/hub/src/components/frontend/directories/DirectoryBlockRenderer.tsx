@@ -12,6 +12,7 @@ interface DirectoryWithBlocks {
   slug: string
   description?: string | null
   featured_image?: string | null
+  breadcrumb_trail?: Array<{ id: string; title: string; slug: string }>
   blocks: Array<{
     id: string
     type: string
@@ -54,7 +55,12 @@ function DirectoryContentStyled({
             title: directory.title,
             description: directory.description,
             featuredImage: directory.featured_image,
+            breadcrumbTrail: directory.breadcrumb_trail || [],
             showFeaturedImage: block.content.showFeaturedImage ?? true,
+            showBreadcrumb: block.content.showBreadcrumb ?? true,
+            hoverVideoUrl: block.content.hoverVideoUrl,
+            claimButton: block.content.claimButton,
+            contactButtons: Array.isArray(block.content.contactButtons) ? block.content.contactButtons : [],
             body: block.content.body,
           }}
         />

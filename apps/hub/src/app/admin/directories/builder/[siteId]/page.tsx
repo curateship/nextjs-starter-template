@@ -26,7 +26,6 @@ import {
 import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
-import { searchSiteDirectoriesAction } from "@/lib/actions/directories/directory-list-actions"
 import { directoryBlocksToJson } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
@@ -41,17 +40,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const router = useRouter()
   const searchParams = useSearchParams()
   const { currentSite } = useSiteSwitcher()
-  // Get initial directory from URL params or default to first directory
-  const initialDirectory = searchParams.get('directory') || ''
-  const [selectedDirectory, setSelectedDirectory] = useState(initialDirectory)
-  const [directoryOptions, setDirectoryOptions] = useState<Array<Pick<Directory, 'id' | 'site_id' | 'title' | 'slug' | 'status'>>>(
-    []
-  )
+  const directoryFromUrl = searchParams.get('directory') || ''
   const [directorySearch, setDirectorySearch] = useState("")
-  const [directoryOptionsLoading, setDirectoryOptionsLoading] = useState(false)
-  const [directoryOptionsError, setDirectoryOptionsError] = useState<string | null>(null)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
+  const selectedDirectory = directoryFromUrl || ''
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -60,64 +53,25 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     }
   }, [currentSite, siteId, router])
 
-  // Load searchable directory picker options
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadDirectoryOptions() {
-      try {
-        setDirectoryOptionsLoading(true)
-        setDirectoryOptionsError(null)
-        const { data, error } = await searchSiteDirectoriesAction(siteId, {
-          search: directorySearch,
-          limit: 20,
-        })
-
-        if (error) {
-          if (!cancelled) {
-            setDirectoryOptionsError(error)
-            setDirectoryOptions([])
-          }
-          return
-        }
-
-        if (!cancelled) {
-          const options = (data || []).map((directory) => ({
-            id: directory.id,
-            site_id: directory.site_id,
-            title: directory.title,
-            slug: directory.slug,
-            status: directory.status,
-          }))
-          setDirectoryOptions(options)
-
-          if (!selectedDirectory && options.length > 0) {
-            const firstDirectory = options[0]
-            setSelectedDirectory(firstDirectory.slug)
-            router.replace(`/admin/directories/builder/${siteId}?directory=${firstDirectory.slug}`)
-          }
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setDirectoryOptionsError('Failed to load directories')
-          setDirectoryOptions([])
-        }
-      } finally {
-        if (!cancelled) {
-          setDirectoryOptionsLoading(false)
-        }
-      }
-    }
-
-    loadDirectoryOptions()
-
-    return () => {
-      cancelled = true
-    }
-  }, [siteId, directorySearch, selectedDirectory, router])
-
   // Custom hooks for data and state management
-  const { site, directory: currentDirectoryData, blocks, customBlockTemplates, blocksLoading, siteError, reloadBlocks } = useDirectoryData(siteId, selectedDirectory)
+  const {
+    site,
+    directory: currentDirectoryData,
+    breadcrumbTrail,
+    directoryOptions,
+    blocks,
+    customBlockTemplates,
+    blocksLoading,
+    siteError,
+    reloadBlocks,
+  } = useDirectoryData(siteId, selectedDirectory, directorySearch)
+
+  useEffect(() => {
+    if (!directoryFromUrl && directoryOptions.length > 0) {
+      router.replace(`/admin/directories/builder/${siteId}?directory=${directoryOptions[0].slug}`)
+    }
+  }, [directoryFromUrl, directoryOptions, router, siteId])
+
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -136,6 +90,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftDirectoryTitle, setDraftDirectoryTitle] = useState("")
+  const [draftDirectoryFeaturedImage, setDraftDirectoryFeaturedImage] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
@@ -160,8 +115,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         : {}
     )
     setDraftDirectoryTitle(currentDirectoryData?.title || selectedDirectory)
+    setDraftDirectoryFeaturedImage(currentDirectoryData?.featured_image || "")
     setBlockSaveError(null)
-  }, [selectedBlock, currentDirectoryData?.title, selectedDirectory])
+  }, [selectedBlock, currentDirectoryData?.featured_image, currentDirectoryData?.title, selectedDirectory])
 
   const customBlockDefinitions = customBlockTemplates.map(template => ({
     type: getDirectoryCustomBlockSelectionType(template.id),
@@ -177,7 +133,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   // Handle directory change with URL update
   const handleDirectoryChange = (directorySlug: string) => {
     if (directorySlug !== selectedDirectory) {
-      setSelectedDirectory(directorySlug)
       // Ensure blocks array exists for this directory
       setLocalBlocks(prev => ({
         ...prev,
@@ -193,7 +148,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       const next = [newDirectory, ...prev.filter((directory) => directory.id !== newDirectory.id)]
       return next.slice(0, 20)
     })
-    setSelectedDirectory(newDirectory.slug)
     router.replace(`/admin/directories/builder/${siteId}?directory=${newDirectory.slug}`)
     await reloadBlocks()
   }
@@ -214,7 +168,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       })
 
       // Update selected directory and URL
-      setSelectedDirectory(updatedDirectory.slug)
       router.replace(`/admin/directories/builder/${siteId}?directory=${updatedDirectory.slug}`)
     }
 
@@ -250,15 +203,15 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     }
   }
 
-  const handleTitleChange = (title: string) => {
-    void updateCurrentDirectory({ title })
-  }
-
   const handleDraftChange = (field: string, value: any) => {
     setDraftContent((current) => ({
       ...current,
       [field]: value,
     }))
+  }
+
+  const handleDraftFeaturedImageChange = (featuredImage: string) => {
+    setDraftDirectoryFeaturedImage(featuredImage)
   }
 
   const handleCloseBlockEditor = () => {
@@ -282,17 +235,28 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       )
 
       let updatedDirectory: Directory | null = null
-      if (
-        selectedBlock.type === "directory-content" &&
-        draftDirectoryTitle.trim() &&
-        draftDirectoryTitle.trim() !== (currentDirectoryData?.title || "")
-      ) {
-        const { data, error } = await updateDirectoryAction(currentDirectoryData.id, { title: draftDirectoryTitle.trim() })
-        if (error || !data) {
-          setBlockSaveError(error || "Failed to save directory title")
-          return
+      if (selectedBlock.type === "directory-content") {
+        const nextTitle = draftDirectoryTitle.trim() || currentDirectoryData.title
+        const nextFeaturedImage = draftDirectoryFeaturedImage.trim() || null
+        const currentFeaturedImage = currentDirectoryData.featured_image || null
+        const directoryUpdates: { title?: string; featured_image?: string | null } = {}
+
+        if (nextTitle !== currentDirectoryData.title) {
+          directoryUpdates.title = nextTitle
         }
-        updatedDirectory = data
+
+        if (nextFeaturedImage !== currentFeaturedImage) {
+          directoryUpdates.featured_image = nextFeaturedImage
+        }
+
+        if (Object.keys(directoryUpdates).length > 0) {
+          const { data, error } = await updateDirectoryAction(currentDirectoryData.id, directoryUpdates)
+          if (error || !data) {
+            setBlockSaveError(error || "Failed to save directory details")
+            return
+          }
+          updatedDirectory = data
+        }
       }
 
       const contentBlocks = directoryBlocksToJson(nextBlocks, currentDirectoryData.content_blocks || {})
@@ -352,6 +316,22 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     return items.slice(0, 20)
   })()
 
+  const previewBlocks = selectedBlock
+    ? currentDirectory.blocks.map((block) => (
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      ))
+    : currentDirectory.blocks
+
+  const previewDirectoryTitle = selectedBlock?.type === "directory-content"
+    ? draftDirectoryTitle.trim() || currentDirectoryData?.title || currentDirectory.name
+    : currentDirectoryData?.title || currentDirectory.name
+
+  const previewDirectoryFeaturedImage = selectedBlock?.type === "directory-content"
+    ? draftDirectoryFeaturedImage.trim() || null
+    : currentDirectoryData?.featured_image || null
+
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -386,8 +366,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                 className="h-9 w-56 pl-8"
               />
             </div>
-            {directoryOptionsError && (
-              <span className="text-xs text-red-600">{directoryOptionsError}</span>
+            {siteError && (
+              <span className="text-xs text-red-600">{siteError}</span>
             )}
           </div>
         }
@@ -406,30 +386,33 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           </Dialog>
         )}
         renderSettingsModal={(show, setShow, currentItem) => (
-          <DirectorySettingsModal
-            open={show}
-            onOpenChange={setShow}
-            directory={(currentItem ? currentDirectoryData : null) || null}
-            site={currentSite}
-            onSuccess={handleDirectoryUpdated}
-          />
+          show && currentItem ? (
+            <DirectorySettingsModal
+              open={show}
+              onOpenChange={setShow}
+              directory={currentDirectoryData || null}
+              site={currentSite}
+              onSuccess={handleDirectoryUpdated}
+            />
+          ) : null
         )}
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden border-r bg-background">
           <ScrollArea className="h-full">
             <DirectoryPreview
-              blocks={currentDirectory.blocks}
+              blocks={previewBlocks}
               directory={currentDirectoryData ? {
                 id: currentDirectoryData.id || 'preview',
-                title: currentDirectoryData.title || currentDirectory.name,
+                title: previewDirectoryTitle,
                 slug: currentDirectoryData.slug,
                 meta_description: currentDirectoryData.meta_description || undefined,
                 site_id: currentDirectoryData.site_id,
-                featured_image: currentDirectoryData.featured_image || null,
+                featured_image: previewDirectoryFeaturedImage,
                 description: currentDirectoryData.description || null,
                 status: currentDirectoryData.status || 'draft',
               } : undefined}
+              breadcrumbTrail={breadcrumbTrail}
               site={{
                 id: siteId,
                 name: site?.name || 'Directory Site',
@@ -450,7 +433,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           content={draftContent}
           siteId={siteId}
           directoryTitle={draftDirectoryTitle}
+          directoryFeaturedImage={draftDirectoryFeaturedImage}
           onDirectoryTitleChange={setDraftDirectoryTitle}
+          onDirectoryFeaturedImageChange={handleDraftFeaturedImageChange}
           onContentChange={handleDraftChange}
           customBlockTemplates={customBlockTemplates}
           onClose={handleCloseBlockEditor}

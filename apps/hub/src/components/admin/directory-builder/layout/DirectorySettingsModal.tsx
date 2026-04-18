@@ -81,23 +81,30 @@ export function DirectorySettingsModal({
 
   // Initialize form data
   useEffect(() => {
-    if (directory) {
-      setFormData({
-        title: directory.title || '',
-        slug: directory.slug || '',
-        description: directory.description || '',
-        meta_description: directory.meta_description || ''
-      })
-      setFeaturedImage(directory.featured_image || '')
-      setRichTextContent(directory.content_blocks?.richText?.content || '')
-      setSlugManuallyEdited(false)
+    if (!open || !directory) return
 
-      // Fetch existing category assignments
-      getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
-        if (data) setSelectedCategoryIds(data.map((c) => c.id))
-      })
+    let cancelled = false
+
+    setFormData({
+      title: directory.title || '',
+      slug: directory.slug || '',
+      description: directory.description || '',
+      meta_description: directory.meta_description || ''
+    })
+    setFeaturedImage(directory.featured_image || '')
+    setRichTextContent(directory.content_blocks?.richText?.content || '')
+    setSlugManuallyEdited(false)
+
+    getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
+      if (!cancelled) {
+        setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
+      }
+    })
+
+    return () => {
+      cancelled = true
     }
-  }, [directory])
+  }, [directory, open])
 
   // Save as draft
   const handleSaveDraft = async () => {
@@ -305,7 +312,7 @@ export function DirectorySettingsModal({
                     alt="Featured image preview"
                     className="w-full h-full object-contain"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
                   <button
                     type="button"
                     onClick={handleRemoveImage}

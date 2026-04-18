@@ -24,7 +24,9 @@ interface DirectoryBlockEditorModalProps {
   content: Record<string, any>
   siteId: string
   directoryTitle: string
+  directoryFeaturedImage?: string | null
   onDirectoryTitleChange: (title: string) => void
+  onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   onContentChange: (field: string, value: any) => void
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   showDirectoryTitleField?: boolean
@@ -39,7 +41,9 @@ export function DirectoryBlockEditorModal({
   content,
   siteId,
   directoryTitle,
+  directoryFeaturedImage,
   onDirectoryTitleChange,
+  onDirectoryFeaturedImageChange,
   onContentChange,
   customBlockTemplates,
   showDirectoryTitleField = true,
@@ -69,7 +73,9 @@ export function DirectoryBlockEditorModal({
                 onContentChange={onContentChange}
                 siteId={siteId}
                 directoryTitle={directoryTitle}
+                directoryFeaturedImage={directoryFeaturedImage}
                 onDirectoryTitleChange={onDirectoryTitleChange}
+                onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
                 customBlockTemplates={customBlockTemplates}
                 showDirectoryTitleField={showDirectoryTitleField}
               />

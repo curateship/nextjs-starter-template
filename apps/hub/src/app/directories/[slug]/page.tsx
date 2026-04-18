@@ -9,6 +9,7 @@ import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import { getPrimaryContentCategoryBreadcrumbTrail } from "@/lib/actions/categories/category-relationship-actions"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -49,8 +50,15 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks = []
   }
 
+  const breadcrumbTrail = await getPrimaryContentCategoryBreadcrumbTrail({
+    siteId: site.id,
+    contentId: directory.id,
+    contentType: 'directory',
+  })
+
   const directoryWithBlocks = {
     ...toSnakeCase(directory),
+    breadcrumb_trail: breadcrumbTrail,
     blocks
   } as any
 

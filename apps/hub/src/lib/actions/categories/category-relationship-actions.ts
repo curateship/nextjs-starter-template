@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, inArray, desc } from 'drizzle-orm'
+import { eq, and, inArray, desc, asc } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites, posts, products, pages, events, directories } from '@/lib/db/schema'
@@ -22,6 +22,88 @@ export interface CategoryInfo {
   slug: string
   parent_id: string | null
   parent_title?: string
+}
+
+export interface CategoryBreadcrumbItem {
+  id: string
+  title: string
+  slug: string
+}
+
+export async function getPrimaryContentCategoryBreadcrumbTrail({
+  siteId,
+  contentId,
+  contentType,
+}: {
+  siteId: string
+  contentId: string
+  contentType: ContentType
+}): Promise<CategoryBreadcrumbItem[]> {
+  const [primaryCategory] = await db
+    .select({
+      id: categories.id,
+      title: categories.title,
+      slug: categories.slug,
+      parentId: categories.parentId,
+    })
+    .from(contentCategoryRelationships)
+    .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
+    .where(
+      and(
+        eq(contentCategoryRelationships.contentId, contentId),
+        eq(contentCategoryRelationships.contentType, contentType),
+        eq(categories.siteId, siteId)
+      )
+    )
+    .orderBy(asc(contentCategoryRelationships.createdAt))
+    .limit(1)
+
+  if (!primaryCategory) {
+    return []
+  }
+
+  const trail: CategoryBreadcrumbItem[] = [
+    {
+      id: primaryCategory.id,
+      title: primaryCategory.title,
+      slug: primaryCategory.slug,
+    },
+  ]
+
+  const visitedIds = new Set<string>([primaryCategory.id])
+  let parentId = primaryCategory.parentId
+
+  while (parentId) {
+    if (visitedIds.has(parentId)) {
+      break
+    }
+
+    const [parentCategory] = await db
+      .select({
+        id: categories.id,
+        title: categories.title,
+        slug: categories.slug,
+        parentId: categories.parentId,
+      })
+      .from(categories)
+      .where(and(eq(categories.id, parentId), eq(categories.siteId, siteId)))
+      .limit(1)
+
+    if (!parentCategory) {
+      break
+    }
+
+    trail.unshift({
+      id: parentCategory.id,
+      title: parentCategory.title,
+      slug: parentCategory.slug,
+    })
+
+    visitedIds.add(parentCategory.id)
+    parentId = parentCategory.parentId
+  }
+
+  return trail
 }
 
 /**
@@ -224,6 +306,57 @@ export async function getContentCategoriesAction(contentId: string, contentType:
   } catch (error) {
     console.error('Error getting content categories:', error)
     return { data: null, error: 'Failed to get content categories' }
+  }
+}
+
+export async function getPrimaryContentCategoryBreadcrumbAction(contentId: string, contentType: ContentType) {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
+      return { data: null, error: 'Invalid content type' }
+    }
+
+    const [content] = await db
+      .select({
+        id: contentTable.id,
+        siteId: contentTable.siteId,
+      })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
+
+    if (!content) {
+      return { data: null, error: 'Content not found' }
+    }
+
+    const [site] = await db
+      .select({
+        id: sites.id,
+        userId: sites.userId,
+      })
+      .from(sites)
+      .where(eq(sites.id, content.siteId))
+      .limit(1)
+
+    if (!site || site.userId !== user.id) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
+    const trail = await getPrimaryContentCategoryBreadcrumbTrail({
+      siteId: content.siteId,
+      contentId,
+      contentType,
+    })
+
+    return { data: trail, error: null }
+  } catch (error) {
+    console.error('Error getting content breadcrumb trail:', error)
+    return { data: null, error: 'Failed to get breadcrumb trail' }
   }
 }
 

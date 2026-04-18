@@ -1,14 +1,49 @@
 import { useState, useEffect } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { getDirectoryBySlugAction, type Directory } from "@/lib/actions/directories/directory-actions"
-import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
+import { getDirectoryBuilderDataAction, type Directory } from "@/lib/actions/directories/directory-actions"
+import type { DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { parseDirectoryBlocksFromJson, type DirectoryEditorBlock } from "./directory-block-utils"
 
+type DirectoryBuilderDataResult = Awaited<ReturnType<typeof getDirectoryBuilderDataAction>>
+
+const DIRECTORY_DATA_CACHE_TTL_MS = 3000
+const directoryDataRequestCache = new Map<string, { expiresAt: number; promise: Promise<DirectoryBuilderDataResult> }>()
+
+function getDirectoryDataRequestKey(siteId: string, selectedDirectory: string, directorySearch: string) {
+  return `${siteId}::${selectedDirectory}::${directorySearch}`
+}
+
+function loadDirectoryBuilderData(
+  siteId: string,
+  selectedDirectory: string,
+  directorySearch: string,
+  options?: { bypassCache?: boolean }
+) {
+  const requestKey = getDirectoryDataRequestKey(siteId, selectedDirectory, directorySearch)
+
+  if (!options?.bypassCache) {
+    const cached = directoryDataRequestCache.get(requestKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.promise
+    }
+  }
+
+  const promise = getDirectoryBuilderDataAction(siteId, selectedDirectory, directorySearch)
+  directoryDataRequestCache.set(requestKey, {
+    expiresAt: Date.now() + DIRECTORY_DATA_CACHE_TTL_MS,
+    promise,
+  })
+
+  return promise
+}
+
 interface UseDirectoryDataReturn {
   site: SiteWithTheme | null
   directory: Directory | null
+  breadcrumbTrail: Array<{ id: string; title: string; slug: string }>
+  directoryOptions: DirectorySummary[]
   blocks: Record<string, DirectoryEditorBlock[]>
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   siteLoading: boolean
@@ -17,52 +52,60 @@ interface UseDirectoryDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useDirectoryData(siteId: string, selectedDirectory: string): UseDirectoryDataReturn {
+export function useDirectoryData(siteId: string, selectedDirectory: string, directorySearch: string): UseDirectoryDataReturn {
   const { currentSite } = useSiteSwitcher()
-  const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [directory, setDirectory] = useState<Directory | null>(null)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
+  const [breadcrumbTrail, setBreadcrumbTrail] = useState<Array<{ id: string; title: string; slug: string }>>([])
+  const [directoryOptions, setDirectoryOptions] = useState<DirectorySummary[]>([])
   const [blocks, setBlocks] = useState<Record<string, DirectoryEditorBlock[]>>({})
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadSiteAndBlocks = async () => {
+  useEffect(() => {
+    setSiteLoading(!currentSite)
+  }, [currentSite])
+
+  const loadDirectoryData = async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
 
     try {
-      const [directoryResult, customBlocksResult] = await Promise.all([
-        selectedDirectory ? getDirectoryBySlugAction(siteId, selectedDirectory) : Promise.resolve({ data: null, error: null }),
-        getDirectoryCustomBlocksBySite(siteId),
-      ])
-      const siteResult = { data: currentSite, error: null }
+      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory, directorySearch)
 
-      if (siteResult.data) {
-        setSite(siteResult.data)
-      } else {
-        setSiteError(siteResult.error || 'Failed to load site')
-      }
-
-      const templates = customBlocksResult.data || []
-      setCustomBlockTemplates(templates)
-
-      if (directoryResult.data) {
-        setDirectory(directoryResult.data)
-        setBlocks({
-          [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
-        })
-      } else {
-        if (directoryResult.error) {
-          console.error('Failed to load directory:', directoryResult.error)
-        }
+      if (error || !data) {
+        setSiteError(error || 'Failed to load data')
         setDirectory(null)
+        setBreadcrumbTrail([])
+        setDirectoryOptions([])
         setBlocks({})
+        setCustomBlockTemplates([])
+      } else {
+        setDirectoryOptions(data.directoryOptions)
+        setCustomBlockTemplates(data.customBlockTemplates)
+
+        if (data.directory) {
+          setDirectory(data.directory)
+          setBreadcrumbTrail(data.breadcrumbTrail)
+          setBlocks({
+            [data.directory.slug]: parseDirectoryBlocksFromJson(data.directory.content_blocks || {}, data.customBlockTemplates),
+          })
+        } else {
+          setDirectory(null)
+          setBreadcrumbTrail([])
+          setBlocks({})
+        }
       }
     } catch (error) {
       setSiteError('Failed to load data')
-      console.error('Error loading site and directories:', error)
+      setDirectory(null)
+      setBreadcrumbTrail([])
+      setDirectoryOptions([])
+      setBlocks({})
+      setCustomBlockTemplates([])
+      console.error('Error loading directory data:', error)
     }
 
     setSiteLoading(false)
@@ -70,42 +113,66 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
   }
 
   const reloadBlocks = async () => {
-    if (!selectedDirectory) {
+    if (!selectedDirectory && !directorySearch) {
       setDirectory(null)
+      setBreadcrumbTrail([])
       setBlocks({})
       return
     }
 
     setBlocksLoading(true)
-    const [directoryResult, customBlocksResult] = await Promise.all([
-      getDirectoryBySlugAction(siteId, selectedDirectory),
-      getDirectoryCustomBlocksBySite(siteId),
-    ])
 
-    const templates = customBlocksResult.data || []
-    setCustomBlockTemplates(templates)
-
-    if (directoryResult.data) {
-      setDirectory(directoryResult.data)
-      setBlocks({
-        [directoryResult.data.slug]: parseDirectoryBlocksFromJson(directoryResult.data.content_blocks || {}, templates),
+    try {
+      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory, directorySearch, {
+        bypassCache: true,
       })
-    } else {
+
+      if (error || !data) {
+        setSiteError(error || 'Failed to load data')
+        setDirectory(null)
+        setBreadcrumbTrail([])
+        setDirectoryOptions([])
+        setBlocks({})
+        setCustomBlockTemplates([])
+      } else {
+        setSiteError("")
+        setDirectoryOptions(data.directoryOptions)
+        setCustomBlockTemplates(data.customBlockTemplates)
+
+        if (data.directory) {
+          setDirectory(data.directory)
+          setBreadcrumbTrail(data.breadcrumbTrail)
+          setBlocks({
+            [data.directory.slug]: parseDirectoryBlocksFromJson(data.directory.content_blocks || {}, data.customBlockTemplates),
+          })
+        } else {
+          setDirectory(null)
+          setBreadcrumbTrail([])
+          setBlocks({})
+        }
+      }
+    } catch (error) {
+      setSiteError('Failed to load data')
       setDirectory(null)
+      setBreadcrumbTrail([])
+      setDirectoryOptions([])
       setBlocks({})
+      setCustomBlockTemplates([])
+      console.error('Error reloading directory data:', error)
     }
 
     setBlocksLoading(false)
   }
 
-
   useEffect(() => {
-    loadSiteAndBlocks()
-  }, [siteId, selectedDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
+    loadDirectoryData()
+  }, [siteId, selectedDirectory, directorySearch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
-    site,
+    site: currentSite,
     directory,
+    breadcrumbTrail,
+    directoryOptions,
     blocks,
     customBlockTemplates,
     siteLoading,

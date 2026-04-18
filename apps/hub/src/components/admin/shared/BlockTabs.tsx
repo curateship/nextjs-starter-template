@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -30,6 +30,12 @@ export function BlockTabs({
 }: BlockTabsProps) {
   const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.value || "content")
   const contentClasses = contentClassName === undefined ? "mt-0" : contentClassName
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(defaultTab || tabs[0]?.value || "content")
+    }
+  }, [activeTab, defaultTab, tabs])
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className={cn("flex w-full flex-col gap-4", className)}>

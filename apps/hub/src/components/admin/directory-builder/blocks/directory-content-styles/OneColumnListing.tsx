@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import type { DirectoryContentStyleAdminProps } from "./index"
 
-export function DefaultDirectoryContentConfig({ config, onConfigChange }: DirectoryContentStyleAdminProps) {
+export function OneColumnListing({ config, onConfigChange }: DirectoryContentStyleAdminProps) {
   const { currentSite } = useSiteSwitcher()
   const siteDefaultWidth = currentSite?.settings?.custom_width
   const alignment = config.alignment || 'center'

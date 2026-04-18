@@ -25,6 +25,7 @@ interface Directory {
   featured_image?: string | null
   description?: string | null
   status?: "draft" | "published"
+  breadcrumb_trail?: Array<{ id: string; title: string; slug: string }>
 }
 
 interface DirectoryPreviewProps {
@@ -46,6 +47,7 @@ interface DirectoryPreviewProps {
   allBlocks?: DirectoryBlock[]
   customBlockTemplates?: DirectoryCustomBlockTemplate[]
   onSelectBlock?: (block: DirectoryBlock) => void
+  breadcrumbTrail?: Array<{ id: string; title: string; slug: string }>
 }
 
 export function DirectoryPreview({
@@ -57,6 +59,7 @@ export function DirectoryPreview({
   allBlocks,
   customBlockTemplates = [],
   onSelectBlock,
+  breadcrumbTrail,
 }: DirectoryPreviewProps) {
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
@@ -68,6 +71,7 @@ export function DirectoryPreview({
     slug: directory?.slug || "preview",
     description: directory?.description || null,
     featured_image: directory?.featured_image || null,
+    breadcrumb_trail: breadcrumbTrail || directory?.breadcrumb_trail || [],
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
 
