@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlignLeft, AlignCenter, AlignRight, ImageIcon, X } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 
 interface NewsletterHeaderBlockProps {
   content: Record<string, any>

@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
+import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import {
   AdminModalBody,
@@ -18,7 +18,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"

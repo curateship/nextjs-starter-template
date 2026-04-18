@@ -8,12 +8,12 @@ import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { createSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { getTemplateSitesAction, applyThemeToSiteAction } from "@/lib/actions/themes/user-theme-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Palette } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function NewSitePage() {
   const router = useRouter()

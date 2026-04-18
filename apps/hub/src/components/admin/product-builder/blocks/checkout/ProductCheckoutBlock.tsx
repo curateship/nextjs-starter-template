@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3 } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useEffect, useRef, useState } from "react"
@@ -34,7 +34,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 
 // Security utility functions for admin component
 const sanitizeAdminInput = (input: string): string => {

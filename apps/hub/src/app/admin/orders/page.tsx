@@ -15,9 +15,9 @@ import {
 
 import { cn } from "@/lib/utils/tailwind"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -40,7 +40,7 @@ import {
 
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
   deleteOrders,

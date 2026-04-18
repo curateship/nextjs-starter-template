@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AdminModalBody,
   AdminModalFooter,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -26,7 +26,7 @@ import { getTemplatesBySite } from "@/lib/actions/newsletters/template-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ChevronDown, Users } from "lucide-react"
 
 interface CreateNewsletterModalProps {

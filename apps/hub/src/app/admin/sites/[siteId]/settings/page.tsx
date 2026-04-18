@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useRef, use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,

@@ -17,7 +17,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { cn } from "@/lib/utils/tailwind"
 import {
   ACCOUNT_MENU_ACTION_ITEM_ID,

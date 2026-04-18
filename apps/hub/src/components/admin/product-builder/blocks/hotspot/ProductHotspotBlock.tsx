@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 
 interface ProductHotspotBlockProps {
   header?: string

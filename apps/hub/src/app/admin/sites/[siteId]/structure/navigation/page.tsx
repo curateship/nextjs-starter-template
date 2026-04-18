@@ -1,4 +1,4 @@
-import { SiteChromeEditorPage } from "@/components/admin/structure/SiteChromeEditorPage"
+import { SiteChromeEditorPage } from "@/components/admin/layout/builder/SiteChromeEditorPage"
 import { getPublicAuthPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 
 interface PageProps {

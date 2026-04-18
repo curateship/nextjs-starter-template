@@ -8,7 +8,7 @@ import {
   AdminModalHeader,
   AdminModalScrollBody,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
 import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
 import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"

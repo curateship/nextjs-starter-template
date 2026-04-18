@@ -4,10 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,7 +19,7 @@ import {
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -38,7 +38,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import type { Product } from "@/lib/actions/products/product-actions"
 

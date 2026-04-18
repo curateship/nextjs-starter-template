@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +28,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 
 // Helper function to detect media type from URL
 const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {

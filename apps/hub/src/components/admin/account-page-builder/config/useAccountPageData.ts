@@ -6,7 +6,7 @@ import {
 import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 import { isSupportedAccountPageBlockType } from "@/lib/constants/account-page-block-types"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
   return convertJsonToBlocks(contentBlocks).filter((block) => isSupportedAccountPageBlockType(block.type))

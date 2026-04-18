@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

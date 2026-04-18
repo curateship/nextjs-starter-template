@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useEventData } from "@/components/admin/event-builder/config/useEventData"
 import { useEventBuilder } from "@/components/admin/event-builder/config/useEventBuilder"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
-import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
 import {
   Dialog,
@@ -19,8 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
 import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"

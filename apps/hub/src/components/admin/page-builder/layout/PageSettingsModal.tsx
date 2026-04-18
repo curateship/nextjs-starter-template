@@ -14,7 +14,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Page, UpdatePageData } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"

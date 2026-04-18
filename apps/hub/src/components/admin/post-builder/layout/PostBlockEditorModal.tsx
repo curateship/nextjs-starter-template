@@ -8,7 +8,7 @@ import {
   AdminModalHeader,
   AdminModalScrollBody,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,

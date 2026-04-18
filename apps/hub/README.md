@@ -26,7 +26,7 @@ Read these files in this order before changing HUB code:
 
 - Route or page bug: inspect the matching `src/app/**` route, then its renderer in `src/components/frontend/**`, then the action/schema it depends on.
 - Admin builder change: inspect the matching `src/app/admin/**` page, then the relevant builder under `src/components/admin/**`, then the action/schema it saves through.
-- Admin modal/form change: use the shared admin form modal primitives in `src/components/admin/shared/AdminModalLayout.tsx` for standard create, settings, and block-editor forms. Keep feature-specific files for business logic.
+- Admin modal/form change: use the shared admin form modal primitives in `src/components/admin/layout/builder/AdminModalLayout.tsx` for standard create, settings, and block-editor forms. Keep feature-specific files for business logic.
 - Data or query change: inspect `src/lib/db/schema/**` first, then the action file, then the consuming route/component.
 - Auth change: inspect Better Auth runtime files and auth API routes first. Do not infer auth behavior from legacy SQL.
 - Tenant/domain change: inspect `src/lib/utils/site-resolver.ts` and the page frontend actions before touching URLs, host handling, or site lookup.

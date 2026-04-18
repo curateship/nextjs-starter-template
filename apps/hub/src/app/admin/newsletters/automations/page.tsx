@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +24,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -35,7 +35,7 @@ import {
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { AUTOMATION_TRIGGER_SHORT_LABELS, getAutomationTriggerNodes } from "@/lib/actions/newsletters/automation-triggers"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 

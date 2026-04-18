@@ -4,18 +4,18 @@ import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
-import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { NEWSLETTER_BLOCK_TYPES } from "@/components/admin/newsletter-builder/config/newsletter-block-types"
 import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "@/components/admin/newsletter-builder/config/useBlockEditor"
 import { NewsletterPreviewPane } from "@/components/admin/newsletter-builder/layout/NewsletterPreviewPane"
 import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/layout/NewsletterBlockEditor"
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Dialog } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -24,7 +24,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { Monitor, Tablet, Smartphone, Pencil, Check, X } from "lucide-react"
 
 interface PageProps {

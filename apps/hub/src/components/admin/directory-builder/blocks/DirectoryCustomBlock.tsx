@@ -19,14 +19,14 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type {
   DirectoryCustomBlockRepeaterField,

@@ -8,11 +8,11 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, Plus, Search, Settings, Trash2, X } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
@@ -32,7 +32,7 @@ import {
   type DirectoryListDirection,
 } from "@/lib/actions/directories/directory-list-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { cn } from "@/lib/utils/tailwind"
 
 const CreateDirectoryModal = dynamic(() =>

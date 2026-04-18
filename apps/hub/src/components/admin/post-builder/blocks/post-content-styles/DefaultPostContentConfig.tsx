@@ -1,10 +1,10 @@
 "use client"
 
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { PostContentStyleAdminProps } from "./index"
 
 export function DefaultPostContentConfig({ config, onConfigChange }: PostContentStyleAdminProps) {

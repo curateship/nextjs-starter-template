@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getDirectoryBuilderDataAction, type Directory } from "@/lib/actions/directories/directory-actions"
 import type { DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { parseDirectoryBlocksFromJson, type DirectoryEditorBlock } from "./directory-block-utils"
 

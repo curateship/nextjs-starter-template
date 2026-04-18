@@ -16,7 +16,7 @@ import {
 import Link from "next/link"
 import { useTheme } from "next-themes"
 import { authClient } from "@/lib/auth/client"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 import {

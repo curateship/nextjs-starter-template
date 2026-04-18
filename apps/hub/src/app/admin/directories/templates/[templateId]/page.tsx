@@ -4,10 +4,10 @@ import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
-import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { BlockListPanel } from "@/components/admin/shared/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/shared/BlockSelectionModal"
+import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
+import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/directory-builder/config/directory-block-types"
 import {
   directoryBlocksToJson,
@@ -21,8 +21,8 @@ import {
 } from "@/lib/actions/directories/directory-template-actions"
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Blocks, Check, Pencil, X } from "lucide-react"
 import {
   getDirectoryCustomBlockSelectionType,

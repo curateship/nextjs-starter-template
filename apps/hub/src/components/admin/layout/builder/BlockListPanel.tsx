@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Trash2, GripVertical, Eye, Plus } from "lucide-react"
-import type { BlockTypeDefinition } from "@/components/admin/shared/block-types"
-import { getBlockIcon, getBlockName } from "@/components/admin/shared/block-types"
+import type { BlockTypeDefinition } from "@/lib/utils/block-types"
+import { getBlockIcon, getBlockName } from "@/lib/utils/block-types"
 import {
   DndContext,
   closestCenter,

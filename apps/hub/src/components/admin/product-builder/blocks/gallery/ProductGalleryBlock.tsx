@@ -1,8 +1,8 @@
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 import { Plus, Trash2, Upload } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 

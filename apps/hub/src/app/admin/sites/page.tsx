@@ -12,11 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Copy, Paintbrush } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { cn } from "@/lib/utils/tailwind"
 import { getAllSitesAction, deleteSiteAction, cloneSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 type FilterStatus = 'all' | 'active' | 'inactive' | 'draft'
 

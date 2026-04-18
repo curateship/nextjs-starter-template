@@ -13,7 +13,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   Field,
   FieldContent,
@@ -22,8 +22,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
+import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"

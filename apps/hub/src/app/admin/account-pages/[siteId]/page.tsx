@@ -4,10 +4,10 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -23,7 +23,7 @@ import {
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -39,7 +39,7 @@ const AccountPageSettingsModal = dynamic(() =>
 import { Eye, Copy, Trash2, Plus, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getAccountPagesAction, deleteAccountPageAction, deleteAccountPagesAction, duplicateAccountPageAction, getAccountPageIdsAction } from "@/lib/actions/account-pages/account-pages-actions"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"

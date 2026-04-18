@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { BookOpen, Calendar, FileText, FolderOpen, Mail, Package, Tag, Users } from 'lucide-react'
-import type { BlockTypeDefinition } from '@/components/admin/shared/block-types'
+import type { BlockTypeDefinition } from '@/lib/utils/block-types'
 import { PAGE_BLOCK_TYPES } from '@/components/admin/page-builder/config/page-block-types'
 import { PRODUCT_BLOCK_TYPES } from '@/components/admin/product-builder/config/product-block-types'
 import { POST_BLOCK_TYPES } from '@/components/admin/post-builder/config/post-block-types'

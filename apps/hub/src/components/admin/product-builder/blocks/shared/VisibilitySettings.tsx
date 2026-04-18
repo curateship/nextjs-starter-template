@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface VisibilityField {
   key: string

@@ -3,9 +3,9 @@
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
-import { StickybarTopRightActions } from "@/components/admin/shared/StickybarTopRightActions"
-import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
+import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +22,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   Select,
   SelectContent,

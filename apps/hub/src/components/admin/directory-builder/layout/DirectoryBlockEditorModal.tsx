@@ -9,7 +9,7 @@ import {
   AdminModalHeader,
   AdminModalScrollBody,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { DirectoryBlockEditor } from "./DirectoryBlockEditor"
 
 interface DirectoryBlock {

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
-import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,

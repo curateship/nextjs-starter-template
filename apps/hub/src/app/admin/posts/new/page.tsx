@@ -6,7 +6,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { PostBlock } from "@/components/ui/post-block"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function NewPostPage() {
   const [title, setTitle] = useState("")

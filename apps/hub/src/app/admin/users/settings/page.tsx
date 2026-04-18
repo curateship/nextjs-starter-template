@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

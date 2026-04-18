@@ -8,7 +8,7 @@ import {
   AdminModalHeader,
   AdminModalScrollBody,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { EventBlockEditor } from "./EventBlockEditor"
 
 interface EventBlock {

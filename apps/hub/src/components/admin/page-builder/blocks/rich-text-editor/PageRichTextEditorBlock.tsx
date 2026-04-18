@@ -1,7 +1,7 @@
 "use client"
 
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
-import type { RichTextEditorProps } from "@/components/admin/shared/RichTextEditor"
+import type { RichTextEditorProps } from "@/components/admin/layout/builder/RichTextEditor"
 
 interface PageRichTextEditorBlockProps extends RichTextEditorProps {
   content: RichTextEditorProps['content'] & {

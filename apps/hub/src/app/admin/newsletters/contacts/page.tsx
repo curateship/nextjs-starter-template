@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,7 +19,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   Select,
   SelectContent,
@@ -54,7 +54,7 @@ import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   cloneContactFilterGroup,
   type ContactDataField,

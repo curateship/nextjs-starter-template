@@ -1,6 +1,6 @@
 "use client"
 
-import { BuilderPreviewShell } from "@/components/admin/shared/BuilderPreviewShell"
+import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { EventBlockRenderer } from "@/components/frontend/events/EventBlockRenderer"
 import {
   createPreviewEntityBlocks,

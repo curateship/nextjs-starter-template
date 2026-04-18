@@ -8,7 +8,7 @@ import {
   Rows4,
   Text,
 } from "lucide-react"
-import type { BlockTypeDefinition } from "@/components/admin/shared/block-types"
+import type { BlockTypeDefinition } from "@/lib/utils/block-types"
 
 export const DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS: BlockTypeDefinition[] = [
   {

@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { CategoryPicker } from "@/components/admin/shared/CategoryPicker"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
+import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import {
   AdminModalBody,
   AdminModalFooter,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { ImageIcon, X } from "lucide-react"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post } from "@/lib/actions/posts/post-actions"

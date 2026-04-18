@@ -1,7 +1,7 @@
 "use client"
 
 import { use } from "react"
-import { SiteChromeEditorPage } from "@/components/admin/structure/SiteChromeEditorPage"
+import { SiteChromeEditorPage } from "@/components/admin/layout/builder/SiteChromeEditorPage"
 
 interface PageProps {
   params: Promise<{

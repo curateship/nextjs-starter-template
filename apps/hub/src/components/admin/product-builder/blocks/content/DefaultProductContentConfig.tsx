@@ -3,8 +3,8 @@
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { BlockEditorSection } from "@/components/ui/tabs"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { ProductContentStyleAdminProps } from "."
 
 export function DefaultProductContentConfig({ config, onConfigChange }: ProductContentStyleAdminProps) {

@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, Users, ShoppingCart, DollarSign, Package, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getProductAnalyticsOverview,
   getProductTrafficOverTime,

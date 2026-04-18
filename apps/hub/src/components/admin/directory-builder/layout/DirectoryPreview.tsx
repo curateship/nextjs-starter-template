@@ -1,6 +1,6 @@
 "use client"
 
-import { BuilderPreviewShell } from "@/components/admin/shared/BuilderPreviewShell"
+import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import {
   createPreviewEntityBlocks,

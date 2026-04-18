@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
@@ -13,7 +13,7 @@ import { getPaginatedMediaAction, deleteImageAction, updateImageAction, getMedia
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
 import { toast } from "sonner"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { 
   Dialog,
   DialogContent,

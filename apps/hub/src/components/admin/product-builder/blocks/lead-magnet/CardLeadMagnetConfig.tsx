@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { LeadMagnetStyleAdminProps } from "."
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 const ACCENT_COLORS = [
   { value: 'indigo', label: 'Indigo' },

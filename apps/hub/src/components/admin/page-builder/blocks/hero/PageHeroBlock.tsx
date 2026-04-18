@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
 import { useEffect, useCallback, useMemo } from "react"
-import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "../shared/VisibilitySettings"

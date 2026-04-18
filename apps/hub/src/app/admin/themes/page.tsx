@@ -5,8 +5,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { ApplyThemeDialog } from "@/components/admin/themes/ApplyThemeDialog"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

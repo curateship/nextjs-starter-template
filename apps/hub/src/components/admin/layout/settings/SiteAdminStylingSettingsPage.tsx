@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle } from 'lucide-react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
-import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
+import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
 import { FeatureTogglesCard } from '@/components/admin/layout/dashboard/FeatureTogglesCard'
 import { SiteSettingsHeaderNav } from '@/components/admin/layout/settings/SiteSettingsHeaderNav'
 import { QuickLinksSettingsCard } from '@/components/admin/layout/settings/QuickLinksSettingsCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useSiteSwitcher } from '@/components/admin/providers/site-switcher-provider'
+import { useSiteSwitcher } from '@/components/admin/layout/providers/site-switcher-provider'
 import {
   getSiteByIdAction,
   updateSiteAction,

@@ -4,10 +4,10 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +24,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   Select,
   SelectContent,

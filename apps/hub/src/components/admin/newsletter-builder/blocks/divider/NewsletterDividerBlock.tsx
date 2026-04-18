@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 
 interface NewsletterDividerBlockProps {
   content: Record<string, any>

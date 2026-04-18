@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, X } from "lucide-react"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface BasicBlockProps {
   title: string

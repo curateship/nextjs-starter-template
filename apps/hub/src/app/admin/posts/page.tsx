@@ -7,7 +7,7 @@ import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -22,7 +22,7 @@ import {
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 
 import dynamic from "next/dynamic"
 
@@ -41,7 +41,7 @@ import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, 
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
 export default function PostsPage() {

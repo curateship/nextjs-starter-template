@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
 import { UserBlock } from "@/components/ui/user-block"

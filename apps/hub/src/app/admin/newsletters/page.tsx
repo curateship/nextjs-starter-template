@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
@@ -14,7 +14,7 @@ import {
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import dynamic from "next/dynamic"
 
 const CreateNewsletterModal = dynamic(() =>
@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"

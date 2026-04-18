@@ -3,13 +3,13 @@
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { BlockTabs } from '@/components/admin/shared/BlockTabs'
+import { BlockTabs } from '@/components/ui/tabs'
 import { Check } from 'lucide-react'
 import { useCallback } from 'react'
 import { LEAD_MAGNET_STYLES } from '.'
 import { cn } from '@/lib/utils/tailwind'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface ProductLeadMagnetBlockProps {
   content: Record<string, any>

@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react"
-import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/components/admin/shared/block-types"
+import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
 

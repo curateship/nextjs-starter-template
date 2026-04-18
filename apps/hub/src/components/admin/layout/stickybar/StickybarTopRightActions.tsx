@@ -1,10 +1,34 @@
 "use client"
 
 import { useState } from "react"
-import { Save, Settings, PanelRight, PanelRightClose } from "lucide-react"
+import { Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/tailwind"
-import { SaveStatusBadge } from "@/components/admin/shared/SaveStatusBadge"
+
+interface SaveStatusBadgeProps {
+  message: string | null | undefined
+}
+
+function SaveStatusBadge({ message }: SaveStatusBadgeProps) {
+  if (!message) return null
+
+  const isError = message.includes("Error") || message.includes("Failed")
+  const Icon = isError ? AlertCircle : CheckCircle
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-md border px-3 py-1.5",
+        isError ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"
+      )}
+    >
+      <Icon className={cn("h-4 w-4", isError ? "text-red-600" : "text-green-600")} />
+      <span className={cn("text-sm font-medium", isError ? "text-red-800" : "text-green-700")}>
+        {message}
+      </span>
+    </div>
+  )
+}
 
 interface StickybarTopRightActionsProps {
   className?: string

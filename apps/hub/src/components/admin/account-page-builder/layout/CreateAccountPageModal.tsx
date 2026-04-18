@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminModalBody,
   AdminModalFooter,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { generateSlug } from "@/lib/utils/slug"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
 

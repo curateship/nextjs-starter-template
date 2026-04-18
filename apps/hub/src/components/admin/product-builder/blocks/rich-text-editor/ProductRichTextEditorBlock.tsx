@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DOMPurify from "dompurify"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import {
   Bold,
   Italic,
@@ -25,7 +25,7 @@ import {
 import { useState, useCallback, useEffect } from 'react'
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 
 interface RichTextBlockProps {
   content: {

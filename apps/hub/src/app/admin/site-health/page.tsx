@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getSiteHealthAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverabilit
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import { getCronJobs } from "@/lib/actions/cron/cron-actions"
 import type { CronJob } from "@/lib/actions/cron/cron-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   Shield,
   CheckCircle,

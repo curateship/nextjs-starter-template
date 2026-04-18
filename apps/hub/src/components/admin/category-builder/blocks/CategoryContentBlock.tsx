@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { useEditor, EditorContent } from '@tiptap/react'

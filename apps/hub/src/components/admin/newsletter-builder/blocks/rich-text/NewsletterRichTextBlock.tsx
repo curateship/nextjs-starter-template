@@ -1,8 +1,8 @@
 "use client"
 
 import { type CSSProperties } from "react"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
-import { BlockEditorSection, BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {

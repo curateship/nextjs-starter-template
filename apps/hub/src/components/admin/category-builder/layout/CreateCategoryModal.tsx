@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/shared/RichTextEditor"
+import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import {
   Dialog,
@@ -19,7 +19,7 @@ import {
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
 

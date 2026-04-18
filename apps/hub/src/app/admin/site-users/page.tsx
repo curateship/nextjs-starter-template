@@ -6,8 +6,8 @@ import { ArrowDown, ArrowUp, CalendarIcon, ChevronsUpDown, Plus, Search, Setting
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AlertDialog,
   AlertDialogAction,

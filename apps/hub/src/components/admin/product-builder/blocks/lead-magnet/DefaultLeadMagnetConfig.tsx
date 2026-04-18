@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ImageIcon, X } from "lucide-react"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import type { LeadMagnetStyleAdminProps } from "."
-import { BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 export function DefaultLeadMagnetConfig({ config, onConfigChange, siteId }: LeadMagnetStyleAdminProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)

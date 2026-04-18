@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import type { BlockTypeDefinition } from "@/components/admin/shared/block-types"
+import type { BlockTypeDefinition } from "@/lib/utils/block-types"
 import { Plus, Minus, Info } from "lucide-react"
 import {
   Tooltip,

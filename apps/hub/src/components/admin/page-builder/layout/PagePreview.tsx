@@ -1,7 +1,7 @@
 "use client"
 
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
-import { BuilderPreviewShell } from "@/components/admin/shared/BuilderPreviewShell"
+import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"

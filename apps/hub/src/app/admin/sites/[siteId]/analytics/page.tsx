@@ -3,7 +3,7 @@
 import { use, useEffect, useState, useCallback } from 'react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from '@/components/admin/layout/dashboard/StickyHeader'
+import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { Users, Globe, TrendingDown, Clock, ArrowUpRight } from 'lucide-react'

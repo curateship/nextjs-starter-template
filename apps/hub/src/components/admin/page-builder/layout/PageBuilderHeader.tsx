@@ -13,7 +13,7 @@ import {
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
-} from "@/components/admin/shared/AdminModalLayout"
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 

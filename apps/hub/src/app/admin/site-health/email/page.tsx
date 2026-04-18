@@ -3,15 +3,15 @@
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/dashboard/admin-top-nav-links"
+import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/dashboard/StickyHeader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getDeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
 import type { DeliverabilityReport } from "@/lib/actions/newsletters/deliverability-actions"
-import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Shield, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 
 export default function EmailHealthPage() {

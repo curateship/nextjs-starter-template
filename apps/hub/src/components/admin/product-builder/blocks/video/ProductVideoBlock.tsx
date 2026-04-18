@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { BlockTabs } from "@/components/admin/shared/BlockTabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { Video, Image as ImageIcon } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { useState } from "react"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/admin/shared/BlockTabs"
+import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
 
 interface ProductVideoBlockProps {
   header?: string
