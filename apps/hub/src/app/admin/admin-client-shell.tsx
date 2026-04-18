@@ -1,6 +1,7 @@
 'use client'
 
 import { SiteSwitcherProvider } from "@/components/admin/layout/providers/site-switcher-provider"
+import { DashboardHeaderActionsSlotProvider } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
 import { ThemeProvider } from "next-themes"
@@ -37,14 +38,16 @@ export function AdminClientShell({
         secondaryFontFamily={secondaryFontFamily}
       />
       <SiteSwitcherProvider initialSites={initialSites} pageSize={pageSize}>
-        <div className="admin-layout min-h-screen bg-background">
-          <SidebarProvider className="h-screen">
-            <AppSidebar user={user} />
-            <SidebarInset>
-              {children}
-            </SidebarInset>
-          </SidebarProvider>
-        </div>
+        <DashboardHeaderActionsSlotProvider>
+          <div className="admin-layout min-h-screen bg-background">
+            <SidebarProvider className="h-screen">
+              <AppSidebar user={user} />
+              <SidebarInset>
+                {children}
+              </SidebarInset>
+            </SidebarProvider>
+          </div>
+        </DashboardHeaderActionsSlotProvider>
       </SiteSwitcherProvider>
     </ThemeProvider>
   )

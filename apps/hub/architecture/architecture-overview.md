@@ -174,6 +174,7 @@ apps/hub/src/components/
 - Keep feature-specific modal files for their own form fields, save logic, and route wiring. Share the dialog shell, not the business logic.
 - Leave truly custom dialogs such as media pickers and other utility flows on custom shells until repetition proves they belong in the shared form modal system.
 - Builder and editor pages should keep a single `StickyHeader`: section navigation on the left, current-item actions in `rightActions`, and no extra toolbar row beneath it.
+- Admin dashboard list pages should also render filters and primary actions in the sticky header top-right controls; `DashboardSubheader` is breadcrumb-only.
 
 ### Working On HUB
 

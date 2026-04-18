@@ -1,4 +1,6 @@
-import { type LucideIcon } from "lucide-react"
+"use client"
+
+import { createPortal } from "react-dom"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,29 +9,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { StickybarTopRightActions, type StickybarTabsConfig, useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { cn } from "@/lib/utils/tailwind"
-
-/** Single filter tab definition */
-export interface SubheaderTab {
-  value: string
-  label: string
-  icon?: LucideIcon
-  count?: number
-}
-
-/** Config for the built-in filter tabs */
-export interface SubheaderTabsConfig {
-  value: string
-  onValueChange: (value: string) => void
-  items: SubheaderTab[]
-}
 
 interface DashboardSubheaderProps {
   /** Breadcrumb trail — last item is rendered as the current page (no link) */
   items: Array<{ label: React.ReactNode; href?: string }>
   /** Filter tabs rendered between breadcrumbs and actions */
-  tabs?: SubheaderTabsConfig
+  tabs?: StickybarTabsConfig
   /** Optional content rendered before tabs (e.g. filter dropdowns) */
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
@@ -39,56 +26,45 @@ interface DashboardSubheaderProps {
 
 /**
  * Full-width breadcrumb row that sits below the StickyHeader.
- * Optionally renders filter tabs (All/Draft/Published etc.) and action buttons.
+ * Dashboard controls are rendered into the StickyHeader top-right slot.
  */
 export function DashboardSubheader({ items, tabs, preActions, actions, className }: DashboardSubheaderProps) {
+  const { slot } = useDashboardHeaderActionsSlot()
+  const topRightActions = (tabs || preActions || actions) ? (
+    <StickybarTopRightActions
+      className="gap-1 pr-2 sm:gap-3 sm:pr-3"
+      preActions={preActions}
+      tabs={tabs}
+      rightActions={actions}
+    />
+  ) : null
+
   return (
-    <div className={cn("flex items-center justify-between mb-6 mx-4 mt-2", className)}>
-      {/* Left side: breadcrumbs */}
-      <Breadcrumb>
-        <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
-          {items.map((item, index) => {
-            const isLast = index === items.length - 1
-            return (
-              <span key={index} className="contents">
-                {index > 0 && <BreadcrumbSeparator />}
-                <BreadcrumbItem>
-                  {isLast ? (
-                    <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink href={item.href || "#"}>{item.label}</BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
-              </span>
-            )
-          })}
-        </BreadcrumbList>
-      </Breadcrumb>
+    <>
+      {slot && topRightActions ? createPortal(topRightActions, slot) : null}
 
-      {/* Right side: pre-actions + filter tabs + action buttons */}
-      {(tabs || preActions || actions) && (
-        <div className="flex items-center gap-1 sm:gap-3">
-          {/* Pre-actions (e.g. filter dropdowns) */}
-          {preActions}
-
-          {/* Filter tabs */}
-          {tabs && (
-            <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
-              <TabsList>
-                {tabs.items.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value}>
-                    {tab.icon && <tab.icon className="h-3.5 w-3.5 mr-1.5" />}
-                    {tab.label}{tab.count !== undefined ? ` (${tab.count})` : ""}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-
-          {/* Action buttons */}
-          {actions}
-        </div>
-      )}
-    </div>
+      <div className={cn("flex items-center mb-6 mx-4 mt-2", className)}>
+        {/* Left side: breadcrumbs */}
+        <Breadcrumb>
+          <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
+            {items.map((item, index) => {
+              const isLast = index === items.length - 1
+              return (
+                <span key={index} className="contents">
+                  {index > 0 && <BreadcrumbSeparator />}
+                  <BreadcrumbItem>
+                    {isLast ? (
+                      <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink href={item.href || "#"}>{item.label}</BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                </span>
+              )
+            })}
+          </BreadcrumbList>
+        </Breadcrumb>
+      </div>
+    </>
   )
 }

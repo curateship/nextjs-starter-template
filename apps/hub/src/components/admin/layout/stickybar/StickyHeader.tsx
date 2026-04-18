@@ -3,6 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind"
+import { useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { PanelLeft, type LucideIcon } from "lucide-react"
 import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
@@ -41,6 +42,7 @@ export function StickyHeader({
   rightActions,
 }: StickyHeaderProps) {
   const { isMobile, toggleSidebar } = useSidebar()
+  const { setSlot } = useDashboardHeaderActionsSlot()
   const headerNavItems: HeaderNavItem[] = [
     ...(isMobile
       ? [
@@ -58,6 +60,9 @@ export function StickyHeader({
     })) ?? []),
   ]
   const showStandaloneSidebarToggle = isMobile && (Boolean(navContent) || !navLinks?.length)
+  const actionsSlotRef = React.useCallback((node: HTMLDivElement | null) => {
+    setSlot(node)
+  }, [setSlot])
 
   return (
     <header className={cn(
@@ -168,6 +173,7 @@ export function StickyHeader({
 
         {/* Right side: page-specific actions */}
         <div className="flex items-center gap-2 pr-1">
+          <div ref={actionsSlotRef} className="flex items-center gap-2" />
           {rightActions}
         </div>
       </div>
