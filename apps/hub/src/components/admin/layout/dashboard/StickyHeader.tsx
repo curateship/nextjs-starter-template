@@ -5,7 +5,6 @@ import Link from "next/link"
 import { cn } from "@/lib/utils/tailwind"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { BarChart3, Blocks, FileText, PanelLeft, Settings2, type LucideIcon } from "lucide-react"
-import { AdminThemeToggle } from "@/components/ui/admin-theme-toggle"
 import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 import { Button } from "@/components/ui/button"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
@@ -185,7 +184,7 @@ export function StickyHeader({
           )}
         </div>
 
-        {/* Right side: page-specific actions + theme toggle */}
+        {/* Right side: page-specific actions */}
         <div className="flex items-center gap-2 pr-1">
           {rightActions}
           {isProductSection && (
@@ -236,7 +235,6 @@ export function StickyHeader({
               </Link>
             </Button>
           )}
-          <AdminThemeToggle />
         </div>
       </div>
     </header>

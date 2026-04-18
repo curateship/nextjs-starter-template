@@ -6,10 +6,15 @@ import {
   ChevronsUpDown,
   CreditCard,
   LogOut,
+  Monitor,
+  Moon,
   Settings,
   Sparkles,
+  Sun,
+  SunMoon,
 } from "lucide-react"
 import Link from "next/link"
+import { useTheme } from "next-themes"
 import { authClient } from "@/lib/auth/client"
 import { useSiteSwitcher } from "@/components/admin/providers/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -25,6 +30,9 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -46,6 +54,7 @@ export function SidebarUserAdmin({
 }) {
   const { isMobile } = useSidebar()
   const { currentSite, sites } = useSiteSwitcher()
+  const { setTheme } = useTheme()
 
   const getLogoutRedirect = () => {
     if (currentSite) {
@@ -146,6 +155,27 @@ export function SidebarUserAdmin({
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <SunMoon />
+                Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => setTheme("light")}>
+                  <Sun />
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme("dark")}>
+                  <Moon />
+                  Dark
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme("system")}>
+                  <Monitor />
+                  System
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
