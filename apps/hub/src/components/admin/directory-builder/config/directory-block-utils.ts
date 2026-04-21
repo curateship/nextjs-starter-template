@@ -1,4 +1,5 @@
 import type { DirectoryCustomBlockTemplate } from '@/lib/actions/directories/directory-custom-blocks/types'
+import { getDirectoryLayoutColumn, normalizeDirectoryBlockContent } from '@/lib/actions/directories/directory-layout'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { getBlockName } from './directory-block-types'
 
@@ -9,14 +10,30 @@ export interface DirectoryEditorBlock {
   content: Record<string, any>
 }
 
+export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {
+  return {
+    ...block,
+    content: normalizeDirectoryBlockContent(block.type, block.content),
+  }
+}
+
+export function orderDirectoryEditorBlocks(blocks: DirectoryEditorBlock[]): DirectoryEditorBlock[] {
+  const normalizedBlocks = blocks.map(normalizeDirectoryEditorBlock)
+  return [
+    ...normalizedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main'),
+    ...normalizedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar'),
+  ]
+}
+
 export function parseDirectoryBlocksFromJson(
   contentBlocks: Record<string, any>,
   customBlockTemplates: DirectoryCustomBlockTemplate[] = []
 ): DirectoryEditorBlock[] {
   const templateMap = new Map(customBlockTemplates.map((template) => [template.id, template]))
 
-  return convertContentBlocksToArray(contentBlocks || {}, '')
-    .map((block) => {
+  return orderDirectoryEditorBlocks(
+    convertContentBlocksToArray(contentBlocks || {}, '')
+      .map((block) => {
       if (block.type === 'directory-custom') {
         const templateId = block.content?.templateId
         const template = typeof templateId === 'string' ? templateMap.get(templateId) : undefined
@@ -35,7 +52,8 @@ export function parseDirectoryBlocksFromJson(
         title: block.title || getBlockName(block.type),
         content: block.content,
       }
-    })
+      })
+  )
 }
 
 export function directoryBlocksToJson(
@@ -54,7 +72,9 @@ export function directoryBlocksToJson(
 
   const jsonBlocks: Record<string, any> = {}
 
-  blocks.forEach((block, index) => {
+  const orderedBlocks = orderDirectoryEditorBlocks(blocks)
+
+  orderedBlocks.forEach((block, index) => {
     jsonBlocks[block.id] = {
       id: block.id,
       type: block.type,

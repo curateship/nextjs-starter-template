@@ -10,6 +10,7 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Display directory details and information',
     defaultContent: {
+      layoutColumn: 'main',
       directoryContentStyle: 'listing-default',
       showFeaturedImage: true,
       showBreadcrumb: true,

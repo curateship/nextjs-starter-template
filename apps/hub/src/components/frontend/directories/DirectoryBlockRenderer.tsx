@@ -4,6 +4,7 @@ import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-layout"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface DirectoryWithBlocks {
@@ -34,11 +35,13 @@ function DirectoryContentStyled({
   directory,
   siteWidth,
   customWidth,
+  container = true,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
   directory: DirectoryWithBlocks
   siteWidth?: 'full' | 'custom'
   customWidth?: number
+  container?: boolean
 }) {
   const styleName = block.content.directoryContentStyle || 'default'
   const styleConfig = block.content.styleConfig || {}
@@ -47,7 +50,7 @@ function DirectoryContentStyled({
   const Renderer = DIRECTORY_CONTENT_STYLE_RENDERERS[styleName] || DIRECTORY_CONTENT_STYLE_RENDERERS.default
 
   return (
-    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+    <BlockContainer container={container} siteWidth={siteWidth} customWidth={customWidth}>
       <div className="pb-2 px-4">
         <Renderer
           config={config}
@@ -74,51 +77,78 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
   const siteChrome = resolveSiteChrome(site.settings)
 
   // Sort directory blocks by display_order
-  const sortedBlocks = directoryBlocks.sort((a, b) => a.display_order - b.display_order)
+  const sortedBlocks = [...directoryBlocks].sort((a, b) => a.display_order - b.display_order)
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
+  const mainBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
+  const sidebarBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
+  const outerContainerStyle = siteWidth === 'custom'
+    ? { maxWidth: `${customWidth || 1152}px` }
+    : undefined
+
+  function renderDirectoryBlock(
+    block: DirectoryWithBlocks["blocks"][number],
+    container = true
+  ) {
+    if (block.type === 'directory-content') {
+      return (
+        <div key={`directory-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+          <DirectoryContentStyled
+            block={block}
+            directory={directory}
+            siteWidth={siteWidth}
+            customWidth={customWidth}
+            container={container}
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'directory-custom') {
+      const templateId = block.content?.templateId
+      const template = typeof templateId === 'string' ? customBlockTemplates[templateId] : undefined
+
+      if (!template) {
+        return null
+      }
+
+      return (
+        <div key={`directory-custom-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+          <DirectoryCustomBlockSection
+            template={template}
+            values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
+            siteWidth={siteWidth}
+            customWidth={customWidth}
+            container={container}
+          />
+        </div>
+      )
+    }
+
+    return null
+  }
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
-        {/* Directory Blocks */}
-        {sortedBlocks.map((block) => {
-          if (block.type === 'directory-content') {
-            return (
-              <div key={`directory-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-              <DirectoryContentStyled
-                block={block}
-                directory={directory}
-                siteWidth={siteWidth}
-                customWidth={customWidth}
-              />
+        {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
+          <div
+            className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}
+            style={outerContainerStyle}
+          >
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-start">
+              <div className="lg:order-2">
+                {sidebarBlocks.map((block) => renderDirectoryBlock(block, false))}
               </div>
-            )
-          }
-
-          if (block.type === 'directory-custom') {
-            const templateId = block.content?.templateId
-            const template = typeof templateId === 'string' ? customBlockTemplates[templateId] : undefined
-
-            if (!template) {
-              return null
-            }
-
-            return (
-              <div key={`directory-custom-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-                <DirectoryCustomBlockSection
-                  template={template}
-                  values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
-                  siteWidth={siteWidth}
-                  customWidth={customWidth}
-                />
+              <div className="lg:order-1">
+                {mainBlocks.map((block) => renderDirectoryBlock(block, false))}
               </div>
-            )
-          }
-
-          return null
-        })}
+            </div>
+          </div>
+        ) : (
+          [...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block, true))
+        )}
       </SiteLayout>
   )
 }

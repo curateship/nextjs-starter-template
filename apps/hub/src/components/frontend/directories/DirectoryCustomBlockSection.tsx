@@ -11,6 +11,7 @@ interface DirectoryCustomBlockSectionProps {
   values: Record<string, any>
   siteWidth?: 'full' | 'custom'
   customWidth?: number
+  container?: boolean
 }
 
 export function DirectoryCustomBlockSection({
@@ -18,6 +19,7 @@ export function DirectoryCustomBlockSection({
   values,
   siteWidth,
   customWidth,
+  container = true,
 }: DirectoryCustomBlockSectionProps) {
   const fieldsWithContent = template.fields.filter(field => hasFieldContent(field, values[field.key]))
 
@@ -26,7 +28,7 @@ export function DirectoryCustomBlockSection({
   }
 
   return (
-    <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+    <BlockContainer container={container} siteWidth={siteWidth} customWidth={customWidth}>
       <div className="space-y-8">
         <div className="space-y-2">
           <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{template.name}</h2>

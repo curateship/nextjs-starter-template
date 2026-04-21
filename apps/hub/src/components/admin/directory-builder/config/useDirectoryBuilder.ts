@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react"
 import { updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
+import { normalizeDirectoryBlockContent } from "@/lib/actions/directories/directory-layout"
 import { getBlockTypeDefinition } from "./directory-block-types"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { parseDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
-import { directoryBlocksToJson, type DirectoryEditorBlock } from "./directory-block-utils"
+import { directoryBlocksToJson, orderDirectoryEditorBlocks, type DirectoryEditorBlock } from "./directory-block-utils"
 
 interface BlockSelection {
   type: string
@@ -54,15 +55,22 @@ export function useDirectoryBuilder({
     if (!selectedBlock) return
 
     const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedDirectory].findIndex(b => b.id === selectedBlock.id)
+    const currentBlocks = [...(updatedBlocks[selectedDirectory] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
+
     if (blockIndex !== -1) {
-      updatedBlocks[selectedDirectory][blockIndex] = {
-        ...updatedBlocks[selectedDirectory][blockIndex],
+      currentBlocks[blockIndex] = {
+        ...currentBlocks[blockIndex],
         content: {
-          ...updatedBlocks[selectedDirectory][blockIndex].content,
+          ...currentBlocks[blockIndex].content,
           [field]: value
         }
       }
+      currentBlocks[blockIndex].content = normalizeDirectoryBlockContent(
+        currentBlocks[blockIndex].type,
+        currentBlocks[blockIndex].content
+      )
+      updatedBlocks[selectedDirectory] = currentBlocks
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlocks[selectedDirectory][blockIndex])
     }
@@ -82,6 +90,9 @@ export function useDirectoryBuilder({
     const updatedBlocks = { ...blocks }
     updatedBlocks[selectedDirectory] = reorderedBlocks
     setBlocks(updatedBlocks)
+    if (selectedBlock) {
+      setSelectedBlock(reorderedBlocks.find((block) => block.id === selectedBlock.id) || null)
+    }
   }
 
   const handleAddBlocks = (selections: BlockSelection[]) => {
@@ -107,10 +118,10 @@ export function useDirectoryBuilder({
             id: `directory-custom-${timestamp}`,
             type: 'directory-custom',
             title: template.name,
-            content: {
+            content: normalizeDirectoryBlockContent('directory-custom', {
               templateId: template.id,
               values: {},
-            },
+            }),
           })
         }
 
@@ -131,7 +142,7 @@ export function useDirectoryBuilder({
           id: `${selection.type}-${timestamp}`,
           type: selection.type,
           title: blockDefinition.name,
-          content: { ...blockDefinition.defaultContent }
+          content: normalizeDirectoryBlockContent(selection.type, { ...blockDefinition.defaultContent })
         }
         newBlocks.push(newBlock)
       }
@@ -155,7 +166,7 @@ export function useDirectoryBuilder({
       return
     }
 
-    const currentBlocks = blocks[selectedDirectory] || []
+    const currentBlocks = orderDirectoryEditorBlocks(blocks[selectedDirectory] || [])
     const contentBlocks = directoryBlocksToJson(currentBlocks, currentDirectory?.content_blocks || {})
 
     setIsSaving(true)

@@ -14,10 +14,9 @@ import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickyba
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
-import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
-import { directoryBlocksToJson } from "@/components/admin/directory-builder/config/directory-block-utils"
+import { directoryBlocksToJson, orderDirectoryEditorBlocks } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import { Blocks, Search } from "lucide-react"
@@ -25,6 +24,7 @@ import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
 import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
+import { DirectoryBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryBlockListPanel"
 
 export default function DirectoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -195,11 +195,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
     try {
       const currentBlocks = localBlocks[selectedDirectory] || []
-      const nextBlocks = currentBlocks.map((block) =>
+      const nextBlocks = orderDirectoryEditorBlocks(currentBlocks.map((block) =>
         block.id === selectedBlock.id
           ? { ...block, content: draftContent }
           : block
-      )
+      ))
 
       let updatedDirectory: Directory | null = null
       if (selectedBlock.type === "directory-content") {
@@ -276,11 +276,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   const previewBlocks = selectedBlock
-    ? currentDirectory.blocks.map((block) => (
+    ? orderDirectoryEditorBlocks(currentDirectory.blocks.map((block) => (
         block.id === selectedBlock.id
           ? { ...block, content: draftContent }
           : block
-      ))
+      )))
     : currentDirectory.blocks
 
   const previewDirectoryTitle = selectedBlock?.type === "directory-content"
@@ -385,10 +385,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         />
 
         {blockListOpen && (
-          <BlockListPanel
+          <DirectoryBlockListPanel
             blocks={currentDirectory.blocks}
-            blockTypes={DIRECTORY_BLOCK_TYPES}
-            entityName="directory"
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
