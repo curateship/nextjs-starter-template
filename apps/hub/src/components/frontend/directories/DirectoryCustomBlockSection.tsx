@@ -21,6 +21,7 @@ export function DirectoryCustomBlockSection({
   customWidth,
   container = true,
 }: DirectoryCustomBlockSectionProps) {
+  const isStackCard = template.layout === 'stack-card'
   const fieldsWithContent = template.fields.filter(field => hasFieldContent(field, values[field.key]))
 
   if (!fieldsWithContent.length) {
@@ -28,24 +29,33 @@ export function DirectoryCustomBlockSection({
   }
 
   return (
-    <BlockContainer container={container} siteWidth={siteWidth} customWidth={customWidth}>
-      <div className="space-y-8">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{template.name}</h2>
-        </div>
+    <BlockContainer
+      container={container}
+      siteWidth={siteWidth}
+      customWidth={customWidth}
+      className="pb-4 md:pt-4 md:pb-6"
+    >
+
+        {!isStackCard && <SectionHeading title={template.name} />}
 
         {template.layout === 'two-column' ? (
           <TwoColumnLayout fields={fieldsWithContent} values={values} />
-        ) : template.layout === 'stack-card' ? (
+        ) : isStackCard ? (
           <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-            <StackLayout fields={fieldsWithContent} values={values} />
+            <div className="space-y-8">
+              <SectionHeading title={template.name} />
+              <StackLayout fields={fieldsWithContent} values={values} />
+            </div>
           </div>
         ) : (
           <StackLayout fields={fieldsWithContent} values={values} />
         )}
-      </div>
     </BlockContainer>
   )
+}
+
+function SectionHeading({ title }: { title: string }) {
+  return <h3 className="text-2xl font-semibold tracking-tight md:text-2xl">{title}</h3>
 }
 
 function TwoColumnLayout({
