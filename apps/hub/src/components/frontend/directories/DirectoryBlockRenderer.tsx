@@ -119,9 +119,6 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
           <DirectoryCustomBlockSection
             template={template}
             values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
-            siteWidth={siteWidth}
-            customWidth={customWidth}
-            container={container}
           />
         </div>
       )

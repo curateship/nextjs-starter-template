@@ -1,4 +1,3 @@
-import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { cn } from "@/lib/utils/tailwind"
 import type {
   DirectoryCustomBlockField,
@@ -9,17 +8,11 @@ import type {
 interface DirectoryCustomBlockSectionProps {
   template: Pick<DirectoryCustomBlockTemplate, 'name' | 'layout' | 'fields'>
   values: Record<string, any>
-  siteWidth?: 'full' | 'custom'
-  customWidth?: number
-  container?: boolean
 }
 
 export function DirectoryCustomBlockSection({
   template,
   values,
-  siteWidth,
-  customWidth,
-  container = true,
 }: DirectoryCustomBlockSectionProps) {
   const isStackCard = template.layout === 'stack-card'
   const fieldsWithContent = template.fields.filter(field => hasFieldContent(field, values[field.key]))
@@ -29,28 +22,22 @@ export function DirectoryCustomBlockSection({
   }
 
   return (
-    <BlockContainer
-      container={container}
-      siteWidth={siteWidth}
-      customWidth={customWidth}
-      className="pb-4 md:pt-4 md:pb-6"
-    >
+    <div className="pt-12">
+      {!isStackCard && <SectionHeading title={template.name} />}
 
-        {!isStackCard && <SectionHeading title={template.name} />}
-
-        {template.layout === 'two-column' ? (
-          <TwoColumnLayout fields={fieldsWithContent} values={values} />
-        ) : isStackCard ? (
-          <div className="rounded-2xl border bg-card p-6 shadow-sm md:p-8">
-            <div className="space-y-8">
-              <SectionHeading title={template.name} />
-              <StackLayout fields={fieldsWithContent} values={values} />
-            </div>
+      {template.layout === 'two-column' ? (
+        <TwoColumnLayout fields={fieldsWithContent} values={values} />
+      ) : isStackCard ? (
+        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+          <div className="">
+            <SectionHeading title={template.name} />
+            <StackLayout fields={fieldsWithContent} values={values} />
           </div>
-        ) : (
-          <StackLayout fields={fieldsWithContent} values={values} />
-        )}
-    </BlockContainer>
+        </div>
+      ) : (
+        <StackLayout fields={fieldsWithContent} values={values} />
+      )}
+    </div>
   )
 }
 

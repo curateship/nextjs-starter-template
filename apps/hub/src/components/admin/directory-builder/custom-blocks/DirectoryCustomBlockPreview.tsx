@@ -35,8 +35,6 @@ export function DirectoryCustomBlockPreview({
             <DirectoryCustomBlockSection
               template={template}
               values={previewValues}
-              siteWidth="custom"
-              customWidth={PREVIEW_WIDTHS[width]}
             />
           </div>
         )}
