@@ -600,8 +600,7 @@ export async function getDirectoryBySlugAction(siteId: string, slug: string) {
 
 export async function getDirectoryBuilderDataAction(
   siteId: string,
-  selectedDirectory: string,
-  search?: string
+  selectedDirectory: string
 ): Promise<{ data: DirectoryBuilderData | null; error: string | null }> {
   try {
     const [directoryResult, customBlocksResult, optionsResult] = await Promise.all([
@@ -610,7 +609,6 @@ export async function getDirectoryBuilderDataAction(
         : Promise.resolve({ data: null, error: null }),
       getDirectoryCustomBlocksBySite(siteId),
       searchSiteDirectoriesAction(siteId, {
-        search,
         limit: 20,
       }),
     ])

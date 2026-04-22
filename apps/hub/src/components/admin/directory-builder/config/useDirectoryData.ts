@@ -11,17 +11,16 @@ type DirectoryBuilderDataResult = Awaited<ReturnType<typeof getDirectoryBuilderD
 const DIRECTORY_DATA_CACHE_TTL_MS = 3000
 const directoryDataRequestCache = new Map<string, { expiresAt: number; promise: Promise<DirectoryBuilderDataResult> }>()
 
-function getDirectoryDataRequestKey(siteId: string, selectedDirectory: string, directorySearch: string) {
-  return `${siteId}::${selectedDirectory}::${directorySearch}`
+function getDirectoryDataRequestKey(siteId: string, selectedDirectory: string) {
+  return `${siteId}::${selectedDirectory}`
 }
 
 function loadDirectoryBuilderData(
   siteId: string,
   selectedDirectory: string,
-  directorySearch: string,
   options?: { bypassCache?: boolean }
 ) {
-  const requestKey = getDirectoryDataRequestKey(siteId, selectedDirectory, directorySearch)
+  const requestKey = getDirectoryDataRequestKey(siteId, selectedDirectory)
 
   if (!options?.bypassCache) {
     const cached = directoryDataRequestCache.get(requestKey)
@@ -30,7 +29,7 @@ function loadDirectoryBuilderData(
     }
   }
 
-  const promise = getDirectoryBuilderDataAction(siteId, selectedDirectory, directorySearch)
+  const promise = getDirectoryBuilderDataAction(siteId, selectedDirectory)
   directoryDataRequestCache.set(requestKey, {
     expiresAt: Date.now() + DIRECTORY_DATA_CACHE_TTL_MS,
     promise,
@@ -52,7 +51,7 @@ interface UseDirectoryDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useDirectoryData(siteId: string, selectedDirectory: string, directorySearch: string): UseDirectoryDataReturn {
+export function useDirectoryData(siteId: string, selectedDirectory: string): UseDirectoryDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [directory, setDirectory] = useState<Directory | null>(null)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
@@ -73,7 +72,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string, dire
     setSiteError("")
 
     try {
-      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory, directorySearch)
+      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory)
 
       if (error || !data) {
         setSiteError(error || 'Failed to load data')
@@ -113,7 +112,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string, dire
   }
 
   const reloadBlocks = async () => {
-    if (!selectedDirectory && !directorySearch) {
+    if (!selectedDirectory) {
       setDirectory(null)
       setBreadcrumbTrail([])
       setBlocks({})
@@ -123,7 +122,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string, dire
     setBlocksLoading(true)
 
     try {
-      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory, directorySearch, {
+      const { data, error } = await loadDirectoryBuilderData(siteId, selectedDirectory, {
         bypassCache: true,
       })
 
@@ -166,7 +165,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string, dire
 
   useEffect(() => {
     loadDirectoryData()
-  }, [siteId, selectedDirectory, directorySearch]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [siteId, selectedDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     site: currentSite,

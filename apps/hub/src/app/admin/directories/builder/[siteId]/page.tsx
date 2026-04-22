@@ -5,7 +5,6 @@ import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
@@ -19,7 +18,7 @@ import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/conf
 import { directoryBlocksToJson, orderDirectoryEditorBlocks } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
-import { Blocks, Search } from "lucide-react"
+import { Blocks } from "lucide-react"
 import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
@@ -32,7 +31,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const searchParams = useSearchParams()
   const { currentSite } = useSiteSwitcher()
   const directoryFromUrl = searchParams.get('directory') || ''
-  const [directorySearch, setDirectorySearch] = useState("")
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
   const selectedDirectory = directoryFromUrl || ''
@@ -55,7 +53,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     blocksLoading,
     siteError,
     reloadBlocks,
-  } = useDirectoryData(siteId, selectedDirectory, directorySearch)
+  } = useDirectoryData(siteId, selectedDirectory)
 
   useEffect(() => {
     if (!directoryFromUrl && directoryOptions.length > 0) {
@@ -298,22 +296,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         navLinks={getDirectoryAdminTopNavLinks("directory")}
         rightActions={(
           <StickybarTopRightActions
-            rightActions={(
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={directorySearch}
-                    onChange={(event) => setDirectorySearch(event.target.value)}
-                    placeholder="Search directories"
-                    className="h-9 w-56 pl-8"
-                  />
-                </div>
-                {siteError ? (
-                  <span className="text-xs text-red-600">{siteError}</span>
-                ) : null}
-              </div>
-            )}
+            preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
