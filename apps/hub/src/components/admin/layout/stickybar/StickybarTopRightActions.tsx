@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState } from "react"
-import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle } from "lucide-react"
+import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils/tailwind"
@@ -80,6 +80,7 @@ interface StickybarTopRightActionsProps {
   preActions?: React.ReactNode
   tabs?: StickybarTabsConfig
   rightActions?: React.ReactNode
+  viewPageHref?: string | null
   saveMessage?: string | null
   isSaving?: boolean
   onSave?: () => void
@@ -104,6 +105,7 @@ export function StickybarTopRightActions({
   preActions,
   tabs,
   rightActions,
+  viewPageHref,
   saveMessage,
   isSaving = false,
   onSave,
@@ -149,6 +151,15 @@ export function StickybarTopRightActions({
           <div className="hidden sm:block">
             <SaveStatusBadge message={saveMessage} />
           </div>
+        ) : null}
+
+        {viewPageHref ? (
+          <Button variant="outline" size="sm" asChild>
+            <a href={viewPageHref} target="_blank" rel="noopener noreferrer" aria-label="View Page" title="View Page">
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden sm:inline">View Page</span>
+            </a>
+          </Button>
         ) : null}
 
         {renderSettingsModal ? (

@@ -18,6 +18,7 @@ import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSele
 import { CATEGORY_BLOCK_TYPES } from "@/components/admin/category-builder/config/category-block-types"
 import { getCategoriesForSiteAction, updateCategoryAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export default function CategoryBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -168,11 +169,16 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     )
   }
 
+  const viewPageHref = site && currentCategoryData
+    ? `${getSiteUrl(site)}/categories/${currentCategoryData.slug}`
+    : null
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}

@@ -20,6 +20,7 @@ import { PagePreview } from "@/components/admin/page-builder/layout/PagePreview"
 import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/PageBlockEditorDialog"
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
@@ -200,6 +201,9 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   }
 
   const isTemplate = site?.is_template === true
+  const viewPageHref = site && currentPageData
+    ? `${getSiteUrl(site)}${currentPageData.is_homepage ? "" : `/${currentPageData.slug}`}`
+    : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -212,6 +216,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         navLinks={getPageAdminTopNavLinks(siteId, "pages")}
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}

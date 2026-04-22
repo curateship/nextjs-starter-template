@@ -24,6 +24,7 @@ import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSele
 import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
 import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EventPreview } from "@/components/admin/event-builder/layout/EventPreview"
 import { EventBlockEditorModal } from "@/components/admin/event-builder/layout/EventBlockEditorModal"
@@ -291,12 +292,17 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     )
   }
 
+  const viewPageHref = site && currentEventData
+    ? `${getSiteUrl(site)}/events/${currentEventData.slug}`
+    : null
+
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}

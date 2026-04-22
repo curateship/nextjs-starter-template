@@ -17,6 +17,7 @@ import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSele
 import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
 import { getSitePostsAction, updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
 import type { Post } from "@/lib/actions/posts/post-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "@/components/admin/post-builder/layout/PostPreview"
 import { PostBlockEditorModal } from "@/components/admin/post-builder/layout/PostBlockEditorModal"
@@ -285,11 +286,16 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     )
   }
 
+  const viewPageHref = site && currentPostData
+    ? `${getSiteUrl(site)}/posts/${currentPostData.slug}`
+    : null
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}

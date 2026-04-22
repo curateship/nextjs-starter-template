@@ -42,6 +42,7 @@ import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSele
 import { PRODUCT_BLOCK_TYPES } from "@/components/admin/product-builder/config/product-block-types"
 import { getSiteProductsAction, updateProductAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function ProductBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
@@ -285,6 +286,10 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     )
   }
 
+  const viewPageHref = site && currentProductData
+    ? `${getSiteUrl(site)}/products/${currentProductData.slug}`
+    : null
+
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -292,6 +297,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         navLinks={getProductAdminTopNavLinks("products")}
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}

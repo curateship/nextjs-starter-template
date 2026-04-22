@@ -21,6 +21,7 @@ import {
   getAccountPagesAction,
   type AccountPage
 } from "@/lib/actions/account-pages/account-pages-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export default function AccountPageBuilderPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -161,12 +162,17 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     )
   }
 
+  const viewPageHref = site && currentPageData
+    ? `${getSiteUrl(site)}/${currentPageData.slug}`
+    : null
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         navLinks={getPageAdminTopNavLinks(siteId, "account-pages")}
         rightActions={(
           <StickybarTopRightActions
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}

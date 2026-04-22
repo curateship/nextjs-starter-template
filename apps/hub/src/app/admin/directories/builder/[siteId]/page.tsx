@@ -18,6 +18,7 @@ import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/conf
 import { directoryBlocksToJson, orderDirectoryEditorBlocks } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { Blocks } from "lucide-react"
 import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -288,6 +289,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const previewDirectoryFeaturedImage = selectedBlock?.type === "directory-content"
     ? draftDirectoryFeaturedImage.trim() || null
     : currentDirectoryData?.featured_image || null
+  const viewPageHref = site && currentDirectoryData
+    ? `${getSiteUrl(site)}/directories/${currentDirectoryData.slug}`
+    : null
 
 
   return (
@@ -297,6 +301,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         rightActions={(
           <StickybarTopRightActions
             preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}
+            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
