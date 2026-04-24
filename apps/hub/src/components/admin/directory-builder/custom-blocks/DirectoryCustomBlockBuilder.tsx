@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Monitor, Smartphone } from "lucide-react"
+import { Monitor, Smartphone, Tablet } from "lucide-react"
 import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
@@ -34,7 +34,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   const [fields, setFields] = useState<DirectoryCustomBlockField[]>([])
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [previewWidth, setPreviewWidth] = useState<'desktop' | 'mobile'>('desktop')
+  const [previewWidth, setPreviewWidth] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const [saveMessage, setSaveMessage] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -199,20 +199,32 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
                   <Button
                     variant={previewWidth === "desktop" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-none border-r"
+                    className="h-8 w-8 rounded-none border-r p-0"
                     onClick={() => setPreviewWidth("desktop")}
+                    title="Desktop"
+                    aria-label="Desktop"
                   >
-                    <Monitor className="mr-2 h-4 w-4" />
-                    Desktop
+                    <Monitor className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={previewWidth === "tablet" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8 w-8 rounded-none border-r p-0"
+                    onClick={() => setPreviewWidth("tablet")}
+                    title="Tablet"
+                    aria-label="Tablet"
+                  >
+                    <Tablet className="h-4 w-4" />
                   </Button>
                   <Button
                     variant={previewWidth === "mobile" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-none"
+                    className="h-8 w-8 rounded-none p-0"
                     onClick={() => setPreviewWidth("mobile")}
+                    title="Mobile"
+                    aria-label="Mobile"
                   >
-                    <Smartphone className="mr-2 h-4 w-4" />
-                    Mobile
+                    <Smartphone className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

@@ -6,11 +6,12 @@ import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/dir
 
 interface DirectoryCustomBlockPreviewProps {
   template: Pick<DirectoryCustomBlockTemplate, 'name' | 'layout' | 'fields'>
-  width: 'desktop' | 'mobile'
+  width: 'desktop' | 'tablet' | 'mobile'
 }
 
 const PREVIEW_WIDTHS = {
   desktop: 960,
+  tablet: 720,
   mobile: 390,
 } as const
 
