@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Copy, Paintbrush } from "lucide-react"
+import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Copy } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { getSitesAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { cn } from "@/lib/utils/tailwind"
 import { getAllSitesAction, deleteSiteAction, cloneSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -236,36 +237,27 @@ export default function SitesPage() {
   
   return (
     <>
-    <StickyHeader
-      rightActions={
-        <Button asChild variant="outline" size="sm">
-          <Link href="/admin/themes">
-            <Paintbrush className="h-4 w-4" />
-            <span className="hidden sm:inline">Themes</span>
-          </Link>
-        </Button>
-      }
-    />
-    <AdminLayout>
-      <div className="w-full">
-        <DashboardSubheader
-          items={[{ label: "Sites" }]}
-          tabs={{
-            value: filter,
-            onValueChange: (value) => setFilter(value as FilterStatus),
-            items: [
-              { value: "all", label: "All", icon: List, count: siteCounts.all },
-              { value: "active", label: "Active", icon: CircleCheck, count: siteCounts.active },
-              { value: "inactive", label: "Inactive", icon: CircleX, count: siteCounts.inactive },
-              { value: "draft", label: "Draft", icon: FileEdit, count: siteCounts.draft },
-            ],
-          }}
-          actions={
-            <Button asChild><Link href="/admin/sites/new"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Site</span></Link></Button>
-          }
-        />
+      <StickyHeader navLinks={getSitesAdminTopNavLinks("sites")} />
+      <AdminLayout>
+        <div className="w-full">
+          <DashboardSubheader
+            items={[{ label: "Sites" }]}
+            tabs={{
+              value: filter,
+              onValueChange: (value) => setFilter(value as FilterStatus),
+              items: [
+                { value: "all", label: "All", icon: List, count: siteCounts.all },
+                { value: "active", label: "Active", icon: CircleCheck, count: siteCounts.active },
+                { value: "inactive", label: "Inactive", icon: CircleX, count: siteCounts.inactive },
+                { value: "draft", label: "Draft", icon: FileEdit, count: siteCounts.draft },
+              ],
+            }}
+            actions={
+              <Button asChild><Link href="/admin/sites/new"><Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Site</span></Link></Button>
+            }
+          />
 
-        <Card className="shadow-sm">
+          <Card className="shadow-sm">
           
           {/* Table Header */}
           <div className="px-6 py-4 border-b bg-muted/30">

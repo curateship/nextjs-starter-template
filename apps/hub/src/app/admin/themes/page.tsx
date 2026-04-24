@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { getSitesAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -142,16 +143,7 @@ export default function ThemesPage() {
 
   return (
     <>
-      <StickyHeader
-        rightActions={
-          <Button asChild size="sm">
-            <Link href="/admin/themes">
-              <Paintbrush className="h-4 w-4" />
-              <span className="hidden sm:inline">Themes</span>
-            </Link>
-          </Button>
-        }
-      />
+      <StickyHeader navLinks={getSitesAdminTopNavLinks("themes")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

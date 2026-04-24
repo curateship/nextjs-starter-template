@@ -134,7 +134,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
             className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}
             style={outerContainerStyle}
           >
-            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-start">
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
               <div className="lg:order-2">
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block, false))}
               </div>

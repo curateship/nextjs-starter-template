@@ -8,10 +8,12 @@ import {
   FileText,
   Filter,
   FolderOpen,
+  Globe,
   HeartPulse,
   Link2,
   Mail,
   Package,
+  Paintbrush,
   Search,
   ShoppingCart,
   Settings2,
@@ -43,6 +45,7 @@ type PlatformEmailAdminSection = "templates" | "emails" | "settings"
 type PlatformSettingsAdminSection = "settings" | "apps-integration"
 type SiteHealthAdminSection = "overview" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
+type SitesAdminSection = "sites" | "themes"
 
 export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTopNavLink[] {
   return [
@@ -82,6 +85,13 @@ export function getDirectoryAdminTopNavLinks(active: DirectoryAdminSection): Adm
     { label: "Directory", href: "/admin/directories", icon: FolderOpen, active: active === "directory" },
     { label: "Templates", href: "/admin/directories/templates", icon: FileText, active: active === "templates" },
     { label: "Custom Blocks", href: "/admin/directories/custom-blocks", icon: Blocks, active: active === "custom-blocks" },
+  ]
+}
+
+export function getSitesAdminTopNavLinks(active: SitesAdminSection): AdminTopNavLink[] {
+  return [
+    { label: "Sites", href: "/admin/sites", icon: Globe, active: active === "sites" },
+    { label: "Themes", href: "/admin/themes", icon: Paintbrush, active: active === "themes" },
   ]
 }
 
