@@ -30,6 +30,8 @@ import Image from "next/image"
 import { Search, ImageIcon, VideoIcon, Upload, X, Play, Filter } from "lucide-react"
 import { toast } from "sonner"
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 interface MediaPickerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -59,6 +61,7 @@ export function MediaPicker({
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(12) // Smaller page size for modal
+  const scopedSiteId = site_id && UUID_REGEX.test(site_id) ? site_id : undefined
   
   // Support legacy props
   const actualCurrentUrl = currentMediaUrl || currentImageUrl
@@ -80,13 +83,34 @@ export function MediaPicker({
       setSearchQuery('')
       setSelectedMedia(null)
     }
-  }, [open, currentPage, pageSize, filterType])
+  }, [open, currentPage, pageSize, filterType, scopedSiteId])
 
   const loadImages = async () => {
     try {
       setIsLoading(true)
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, site_id)
+      const loadMediaPage = (nextSiteId?: string) =>
+        getPaginatedMediaAction(currentPage, pageSize, fileType, nextSiteId)
+      let result: Awaited<ReturnType<typeof getPaginatedMediaAction>>
+
+      try {
+        result = await loadMediaPage(scopedSiteId)
+      } catch (error) {
+        if (!scopedSiteId) {
+          throw error
+        }
+
+        result = await loadMediaPage()
+      }
+
+      let { data, error } = result
+
+      if (error && scopedSiteId) {
+        const fallback = await loadMediaPage()
+        data = fallback.data
+        error = fallback.error
+      }
+
       if (error) {
         toast.error(`Failed to load media: ${error}`)
       } else {
@@ -193,8 +217,8 @@ export function MediaPicker({
       if (altText.trim()) {
         formData.append('altText', altText.trim())
       }
-      if (site_id) {
-        formData.append('siteId', site_id)
+      if (scopedSiteId) {
+        formData.append('siteId', scopedSiteId)
       }
 
       const response = await fetch('/api/media/upload', {

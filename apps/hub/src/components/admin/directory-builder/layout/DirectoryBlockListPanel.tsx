@@ -182,7 +182,7 @@ function DirectoryColumnSection({
             ref={setNodeRef}
             className={cn(
               "absolute left-5 right-5 top-0 z-10 h-4 rounded-md transition-colors",
-              isOver && "bg-primary/8 outline outline-1 outline-primary/40"
+              isOver && "bg-primary/8 outline outline-primary/40"
             )}
           />
         )}

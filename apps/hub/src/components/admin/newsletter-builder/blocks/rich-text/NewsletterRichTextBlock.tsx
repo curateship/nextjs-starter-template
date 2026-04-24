@@ -1,16 +1,13 @@
 "use client"
 
-import { type CSSProperties } from "react"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR,
-  normalizeNewsletterRichTextHtml,
-} from "@/lib/actions/newsletters/render"
+import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
+import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR } from "@/lib/actions/newsletters/render"
 
 interface NewsletterRichTextBlockProps {
+  blockId: string
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   onBack?: () => void
@@ -18,20 +15,16 @@ interface NewsletterRichTextBlockProps {
 }
 
 export function NewsletterRichTextBlock({
+  blockId,
   content,
   onContentChange,
   onBack,
   siteId,
 }: NewsletterRichTextBlockProps) {
-  const normalizedHtmlContent = normalizeNewsletterRichTextHtml(content.htmlContent || '')
   const imageBorderSize = Math.max(0, Math.min(48, parseInt(String(content.imageBorderSize ?? 0), 10) || 0))
   const imageBorderColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(content.imageBorderColor || '')
     ? content.imageBorderColor
     : DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
-  const richTextContentStyle = {
-    '--newsletter-image-border-size': `${imageBorderSize}px`,
-    '--newsletter-image-border-color': imageBorderColor,
-  } as CSSProperties
 
   return (
     <BlockTabs
@@ -42,19 +35,14 @@ export function NewsletterRichTextBlock({
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-4">
-              <div className="overflow-hidden rounded-md">
-                <RichTextEditor
-                  content={{ content: normalizedHtmlContent, hideHeader: true, hideEditorHeader: true }}
-                  onContentChange={(c) => onContentChange('htmlContent', normalizeNewsletterRichTextHtml(c.content))}
-                  inline
-                  placeholder="Write your content here..."
-                  contentClassName="newsletter-email-rich-text"
-                  contentStyle={richTextContentStyle}
-                  mediaPickerSiteId={siteId}
-                />
-              </div>
-            </div>
+            <NewsletterInlineRichTextEditor
+              blockId={blockId}
+              content={content}
+              onContentChange={(htmlContent) => onContentChange('htmlContent', htmlContent)}
+              siteId={siteId}
+              isActive
+              editorPadding={0}
+            />
           ),
         },
         {

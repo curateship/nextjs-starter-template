@@ -24,6 +24,7 @@ export function NewsletterBlockEditor({
   if (block.type === "newsletter-rich-text") {
     return (
       <NewsletterRichTextBlock
+        blockId={block.id}
         content={content}
         onContentChange={onContentChange}
         siteId={siteId}

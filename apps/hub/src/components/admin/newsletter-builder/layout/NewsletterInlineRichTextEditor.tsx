@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import type { Editor } from "@tiptap/core"
 import { mergeAttributes, posToDOMRect } from "@tiptap/core"
 import { NodeSelection } from "@tiptap/pm/state"
@@ -15,6 +16,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Bold,
   Heading1,
@@ -40,6 +42,7 @@ interface NewsletterInlineRichTextEditorProps {
   siteId: string
   scrollTarget?: HTMLElement | null
   isActive: boolean
+  editorPadding?: number
 }
 
 interface SlashCommandRange {
@@ -67,6 +70,7 @@ interface SlashCommandDefinition {
 }
 
 const SLASH_MENU_WIDTH = 320
+const SLASH_MENU_MODAL_INSET = 12
 
 function normalizeLinkedImageAttribute(value: string | null): string | null {
   return value && value.trim().length > 0 ? value : null
@@ -290,13 +294,20 @@ export function NewsletterInlineRichTextEditor({
   siteId,
   scrollTarget,
   isActive,
+  editorPadding,
 }: NewsletterInlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
   const pendingLinkTargetRef = useRef<{ range: SlashCommandRange; isImage: boolean } | null>(null)
   const activationPositionRef = useRef<{ left: number; top: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const slashMenuElementRef = useRef<HTMLDivElement | null>(null)
+  const slashMenuInteractingRef = useRef(false)
+  const slashMenuInteractionTimeoutRef = useRef<number | null>(null)
+  const slashMenuPreserveAfterInteractionRef = useRef(false)
   const slashMenuRef = useRef<SlashCommandMenuState | null>(null)
+  const slashCommandPointerStartRef = useRef<{ x: number; y: number } | null>(null)
+  const slashCommandPointerMovedRef = useRef(false)
   const dismissedSlashSignatureRef = useRef<string | null>(null)
   const selectedSlashIndexRef = useRef(0)
   const filteredSlashCommandsRef = useRef<SlashCommandDefinition[]>([])
@@ -324,6 +335,7 @@ export function NewsletterInlineRichTextEditor({
         codeBlock: false,
         horizontalRule: false,
         strike: false,
+        link: false,
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
@@ -670,10 +682,37 @@ export function NewsletterInlineRichTextEditor({
 
       command.run(editor, range)
       dismissedSlashSignatureRef.current = null
+      slashMenuPreserveAfterInteractionRef.current = false
+      slashMenuInteractingRef.current = false
       setSlashMenu(null)
     },
     [editor],
   )
+
+  const keepSlashMenuInteraction = useCallback(() => {
+    if (slashMenuInteractionTimeoutRef.current !== null) {
+      window.clearTimeout(slashMenuInteractionTimeoutRef.current)
+      slashMenuInteractionTimeoutRef.current = null
+    }
+
+    slashMenuInteractingRef.current = true
+    slashMenuPreserveAfterInteractionRef.current = true
+  }, [])
+
+  const releaseSlashMenuInteraction = useCallback(() => {
+    if (!slashMenuInteractingRef.current) {
+      return
+    }
+
+    if (slashMenuInteractionTimeoutRef.current !== null) {
+      window.clearTimeout(slashMenuInteractionTimeoutRef.current)
+    }
+
+    slashMenuInteractionTimeoutRef.current = window.setTimeout(() => {
+      slashMenuInteractingRef.current = false
+      slashMenuInteractionTimeoutRef.current = null
+    }, 250)
+  }, [])
 
   const refreshSlashMenu = useCallback(() => {
     if (!editor) {
@@ -685,6 +724,15 @@ export function NewsletterInlineRichTextEditor({
     setSlashMenu((currentSlashMenu) => {
       if (!nextSlashMenu) {
         dismissedSlashSignatureRef.current = null
+        if (
+          slashMenuInteractingRef.current ||
+          slashCommandPointerStartRef.current ||
+          currentSlashMenu && slashMenuPreserveAfterInteractionRef.current && !editor.view.hasFocus()
+        ) {
+          return currentSlashMenu
+        }
+
+        slashMenuPreserveAfterInteractionRef.current = false
         return currentSlashMenu === null ? currentSlashMenu : null
       }
 
@@ -706,6 +754,67 @@ export function NewsletterInlineRichTextEditor({
   }, [editor])
 
   useEffect(() => {
+    if (!slashMenu) {
+      return
+    }
+
+    const isInsideSlashMenu = (event: PointerEvent | MouseEvent | WheelEvent) => {
+      const rect = slashMenuElementRef.current?.getBoundingClientRect()
+      return Boolean(
+        rect &&
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom,
+      )
+    }
+
+    const handleInteractionStart = (event: PointerEvent | MouseEvent) => {
+      if (isInsideSlashMenu(event)) {
+        keepSlashMenuInteraction()
+        return
+      }
+
+      if (event.target instanceof Node && rootRef.current?.contains(event.target)) {
+        return
+      }
+
+      slashMenuPreserveAfterInteractionRef.current = false
+      slashMenuInteractingRef.current = false
+      setSlashMenu(null)
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (isInsideSlashMenu(event)) {
+        keepSlashMenuInteraction()
+        event.stopPropagation()
+      }
+    }
+
+    document.addEventListener("pointerdown", handleInteractionStart, true)
+    document.addEventListener("pointerup", releaseSlashMenuInteraction, true)
+    document.addEventListener("pointercancel", releaseSlashMenuInteraction, true)
+    document.addEventListener("mousedown", handleInteractionStart, true)
+    document.addEventListener("mouseup", releaseSlashMenuInteraction, true)
+    document.addEventListener("wheel", handleWheel, true)
+
+    return () => {
+      document.removeEventListener("pointerdown", handleInteractionStart, true)
+      document.removeEventListener("pointerup", releaseSlashMenuInteraction, true)
+      document.removeEventListener("pointercancel", releaseSlashMenuInteraction, true)
+      document.removeEventListener("mousedown", handleInteractionStart, true)
+      document.removeEventListener("mouseup", releaseSlashMenuInteraction, true)
+      document.removeEventListener("wheel", handleWheel, true)
+      if (slashMenuInteractionTimeoutRef.current !== null) {
+        window.clearTimeout(slashMenuInteractionTimeoutRef.current)
+        slashMenuInteractionTimeoutRef.current = null
+      }
+      slashMenuInteractingRef.current = false
+      slashMenuPreserveAfterInteractionRef.current = false
+    }
+  }, [keepSlashMenuInteraction, releaseSlashMenuInteraction, slashMenu])
+
+  useEffect(() => {
     if (!editor) {
       return
     }
@@ -715,13 +824,11 @@ export function NewsletterInlineRichTextEditor({
     editor.on("selectionUpdate", refreshSlashMenu)
     editor.on("transaction", refreshSlashMenu)
     editor.on("focus", refreshSlashMenu)
-    editor.on("blur", refreshSlashMenu)
 
     return () => {
       editor.off("selectionUpdate", refreshSlashMenu)
       editor.off("transaction", refreshSlashMenu)
       editor.off("focus", refreshSlashMenu)
-      editor.off("blur", refreshSlashMenu)
     }
   }, [editor, refreshSlashMenu])
 
@@ -891,6 +998,123 @@ export function NewsletterInlineRichTextEditor({
   }
 
   const resolvedScrollTarget = scrollTarget ?? (typeof window === "undefined" ? undefined : window)
+  const slashMenuPortalContainer = (rootRef.current?.closest("[role='dialog']") as HTMLElement | null) ?? null
+  const slashMenuPositionContainer = slashMenuPortalContainer ?? rootRef.current
+  const slashMenuContainerRect = slashMenuPositionContainer?.getBoundingClientRect()
+  const slashMenuHeight = Math.min(320, Math.max(72, filteredSlashCommands.length * 56 + 8))
+  const slashMenuPosition = slashMenu && slashMenuContainerRect
+    ? {
+        top: slashMenuPortalContainer
+          ? Math.max(
+              SLASH_MENU_MODAL_INSET,
+              Math.min(
+                slashMenu.position.top - slashMenuContainerRect.top,
+                Math.max(SLASH_MENU_MODAL_INSET, slashMenuContainerRect.height - slashMenuHeight - SLASH_MENU_MODAL_INSET),
+              ),
+            )
+          : slashMenu.position.top - slashMenuContainerRect.top,
+        left: Math.max(
+          0,
+          Math.min(
+            slashMenu.position.left - slashMenuContainerRect.left,
+            Math.max(0, slashMenuContainerRect.width - SLASH_MENU_WIDTH),
+          ),
+        ),
+      }
+    : null
+  const slashMenuNode = isActive && slashMenu && slashMenuPosition ? (
+    <div
+      ref={slashMenuElementRef}
+      data-newsletter-inline-editor-menu="true"
+      className="absolute z-[60]"
+      style={{
+        top: slashMenuPosition.top,
+        left: slashMenuPosition.left,
+        width: `${SLASH_MENU_WIDTH}px`,
+      }}
+      onPointerDown={(event) => {
+        keepSlashMenuInteraction()
+        event.stopPropagation()
+      }}
+      onMouseDownCapture={() => {
+        keepSlashMenuInteraction()
+      }}
+      onMouseMove={(event) => {
+        const pointerStart = slashCommandPointerStartRef.current
+        if (!pointerStart) {
+          return
+        }
+
+        if (Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8) {
+          slashCommandPointerMovedRef.current = true
+        }
+      }}
+      onWheel={(event) => {
+        keepSlashMenuInteraction()
+        event.stopPropagation()
+      }}
+    >
+      <ScrollArea
+        className="overscroll-contain rounded-xl border bg-background/95 shadow-xl backdrop-blur"
+        style={{ height: `${slashMenuHeight}px` }}
+      >
+        {filteredSlashCommands.length === 0 ? (
+          <div className="py-4 text-center text-sm text-muted-foreground">No commands found.</div>
+        ) : (
+          <div className="p-1 pr-3">
+            {filteredSlashCommands.map((command, index) => {
+              const Icon = command.icon
+
+              return (
+                <button
+                  key={command.id}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                    index === selectedSlashIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+                  )}
+                  onPointerEnter={() => setSelectedSlashIndex(index)}
+                  onMouseDown={(event) => {
+                    slashCommandPointerStartRef.current = { x: event.clientX, y: event.clientY }
+                    slashCommandPointerMovedRef.current = false
+                    event.preventDefault()
+                    event.stopPropagation()
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+
+                    const pointerStart = slashCommandPointerStartRef.current
+                    const pointerMoved = slashCommandPointerMovedRef.current
+                    slashCommandPointerStartRef.current = null
+                    slashCommandPointerMovedRef.current = false
+
+                    if (
+                      pointerMoved ||
+                      pointerStart &&
+                      Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8
+                    ) {
+                      return
+                    }
+
+                    runSlashCommand(command, slashMenu.range)
+                  }}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-muted/50">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{command.label}</span>
+                    <span className="truncate text-xs text-muted-foreground">{command.description}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  ) : null
 
   return (
     <div
@@ -1043,7 +1267,7 @@ export function NewsletterInlineRichTextEditor({
           <tr>
             <td
               style={{
-                padding: `${content.padding ?? 20}px`,
+                padding: `${editorPadding ?? content.padding ?? 20}px`,
                 fontFamily: "Arial, sans-serif",
                 fontSize: "16px",
                 lineHeight: 1.6,
@@ -1085,56 +1309,9 @@ export function NewsletterInlineRichTextEditor({
         </Button>
       )}
 
-      {isActive && slashMenu && (
-        <div
-          data-newsletter-inline-editor-menu="true"
-          className="fixed z-30"
-          style={{
-            top: slashMenu.position.top,
-            left: slashMenu.position.left,
-            width: `${SLASH_MENU_WIDTH}px`,
-          }}
-          onPointerDown={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-        >
-          <div className="max-h-[320px] overflow-y-auto rounded-xl border bg-background/95 p-1 shadow-xl backdrop-blur">
-            {filteredSlashCommands.length === 0 ? (
-              <div className="py-4 text-center text-sm text-muted-foreground">No commands found.</div>
-            ) : (
-              filteredSlashCommands.map((command, index) => {
-                const Icon = command.icon
-
-                return (
-                  <button
-                    key={command.id}
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
-                      index === selectedSlashIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
-                    )}
-                    onPointerEnter={() => setSelectedSlashIndex(index)}
-                    onPointerDown={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      runSlashCommand(command, slashMenu.range)
-                    }}
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-muted/50">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate font-medium">{command.label}</span>
-                      <span className="truncate text-xs text-muted-foreground">{command.description}</span>
-                    </span>
-                  </button>
-                )
-              })
-            )}
-          </div>
-        </div>
-      )}
+      {slashMenuPortalContainer && slashMenuNode
+        ? createPortal(slashMenuNode, slashMenuPortalContainer)
+        : slashMenuNode}
 
       <MediaPicker
         open={isImagePickerOpen}
