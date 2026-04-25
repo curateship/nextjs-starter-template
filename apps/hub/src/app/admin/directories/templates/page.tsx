@@ -475,9 +475,9 @@ export default function DirectoryTemplatesPage() {
       </Dialog>
 
       {massDeleteConfirmOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="fixed inset-0 z-60 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-[60]">
+          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-60">
             <h2 className="text-lg font-semibold mb-2">Delete Templates</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Are you sure you want to delete {selectedIds.size} template{selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.

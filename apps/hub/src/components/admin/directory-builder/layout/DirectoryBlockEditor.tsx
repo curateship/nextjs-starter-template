@@ -1,7 +1,8 @@
 "use client"
 
-import { DirectoryContentBlock } from "@/components/admin/directory-builder/blocks/DirectoryContentBlock"
+import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
+import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {
@@ -17,8 +18,10 @@ interface DirectoryBlockEditorProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   directoryTitle: string
+  directoryDescription?: string | null
   directoryFeaturedImage?: string | null
   onDirectoryTitleChange: (title: string) => void
+  onDirectoryDescriptionChange?: (description: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   showDirectoryTitleField?: boolean
@@ -30,21 +33,27 @@ export function DirectoryBlockEditor({
   onContentChange,
   siteId,
   directoryTitle,
+  directoryDescription,
   directoryFeaturedImage,
   onDirectoryTitleChange,
+  onDirectoryDescriptionChange,
   onDirectoryFeaturedImageChange,
   customBlockTemplates,
   showDirectoryTitleField = true,
 }: DirectoryBlockEditorProps) {
-  if (block.type === "directory-content") {
+  if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
     return (
-      <DirectoryContentBlock
+      <DirectoryCoreBlock
         content={content}
         onContentChange={onContentChange}
         siteId={siteId}
-        blockId={block.id}
-        directoryData={{ title: directoryTitle, featured_image: directoryFeaturedImage }}
+        directoryData={{
+          title: directoryTitle,
+          description: directoryDescription,
+          featured_image: directoryFeaturedImage,
+        }}
         onDirectoryTitleChange={onDirectoryTitleChange}
+        onDirectoryDescriptionChange={onDirectoryDescriptionChange}
         onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
         showDirectoryTitleField={showDirectoryTitleField}
       />

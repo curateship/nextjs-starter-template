@@ -1,12 +1,16 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
-import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
-import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
+import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-layout"
+import {
+  DIRECTORY_CORE_BLOCK_TYPE,
+  normalizeDirectoryCoreContent,
+} from "@/lib/actions/directories/directory-core"
+import { cn } from "@/lib/utils/tailwind"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface DirectoryWithBlocks {
@@ -32,52 +36,23 @@ interface DirectoryBlockRendererProps {
   hideSiteChrome?: boolean
 }
 
-function DirectoryContentStyled({
-  block,
-  directory,
-  siteWidth,
-  customWidth,
-  container = true,
-}: {
-  block: { id: string; type: string; content: Record<string, any> }
-  directory: DirectoryWithBlocks
-  siteWidth?: 'full' | 'custom'
-  customWidth?: number
-  container?: boolean
-}) {
-  const styleName = block.content.directoryContentStyle || 'default'
-  const styleConfig = block.content.styleConfig || {}
-  const config = styleConfig[styleName] || {}
-
-  const Renderer = DIRECTORY_CONTENT_STYLE_RENDERERS[styleName] || DIRECTORY_CONTENT_STYLE_RENDERERS.default
-
-  return (
-    <BlockContainer container={container} siteWidth={siteWidth} customWidth={customWidth}>
-      <div className="pb-2 px-4">
-        <Renderer
-          config={config}
-          sharedContent={{
-            title: directory.title,
-            description: directory.description,
-            featuredImage: directory.featured_image,
-            showFeaturedImage: block.content.showFeaturedImage ?? true,
-            hoverVideoUrl: block.content.hoverVideoUrl,
-            claimButton: block.content.claimButton,
-            contactButtons: Array.isArray(block.content.contactButtons) ? block.content.contactButtons : [],
-            body: block.content.body,
-          }}
-        />
-      </div>
-    </BlockContainer>
-  )
-}
-
 export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
+  const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
 
   // Sort directory blocks by display_order
-  const sortedBlocks = [...directoryBlocks].sort((a, b) => a.display_order - b.display_order)
+  const sortedBlocks = [...directoryBlocks]
+    .sort((a, b) => a.display_order - b.display_order)
+    .filter((block) => block.type === DIRECTORY_CORE_BLOCK_TYPE || block.type === 'directory-custom')
+    .map((block) => (
+      block.type === DIRECTORY_CORE_BLOCK_TYPE
+        ? {
+            ...block,
+            content: normalizeDirectoryCoreContent(block.content),
+          }
+        : block
+    ))
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
@@ -88,19 +63,28 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
 
-  function renderDirectoryBlock(
-    block: DirectoryWithBlocks["blocks"][number],
-    container = true
-  ) {
-    if (block.type === 'directory-content') {
+  function isStickyBlock(block: DirectoryWithBlocks["blocks"][number]) {
+    return block.type === DIRECTORY_CORE_BLOCK_TYPE && block.content?.sticky === true
+  }
+
+  const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
+  const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
+
+  function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
+    if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
       return (
-        <div key={`directory-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-          <DirectoryContentStyled
-            block={block}
+        <div
+          key={`directory-core-${block.id}`}
+          data-block-id={block.id}
+          data-block-type={block.type}
+          className={cn(
+            isStickyBlock(block) && "lg:sticky lg:self-start",
+            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-10" : "lg:top-0")
+          )}
+        >
+          <DirectoryCoreBlock
+            content={block.content}
             directory={directory}
-            siteWidth={siteWidth}
-            customWidth={customWidth}
-            container={container}
           />
         </div>
       )
@@ -136,16 +120,16 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
             style={outerContainerStyle}
           >
             <div className="grid gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <div className="lg:order-2">
-                {sidebarBlocks.map((block) => renderDirectoryBlock(block, false))}
+              <div className={cn("lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+                {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
-              <div className="lg:order-1">
-                {mainBlocks.map((block) => renderDirectoryBlock(block, false))}
+              <div className={cn("lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+                {mainBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
             </div>
           </div>
         ) : (
-          [...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block, true))
+          [...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))
         )}
       </SiteLayout>
   )

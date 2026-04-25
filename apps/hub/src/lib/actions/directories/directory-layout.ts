@@ -15,10 +15,6 @@ export function getDirectoryLayoutColumn(
     ? { type: blockOrType, content: content ?? {} }
     : blockOrType
 
-  if (block.type === 'directory-content') {
-    return 'main'
-  }
-
   return block.content?.layoutColumn === 'sidebar' ? 'sidebar' : 'main'
 }
 

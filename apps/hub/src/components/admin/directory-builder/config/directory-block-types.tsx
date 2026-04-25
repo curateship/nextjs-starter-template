@@ -1,28 +1,23 @@
-import { FileText } from "lucide-react"
+import { BadgeInfo } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 
 export type { BlockTypeDefinition }
 
 export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'directory-content',
-    name: 'Content',
-    icon: FileText,
-    description: 'Display directory details and information',
+    type: DIRECTORY_CORE_BLOCK_TYPE,
+    name: 'Core',
+    icon: BadgeInfo,
+    description: 'Compact directory profile with social and action links',
     defaultContent: {
       layoutColumn: 'main',
-      directoryContentStyle: 'listing-default',
-      showFeaturedImage: true,
-      hoverVideoUrl: '',
-      claimButton: {
-        enabled: false,
-        label: 'Claim Listing',
-        url: '',
-      },
-      contactButtons: [],
-      body: '',
-      format: 'html'
-    }
+      sticky: false,
+      socialLinks: [],
+      menuLinks: [],
+      visibility: {},
+    },
+    conflictsWith: [DIRECTORY_CORE_BLOCK_TYPE],
   }
 ]
 
@@ -31,7 +26,7 @@ export function getBlockTypeDefinition(type: string): BlockTypeDefinition | unde
 }
 
 export function getBlockIcon(type: string) {
-  return _getBlockIcon(DIRECTORY_BLOCK_TYPES, type, FileText)
+  return _getBlockIcon(DIRECTORY_BLOCK_TYPES, type, BadgeInfo)
 }
 
 export function getBlockName(type: string): string {

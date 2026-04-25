@@ -13,6 +13,7 @@ import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
+import { directoryBlocksToJson, parseDirectoryBlocksFromJson } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
@@ -127,8 +128,12 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === 'object'
         ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
         : {}
-      const templateSettings = templateContentBlocks._settings && typeof templateContentBlocks._settings === 'object'
-        ? templateContentBlocks._settings
+      const sanitizedTemplateContentBlocks = directoryBlocksToJson(
+        parseDirectoryBlocksFromJson(templateContentBlocks),
+        templateContentBlocks
+      )
+      const templateSettings = sanitizedTemplateContentBlocks._settings && typeof sanitizedTemplateContentBlocks._settings === 'object'
+        ? sanitizedTemplateContentBlocks._settings
         : {}
 
       const directoryData = {
@@ -140,9 +145,9 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         featured_image: featuredImage || null,
         status: 'draft',
         content_blocks: {
-          ...templateContentBlocks,
+          ...sanitizedTemplateContentBlocks,
           _settings: templateSettings,
-          show_featured_image: templateContentBlocks.show_featured_image ?? true,
+          show_featured_image: sanitizedTemplateContentBlocks.show_featured_image ?? true,
         }
       }
       
@@ -204,7 +209,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
               <SelectTrigger id="template">
                 <SelectValue placeholder="Select template" />
               </SelectTrigger>
-              <SelectContent className="z-[60]">
+              <SelectContent className="z-60">
                 <SelectItem value="blank">Blank</SelectItem>
                 {templates.map((template) => (
                   <SelectItem key={template.id} value={template.id}>
@@ -263,7 +268,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                 alt="Featured image preview" 
                 className="w-full h-full object-contain"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
               <button
                 type="button"
                 onClick={handleRemoveImage}
@@ -328,7 +333,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           inline={true}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Rich text content for the directory description (will be saved as a directory block)
+          Rich text content for the directory description.
         </p>
       </div>
 

@@ -16,7 +16,7 @@ import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
-import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
+import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 
@@ -93,7 +93,7 @@ export function DirectorySettingsModal({
       meta_description: directory.meta_description || ''
     })
     setFeaturedImage(directory.featured_image || '')
-    setRichTextContent(directory.content_blocks?.richText?.content || '')
+    setRichTextContent(directory.description || '')
     setSlugManuallyEdited(false)
 
     getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
@@ -117,33 +117,17 @@ export function DirectorySettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      const updatedContentBlocks = {
-        ...directory.content_blocks,
-      }
-
-      // Add rich text content if provided
-      if (richTextContent.trim()) {
-        (updatedContentBlocks as any).richText = {
-          content: richTextContent,
-          display_order: 0
-        }
-      } else {
-        delete (updatedContentBlocks as any).richText
-      }
-      
       const draftData = { 
         ...formData, 
         status: 'draft' as const,
+        description: richTextContent.trim() || null,
         featured_image: featuredImage || null
       }
 
-      const [updateResult, blocksResult] = await Promise.all([
-        updateDirectoryAction(directory.id, draftData),
-        updateDirectoryBlocksAction(directory.id, updatedContentBlocks),
-      ])
+      const updateResult = await updateDirectoryAction(directory.id, draftData)
 
-      if (updateResult.error || blocksResult.error || !updateResult.data) {
-        setError(updateResult.error || blocksResult.error || 'Failed to save directory as draft')
+      if (updateResult.error || !updateResult.data) {
+        setError(updateResult.error || 'Failed to save directory as draft')
         return
       }
       
@@ -158,10 +142,7 @@ export function DirectorySettingsModal({
         
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess({
-            ...updateResult.data,
-            content_blocks: updatedContentBlocks,
-          })
+          onSuccess(updateResult.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -185,33 +166,17 @@ export function DirectorySettingsModal({
       setError(null)
       setSaveMessage(null)
       
-      const updatedContentBlocks = {
-        ...directory.content_blocks,
-      }
-
-      // Add rich text content if provided
-      if (richTextContent.trim()) {
-        (updatedContentBlocks as any).richText = {
-          content: richTextContent,
-          display_order: 0
-        }
-      } else {
-        delete (updatedContentBlocks as any).richText
-      }
-      
       const publishData = { 
         ...formData, 
         status: 'published' as const,
+        description: richTextContent.trim() || null,
         featured_image: featuredImage || null
       }
 
-      const [updateResult, blocksResult] = await Promise.all([
-        updateDirectoryAction(directory.id, publishData),
-        updateDirectoryBlocksAction(directory.id, updatedContentBlocks),
-      ])
+      const updateResult = await updateDirectoryAction(directory.id, publishData)
 
-      if (updateResult.error || blocksResult.error || !updateResult.data) {
-        setError(updateResult.error || blocksResult.error || 'Failed to publish directory')
+      if (updateResult.error || !updateResult.data) {
+        setError(updateResult.error || 'Failed to publish directory')
         return
       }
       
@@ -226,10 +191,7 @@ export function DirectorySettingsModal({
 
         // Call success callback with updated directory
         if (onSuccess) {
-          onSuccess({
-            ...updateResult.data,
-            content_blocks: updatedContentBlocks,
-          })
+          onSuccess(updateResult.data)
         }
         
         // Clear success message after 3 seconds but keep modal open
@@ -387,7 +349,7 @@ export function DirectorySettingsModal({
               inline={true}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Rich text content for the directory description (will be saved as a directory block)
+              Rich text content for the directory description.
             </p>
           </div>
 

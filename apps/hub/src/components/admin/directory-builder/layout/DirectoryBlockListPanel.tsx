@@ -244,7 +244,6 @@ export function DirectoryBlockListPanel({
     const currentColumn = getDirectoryLayoutColumn(currentActiveBlock)
     const allowedTransferLaneIds = (["main", "sidebar"] as DirectoryLayoutColumn[])
       .filter((column) => column !== currentColumn)
-      .filter((column) => !(currentActiveBlock.type === "directory-content" && column === "sidebar"))
       .map((column) => getColumnTransferLaneId(column))
 
     return closestCenter({
@@ -303,7 +302,6 @@ export function DirectoryBlockListPanel({
 
     if (dropColumn) {
       if (dropColumn === activeColumn) return
-      if (activeBlock.type === "directory-content" && dropColumn === "sidebar") return
 
       const remainingBlocks = orderedBlocks.filter((block) => block.id !== activeId)
       const movedBlock: DirectoryEditorBlock = {
@@ -408,7 +406,7 @@ export function DirectoryBlockListPanel({
                 onSelectBlock={onSelectBlock}
                 deleting={deleting}
                 onDelete={handleDeleteClick}
-                showTransferLane={activeColumn === "main" && activeBlock?.type !== "directory-content"}
+                showTransferLane={activeColumn === "main"}
               />
             </SortableContext>
           </DndContext>

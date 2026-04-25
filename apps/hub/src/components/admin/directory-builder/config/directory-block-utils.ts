@@ -1,5 +1,9 @@
 import type { DirectoryCustomBlockTemplate } from '@/lib/actions/directories/directory-custom-blocks/types'
 import { getDirectoryLayoutColumn, normalizeDirectoryBlockContent } from '@/lib/actions/directories/directory-layout'
+import {
+  DIRECTORY_CORE_BLOCK_TYPE,
+  normalizeDirectoryCoreContent,
+} from '@/lib/actions/directories/directory-core'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { getBlockName } from './directory-block-types'
 
@@ -10,10 +14,19 @@ export interface DirectoryEditorBlock {
   content: Record<string, any>
 }
 
+function isSupportedDirectoryBlockType(type: string) {
+  return type === DIRECTORY_CORE_BLOCK_TYPE || type === 'directory-custom'
+}
+
 export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {
+  const content = block.type === DIRECTORY_CORE_BLOCK_TYPE
+    ? normalizeDirectoryCoreContent(block.content)
+    : block.content
+
   return {
     ...block,
-    content: normalizeDirectoryBlockContent(block.type, block.content),
+    title: block.type === DIRECTORY_CORE_BLOCK_TYPE ? getBlockName(block.type) : block.title,
+    content: normalizeDirectoryBlockContent(block.type, content),
   }
 }
 
@@ -34,25 +47,30 @@ export function parseDirectoryBlocksFromJson(
   return orderDirectoryEditorBlocks(
     convertContentBlocksToArray(contentBlocks || {}, '')
       .map((block) => {
-      if (block.type === 'directory-custom') {
-        const templateId = block.content?.templateId
-        const template = typeof templateId === 'string' ? templateMap.get(templateId) : undefined
+        if (block.type === 'directory-custom') {
+          const templateId = block.content?.templateId
+          const template = typeof templateId === 'string' ? templateMap.get(templateId) : undefined
+
+          return {
+            id: block.id,
+            type: block.type,
+            title: template?.name || block.title || 'Custom Block',
+            content: block.content,
+          }
+        }
+
+        if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) {
+          return null
+        }
 
         return {
           id: block.id,
           type: block.type,
-          title: template?.name || block.title || 'Custom Block',
-          content: block.content,
+          title: block.title || getBlockName(block.type),
+          content: normalizeDirectoryCoreContent(block.content),
         }
-      }
-
-      return {
-        id: block.id,
-        type: block.type,
-        title: block.title || getBlockName(block.type),
-        content: block.content,
-      }
       })
+      .filter((block): block is DirectoryEditorBlock => Boolean(block))
   )
 }
 
@@ -74,15 +92,17 @@ export function directoryBlocksToJson(
 
   const orderedBlocks = orderDirectoryEditorBlocks(blocks)
 
-  orderedBlocks.forEach((block, index) => {
-    jsonBlocks[block.id] = {
-      id: block.id,
-      type: block.type,
-      content: block.content,
-      display_order: index,
-      ...(block.title ? { title: block.title } : {}),
-    }
-  })
+  orderedBlocks
+    .filter((block) => isSupportedDirectoryBlockType(block.type))
+    .forEach((block, index) => {
+      jsonBlocks[block.id] = {
+        id: block.id,
+        type: block.type,
+        content: block.content,
+        display_order: index,
+        ...(block.title ? { title: block.title } : {}),
+      }
+    })
 
   return {
     ...preservedSettings,
