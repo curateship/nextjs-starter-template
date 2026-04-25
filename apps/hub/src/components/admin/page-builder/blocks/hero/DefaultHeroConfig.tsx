@@ -178,47 +178,56 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div>
           <h3 className="text-base font-medium">Trusted By Badge</h3>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addAvatar}
-            className="h-8 w-8 p-0"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
         </div>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleAvatarDragEnd}
-        >
-          <SortableContext
-            items={trustedByAvatars.map(a => a.id || '')}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="flex flex-wrap gap-2">
-              {trustedByAvatars.map((avatar, index) => (
-                <SortableAvatarItem
-                  key={avatar.id || `avatar-${index}`}
-                  avatar={avatar}
-                  index={index}
-                  updateAvatar={updateAvatar}
-                  removeAvatar={removeAvatar}
-                  onOpenImagePicker={setShowPicker}
-                />
-              ))}
+        {trustedByAvatars.length === 0 ? (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-lg border border-dashed py-5 text-center text-sm text-muted-foreground">
+              No avatars.
             </div>
-          </SortableContext>
-        </DndContext>
-
-        {trustedByAvatars.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-            No avatars. Click + to add one.
+            <button
+              type="button"
+              onClick={addAvatar}
+              className="flex h-[66px] w-[66px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+              aria-label="Add trusted by avatar"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
           </div>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleAvatarDragEnd}
+          >
+            <SortableContext
+              items={trustedByAvatars.map(a => a.id || '')}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {trustedByAvatars.map((avatar, index) => (
+                  <SortableAvatarItem
+                    key={avatar.id || `avatar-${index}`}
+                    avatar={avatar}
+                    index={index}
+                    updateAvatar={updateAvatar}
+                    removeAvatar={removeAvatar}
+                    onOpenImagePicker={setShowPicker}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={addAvatar}
+                  className="flex h-[66px] w-[66px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                  aria-label="Add trusted by avatar"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         <Field>
