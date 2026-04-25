@@ -402,16 +402,16 @@ export default function ImagesPage() {
                 <div className="flex items-center border rounded-md">
                   <Button
                     variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
+                    size="default"
                     onClick={() => setViewMode('list')}
-                    className="rounded-r-none h-9"
+                    className="rounded-r-none"
                   >
                     <List className="w-4 h-4" />
                   </Button>
                   <Button
                     variant={viewMode === 'gallery' ? 'default' : 'ghost'}
                     onClick={() => setViewMode('gallery')}
-                    className="rounded-l-none h-9"
+                    className="rounded-l-none"
                   >
                     <Grid className="w-4 h-4" />
                   </Button>

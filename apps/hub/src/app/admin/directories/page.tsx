@@ -365,7 +365,7 @@ export default function DirectoriesPage() {
                 { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
               ],
             }}
-            preActions={
+            preActions={(sortBy !== 'default' || selectedDirectoryIds.size > 0) ? (
               <div className="flex items-center gap-2">
                 {sortBy !== 'default' && (
                   <Button variant="outline" size="sm" onClick={resetSort}>
@@ -382,7 +382,7 @@ export default function DirectoriesPage() {
                   </Button>
                 )}
               </div>
-            }
+            ) : undefined}
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4" />
