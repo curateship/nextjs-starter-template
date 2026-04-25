@@ -165,7 +165,7 @@ export default function ProductAnalyticsPage() {
                 {period === "30d" && `${new Date(Date.now() - 30 * 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
               </span>
             }
-            tabs={{
+            filterMenu={{
               value: period,
               onValueChange: (v) => setPeriod(v as Period),
               items: PERIODS.map(p => ({ value: p.id, label: p.label })),

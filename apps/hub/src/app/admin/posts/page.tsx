@@ -315,7 +315,7 @@ export default function PostsPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Posts" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) },
               items: [

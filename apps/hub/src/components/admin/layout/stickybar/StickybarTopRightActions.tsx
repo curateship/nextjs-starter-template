@@ -1,9 +1,9 @@
 "use client"
 
 import { createContext, useContext, useState } from "react"
-import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink } from "lucide-react"
+import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardHeaderActionsSlotContextValue {
@@ -17,17 +17,17 @@ interface SaveStatusBadgeProps {
 
 const DashboardHeaderActionsSlotContext = createContext<DashboardHeaderActionsSlotContextValue | null>(null)
 
-export interface StickybarTab {
+export interface StickybarFilterMenuItem {
   value: string
   label: string
   icon?: LucideIcon
   count?: number
 }
 
-export interface StickybarTabsConfig {
+export interface StickybarFilterMenuConfig {
   value: string
   onValueChange: (value: string) => void
-  items: StickybarTab[]
+  items: StickybarFilterMenuItem[]
 }
 
 export function DashboardHeaderActionsSlotProvider({
@@ -78,7 +78,7 @@ function SaveStatusBadge({ message }: SaveStatusBadgeProps) {
 interface StickybarTopRightActionsProps {
   className?: string
   preActions?: React.ReactNode
-  tabs?: StickybarTabsConfig
+  filterMenu?: StickybarFilterMenuConfig
   rightActions?: React.ReactNode
   viewPageHref?: string | null
   saveMessage?: string | null
@@ -103,7 +103,7 @@ interface StickybarTopRightActionsProps {
 export function StickybarTopRightActions({
   className,
   preActions,
-  tabs,
+  filterMenu,
   rightActions,
   viewPageHref,
   saveMessage,
@@ -125,24 +125,38 @@ export function StickybarTopRightActions({
   onToggleBlockList,
 }: StickybarTopRightActionsProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const activeItem = filterMenu?.items.find((item) => item.value === filterMenu.value) ?? filterMenu?.items[0]
 
   return (
     <>
       <div className={cn("flex items-center gap-2", className)}>
         {preActions}
 
-        {tabs ? (
-          <Tabs value={tabs.value} onValueChange={tabs.onValueChange}>
-            <TabsList>
-              {tabs.items.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value}>
-                  {tab.icon ? <tab.icon className="mr-1.5 h-3.5 w-3.5" /> : null}
-                  {tab.label}
-                  {tab.count !== undefined ? ` (${tab.count})` : ""}
-                </TabsTrigger>
+        {filterMenu && activeItem ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" aria-label="Change dashboard view">
+                {activeItem.icon ? <activeItem.icon className="h-4 w-4 text-muted-foreground" /> : null}
+                <span>{activeItem.label}</span>
+                <ChevronDown className="h-4 w-4 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40 space-y-1">
+              {filterMenu.items.map((item) => (
+                <DropdownMenuItem
+                  key={item.value}
+                  onSelect={() => filterMenu.onValueChange(item.value)}
+                  className={cn(item.value === filterMenu.value && "bg-accent text-accent-foreground")}
+                >
+                  {item.icon ? <item.icon className="h-4 w-4 text-muted-foreground" /> : null}
+                  <span>{item.label}</span>
+                  {item.count !== undefined ? (
+                    <span className="ml-auto text-muted-foreground">{item.count}</span>
+                  ) : null}
+                </DropdownMenuItem>
               ))}
-            </TabsList>
-          </Tabs>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
 
         {rightActions}

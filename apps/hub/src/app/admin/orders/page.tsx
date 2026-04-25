@@ -304,7 +304,7 @@ function OrdersContent() {
               { label: "Products", href: "/admin/products" },
               { label: "Orders" },
             ]}
-            tabs={{
+            filterMenu={{
               value: activeTab,
               onValueChange: (v) => {
                 setActiveTab(v as "all" | OrderType)

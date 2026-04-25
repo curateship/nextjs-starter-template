@@ -88,7 +88,7 @@ export default function AnalyticsPage({ params }: PageProps) {
               { label: "Sites", href: "/admin/sites" },
               { label: "Analytics" },
             ]}
-            tabs={{
+            filterMenu={{
               value: period,
               onValueChange: (v) => setPeriod(v as Period),
               items: PERIODS.map(p => ({ value: p.id, label: p.label })),

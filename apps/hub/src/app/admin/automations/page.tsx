@@ -125,7 +125,7 @@ export default function AutomationsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Automations" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => setFilterStatus(value as 'all' | WorkflowStatus),
               items: [

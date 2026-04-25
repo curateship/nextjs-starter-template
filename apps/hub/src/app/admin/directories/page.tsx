@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, Plus, Search, Settings, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Search, Settings, Trash2, X } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
@@ -352,11 +352,11 @@ export default function DirectoriesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Directory" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => setFilterStatus(value as 'all' | 'published' | 'draft'),
               items: [
-                { value: "all", label: "All", icon: FolderOpen, count: statusCounts.all },
+                { value: "all", label: "All", icon: List, count: statusCounts.all },
                 { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
                 { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
               ],

@@ -356,7 +356,7 @@ export default function ProductsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Products" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) },
               items: [

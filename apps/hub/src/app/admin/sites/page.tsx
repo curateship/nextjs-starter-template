@@ -242,7 +242,7 @@ export default function SitesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Sites" }]}
-            tabs={{
+            filterMenu={{
               value: filter,
               onValueChange: (value) => setFilter(value as FilterStatus),
               items: [

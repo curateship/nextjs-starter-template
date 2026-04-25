@@ -9,15 +9,15 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/admin/layout/dashboard/breadcrumb"
-import { StickybarTopRightActions, type StickybarTabsConfig, useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickybarTopRightActions, type StickybarFilterMenuConfig, useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardSubheaderProps {
   /** Breadcrumb trail — last item is rendered as the current page (no link) */
   items: Array<{ label: React.ReactNode; href?: string }>
-  /** Filter tabs rendered between breadcrumbs and actions */
-  tabs?: StickybarTabsConfig
-  /** Optional content rendered before tabs (e.g. filter dropdowns) */
+  /** Filter dropdown rendered between breadcrumbs and actions */
+  filterMenu?: StickybarFilterMenuConfig
+  /** Optional content rendered before the filter menu (e.g. search inputs) */
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
@@ -28,13 +28,13 @@ interface DashboardSubheaderProps {
  * Full-width breadcrumb row that sits below the StickyHeader.
  * Dashboard controls are rendered into the StickyHeader top-right slot.
  */
-export function DashboardSubheader({ items, tabs, preActions, actions, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({ items, filterMenu, preActions, actions, className }: DashboardSubheaderProps) {
   const { slot } = useDashboardHeaderActionsSlot()
-  const topRightActions = (tabs || preActions || actions) ? (
+  const topRightActions = (filterMenu || preActions || actions) ? (
     <StickybarTopRightActions
       className="gap-1 pr-2 sm:gap-3 sm:pr-3"
       preActions={preActions}
-      tabs={tabs}
+      filterMenu={filterMenu}
       rightActions={actions}
     />
   ) : null

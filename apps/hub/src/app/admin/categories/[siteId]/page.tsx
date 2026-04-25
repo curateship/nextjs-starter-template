@@ -254,7 +254,7 @@ export default function CategoriesPage({
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Categories" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) },
               items: [

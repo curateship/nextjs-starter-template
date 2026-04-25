@@ -365,7 +365,7 @@ export default function ImagesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Media" }]}
-            tabs={{
+            filterMenu={{
               value: filterType,
               onValueChange: (value) => handleFilterChange(value as 'all' | 'image' | 'video'),
               items: [

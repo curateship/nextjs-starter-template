@@ -343,7 +343,7 @@ export default function SitePagesPage({ params }: PageProps) {
         <div className="w-full">
         <DashboardSubheader
           items={[{ label: "Pages" }]}
-          tabs={{
+          filterMenu={{
             value: filterStatus,
             onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },
             items: [

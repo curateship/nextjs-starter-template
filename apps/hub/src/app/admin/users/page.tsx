@@ -125,7 +125,7 @@ export default function UsersPage() {
         {/* Breadcrumb navigation + action buttons */}
         <DashboardSubheader
           items={[{ label: "Users" }]}
-          tabs={{
+          filterMenu={{
             value: "all",
             onValueChange: () => {},
             items: [

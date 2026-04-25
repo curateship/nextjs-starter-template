@@ -339,7 +339,7 @@ export default function AccountPagesPage({ params }: PageProps) {
             { label: "Pages", href: `/admin/sites/${siteId}/pages` },
             { label: "Account Pages" },
           ]}
-          tabs={{
+          filterMenu={{
             value: filterStatus,
             onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },
             items: [

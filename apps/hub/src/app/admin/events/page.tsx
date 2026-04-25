@@ -339,7 +339,7 @@ export default function EventsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Events" }]}
-            tabs={{
+            filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) },
               items: [
