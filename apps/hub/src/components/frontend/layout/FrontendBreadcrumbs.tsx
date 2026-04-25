@@ -25,13 +25,13 @@ export function FrontendBreadcrumbs({
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
   const containerClassName = siteWidth === 'custom'
-    ? "mx-auto px-6 pt-4"
-    : "px-6 pt-4"
+    ? "mx-auto px-6 pt-10 lg:pt-6"
+    : "px-6 pt-10 lg:pt-6"
 
   return (
     <div className={containerClassName} style={containerStyle}>
       <Breadcrumb>
-        <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
+        <BreadcrumbList className="h-2 gap-2 rounded-md text-sm">
           {items.map((item, index) => {
             const isLast = index === items.length - 1
 
