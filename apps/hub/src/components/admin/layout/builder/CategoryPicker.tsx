@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { ChevronsUpDown, Plus, X } from "lucide-react"
+import { ChevronsUpDown, Plus, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -21,17 +21,22 @@ import {
   createCategoryAction,
   type Category,
 } from "@/lib/actions/categories/category-actions"
+import { cn } from "@/lib/utils/tailwind"
 
 interface CategoryPickerProps {
   siteId: string
   selectedCategoryIds: string[]
   onSelectionChange: (categoryIds: string[]) => void
+  primaryCategoryId?: string | null
+  onPrimaryCategoryChange?: (categoryId: string | null) => void
 }
 
 export function CategoryPicker({
   siteId,
   selectedCategoryIds,
   onSelectionChange,
+  primaryCategoryId,
+  onPrimaryCategoryChange,
 }: CategoryPickerProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -49,6 +54,19 @@ export function CategoryPicker({
       setLoading(false)
     })
   }, [siteId])
+
+  useEffect(() => {
+    if (!onPrimaryCategoryChange) return
+
+    if (selectedCategoryIds.length === 0) {
+      if (primaryCategoryId) onPrimaryCategoryChange(null)
+      return
+    }
+
+    if (!primaryCategoryId || !selectedCategoryIds.includes(primaryCategoryId)) {
+      onPrimaryCategoryChange(selectedCategoryIds[0])
+    }
+  }, [onPrimaryCategoryChange, primaryCategoryId, selectedCategoryIds])
 
   const categoryPathMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -86,14 +104,25 @@ export function CategoryPicker({
 
   const toggleCategory = (categoryId: string) => {
     if (selectedCategoryIds.includes(categoryId)) {
-      onSelectionChange(selectedCategoryIds.filter((id) => id !== categoryId))
+      const nextCategoryIds = selectedCategoryIds.filter((id) => id !== categoryId)
+      onSelectionChange(nextCategoryIds)
+      if (primaryCategoryId === categoryId) {
+        onPrimaryCategoryChange?.(nextCategoryIds[0] || null)
+      }
     } else {
       onSelectionChange([...selectedCategoryIds, categoryId])
+      if (!primaryCategoryId) {
+        onPrimaryCategoryChange?.(categoryId)
+      }
     }
   }
 
   const removeCategory = (categoryId: string) => {
-    onSelectionChange(selectedCategoryIds.filter((id) => id !== categoryId))
+    const nextCategoryIds = selectedCategoryIds.filter((id) => id !== categoryId)
+    onSelectionChange(nextCategoryIds)
+    if (primaryCategoryId === categoryId) {
+      onPrimaryCategoryChange?.(nextCategoryIds[0] || null)
+    }
   }
 
   const handleCreateCategory = async () => {
@@ -108,6 +137,9 @@ export function CategoryPicker({
     if (data) {
       setCategories((prev) => [...prev, data])
       onSelectionChange([...selectedCategoryIds, data.id])
+      if (!primaryCategoryId) {
+        onPrimaryCategoryChange?.(data.id)
+      }
       setNewCategoryTitle("")
       setShowCreateInput(false)
     }
@@ -234,6 +266,24 @@ export function CategoryPicker({
               variant="secondary"
               className="gap-1 pr-1"
             >
+              {onPrimaryCategoryChange && (
+                <button
+                  type="button"
+                  onClick={() => onPrimaryCategoryChange(cat.id)}
+                  className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                  title={cat.id === primaryCategoryId ? "Primary category" : "Make primary category"}
+                >
+                  <Star
+                    className={cn(
+                      "h-3 w-3",
+                      cat.id === primaryCategoryId && "fill-current text-amber-500"
+                    )}
+                  />
+                  <span className="sr-only">
+                    {cat.id === primaryCategoryId ? "Primary category" : `Make ${cat.title} primary category`}
+                  </span>
+                </button>
+              )}
               {cat.title}
               <button
                 type="button"

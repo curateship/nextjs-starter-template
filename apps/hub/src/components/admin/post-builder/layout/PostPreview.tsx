@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import {
@@ -7,6 +8,8 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface PostBlock {
   id: string
@@ -25,6 +28,7 @@ interface Post {
   show_featured_image?: boolean
   excerpt?: string | null
   is_published: boolean
+  updated_at?: string
 }
 
 interface PostPreviewProps {
@@ -55,8 +59,26 @@ export function PostPreview({
   allBlocks,
   onSelectBlock,
 }: PostPreviewProps) {
+  const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!post?.id || post.id === "preview" || site?.settings?.breadcrumbs?.posts === false) {
+      setBreadcrumbs([])
+      return
+    }
+
+    getContentBreadcrumbPreviewAction(post.id, 'post').then(({ data }) => {
+      if (!cancelled) setBreadcrumbs(data || [])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [post?.id, post?.updated_at, site?.settings?.breadcrumbs?.posts])
 
   const previewPost = {
     id: post?.id || "preview",
@@ -82,7 +104,7 @@ export function PostPreview({
       site={site}
       showSiteChrome
     >
-      <PostBlockRenderer site={previewSite} post={previewPost} isPreview hideSiteChrome />
+      <PostBlockRenderer site={previewSite} post={previewPost} breadcrumbs={breadcrumbs} isPreview hideSiteChrome />
     </BuilderPreviewShell>
   )
 }

@@ -10,8 +10,6 @@ export interface DirectoryContentStyleRendererProps {
     description?: string | null
     featuredImage?: string | null
     showFeaturedImage?: boolean
-    breadcrumbTrail?: Array<{ id: string; title: string; slug: string }>
-    showBreadcrumb?: boolean
     hoverVideoUrl?: string
     claimButton?: DirectoryClaimButton
     contactButtons?: DirectoryContactButton[]

@@ -338,6 +338,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
                 featured_image: currentEventData.featured_image || null,
                 description: currentEventData.description || null,
                 is_published: currentEventData.is_published || false,
+                updated_at: currentEventData.updated_at,
               } : undefined}
               site={{
                 id: siteId,

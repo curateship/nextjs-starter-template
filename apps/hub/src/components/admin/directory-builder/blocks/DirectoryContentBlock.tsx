@@ -401,19 +401,6 @@ export function DirectoryContentBlock({
             />
           </div>
 
-          {isListingDefaultStyle ? (
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="show-breadcrumb">Show Breadcrumb</Label>
-                <p className="text-sm text-muted-foreground">Display the first assigned category chain above the title.</p>
-              </div>
-              <Switch
-                id="show-breadcrumb"
-                checked={content.showBreadcrumb ?? true}
-                onCheckedChange={(checked) => onContentChange('showBreadcrumb', checked)}
-              />
-            </div>
-          ) : null}
         </BlockEditorSection>
 
         {!isListingDefaultStyle && ActiveStylingPanel ? (

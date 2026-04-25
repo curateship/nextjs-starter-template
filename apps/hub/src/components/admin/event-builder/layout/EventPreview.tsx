@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { EventBlockRenderer } from "@/components/frontend/events/EventBlockRenderer"
 import {
@@ -7,6 +8,8 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface EventBlock {
   id: string
@@ -24,6 +27,7 @@ interface Event {
   featured_image?: string | null
   description?: string | null
   is_published?: boolean
+  updated_at?: string
 }
 
 interface EventPreviewProps {
@@ -38,6 +42,7 @@ interface EventPreviewProps {
       footer?: any
       font_family?: string
       secondary_font_family?: string
+      breadcrumbs?: Record<string, boolean>
     }
   }
   className?: string
@@ -55,8 +60,26 @@ export function EventPreview({
   allBlocks,
   onSelectBlock,
 }: EventPreviewProps) {
+  const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!event?.id || event.id === "preview" || site?.settings?.breadcrumbs?.events === false) {
+      setBreadcrumbs([])
+      return
+    }
+
+    getContentBreadcrumbPreviewAction(event.id, 'event').then(({ data }) => {
+      if (!cancelled) setBreadcrumbs(data || [])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [event?.id, event?.updated_at, site?.settings?.breadcrumbs?.events])
 
   const previewEvent = {
     id: event?.id || "preview",
@@ -78,7 +101,7 @@ export function EventPreview({
       site={site}
       showSiteChrome
     >
-      <EventBlockRenderer site={previewSite} event={previewEvent} isPreview hideSiteChrome />
+      <EventBlockRenderer site={previewSite} event={previewEvent} breadcrumbs={breadcrumbs} isPreview hideSiteChrome />
     </BuilderPreviewShell>
   )
 }

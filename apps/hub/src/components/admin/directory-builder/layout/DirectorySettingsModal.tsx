@@ -49,6 +49,7 @@ export function DirectorySettingsModal({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -98,6 +99,7 @@ export function DirectorySettingsModal({
     getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
       if (!cancelled) {
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
+        setPrimaryCategoryId(data?.find((c) => c.is_primary)?.id || data?.[0]?.id || null)
       }
     })
 
@@ -146,9 +148,12 @@ export function DirectorySettingsModal({
       }
       
       if (updateResult.data) {
-        if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds).catch(() => {})
+        const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
+        if (!categoryResult.success) {
+          setError(categoryResult.error || 'Failed to save categories')
+          return
         }
+
         setSaveMessage('Directory saved as draft successfully!')
         
         // Call success callback with updated directory
@@ -211,9 +216,12 @@ export function DirectorySettingsModal({
       }
       
       if (updateResult.data) {
-        if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds).catch(() => {})
+        const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
+        if (!categoryResult.success) {
+          setError(categoryResult.error || 'Failed to save categories')
+          return
         }
+
         setSaveMessage(directory?.status === 'published' ? 'Directory saved successfully!' : 'Directory published successfully!')
 
         // Call success callback with updated directory
@@ -354,6 +362,8 @@ export function DirectorySettingsModal({
                 siteId={directory.site_id}
                 selectedCategoryIds={selectedCategoryIds}
                 onSelectionChange={setSelectedCategoryIds}
+                primaryCategoryId={primaryCategoryId}
+                onPrimaryCategoryChange={setPrimaryCategoryId}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Assign this directory to one or more categories

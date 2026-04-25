@@ -1,7 +1,9 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface PostBlockRendererProps {
@@ -26,11 +28,12 @@ interface PostBlockRendererProps {
     }>
   }
   preloadedRelatedPosts?: RelatedPostsData | null
+  breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
 }
 
-export function PostBlockRenderer({ site, post, preloadedRelatedPosts, isPreview = false, hideSiteChrome = false }: PostBlockRendererProps) {
+export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: PostBlockRendererProps) {
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -43,6 +46,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, isPreview
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+      <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {/* Post Header */}
       <PostContentBlock

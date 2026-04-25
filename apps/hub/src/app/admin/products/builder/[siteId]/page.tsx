@@ -333,6 +333,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                 featured_image: currentProductData.featured_image || null,
                 description: currentProductData.description || null,
                 is_published: currentProductData.is_published || false,
+                updated_at: currentProductData.updated_at,
               } : undefined}
               site={{
                 id: siteId,

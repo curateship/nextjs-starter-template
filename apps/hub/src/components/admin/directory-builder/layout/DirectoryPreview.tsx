@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import {
@@ -7,7 +8,9 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface DirectoryBlock {
   id: string
@@ -25,7 +28,7 @@ interface Directory {
   featured_image?: string | null
   description?: string | null
   status?: "draft" | "published"
-  breadcrumb_trail?: Array<{ id: string; title: string; slug: string }>
+  updated_at?: string
 }
 
 interface DirectoryPreviewProps {
@@ -40,6 +43,7 @@ interface DirectoryPreviewProps {
       footer?: any
       font_family?: string
       secondary_font_family?: string
+      breadcrumbs?: Record<string, boolean>
     }
   }
   className?: string
@@ -47,7 +51,6 @@ interface DirectoryPreviewProps {
   allBlocks?: DirectoryBlock[]
   customBlockTemplates?: DirectoryCustomBlockTemplate[]
   onSelectBlock?: (block: DirectoryBlock) => void
-  breadcrumbTrail?: Array<{ id: string; title: string; slug: string }>
 }
 
 export function DirectoryPreview({
@@ -59,11 +62,28 @@ export function DirectoryPreview({
   allBlocks,
   customBlockTemplates = [],
   onSelectBlock,
-  breadcrumbTrail,
 }: DirectoryPreviewProps) {
+  const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
   const templateMap = Object.fromEntries(customBlockTemplates.map(template => [template.id, template]))
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!directory?.id || directory.id === "preview" || site?.settings?.breadcrumbs?.directories === false) {
+      setBreadcrumbs([])
+      return
+    }
+
+    getContentBreadcrumbPreviewAction(directory.id, 'directory').then(({ data }) => {
+      if (!cancelled) setBreadcrumbs(data || [])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [directory?.id, directory?.updated_at, site?.settings?.breadcrumbs?.directories])
 
   const previewDirectory = {
     id: directory?.id || "preview",
@@ -71,7 +91,6 @@ export function DirectoryPreview({
     slug: directory?.slug || "preview",
     description: directory?.description || null,
     featured_image: directory?.featured_image || null,
-    breadcrumb_trail: breadcrumbTrail || directory?.breadcrumb_trail || [],
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
 
@@ -90,6 +109,7 @@ export function DirectoryPreview({
         site={previewSite}
         directory={previewDirectory}
         customBlockTemplates={templateMap}
+        breadcrumbs={breadcrumbs}
         isPreview
         hideSiteChrome
       />

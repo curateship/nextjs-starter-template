@@ -1,9 +1,11 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { DIRECTORY_CONTENT_STYLE_RENDERERS } from "./directory-content-styles"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-layout"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
@@ -13,7 +15,6 @@ interface DirectoryWithBlocks {
   slug: string
   description?: string | null
   featured_image?: string | null
-  breadcrumb_trail?: Array<{ id: string; title: string; slug: string }>
   blocks: Array<{
     id: string
     type: string
@@ -26,6 +27,7 @@ interface DirectoryBlockRendererProps {
   site: SiteWithBlocks
   directory: DirectoryWithBlocks
   customBlockTemplates?: Record<string, DirectoryCustomBlockTemplate>
+  breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
 }
@@ -58,9 +60,7 @@ function DirectoryContentStyled({
             title: directory.title,
             description: directory.description,
             featuredImage: directory.featured_image,
-            breadcrumbTrail: directory.breadcrumb_trail || [],
             showFeaturedImage: block.content.showFeaturedImage ?? true,
-            showBreadcrumb: block.content.showBreadcrumb ?? true,
             hoverVideoUrl: block.content.hoverVideoUrl,
             claimButton: block.content.claimButton,
             contactButtons: Array.isArray(block.content.contactButtons) ? block.content.contactButtons : [],
@@ -72,7 +72,7 @@ function DirectoryContentStyled({
   )
 }
 
-export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, isPreview = false, hideSiteChrome = false }: DirectoryBlockRendererProps) {
+export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -129,6 +129,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+        <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
           <div
             className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}

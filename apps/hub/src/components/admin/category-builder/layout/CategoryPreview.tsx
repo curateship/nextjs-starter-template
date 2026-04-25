@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { CategoryBlockRenderer } from "@/components/frontend/categories/CategoryBlockRenderer"
 import {
@@ -7,6 +8,8 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getCategoryBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface CategoryBlock {
   id: string
@@ -24,6 +27,8 @@ interface CategoryData {
   featured_image?: string | null
   description?: string | null
   is_published?: boolean
+  parent_id?: string | null
+  updated_at?: string
 }
 
 interface CategoryPreviewProps {
@@ -38,6 +43,7 @@ interface CategoryPreviewProps {
       footer?: any
       font_family?: string
       secondary_font_family?: string
+      breadcrumbs?: Record<string, boolean>
     }
   }
   className?: string
@@ -55,8 +61,26 @@ export function CategoryPreview({
   allBlocks,
   onSelectBlock,
 }: CategoryPreviewProps) {
+  const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!category?.id || category.id === "preview" || site?.settings?.breadcrumbs?.categories === false) {
+      setBreadcrumbs([])
+      return
+    }
+
+    getCategoryBreadcrumbPreviewAction(category.id).then(({ data }) => {
+      if (!cancelled) setBreadcrumbs(data || [])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [category?.id, category?.parent_id, category?.updated_at, site?.settings?.breadcrumbs?.categories])
 
   const previewCategory = {
     id: category?.id || "preview",
@@ -78,7 +102,7 @@ export function CategoryPreview({
       site={site}
       showSiteChrome
     >
-      <CategoryBlockRenderer site={previewSite} category={previewCategory} isPreview hideSiteChrome />
+      <CategoryBlockRenderer site={previewSite} category={previewCategory} breadcrumbs={breadcrumbs} isPreview hideSiteChrome />
     </BuilderPreviewShell>
   )
 }

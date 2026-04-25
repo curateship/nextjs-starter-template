@@ -52,6 +52,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [showFeaturedImage, setShowFeaturedImage] = useState(true)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
 
   const handleTitleChange = (title: string) => {
@@ -141,7 +142,11 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
 
       if (result.data) {
         if (selectedCategoryIds.length > 0) {
-          bulkAssignCategoriesToContentAction(result.data.id, "post", selectedCategoryIds).catch(() => {})
+          const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, "post", selectedCategoryIds, primaryCategoryId)
+          if (!categoryResult.success) {
+            setError(categoryResult.error || "Failed to save categories")
+            return
+          }
         }
         onSuccess(result.data, continueToBuilder)
       }
@@ -297,6 +302,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               siteId={currentSite.id}
               selectedCategoryIds={selectedCategoryIds}
               onSelectionChange={setSelectedCategoryIds}
+              primaryCategoryId={primaryCategoryId}
+              onPrimaryCategoryChange={setPrimaryCategoryId}
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Assign this post to one or more categories

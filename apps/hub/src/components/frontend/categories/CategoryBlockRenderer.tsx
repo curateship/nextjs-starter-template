@@ -1,7 +1,9 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { CATEGORY_CONTENT_STYLE_RENDERERS } from "./category-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface CategoryWithBlocks {
@@ -21,6 +23,7 @@ interface CategoryWithBlocks {
 interface CategoryBlockRendererProps {
   site: SiteWithBlocks
   category: CategoryWithBlocks
+  breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
 }
@@ -60,7 +63,7 @@ function CategoryContentStyled({
   )
 }
 
-export function CategoryBlockRenderer({ site, category, isPreview = false, hideSiteChrome = false }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: CategoryBlockRendererProps) {
   const { blocks: categoryBlocks = [] } = category
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -71,6 +74,7 @@ export function CategoryBlockRenderer({ site, category, isPreview = false, hideS
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+        <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {sortedBlocks.map((block) => {
           if (block.type === 'taxonomy-content') {
             return (

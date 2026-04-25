@@ -8,6 +8,7 @@ import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface PostPageProps {
   params: Promise<{
@@ -77,6 +78,14 @@ export default async function PostPage({ params }: PostPageProps) {
       preloadedRelatedPosts = result.data
     }
   }
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'posts')
+    ? await getContentBreadcrumbItems({
+      siteId: site.id,
+      contentId: post.id,
+      contentType: 'post',
+      currentLabel: post.title,
+    })
+    : []
 
   return (
     <>
@@ -85,6 +94,7 @@ export default async function PostPage({ params }: PostPageProps) {
         site={site}
         post={postWithBlocks}
         preloadedRelatedPosts={preloadedRelatedPosts}
+        breadcrumbs={breadcrumbs}
       />
     </>
   )

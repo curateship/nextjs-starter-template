@@ -8,7 +8,6 @@ import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
-import { getPrimaryContentCategoryBreadcrumbAction } from '@/lib/actions/categories/category-relationship-actions'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
@@ -37,7 +36,6 @@ export interface DirectoryWithDetails extends Directory {
 
 interface DirectoryBuilderData {
   directory: Directory | null
-  breadcrumbTrail: Array<{ id: string; title: string; slug: string }>
   directoryOptions: DirectorySummary[]
   customBlockTemplates: DirectoryCustomBlockTemplate[]
 }
@@ -625,22 +623,9 @@ export async function getDirectoryBuilderDataAction(
       return { data: null, error: optionsResult.error }
     }
 
-    let breadcrumbTrail: Array<{ id: string; title: string; slug: string }> = []
-
-    if (directoryResult.data) {
-      const breadcrumbResult = await getPrimaryContentCategoryBreadcrumbAction(directoryResult.data.id, 'directory')
-
-      if (breadcrumbResult.error) {
-        return { data: null, error: breadcrumbResult.error }
-      }
-
-      breadcrumbTrail = breadcrumbResult.data || []
-    }
-
     return {
       data: {
         directory: directoryResult.data,
-        breadcrumbTrail,
         directoryOptions: optionsResult.data || [],
         customBlockTemplates: customBlocksResult.data || [],
       },

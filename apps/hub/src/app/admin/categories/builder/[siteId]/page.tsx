@@ -214,7 +214,9 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
             meta_description: currentCategoryData?.meta_description || undefined,
             site_id: currentCategoryData?.site_id,
             featured_image: currentCategoryData?.featured_image,
-            description: currentCategoryData?.description
+            description: currentCategoryData?.description,
+            parent_id: currentCategoryData?.parent_id,
+            updated_at: currentCategoryData?.updated_at
           }}
           site={{
             id: siteId,

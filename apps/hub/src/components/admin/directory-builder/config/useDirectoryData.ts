@@ -41,7 +41,6 @@ function loadDirectoryBuilderData(
 interface UseDirectoryDataReturn {
   site: SiteWithTheme | null
   directory: Directory | null
-  breadcrumbTrail: Array<{ id: string; title: string; slug: string }>
   directoryOptions: DirectorySummary[]
   blocks: Record<string, DirectoryEditorBlock[]>
   customBlockTemplates: DirectoryCustomBlockTemplate[]
@@ -56,7 +55,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
   const [directory, setDirectory] = useState<Directory | null>(null)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
   const [siteError, setSiteError] = useState("")
-  const [breadcrumbTrail, setBreadcrumbTrail] = useState<Array<{ id: string; title: string; slug: string }>>([])
   const [directoryOptions, setDirectoryOptions] = useState<DirectorySummary[]>([])
   const [blocks, setBlocks] = useState<Record<string, DirectoryEditorBlock[]>>({})
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
@@ -77,7 +75,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
       if (error || !data) {
         setSiteError(error || 'Failed to load data')
         setDirectory(null)
-        setBreadcrumbTrail([])
         setDirectoryOptions([])
         setBlocks({})
         setCustomBlockTemplates([])
@@ -87,20 +84,17 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
 
         if (data.directory) {
           setDirectory(data.directory)
-          setBreadcrumbTrail(data.breadcrumbTrail)
           setBlocks({
             [data.directory.slug]: parseDirectoryBlocksFromJson(data.directory.content_blocks || {}, data.customBlockTemplates),
           })
         } else {
           setDirectory(null)
-          setBreadcrumbTrail([])
           setBlocks({})
         }
       }
     } catch (error) {
       setSiteError('Failed to load data')
       setDirectory(null)
-      setBreadcrumbTrail([])
       setDirectoryOptions([])
       setBlocks({})
       setCustomBlockTemplates([])
@@ -114,7 +108,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
   const reloadBlocks = async () => {
     if (!selectedDirectory) {
       setDirectory(null)
-      setBreadcrumbTrail([])
       setBlocks({})
       return
     }
@@ -129,7 +122,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
       if (error || !data) {
         setSiteError(error || 'Failed to load data')
         setDirectory(null)
-        setBreadcrumbTrail([])
         setDirectoryOptions([])
         setBlocks({})
         setCustomBlockTemplates([])
@@ -140,20 +132,17 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
 
         if (data.directory) {
           setDirectory(data.directory)
-          setBreadcrumbTrail(data.breadcrumbTrail)
           setBlocks({
             [data.directory.slug]: parseDirectoryBlocksFromJson(data.directory.content_blocks || {}, data.customBlockTemplates),
           })
         } else {
           setDirectory(null)
-          setBreadcrumbTrail([])
           setBlocks({})
         }
       }
     } catch (error) {
       setSiteError('Failed to load data')
       setDirectory(null)
-      setBreadcrumbTrail([])
       setDirectoryOptions([])
       setBlocks({})
       setCustomBlockTemplates([])
@@ -170,7 +159,6 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
   return {
     site: currentSite,
     directory,
-    breadcrumbTrail,
     directoryOptions,
     blocks,
     customBlockTemplates,

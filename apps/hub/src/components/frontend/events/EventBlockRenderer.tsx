@@ -1,7 +1,9 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { EVENT_CONTENT_STYLE_RENDERERS } from "./event-content-styles"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface EventWithBlocks {
@@ -21,6 +23,7 @@ interface EventWithBlocks {
 interface EventBlockRendererProps {
   site: SiteWithBlocks
   event: EventWithBlocks
+  breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
 }
@@ -60,7 +63,7 @@ function EventContentStyled({
   )
 }
 
-export function EventBlockRenderer({ site, event, isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
+export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -73,6 +76,7 @@ export function EventBlockRenderer({ site, event, isPreview = false, hideSiteChr
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+        <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {/* Event Blocks */}
         {sortedBlocks.map((block) => {
           if (block.type === 'event-content') {

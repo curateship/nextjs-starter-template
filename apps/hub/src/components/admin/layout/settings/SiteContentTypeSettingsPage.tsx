@@ -9,7 +9,9 @@ import { SiteSettingsHeaderNav } from '@/components/admin/layout/settings/SiteSe
 import { ContentTypeDefaultBlocksCard } from '@/components/admin/layout/settings/ContentTypeDefaultBlocksCard'
 import { getSiteSettingsContentTypeBySlug } from '@/components/admin/layout/settings/site-settings-content-types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useSiteSwitcher } from '@/components/admin/layout/providers/site-switcher-provider'
 import {
   getSiteByIdAction,
@@ -20,6 +22,12 @@ import {
 interface SiteContentTypeSettingsPageProps {
   siteId: string
   contentTypeSlug: string
+}
+
+const BREADCRUMB_CONTENT_TYPE_KEYS = new Set(['posts', 'products', 'directories', 'events', 'categories'])
+
+function getBreadcrumbVisibility(settings: Record<string, any> | undefined, contentTypeKey: string) {
+  return settings?.breadcrumbs?.[contentTypeKey] !== false
 }
 
 export function SiteContentTypeSettingsPage({
@@ -40,6 +48,9 @@ export function SiteContentTypeSettingsPage({
       ? contextSite.settings.default_blocks[contentTypeKey]
       : []
   )
+  const [showBreadcrumbs, setShowBreadcrumbs] = useState(
+    getBreadcrumbVisibility(contextSite?.settings, contentTypeKey)
+  )
   const [loading, setLoading] = useState(!contextSite)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +64,7 @@ export function SiteContentTypeSettingsPage({
           ? contextSite.settings.default_blocks[contentTypeKey]
           : []
       )
+      setShowBreadcrumbs(getBreadcrumbVisibility(contextSite.settings, contentTypeKey))
       setLoading(false)
       return
     }
@@ -79,6 +91,7 @@ export function SiteContentTypeSettingsPage({
             ? result.data.settings.default_blocks[contentTypeKey]
             : []
         )
+        setShowBreadcrumbs(getBreadcrumbVisibility(result.data.settings, contentTypeKey))
       } catch (loadError) {
         if (!cancelled) {
           console.error('Error loading site settings:', loadError)
@@ -107,15 +120,24 @@ export function SiteContentTypeSettingsPage({
       setSaveMessage(null)
 
       const currentDefaultBlocks = { ...((site.settings?.default_blocks as Record<string, string[]> | undefined) || {}) }
+      const currentBreadcrumbs = { ...((site.settings?.breadcrumbs as Record<string, boolean> | undefined) || {}) }
+      const nextSettings: Record<string, any> = {
+        ...site.settings,
+        default_blocks: {
+          ...currentDefaultBlocks,
+          [contentTypeKey]: selectedBlocks,
+        },
+      }
+
+      if (BREADCRUMB_CONTENT_TYPE_KEYS.has(contentTypeKey)) {
+        nextSettings.breadcrumbs = {
+          ...currentBreadcrumbs,
+          [contentTypeKey]: showBreadcrumbs,
+        }
+      }
 
       const { data, error: updateError } = await updateSiteAction(siteId, {
-        settings: {
-          ...site.settings,
-          default_blocks: {
-            ...currentDefaultBlocks,
-            [contentTypeKey]: selectedBlocks,
-          },
-        },
+        settings: nextSettings,
       })
 
       if (updateError) {
@@ -204,11 +226,41 @@ export function SiteContentTypeSettingsPage({
               </CardContent>
             </Card>
           ) : (
-            <ContentTypeDefaultBlocksCard
-              contentType={contentType}
-              selectedBlocks={selectedBlocks}
-              onSelectedBlocksChange={setSelectedBlocks}
-            />
+            <div className="space-y-6">
+              {BREADCRUMB_CONTENT_TYPE_KEYS.has(contentTypeKey) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Frontend Breadcrumbs</CardTitle>
+                    <CardDescription>
+                      Show the primary category path on this content type.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="show-breadcrumbs" className="font-medium">
+                          Show breadcrumbs
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Uses the selected primary category for each item.
+                        </p>
+                      </div>
+                      <Switch
+                        id="show-breadcrumbs"
+                        checked={showBreadcrumbs}
+                        onCheckedChange={setShowBreadcrumbs}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <ContentTypeDefaultBlocksCard
+                contentType={contentType}
+                selectedBlocks={selectedBlocks}
+                onSelectedBlocksChange={setSelectedBlocks}
+              />
+            </div>
           )}
         </div>
       </AdminLayout>

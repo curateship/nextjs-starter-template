@@ -8,6 +8,7 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface ProductPageProps {
   params: Promise<{
@@ -52,6 +53,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ...toSnakeCase(product),
     blocks
   } as any
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'products')
+    ? await getContentBreadcrumbItems({
+      siteId: site.id,
+      contentId: product.id,
+      contentType: 'product',
+      currentLabel: product.title,
+    })
+    : []
 
   return (
     <>
@@ -59,6 +68,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <ProductBlockRenderer
         site={site}
         product={productWithBlocks}
+        breadcrumbs={breadcrumbs}
       />
     </>
   )

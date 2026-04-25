@@ -47,7 +47,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const {
     site,
     directory: currentDirectoryData,
-    breadcrumbTrail,
     directoryOptions,
     blocks,
     customBlockTemplates,
@@ -339,8 +338,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                 featured_image: previewDirectoryFeaturedImage,
                 description: currentDirectoryData.description || null,
                 status: currentDirectoryData.status || 'draft',
+                updated_at: currentDirectoryData.updated_at,
               } : undefined}
-              breadcrumbTrail={breadcrumbTrail}
               site={{
                 id: siteId,
                 name: site?.name || 'Directory Site',

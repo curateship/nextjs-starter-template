@@ -8,6 +8,7 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { getCategoryBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface CategoryPageProps {
   params: Promise<{
@@ -52,6 +53,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     ...toSnakeCase(category),
     blocks
   } as any
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'categories')
+    ? await getCategoryBreadcrumbItems({
+      siteId: site.id,
+      categoryId: category.id,
+    })
+    : []
 
   return (
     <>
@@ -59,6 +66,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <CategoryBlockRenderer
         site={site}
         category={categoryWithBlocks}
+        breadcrumbs={breadcrumbs}
       />
     </>
   )

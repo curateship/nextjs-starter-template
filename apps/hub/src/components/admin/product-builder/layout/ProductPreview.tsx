@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
 import {
@@ -7,7 +8,9 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface ProductBlock {
   id: string
@@ -25,6 +28,7 @@ interface Product {
   featured_image?: string | null
   description?: string | null
   is_published?: boolean
+  updated_at?: string
 }
 
 interface ProductPreviewProps {
@@ -39,6 +43,7 @@ interface ProductPreviewProps {
       footer?: any
       font_family?: string
       secondary_font_family?: string
+      breadcrumbs?: Record<string, boolean>
     }
   }
   className?: string
@@ -56,8 +61,26 @@ export function ProductPreview({
   allBlocks,
   onSelectBlock,
 }: ProductPreviewProps) {
+  const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!product?.id || product.id === "preview" || site?.settings?.breadcrumbs?.products === false) {
+      setBreadcrumbs([])
+      return
+    }
+
+    getContentBreadcrumbPreviewAction(product.id, 'product').then(({ data }) => {
+      if (!cancelled) setBreadcrumbs(data || [])
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [product?.id, product?.updated_at, site?.settings?.breadcrumbs?.products])
 
   const previewProduct: ProductWithBlocks = {
     id: product?.id || "preview",
@@ -80,7 +103,7 @@ export function ProductPreview({
       site={site}
       showSiteChrome
     >
-      <ProductBlockRenderer site={previewSite} product={previewProduct} isPreview hideSiteChrome />
+      <ProductBlockRenderer site={previewSite} product={previewProduct} breadcrumbs={breadcrumbs} isPreview hideSiteChrome />
     </BuilderPreviewShell>
   )
 }

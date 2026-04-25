@@ -13,7 +13,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
       layoutColumn: 'main',
       directoryContentStyle: 'listing-default',
       showFeaturedImage: true,
-      showBreadcrumb: true,
       hoverVideoUrl: '',
       claimButton: {
         enabled: false,

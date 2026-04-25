@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
 
 export const categories = pgTable('categories', {
@@ -26,9 +26,11 @@ export const contentCategoryRelationships = pgTable('category_relationships', {
   contentId: uuid('content_id').notNull(),
   contentType: varchar('content_type', { length: 50 }).notNull(),
   categoryId: uuid('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  isPrimary: boolean('is_primary').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('idx_ccr_unique').on(table.contentId, table.categoryId, table.contentType),
+  uniqueIndex('idx_ccr_primary_content').on(table.contentId, table.contentType).where(sql`${table.isPrimary} = true`),
   index('idx_ccr_content').on(table.contentId, table.contentType),
   index('idx_ccr_category_id').on(table.categoryId),
   index('idx_ccr_category_content').on(table.categoryId, table.contentType, table.contentId),

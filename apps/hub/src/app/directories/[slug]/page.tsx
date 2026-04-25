@@ -9,7 +9,7 @@ import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { getPrimaryContentCategoryBreadcrumbTrail } from "@/lib/actions/categories/category-relationship-actions"
+import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -50,17 +50,18 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks = []
   }
 
-  const breadcrumbTrail = await getPrimaryContentCategoryBreadcrumbTrail({
-    siteId: site.id,
-    contentId: directory.id,
-    contentType: 'directory',
-  })
-
   const directoryWithBlocks = {
     ...toSnakeCase(directory),
-    breadcrumb_trail: breadcrumbTrail,
     blocks
   } as any
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories')
+    ? await getContentBreadcrumbItems({
+      siteId: site.id,
+      contentId: directory.id,
+      contentType: 'directory',
+      currentLabel: directory.title,
+    })
+    : []
 
   const templateIds = Array.from(new Set(
     blocks
@@ -100,6 +101,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         site={site}
         directory={directoryWithBlocks}
         customBlockTemplates={customBlockTemplates}
+        breadcrumbs={breadcrumbs}
       />
     </>
   )

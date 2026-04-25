@@ -45,6 +45,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
@@ -168,7 +169,12 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       }
 
       if (selectedCategoryIds.length > 0) {
-        bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds).catch(() => {})
+        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
+        if (!categoryResult.success) {
+          setError(categoryResult.error || 'Failed to save categories')
+          setLoading(false)
+          return
+        }
       }
       onSuccess(toSnakeCase(result.data) as Directory, continueToBuilder)
     } catch (err) {
@@ -299,6 +305,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             siteId={currentSite.id}
             selectedCategoryIds={selectedCategoryIds}
             onSelectionChange={setSelectedCategoryIds}
+            primaryCategoryId={primaryCategoryId}
+            onPrimaryCategoryChange={setPrimaryCategoryId}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Assign this directory to one or more categories

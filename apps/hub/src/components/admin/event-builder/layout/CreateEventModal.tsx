@@ -37,6 +37,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
 
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({ ...prev, title }))
@@ -117,7 +118,12 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       }
 
       if (selectedCategoryIds.length > 0) {
-        bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds).catch(() => {})
+        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds, primaryCategoryId)
+        if (!categoryResult.success) {
+          setError(categoryResult.error || 'Failed to save categories')
+          setLoading(false)
+          return
+        }
       }
       onSuccess(result.data, continueToBuilder)
     } catch (err) {
@@ -239,6 +245,8 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
             siteId={currentSite.id}
             selectedCategoryIds={selectedCategoryIds}
             onSelectionChange={setSelectedCategoryIds}
+            primaryCategoryId={primaryCategoryId}
+            onPrimaryCategoryChange={setPrimaryCategoryId}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Assign this event to one or more categories

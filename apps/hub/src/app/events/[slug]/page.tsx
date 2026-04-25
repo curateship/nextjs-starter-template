@@ -8,6 +8,7 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
+import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
 interface EventPageProps {
   params: Promise<{
@@ -52,6 +53,14 @@ export default async function EventPage({ params }: EventPageProps) {
     ...toSnakeCase(event),
     blocks
   } as any
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'events')
+    ? await getContentBreadcrumbItems({
+      siteId: site.id,
+      contentId: event.id,
+      contentType: 'event',
+      currentLabel: event.title,
+    })
+    : []
 
   return (
     <>
@@ -59,6 +68,7 @@ export default async function EventPage({ params }: EventPageProps) {
       <EventBlockRenderer
         site={site}
         event={eventWithBlocks}
+        breadcrumbs={breadcrumbs}
       />
     </>
   )

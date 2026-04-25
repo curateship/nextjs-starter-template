@@ -11,18 +11,21 @@ import { ProductListingViewBlock } from "@/components/frontend/products/listing-
 import { ProductRichTextBlock } from "@/components/frontend/products/rich-text/ProductRichTextBlock"
 import { ProductVideoBlock } from "@/components/frontend/products/video/ProductVideoBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
+import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 
 interface ProductBlockRendererProps {
   site: SiteWithBlocks
   product: ProductWithBlocks
+  breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
 }
 
-export function ProductBlockRenderer({ site, product, isPreview = false, hideSiteChrome = false }: ProductBlockRendererProps) {
+export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: ProductBlockRendererProps) {
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -36,6 +39,7 @@ export function ProductBlockRenderer({ site, product, isPreview = false, hideSit
   
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+      <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {sortedBlocks.map((block) => {
         if (block.type === 'product-content' || block.type === 'product-default') {

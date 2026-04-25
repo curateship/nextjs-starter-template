@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
   buildDirectoryActionHref,
@@ -50,7 +49,6 @@ export function ListingDefaultDirectoryContentRenderer({
 
   const title = sharedContent.title || 'Directory Listing'
   const aboutHtml = sharedContent.body || sharedContent.description || ''
-  const breadcrumbTrail = sharedContent.breadcrumbTrail || []
   const contactButtons = (sharedContent.contactButtons || [])
     .map((button) => ({
       ...button,
@@ -68,24 +66,6 @@ export function ListingDefaultDirectoryContentRenderer({
   return (
     <section className="grid gap-10 py-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:items-start">
       <div className="space-y-6">
-        {sharedContent.showBreadcrumb !== false ? (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            <span>Directories</span>
-            {breadcrumbTrail.map((item) => (
-              <div key={item.id} className="flex items-center gap-2">
-                <span>/</span>
-                <Link href={`/categories/${item.slug}`} className="transition-colors hover:text-foreground">
-                  {item.title}
-                </Link>
-              </div>
-            ))}
-            <div className="flex items-center gap-2">
-              <span>/</span>
-              <span className="text-foreground">{title}</span>
-            </div>
-          </div>
-        ) : null}
-
         <div className="space-y-4">
           <h1 className="max-w-3xl text-pretty text-4xl font-semibold tracking-tight md:text-5xl">
             {title}

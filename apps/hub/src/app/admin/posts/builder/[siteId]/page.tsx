@@ -330,7 +330,8 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
                 featured_image: currentPostData.featured_image || null,
                 show_featured_image: (currentPostData.content_blocks as any)?.show_featured_image !== false,
                 excerpt: currentPostData.excerpt || null,
-                is_published: currentPostData.is_published || false
+                is_published: currentPostData.is_published || false,
+                updated_at: currentPostData.updated_at
               } : undefined}
               site={{
                 id: siteId,

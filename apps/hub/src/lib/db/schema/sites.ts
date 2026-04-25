@@ -29,6 +29,7 @@ export interface SiteSettings extends SiteSeoSettings {
     href: string
     icon?: string
   }>
+  breadcrumbs?: Record<string, boolean>
   enabled_features?: Record<string, boolean>
   feature_order?: string[]
   maintenance?: { enabled?: boolean }
