@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Globe, TrendingDown, Clock, Settings, Edit3 } from 'lucide-react'
+import { Globe, TrendingDown, Clock, Settings, Edit3, ExternalLink } from 'lucide-react'
 import { ChartLineLabel } from '@/components/admin/layout/dashboard/charts/ChartLineLabel'
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
@@ -11,6 +11,7 @@ import { SaveAsThemeButton } from '@/components/admin/layout/builder/themes/Save
 import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
 import { ChartBarVisitors } from '@/components/admin/layout/dashboard/charts/ChartBarVisitors'
 import { isExternalQuickLinkHref, normalizeSiteQuickLinks, resolveSiteQuickLinkHref } from '@/lib/utils/site-quick-links'
+import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
 interface PageProps {
   params: Promise<{
@@ -50,7 +51,7 @@ export default async function SiteDashboard({ params }: PageProps) {
     getTrafficOverTime(siteId, '7d').catch(() => []),
   ])
   const siteName = site?.name || `Site ${siteId}`
-  const siteUrl = site?.subdomain ? `${site.subdomain}.domain.com` : 'Unknown domain'
+  const siteUrl = site ? getSiteUrl(site) : null
   const siteSettings = (site?.settings ?? {}) as {
     maintenance?: { enabled?: boolean }
     quick_links?: unknown
@@ -75,6 +76,14 @@ export default async function SiteDashboard({ params }: PageProps) {
         navLinks={quickLinks}
         rightActions={
           <>
+            {siteUrl ? (
+              <Button asChild variant="outline" size="sm">
+                <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View Site
+                </a>
+              </Button>
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href={`/admin/sites/${siteId}/settings`}>
                 <Settings className="mr-2 h-4 w-4" />

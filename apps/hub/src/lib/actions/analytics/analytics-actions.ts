@@ -125,6 +125,7 @@ export async function getSiteForDashboard(siteId: string) {
       name: sites.name,
       status: sites.status,
       subdomain: sites.subdomain,
+      customDomain: sites.customDomain,
       settings: sites.settings,
     })
     .from(sites)
@@ -136,6 +137,7 @@ export async function getSiteForDashboard(siteId: string) {
     name: string
     status: string
     subdomain: string
+    customDomain: string | null
     settings: Record<string, unknown>
   } | undefined) ?? null
 }
