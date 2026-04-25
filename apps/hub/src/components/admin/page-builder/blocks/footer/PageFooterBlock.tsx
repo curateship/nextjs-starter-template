@@ -388,7 +388,7 @@ export function PageFooterBlock({
     () => (Array.isArray(content.socialLinks) ? content.socialLinks : []),
     [content.socialLinks]
   )
-  const defaultCopyrightText = `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`
+  const defaultCopyrightText = `© {year} ${siteName}. All rights reserved.`
   const copyrightText =
     typeof content.copyright === "string"
       ? content.copyright

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Globe } from 'lucide-react'
+import { BlockContainer } from '@/components/frontend/layout/block-container'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 
 const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
@@ -84,11 +85,25 @@ interface FooterBlockProps {
     name?: string;
     settings?: {
       favicon?: string;
+      site_width?: 'full' | 'custom';
+      custom_width?: number;
       [key: string]: any;
     };
   };
   links?: Array<{ text: string; url: string }>;
   socialLinks?: Array<{ platform: string; url: string }>;
+}
+
+const COPYRIGHT_YEAR_TOKEN = '{year}'
+
+function renderCopyrightText(value: string, currentYear: number, siteName: string) {
+    const template = value || `© ${COPYRIGHT_YEAR_TOKEN} ${siteName}. All rights reserved.`
+
+    if (template.includes(COPYRIGHT_YEAR_TOKEN)) {
+        return template.replaceAll(COPYRIGHT_YEAR_TOKEN, String(currentYear))
+    }
+
+    return template.replace(/^(©\s*)\d{4}/, `$1${currentYear}`)
 }
 
 export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks }: FooterBlockProps) {
@@ -116,16 +131,17 @@ export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks
     // Generate auto copyright text
     const currentYear = new Date().getFullYear()
     const siteName = site?.name || "Your Site"
-    const copyrightText =
-        typeof copyright === 'string' && copyright.trim()
-            ? copyright
-            : `© ${currentYear} ${siteName}. All rights reserved.`
+    const savedCopyright = typeof copyright === 'string' ? copyright.trim() : ''
+    const copyrightText = renderCopyrightText(savedCopyright, currentYear, siteName)
+    const siteWidth = (site?.settings?.site_width || 'custom') as 'full' | 'custom'
+    const customWidth = site?.settings?.custom_width
+
     return (
         <footer
             data-block-type="footer"
-            className="py-1 bg-background text-foreground"
+            className="bg-background text-foreground"
         >
-            <div className="mx-auto max-w-5xl px-6">
+            <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
                 <Link
                     href={getLogoUrl()}
                     aria-label="go home"
@@ -177,7 +193,7 @@ export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks
                 <span className="mt-8 pb-4 text-muted-foreground block text-center text-sm">
                     {copyrightText}
                 </span>
-            </div>
+            </BlockContainer>
         </footer>
     )
 }
