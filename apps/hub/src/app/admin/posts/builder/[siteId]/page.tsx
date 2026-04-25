@@ -26,7 +26,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [posts, setPosts] = useState<Post[]>([])
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,18 +34,26 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [localBlocks, setLocalBlocks] = useState<Record<string, any>>({})
 
   
-  // Get initial post from URL params or default to first post
-  const initialPost = searchParams.get('post') || ''
-  const [selectedPost, setSelectedPost] = useState(initialPost)
+  const postFromUrl = searchParams.get('post') || ''
+  const [selectedPost, setSelectedPost] = useState(postFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
 
-  // Redirect when site changes in sidebar
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/posts/builder/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId]) // Don't include router - it's stable
+
+    if (currentSite) {
+      const postQuery = postFromUrl ? `?post=${encodeURIComponent(postFromUrl)}` : ''
+      router.push(`/admin/posts/builder/${currentSite.id}${postQuery}`)
+    }
+  }, [currentSite, postFromUrl, router, setCurrentSite, siteId, sites])
   
   // Load site and posts data
   useEffect(() => {
@@ -71,15 +79,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         
         setPosts(postsResult.data)
         
-        // If initial post doesn't exist, redirect to first post
-        if (postsResult.data.length > 0) {
-          const postExists = postsResult.data.some((p: Post) => p.slug === initialPost)
-          if (!postExists) {
-            const firstPost = postsResult.data[0]
-            setSelectedPost(firstPost.slug)
-            router.replace(`/admin/posts/builder/${siteId}?post=${firstPost.slug}`)
-          }
-        }
       } catch (err) {
         setError('Failed to load data')
       } finally {
@@ -88,7 +87,27 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
     
     loadData()
-  }, [siteId, initialPost])
+  }, [siteId])
+
+  useEffect(() => {
+    if (posts.length === 0) return
+
+    const matchingPost = posts.find((post: Post) => post.slug === postFromUrl)
+    if (matchingPost) {
+      if (selectedPost !== matchingPost.slug) {
+        setSelectedPost(matchingPost.slug)
+      }
+      return
+    }
+
+    const firstPost = posts[0]
+    if (selectedPost !== firstPost.slug) {
+      setSelectedPost(firstPost.slug)
+    }
+    if (postFromUrl !== firstPost.slug) {
+      router.replace(`/admin/posts/builder/${siteId}?post=${encodeURIComponent(firstPost.slug)}`)
+    }
+  }, [posts, postFromUrl, router, selectedPost, siteId])
   
   
   // Current post data

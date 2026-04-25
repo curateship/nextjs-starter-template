@@ -24,7 +24,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [categories, setCategories] = useState<Category[]>([])
 
   // Get category from URL params
@@ -34,19 +34,21 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
 
-  // Sync state with URL params whenever they change
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (urlCategory && urlCategory !== selectedCategory) {
-      setSelectedCategory(urlCategory)
-    }
-  }, [urlCategory])
+    if (currentSite?.id === siteId) return
 
-  // Redirect when site changes in sidebar
-  useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/categories/builder/${currentSite.id}`)
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router])
+
+    if (currentSite) {
+      const categoryQuery = urlCategory ? `?category=${encodeURIComponent(urlCategory)}` : ''
+      router.push(`/admin/categories/builder/${currentSite.id}${categoryQuery}`)
+    }
+  }, [currentSite, router, setCurrentSite, siteId, sites, urlCategory])
 
   // Load categories
   useEffect(() => {
@@ -59,30 +61,33 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         }
         setCategories(data || [])
 
-        // If URL category parameter exists, ensure it's selected
-        if (urlCategory && data && data.length > 0) {
-          const categoryExists = data.some(c => c.slug === urlCategory)
-          if (categoryExists) {
-            setSelectedCategory(urlCategory)
-          } else {
-            // Category doesn't exist, redirect to first category
-            const firstCategory = data[0]
-            setSelectedCategory(firstCategory.slug)
-            router.replace(`/admin/categories/builder/${siteId}?category=${firstCategory.slug}`)
-          }
-        } else if (data && data.length > 0 && !urlCategory) {
-          // No category in URL, select first one
-          const firstCategory = data[0]
-          setSelectedCategory(firstCategory.slug)
-          router.replace(`/admin/categories/builder/${siteId}?category=${firstCategory.slug}`)
-        }
       } catch (err) {
         console.error('Failed to load categories:', err)
       }
     }
 
     loadCategories()
-  }, [siteId, urlCategory, router])
+  }, [siteId])
+
+  useEffect(() => {
+    if (categories.length === 0) return
+
+    const matchingCategory = categories.find((category) => category.slug === urlCategory)
+    if (matchingCategory) {
+      if (selectedCategory !== matchingCategory.slug) {
+        setSelectedCategory(matchingCategory.slug)
+      }
+      return
+    }
+
+    const firstCategory = categories[0]
+    if (selectedCategory !== firstCategory.slug) {
+      setSelectedCategory(firstCategory.slug)
+    }
+    if (urlCategory !== firstCategory.slug) {
+      router.replace(`/admin/categories/builder/${siteId}?category=${encodeURIComponent(firstCategory.slug)}`)
+    }
+  }, [categories, router, selectedCategory, siteId, urlCategory])
 
   // Custom hooks for data and state management
   const { site, blocks, blocksLoading, siteError } = useCategoryData(siteId)

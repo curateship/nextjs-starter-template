@@ -33,22 +33,30 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [events, setEvents] = useState<Event[]>([])
   const [eventsLoading, setEventsLoading] = useState(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
-  // Get initial event from URL params or default to first event
-  const initialEvent = searchParams.get('event') || ''
-  const [selectedEvent, setSelectedEvent] = useState(initialEvent)
+  const eventFromUrl = searchParams.get('event') || ''
+  const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
 
-  // Redirect when site changes in sidebar
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/events/builder/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router])
+
+    if (currentSite) {
+      const eventQuery = eventFromUrl ? `?event=${encodeURIComponent(eventFromUrl)}` : ''
+      router.push(`/admin/events/builder/${currentSite.id}${eventQuery}`)
+    }
+  }, [currentSite, eventFromUrl, router, setCurrentSite, siteId, sites])
 
   // Load events data
   useEffect(() => {
@@ -63,15 +71,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         }
         setEvents(data || [])
 
-        // If initial event doesn't exist, redirect to first event
-        if (data && data.length > 0) {
-          const eventExists = data.some(d => d.slug === initialEvent)
-          if (!eventExists) {
-            const firstEvent = data[0]
-            setSelectedEvent(firstEvent.slug)
-            router.replace(`/admin/events/builder/${siteId}?event=${firstEvent.slug}`)
-          }
-        }
       } catch (err) {
         setEventsError('Failed to load events')
       } finally {
@@ -80,7 +79,27 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
 
     loadEvents()
-  }, [siteId, initialEvent, router])
+  }, [siteId])
+
+  useEffect(() => {
+    if (events.length === 0) return
+
+    const matchingEvent = events.find((event) => event.slug === eventFromUrl)
+    if (matchingEvent) {
+      if (selectedEvent !== matchingEvent.slug) {
+        setSelectedEvent(matchingEvent.slug)
+      }
+      return
+    }
+
+    const firstEvent = events[0]
+    if (selectedEvent !== firstEvent.slug) {
+      setSelectedEvent(firstEvent.slug)
+    }
+    if (eventFromUrl !== firstEvent.slug) {
+      router.replace(`/admin/events/builder/${siteId}?event=${encodeURIComponent(firstEvent.slug)}`)
+    }
+  }, [eventFromUrl, events, router, selectedEvent, siteId])
 
   // Custom hooks for data and state management
   const { site, blocks, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)

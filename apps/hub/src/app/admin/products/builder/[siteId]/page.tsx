@@ -49,13 +49,12 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [products, setProducts] = useState<Product[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState<string | null>(null)
-  // Get initial product from URL params or default to first product
-  const initialProduct = searchParams.get('product') || ''
-  const [selectedProduct, setSelectedProduct] = useState(initialProduct)
+  const productFromUrl = searchParams.get('product') || ''
+  const [selectedProduct, setSelectedProduct] = useState(productFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -66,12 +65,21 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   })
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   
-  // Redirect when site changes in sidebar
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/products/builder/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router])
+
+    if (currentSite) {
+      const productQuery = productFromUrl ? `?product=${encodeURIComponent(productFromUrl)}` : ''
+      router.push(`/admin/products/builder/${currentSite.id}${productQuery}`)
+    }
+  }, [currentSite, productFromUrl, router, setCurrentSite, siteId, sites])
   
   // Load products data
   useEffect(() => {
@@ -86,15 +94,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         }
         setProducts(data || [])
         
-        // If initial product doesn't exist, redirect to first product
-        if (data && data.length > 0) {
-          const productExists = data.some(p => p.slug === initialProduct)
-          if (!productExists) {
-            const firstProduct = data[0]
-            setSelectedProduct(firstProduct.slug)
-            router.replace(`/admin/products/builder/${siteId}?product=${firstProduct.slug}`)
-          }
-        }
       } catch (err) {
         setProductsError('Failed to load products')
       } finally {
@@ -103,7 +102,27 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     }
     
     loadProducts()
-  }, [siteId, initialProduct, router])
+  }, [siteId])
+
+  useEffect(() => {
+    if (products.length === 0) return
+
+    const matchingProduct = products.find((product) => product.slug === productFromUrl)
+    if (matchingProduct) {
+      if (selectedProduct !== matchingProduct.slug) {
+        setSelectedProduct(matchingProduct.slug)
+      }
+      return
+    }
+
+    const firstProduct = products[0]
+    if (selectedProduct !== firstProduct.slug) {
+      setSelectedProduct(firstProduct.slug)
+    }
+    if (productFromUrl !== firstProduct.slug) {
+      router.replace(`/admin/products/builder/${siteId}?product=${encodeURIComponent(firstProduct.slug)}`)
+    }
+  }, [productFromUrl, products, router, selectedProduct, siteId])
   
   // Custom hooks for data and state management
   const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)

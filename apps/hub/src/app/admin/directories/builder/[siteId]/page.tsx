@@ -30,18 +30,27 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const directoryFromUrl = searchParams.get('directory') || ''
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
   const selectedDirectory = directoryFromUrl || ''
 
-  // Redirect when site changes in sidebar
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/directories/builder/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router])
+
+    if (currentSite) {
+      const directoryQuery = directoryFromUrl ? `?directory=${encodeURIComponent(directoryFromUrl)}` : ''
+      router.push(`/admin/directories/builder/${currentSite.id}${directoryQuery}`)
+    }
+  }, [currentSite, directoryFromUrl, router, setCurrentSite, siteId, sites])
 
   // Custom hooks for data and state management
   const {
@@ -56,8 +65,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   } = useDirectoryData(siteId, selectedDirectory)
 
   useEffect(() => {
-    if (!directoryFromUrl && directoryOptions.length > 0) {
-      router.replace(`/admin/directories/builder/${siteId}?directory=${directoryOptions[0].slug}`)
+    if (directoryOptions.length === 0) return
+
+    const directoryExists = directoryOptions.some((directory) => directory.slug === directoryFromUrl)
+    if (!directoryExists) {
+      router.replace(`/admin/directories/builder/${siteId}?directory=${encodeURIComponent(directoryOptions[0].slug)}`)
     }
   }, [directoryFromUrl, directoryOptions, router, siteId])
 

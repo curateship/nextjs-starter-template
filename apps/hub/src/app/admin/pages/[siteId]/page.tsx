@@ -27,14 +27,13 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<Page[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
   const [pagesError, setPagesError] = useState<string | null>(null)
   
-  // Get initial page from URL params or default to home
-  const initialPage = searchParams.get('page') || 'home'
-  const [selectedPage, setSelectedPage] = useState(initialPage)
+  const pageFromUrl = searchParams.get('page') || 'home'
+  const [selectedPage, setSelectedPage] = useState(pageFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -43,12 +42,21 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
 
-  // Redirect when site changes in sidebar (skip while loading or when editing a template)
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId && !siteLoading && !site?.is_template) {
-      router.push(`/admin/pages/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((candidate) => candidate.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router, siteLoading, site])
+
+    if (currentSite && !siteLoading && !site?.is_template) {
+      const pageQuery = pageFromUrl ? `?page=${encodeURIComponent(pageFromUrl)}` : ''
+      router.push(`/admin/pages/${currentSite.id}${pageQuery}`)
+    }
+  }, [currentSite, pageFromUrl, router, setCurrentSite, site, siteId, siteLoading, sites])
 
   // Load pages data
   useEffect(() => {
@@ -63,15 +71,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         }
         setPages(data || [])
 
-        // If initial page doesn't exist, redirect to homepage
-        if (data && data.length > 0) {
-          const pageExists = data.some(p => p.slug === initialPage)
-          if (!pageExists) {
-            const homepage = data.find(p => p.is_homepage) || data[0]
-            setSelectedPage(homepage.slug)
-            router.replace(`/admin/pages/${siteId}?page=${homepage.slug}`)
-          }
-        }
       } catch (err) {
         setPagesError('Failed to load pages')
       } finally {
@@ -80,7 +79,27 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
 
     loadPages()
-  }, [siteId, initialPage, router])
+  }, [siteId])
+
+  useEffect(() => {
+    if (pages.length === 0) return
+
+    const matchingPage = pages.find((page) => page.slug === pageFromUrl)
+    if (matchingPage) {
+      if (selectedPage !== matchingPage.slug) {
+        setSelectedPage(matchingPage.slug)
+      }
+      return
+    }
+
+    const homepage = pages.find((page) => page.is_homepage) || pages[0]
+    if (selectedPage !== homepage.slug) {
+      setSelectedPage(homepage.slug)
+    }
+    if (pageFromUrl !== homepage.slug) {
+      router.replace(`/admin/pages/${siteId}?page=${encodeURIComponent(homepage.slug)}`)
+    }
+  }, [pageFromUrl, pages, router, selectedPage, siteId])
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change

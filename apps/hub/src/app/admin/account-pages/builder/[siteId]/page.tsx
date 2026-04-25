@@ -27,23 +27,31 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const { siteId } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<AccountPage[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
   const [pagesError, setPagesError] = useState<string | null>(null)
 
-  // Get the initial page slug from the URL when present.
-  const initialPage = searchParams.get('page') || ''
-  const [selectedPage, setSelectedPage] = useState(initialPage)
+  const pageFromUrl = searchParams.get('page') || ''
+  const [selectedPage, setSelectedPage] = useState(pageFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
 
-  // Redirect when site changes in sidebar
+  // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
-    if (currentSite && currentSite.id !== siteId) {
-      router.push(`/admin/account-pages/builder/${currentSite.id}`)
+    if (currentSite?.id === siteId) return
+
+    const routeSite = sites.find((site) => site.id === siteId)
+    if (routeSite) {
+      setCurrentSite(routeSite)
+      return
     }
-  }, [currentSite, siteId, router])
+
+    if (currentSite) {
+      const pageQuery = pageFromUrl ? `?page=${encodeURIComponent(pageFromUrl)}` : ''
+      router.push(`/admin/account-pages/builder/${currentSite.id}${pageQuery}`)
+    }
+  }, [currentSite, pageFromUrl, router, setCurrentSite, siteId, sites])
 
   // Load account pages for the current site.
   useEffect(() => {
@@ -58,15 +66,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
         }
         setPages(data || [])
 
-        // If the requested page does not exist, fall back to the default account page.
-        if (data && data.length > 0) {
-          const pageExists = data.some(p => p.slug === initialPage)
-          if (!pageExists) {
-            const defaultPage = data.find(p => p.is_default) || data[0]
-            setSelectedPage(defaultPage.slug)
-            router.replace(`/admin/account-pages/builder/${siteId}?page=${defaultPage.slug}`)
-          }
-        }
       } catch (err) {
         setPagesError('Failed to load account pages')
       } finally {
@@ -75,7 +74,27 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     }
 
     loadPages()
-  }, [siteId, initialPage, router])
+  }, [siteId])
+
+  useEffect(() => {
+    if (pages.length === 0) return
+
+    const matchingPage = pages.find((page) => page.slug === pageFromUrl)
+    if (matchingPage) {
+      if (selectedPage !== matchingPage.slug) {
+        setSelectedPage(matchingPage.slug)
+      }
+      return
+    }
+
+    const defaultPage = pages.find((page) => page.is_default) || pages[0]
+    if (selectedPage !== defaultPage.slug) {
+      setSelectedPage(defaultPage.slug)
+    }
+    if (pageFromUrl !== defaultPage.slug) {
+      router.replace(`/admin/account-pages/builder/${siteId}?page=${encodeURIComponent(defaultPage.slug)}`)
+    }
+  }, [pageFromUrl, pages, router, selectedPage, siteId])
 
   // Custom hooks for data and state management
   const { site, pages: dataPages, blocks, configLoading, blocksLoading, configError, reloadBlocks } = useAccountPageData(siteId)
